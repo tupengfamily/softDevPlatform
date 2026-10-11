@@ -4,7 +4,7 @@
 
 ## 📋 项目简介
 
-这是一个基于 **Spring Boot 3.3 + Java 21 + JPA + H2** 的实战项目,通过一个**用户管理 REST API**,带你掌握企业级 Spring Boot 开发的所有关键知识点。
+这是一个基于 **Spring Boot 3.3 + Java 21 + JPA + SQLite** 的实战项目,即**通用学习平台**的后端:包含**后台管理系统**(JWT 鉴权 + RBAC + 操作日志 + 数据字典 + Dashboard)、**学习平台 API**(课程/进度/更新公告/反馈)与 **Java/SQL 在线沙箱**,带你掌握企业级 Spring Boot 开发的所有关键知识点。
 
 ## 🚀 技术栈
 
@@ -14,7 +14,8 @@
 | Spring Boot | 3.3.5 | 应用框架 |
 | Spring MVC | 6.x | Web 框架(REST API) |
 | Spring Data JPA | 3.x | ORM 持久化 |
-| H2 Database | 2.x | 内存数据库(无需安装) |
+| SQLite + JDBC | 3.x | 嵌入式数据库(零安装,数据文件持久化) |
+| JJWT | 0.12.x | JWT 登录鉴权 |
 | Lombok | 最新 | 简化样板代码 |
 | JUnit 5 | 5.x | 单元测试 |
 
@@ -189,13 +190,14 @@ curl -X PUT http://localhost:8080/api/users/1 \
 curl -X DELETE http://localhost:8080/api/users/1
 ```
 
-### H2 控制台
+### 数据库文件
 
-应用启动后访问 `http://localhost:8080/h2-console`:
+数据库使用 SQLite,数据文件位于 `data/` 目录(已被 `.gitignore` 忽略):
 
-- JDBC URL: `jdbc:h2:mem:testdb`
-- 用户名: `sa`
-- 密码: (空)
+- `sandbox.db` — 主数据库(用户/角色/课程/进度/公告/反馈等表)
+- 教学沙箱库 — SQL 练习用独立数据文件
+
+首次启动自动建表并写入种子数据(默认账号 `admin/admin123`、`user/user123`)。可用 SQLite 工具(如 `sqlite3`、DB Browser)直接打开查看。
 
 ## 📚 推荐学习顺序
 
@@ -227,11 +229,10 @@ curl -X DELETE http://localhost:8080/api/users/1
 ### 第 6 天+:扩展练习
 
 - 添加分页查询
-- 添加用户登录(JWT)
 - 接入 MySQL / PostgreSQL
 - 整合 Redis 缓存
 - 添加 Swagger / OpenAPI 文档
-- 部署到 Docker
+- 编写更多单元测试与集成测试
 
 ## 🛠️ 常用 Maven 命令
 

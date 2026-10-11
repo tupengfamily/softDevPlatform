@@ -1,62 +1,100 @@
-# Java 全栈学习项目 ☕
+# 通用学习平台 📚
 
-> Java 零基础学习 + Spring Boot 实战 + Vue 3 后台管理系统的**一体化学习项目**,内置**学习平台**——结构化课程 + 逐人学习进度跟踪。
+> **Java 全栈学习一体化项目**:结构化课程 + 在线代码沙箱 + 学习进度跟踪 + 后台管理系统,支持 Docker 一键部署。内置 Java 全栈学习路线(零基础 → Spring Boot 实战 → Vue 3 前端),亦可作为通用的在线学习平台扩展其他课程。
 
 ## 📋 项目简介
 
-本项目由三大模块组成:
-- **`java-learning/`** (根模块) — Java 零基础到核心的 13 章系统学习。
-- **`spring-boot-learning/`** — Spring Boot 3.3 实战: **后台管理系统**(JWT 鉴权 + RBAC + 操作日志 + 数据字典 + Dashboard + **学习平台 API**)。
-- **`frontend-learning/`** — Vue 3 + Element Plus + Pinia 后台前端,含**学习中心**页面。
+本项目由三大模块 + Docker 编排组成:
 
-## 📖 学习平台(2026-10 新增)
+- **`java-learning/`** (根模块) — Java 零基础到核心的 16 章系统学习示例代码 + `docs/` 详细学习文档。
+- **`spring-boot-learning/`** — Spring Boot 3.3 实战:后台管理系统(JWT 鉴权 + RBAC + 操作日志 + 数据字典 + Dashboard)+ **学习平台 API**(课程/进度/更新公告/反馈)+ **Java/SQL 在线沙箱**。
+- **`frontend-learning/`** — Vue 3 + Element Plus + Pinia 后台前端,含**学习中心**、课程详情、学习看板、更新日志、意见反馈等页面。
+- **`docker-compose.yml` / `DOCKER.md`** — 一条命令部署整个平台(详见 [DOCKER.md](DOCKER.md))。
 
-登录后台后,左侧菜单新增 **学习中心**:
+## 📖 学习平台
 
-- **结构化课程体系**:4 大阶段(入门基础 → 核心基础 → 进阶特性 → 综合实战)· 17 章 · 40 课时,从 Hello World 一路学到反射与综合项目实战,每课含知识讲解 + 示例代码 + 对应练习位置。
+登录后台后即可使用完整学习功能:
+
+### 结构化课程体系
+**8 大阶段 · 39 章 · 112 课时**,从 Hello World 一路学到框架生态与综合项目实战,每课含知识讲解 + 示例代码 + 对应练习位置:
+
+| 阶段 | 内容 | 章/课时 |
+|------|------|---------|
+| 1. 入门基础 | Java 入门、数据类型、控制流程、数组、方法 | 6 章 / 13 课时 |
+| 2. 核心基础 | 面向对象、字符串、集合框架、异常处理 | 4 章 / 13 课时 |
+| 3. 进阶特性 | I/O、泛型、枚举注解、Lambda/Stream、日期、反射等 | 8 章 / 20 课时 |
+| 4. 并发编程 | 多线程、线程池、JUC、锁与并发工具 | 4 章 / 14 课时 |
+| 5. 数据库与 JDBC | SQL 基础、JDBC、事务、连接池 | 6 章 / 16 课时 |
+| 6. 工程化与设计 | Maven、单元测试、设计模式、日志 | 5 章 / 19 课时 |
+| 7. Web 与框架生态 | HTTP/Servlet、Spring、Spring Boot、MyBatis | 4 章 / 12 课时 |
+| 8. 综合实战 | 综合项目实战 | 2 章 / 5 课时 |
+
+### 核心能力
+- **在线代码沙箱**:课时内可直接在线运行 Java 代码(实时编译执行、超时保护、编译错误定位)与 SQL 练习(独立教学库、一键重置),无需本地安装环境。
 - **完整学习进度跟踪**:总进度百分比、分阶段进度条、章节完成率、最近学习时间线;目录里可一键勾选"已学",课时页支持"学完,下一课"连续学习。
-- **进度按用户隔离**:复用后台 JWT 登录,每个账号都有独立的学习进度(user 和 admin 各学各的)。
-- **技术实现**:后端 `LearningChapter / LearningLesson / LessonProgress` 三张表 + `LearningController` 五个接口;课程内容由 `lessons.json` 启动时自动导入(幂等);前端 `LearningCenter.vue` + `LessonDetail.vue`。
+- **学习看板**:全员学习进度总览(管理员)与个人进度统计。
+- **进度按用户隔离**:复用后台 JWT 登录,每个账号都有独立的学习进度。
+- **更新公告与更新日志**:管理员富文本发布版本公告(登录后弹窗提醒,自动去重),更新日志按版本时间线展示,支持编辑/删除。
+- **意见反馈与系统评分**:用户可提交评分(星级)与 bug 反馈,管理员分页处理并回复,首页展示平均评分。
+- **技术实现**:后端 `LearningChapter / LearningLesson / LessonProgress` 等实体 + REST API;课程内容由 `lessons.json` 启动时自动导入(幂等);前端 `LearningCenter.vue` + `LessonDetail.vue`(Monaco 编辑器)+ `SqlConsole.vue` 等。
+
+## 🖥️ 后台管理系统
+
+- **JWT 登录鉴权** + **RBAC 角色权限**(ADMIN / USER,接口级 `@RequireAdmin` 校验)
+- **用户管理 / 角色管理**:表格操作列图标按钮 + 悬浮提示,改密、分配角色、启禁用
+- **操作日志**:AOP 自动记录关键操作;**数据字典**、**Dashboard 数据看板**
+- **系统设置 / 关于页面**;菜单分组折叠、侧栏收纳(状态持久化)
 
 ## 🚀 快速启动
 
+### 方式一:本地开发(推荐学习时使用)
+
 ```bash
 ./start-all.sh
-# 默认账号: admin / admin123 (ADMIN 角色)
-#           user  / user123  (USER 角色)
-# 浏览器: http://localhost:5173
+# 后端: http://localhost:8080   前端: http://localhost:5173
 ```
 
-详细文档见各子模块的 `README.md` 和 `docs/`。
+环境要求:JDK 21+、Maven 3.6+、Node.js 18+。停止服务:./stop-all.sh
 
-## 🚀 快速开始
-
-### 环境要求
-
-- JDK 21 或更高版本
-- Maven 3.6+
-- 推荐 IDE: IntelliJ IDEA(社区版即可)
-
-### 安装与运行
+### 方式二:Docker 一键部署
 
 ```bash
-# 1. 验证环境
-java -version    # 应显示 21.x
-mvn -version     # 应显示 3.6+
-
-# 2. 编译项目
-mvn clean compile
-
-# 3. 运行某个示例(以 HelloWorld 为例)
-mvn exec:java -Dexec.mainClass="com.learning.basics.HelloWorld"
-
-# 或在 IDEA 中直接右键运行 main 方法
-
-# 4. 运行所有单元测试
-mvn test
+docker compose up -d --build
+# 访问: http://localhost (默认 80 端口)
+# 端口被占用时: HTTP_PORT=8088 docker compose up -d --build
 ```
 
-## 📚 学习路线(共 13 章)
+SQLite 数据持久化在 `./data`,重建容器不丢数据。更多说明见 [DOCKER.md](DOCKER.md)。
+
+### 默认账号
+
+| 账号 | 密码 | 角色 |
+|------|------|------|
+| `admin` | `admin123` | 管理员(全部权限) |
+| `user` | `user123` | 普通用户(只读权限) |
+
+> 生产环境请立即修改默认密码。
+
+## 📂 项目结构
+
+```
+java/
+├── README.md                         # 本文档
+├── docker-compose.yml                # Docker 一键部署编排
+├── DOCKER.md                         # Docker 部署说明
+├── start-all.sh / stop-all.sh        # 本地一键启停
+├── java-learning/                    # 根模块: Java 基础示例(JDK21 + Maven)
+│   ├── docs/                         # 详细学习文档(基础语法/OOP/集合/异常/高级特性)
+│   └── src/main/java/com/learning/   # 16 章示例代码 + 综合项目 + 单元测试
+├── spring-boot-learning/             # 后端: Spring Boot 3.3 后台管理系统 + 学习平台 API
+│   ├── src/main/java/.../controller/ # REST 接口(用户/角色/学习/公告/反馈/沙箱…)
+│   ├── src/main/java/.../bootstrap/  # 种子数据初始化(课程/账号/公告)
+│   └── src/main/resources/data/      # lessons.json 课程数据(39 章 112 课时)
+└── frontend-learning/                # 前端: Vue3 + Element Plus + Pinia + Vite
+    └── src/views/                    # 登录/学习中心/课程详情/看板/更新日志/反馈/系统管理
+```
+
+## 📚 Java 基础学习路线(根模块,16 章 + 综合项目)
 
 | 阶段 | 章节 | 内容 | 代码位置 | 预计时长 |
 |------|------|------|----------|----------|
@@ -78,124 +116,23 @@ mvn test
 | **进阶** | 第 16 章 | 反射 | `reflection/ReflectionDemo` | 2 天 |
 | **实战** | 综合项目 | ⭐ 学生管理系统 | `project/*` | 3 天 |
 
+### 运行根模块示例
+
+```bash
+cd java-learning
+mvn clean compile
+mvn exec:java -Dexec.mainClass="com.learning.basics.HelloWorld"
+mvn test        # 运行全部单元测试(JUnit 5)
+```
+
+> 完整学习内容请在**学习中心**按课时学习(含在线运行),根模块示例代码作为配套练习材料。
+
 ## 🎯 推荐学习方式
 
-### 方法 1: 按章节顺序(推荐)
-
-每天学习 1-2 个章节,**先看代码 → 动手运行 → 修改实验 → 完成测试**。
-
-### 方法 2: 项目驱动
-
-直接进入 `project/` 目录,阅读学生管理系统,遇到不懂的概念再回头查前面的章节。
-
-## 📂 项目结构
-
-```
-java-learning/
-├── pom.xml                           # Maven 配置
-├── README.md                         # 本文档
-├── .gitignore                        # Git 忽略
-├── docs/                             # 详细学习文档
-│   ├── 01-基础语法.md
-│   ├── 02-面向对象.md
-│   ├── 03-集合框架.md
-│   ├── 04-异常处理.md
-│   └── 05-高级特性.md
-└── src/
-    ├── main/java/com/learning/
-    │   ├── basics/                   # 第 1-6 章:基础语法
-    │   ├── oop/                      # 第 7 章:面向对象
-    │   ├── string/                   # 第 8 章:字符串
-    │   ├── collection/               # 第 9 章:集合
-    │   ├── exception/                # 第 10 章:异常
-    │   ├── io/                       # 第 11 章:I/O
-    │   ├── generic/                  # 第 12 章:泛型
-    │   ├── enumannotation/           # 第 13 章:枚举与注解
-    │   ├── lambda/                   # 第 14 章:Lambda/Stream
-    │   ├── datetime/                 # 第 15 章:日期时间
-    │   ├── reflection/               # 第 16 章:反射
-    │   └── project/                  # 综合实战项目
-    │       ├── model/                # 数据模型
-    │       ├── service/              # 业务逻辑
-    │       └── Main.java             # 入口
-    └── test/java/com/learning/       # 单元测试
-        ├── basics/
-        ├── oop/
-        └── collection/
-```
-
-## ⭐ 重点章节
-
-### 第 7 章:面向对象(OOP)
-
-Java 是纯粹的面向对象语言,这一章是**最重要的**。
-
-**核心概念:**
-- 封装: 用 `private` 修饰字段,提供 `getter/setter`
-- 继承: 用 `extends`,子类复用父类代码
-- 多态: 父类引用指向子类对象,运行时动态绑定
-- 抽象类: `abstract class`,定义模板
-- 接口: `interface`,定义行为契约
-
-### 第 9 章:集合框架
-
-实际开发中最常用,需要熟练掌握。
-
-**对比表:**
-
-| 类型 | 实现 | 特点 | 场景 |
-|------|------|------|------|
-| List | ArrayList | 数组实现,查询快 | 多数场景 |
-| List | LinkedList | 链表实现,增删快 | 频繁增删 |
-| Set | HashSet | 哈希表,无序 | 去重 |
-| Set | TreeSet | 红黑树,有序 | 需要排序 |
-| Map | HashMap | 键值对,无序 | 多数场景 |
-| Map | LinkedHashMap | 保持插入顺序 | 需要有序 |
-
-### 综合项目:学生管理系统
-
-位于 `com.learning.project` 包下,综合演示:
-- ✅ 面向对象设计(分层架构 model/service)
-- ✅ 集合操作(ArrayList 存储)
-- ✅ Stream API(分组、统计、排序)
-- ✅ 异常处理(业务异常)
-- ✅ Lambda 与方法引用
-
-## 🧪 单元测试
-
-本项目使用 JUnit 5 演示单元测试的基础写法。
-
-```bash
-# 运行所有测试
-mvn test
-
-# 运行指定测试类
-mvn test -Dtest=DogTest
-
-# IDEA:点击类/方法左侧的绿色箭头
-```
-
-## 🛠️ 常用命令
-
-```bash
-# 编译
-mvn compile
-
-# 清理 + 编译
-mvn clean compile
-
-# 运行测试
-mvn test
-
-# 打包(生成 jar)
-mvn package
-
-# 运行指定类
-mvn exec:java -Dexec.mainClass="com.learning.basics.HelloWorld"
-
-# 运行某个类的某个方法
-mvn exec:java -Dexec.mainClass="com.learning.basics.DataTypes" -Dexec.args=""
-```
+1. **按课程顺序(推荐)**:登录平台 → 学习中心按 8 阶段顺序学习,每课"看讲解 → 在线运行/改代码 → 勾选已学"。
+2. **项目驱动**:直接进入 `java-learning/` 的 `project/` 阅读学生管理系统,遇到不懂的概念回头查对应章节。
+3. **敲代码**:不要只看不练,每个示例都要亲手敲一遍并尝试修改。
+4. **做项目**:学完基础后,尝试扩展学生管理系统或自拟小项目。
 
 ## 📖 推荐学习资源
 
@@ -208,29 +145,20 @@ mvn exec:java -Dexec.mainClass="com.learning.basics.DataTypes" -Dexec.args=""
 - [Oracle Java Tutorials](https://docs.oracle.com/javase/tutorial/)
 - [Baeldung](https://www.baeldung.com/)
 
-## 💡 学习建议
-
-1. **敲代码**: 不要只看不练,每个示例都要亲手敲一遍
-2. **改代码**: 试着修改示例,看看会出什么结果
-3. **写笔记**: 记录关键点和易错点
-4. **做项目**: 学完基础后,尝试自己写一个小项目
-5. **看源码**: JDK 源码是最好的学习资料
-6. **勤复习**: 每周回顾本周内容
-
 ## 🎓 学习完成后
 
 掌握了本项目的所有内容后,你可以继续学习:
-- 🔌 JDBC 与数据库编程
-- 🌱 Spring Boot 框架
+- 🔌 JDBC 与数据库编程进阶
+- 🌱 Spring Cloud 微服务
 - 🔧 Maven / Gradle 进阶
-- 🏗️ 设计模式
+- 🏗️ 设计模式深入
 - 🌐 网络编程(NIO / Netty)
-- ⚡ 并发编程(多线程、JUC)
+- ⚡ 并发编程进阶(JUC 源码)
 - 🧪 单元测试进阶(Mockito、Testcontainers)
-- 🐳 Docker 与微服务
+- 🐳 Kubernetes 与云原生
 
 ---
 
 **祝你学习顺利,早日成为 Java 大佬! 🚀**
 
-如有问题,欢迎提 Issue 讨论。
+如有问题,欢迎在「意见反馈」中提交,或提 Issue 讨论。

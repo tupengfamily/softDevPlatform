@@ -4,7 +4,7 @@
 
 ## 📋 项目简介
 
-本项目使用 **Vue 3 (Composition API) + Element Plus + Axios + Vite** 构建,与 Spring Boot 后端协作实现完整的用户管理功能。
+本项目使用 **Vue 3 (Composition API) + Element Plus + Pinia + Axios + Vite** 构建,是**通用学习平台**的前端:除用户/角色管理等后台功能外,还包含**学习中心**(课程目录 + 课时详情 + 在线 Java/SQL 沙箱)、**学习看板**、**更新日志**(富文本)与**意见反馈**等页面。
 
 ## 🚀 技术栈
 
@@ -12,6 +12,7 @@
 |------|------|------|
 | Vue | 3.5 | 渐进式 JavaScript 框架 |
 | Vue Router | 4.4 | 单页应用路由 |
+| Pinia | 2.x | 状态管理 |
 | Element Plus | 2.8 | 基于 Vue 3 的 UI 组件库 |
 | Axios | 1.7 | HTTP 客户端 |
 | Vite | 6.0 | 构建工具 |
@@ -169,12 +170,10 @@ npm run build
 3. 添加"分页"、"批量删除"功能
 
 ### 第 5 天+:扩展
-- 引入 Pinia 状态管理
+- 引入状态管理进阶用法(项目已用 Pinia)
 - 接入 VueUse 等工具库
 - 添加 Echarts 数据可视化
-- 添加用户登录 + JWT
 - 接入 Swagger 接口文档
-- Docker 容器化部署
 
 ## 🧪 推荐的调试技巧
 
@@ -202,6 +201,8 @@ npm run preview     # 预览生产构建
 - ✅ 友好的 UI(Element Plus)
 - ✅ 响应式设计
 - ✅ 加载状态、错误提示完整
+- ✅ 学习中心 + 在线 Java/SQL 沙箱(Monaco 编辑器)
+- ✅ 更新日志富文本(Quill)、意见反馈与评分
 
 ## 🎓 学完后可以做什么
 
