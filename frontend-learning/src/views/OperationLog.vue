@@ -154,12 +154,12 @@ const showDetail = (row) => { currentRow.value = row; detailVisible.value = true
 </template>
 
 <style scoped>
-.search-form { margin-bottom: 16px; padding: 16px; background: #f5f7fa; border-radius: 4px; }
+.search-form { margin-bottom: 16px; padding: 16px; background: #f5f7fa; border-radius: var(--r-s); }
 .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-.record-count { color: #909399; font-size: 13px; }
+.record-count { color: #6b7280; font-size: 13px; }
 .detail p { margin: 8px 0; color: #606266; line-height: 1.6; }
 .json-block {
-  background: #f5f7fa; padding: 12px; border-radius: 4px;
+  background: #f5f7fa; padding: 12px; border-radius: var(--r-s);
   font-size: 12px; max-height: 280px; overflow: auto; white-space: pre-wrap; word-break: break-all;
 }
 .json-block.err { background: #fef0f0; color: #f56c6c; }

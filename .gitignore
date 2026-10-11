@@ -64,3 +64,19 @@ keystore
 .run/
 hs_err_pid*.log
 replay_pid*.log
+# ============ 运行数据 / 工具工作区 ============
+# SQLite 运行时数据库(含 Docker 数据卷)
+/data/
+/spring-boot-learning/data/
+*.db
+*.db-journal
+
+# 本地工具工作区(token / 截图 / 临时脚本)
+/.workbuddy/
+
+# 遗留的过程截图与设计稿(非项目资产)
+/01-login.png
+/02-after-login.png
+/03-learning-center.png
+/04-learning-center-fixed.png
+frontend-learning/public/__design*.html

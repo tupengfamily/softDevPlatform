@@ -1,5 +1,6 @@
 package com.learning.springboot.controller;
 
+import com.learning.springboot.annotation.RequireAdmin;
 import com.learning.springboot.annotation.OperationLog;
 import com.learning.springboot.common.Result;
 import com.learning.springboot.dto.AssignRoleRequest;
@@ -32,6 +33,7 @@ import java.util.Set;
  */
 @RestController
 @RequestMapping("/api/users")
+@RequireAdmin("用户管理仅管理员可操作")
 public class UserController {
 
     @Autowired private UserService userService;
@@ -105,8 +107,9 @@ public class UserController {
     /** 查询所有(兼容旧接口) */
     @GetMapping
     public ResponseEntity<?> listAll() {
-        List<User> all = userService.listAll();
-        return Result.ok(all);
+        // 返回 UserVO 而非实体: 实体带 Role.permissions 懒加载链,直接序列化会抛 LazyInitializationException
+        List<UserVO> data = userService.listAll().stream().map(UserVO::from).toList();
+        return Result.ok(data);
     }
 
     /** 按用户名模糊查询 */

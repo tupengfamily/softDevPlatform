@@ -122,9 +122,9 @@ onMounted(async () => {
 
 <style scoped>
 .stat-card { text-align: center; }
-.stat-card .stat-label { font-size: 13px; color: #909399; }
+.stat-card .stat-label { font-size: 13px; color: #6b7280; }
 .stat-card .stat-num { font-size: 32px; font-weight: 600; color: #303133; padding: 8px 0; }
-.stat-blue   { border-top: 3px solid #409eff; }
+.stat-blue   { border-top: 3px solid #2563eb; }
 .stat-green  { border-top: 3px solid #67c23a; }
 .stat-orange { border-top: 3px solid #e6a23c; }
 .stat-purple { border-top: 3px solid #8e44ad; }
@@ -140,11 +140,11 @@ onMounted(async () => {
 .chart-value { font-size: 12px; color: #606266; margin-bottom: 6px; }
 .chart-bar {
   width: 70%; max-width: 36px; min-height: 2px;
-  background: linear-gradient(180deg, #409eff, #66b1ff); border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #2563eb, #6692f1); border-radius: var(--r-s) var(--r-s) 0 0;
   transition: height 0.4s;
 }
 .chart-bar.bar-purple {
   background: linear-gradient(180deg, #8e44ad, #b07cc6);
 }
-.chart-label { font-size: 12px; color: #909399; margin-top: 6px; }
+.chart-label { font-size: 12px; color: #6b7280; margin-top: 6px; }
 </style>

@@ -81,11 +81,14 @@ class UserServiceTest {
         req.setOldPassword("old123456");
         req.setNewPassword("new123456");
         userService.changePassword(u.getId(), req);
-        // 反向: 旧密码已不能登录(简单验证)
-        assertThrows(BusinessException.class, () -> {
-            // 这里我们直接通过 service 校验编码
-            // 由于 BCrypt 单向,只能断言不抛异常即成功
-        });
+
+        // 反向验证: 旧密码已失效,再用旧密码改应抛 BusinessException
+        ChangePasswordRequest again = new ChangePasswordRequest();
+        again.setOldPassword("old123456");
+        again.setNewPassword("another123456");
+        BusinessException ex = assertThrows(BusinessException.class,
+            () -> userService.changePassword(u.getId(), again));
+        assertTrue(ex.getMessage().contains("旧密码错误"));
     }
 
     @Test

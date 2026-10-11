@@ -1,4 +1,57 @@
-/* 全局样式 */
+/* ============================================
+   全局样式 + 设计令牌(UI 规范化)
+   色彩/圆角/字号统一走 CSS 变量,避免多套取值
+   ============================================ */
+:root {
+  /* 色彩:主色唯一 */
+  --c-primary: #2563eb;
+  --c-primary-hover: #1d4ed8;
+  --c-primary-bg: #eef3ff;
+  --c-success: #16a34a;
+  --c-success-bg: #e6f8ee;
+  --c-warning: #d97706;
+  --c-danger: #dc2626;
+
+  /* 文本灰阶(均 >= 4.5:1 对白底) */
+  --c-text-1: #1d2330;   /* 主文本 */
+  --c-text-2: #5a6478;   /* 次要文本 */
+  --c-text-3: #64748b;   /* 辅助文本 */
+  --c-text-4: #6b7280;   /* 弱化文本 */
+
+  /* 面 */
+  --c-border: #eef0f5;
+  --c-border-strong: #dde1ea;
+  --c-bg-page: #f5f7fb;
+
+  /* 圆角标度: 8 / 12 / 16 */
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 16px;
+  --r-full: 999px;
+
+  /* 字号标度: 12 / 13 / 14 / 16 / 20 / 24 */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 14px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 24px;
+}
+
+/* Element Plus 主题对齐品牌主色 */
+:root {
+  --el-color-primary: #2563eb;
+  --el-color-primary-light-3: #6692f1;
+  --el-color-primary-light-5: #92b1f5;
+  --el-color-primary-light-7: #cbd8f9;
+  --el-color-primary-light-8: #dee6fb;
+  --el-color-primary-light-9: #f1f3fd;
+  --el-color-primary-dark-2: #1d4fbc;
+  --el-text-color-primary: #1d2330;
+  --el-text-color-regular: #5a6478;
+  --el-text-color-secondary: #6b7280;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -9,8 +62,8 @@ html, body, #app {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
                'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 14px;
-  color: #333;
+  font-size: var(--fs-base);
+  color: var(--c-text-1);
   background-color: #f5f5f5;
 }
 
@@ -19,11 +72,20 @@ a {
   text-decoration: none;
 }
 
+/* 自定义可点击元素的键盘焦点可见 */
+[role="button"]:focus-visible,
+.chapter:focus-visible,
+.lesson-item:focus-visible,
+.nav-row:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+}
+
 /* 内容区通用样式 */
 .page-container {
   padding: 20px;
   background: #fff;
-  border-radius: 4px;
+  border-radius: var(--r-s);
   margin: 16px;
   min-height: calc(100vh - 96px);
   box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
@@ -36,14 +98,14 @@ a {
 }
 
 .page-title {
-  font-size: 18px;
+  font-size: var(--fs-lg);
   font-weight: 600;
-  color: #303133;
+  color: var(--c-text-1);
 }
 
 .page-subtitle {
-  font-size: 13px;
-  color: #909399;
+  font-size: var(--fs-sm);
+  color: var(--c-text-4);
   margin-top: 4px;
 }
 
@@ -57,4 +119,14 @@ a {
 .toolbar-left {
   display: flex;
   gap: 8px;
+}
+
+/* 降低动效偏好:关闭过渡与动画 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

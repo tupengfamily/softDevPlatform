@@ -55,6 +55,13 @@ spring:
 # 注意: 种子数据由 AdminBootstrap (CommandLineRunner) 全权负责,
 # 这里不配置 sql.init,避免与 JPA 初始化竞争。
 
+# ============== 沙箱数据源(教学库,独立文件) ==============
+sandbox:
+  datasource:
+    url: jdbc:sqlite:${user.dir}/data/sandbox.db
+    driver-class-name: org.sqlite.JDBC
+    pool-size: 5
+
 # ============== JWT 配置 ==============
 jwt:
   # Base64 编码的 HMAC-SHA256 密钥(>= 32 字节)

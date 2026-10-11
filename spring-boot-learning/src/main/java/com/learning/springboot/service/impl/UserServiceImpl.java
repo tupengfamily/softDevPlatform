@@ -143,7 +143,8 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public List<User> listAll() {
-        return userRepository.findAll();
+        // JOIN FETCH 预加载 roles,避免序列化阶段的懒加载异常
+        return userRepository.findAllWithRoles();
     }
 
     @Override

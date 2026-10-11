@@ -1,5 +1,6 @@
 package com.learning.springboot.controller;
 
+import com.learning.springboot.annotation.RequireAdmin;
 import com.learning.springboot.common.Result;
 import com.learning.springboot.dto.DictItemDTO;
 import com.learning.springboot.dto.DictTypeDTO;
@@ -24,6 +25,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/dicts")
+@RequireAdmin("数据字典仅管理员可操作")
 public class DictController {
 
     @Autowired private DictService dictService;

@@ -9,15 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.5.13",
-    "vue-router": "^4.4.5",
-    "element-plus": "^2.8.8",
     "@element-plus/icons-vue": "^2.3.1",
+    "@vueup/vue-quill": "^1.2.0",
     "axios": "^1.7.9",
-    "pinia": "^2.2.6"
+    "element-plus": "^2.8.8",
+    "monaco-editor": "^0.52.2",
+    "pinia": "^2.2.6",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5"
   },
   "devDependencies": {
-    "vite": "^6.0.3",
-    "@vitejs/plugin-vue": "^5.2.1"
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.3"
   }
 }

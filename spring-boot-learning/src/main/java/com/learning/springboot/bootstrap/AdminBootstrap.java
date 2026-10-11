@@ -18,6 +18,8 @@ public class AdminBootstrap implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(AdminBootstrap.class);
 
     @Autowired private DataSeedService seedService;
+    @Autowired private LearningDataSeedService learningDataSeedService;
+    @Autowired private ReleaseNoteSeedService releaseNoteSeedService;
 
     @Override
     public void run(String... args) {
@@ -25,6 +27,8 @@ public class AdminBootstrap implements CommandLineRunner {
         seedService.seedRoles();
         seedService.seedDictTypes();
         seedService.seedDefaultUsers();
+        learningDataSeedService.seedLearningData();
+        releaseNoteSeedService.seedReleaseNotes();
         log.info("✅ 管理系统初始化完成! 默认账号: admin/admin123, user/user123");
     }
 }

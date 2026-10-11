@@ -1,5 +1,6 @@
 package com.learning.springboot.controller;
 
+import com.learning.springboot.annotation.RequireAdmin;
 import com.learning.springboot.common.Result;
 import com.learning.springboot.service.DashboardService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +17,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/dashboard")
+@RequireAdmin("系统统计仅管理员可操作")
 public class DashboardController {
 
     @Autowired private DashboardService dashboardService;

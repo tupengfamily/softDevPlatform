@@ -119,14 +119,30 @@ const submitPerms = async () => {
       <el-table-column label="权限" min-width="200">
         <template #default="{ row }">
           <el-tag v-for="c in row.permissionCodes" :key="c" size="small" type="info" style="margin:2px;">{{ c }}</el-tag>
-          <span v-if="!row.permissionCodes?.length" style="color:#c0c4cc;">无</span>
+          <span v-if="!row.permissionCodes?.length" style="color:#6b7280;">无</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="130" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" type="primary" @click="openPerm(row)">分配权限</el-button>
-          <el-button size="small" type="danger" :disabled="row.code === 'ADMIN'" @click="onDelete(row)">删除</el-button>
+          <div class="ops">
+            <el-tooltip content="编辑" placement="top">
+              <el-button class="op-btn" size="small" circle @click="openEdit(row)">
+                <el-icon><Edit /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="分配权限" placement="top">
+              <el-button class="op-btn" size="small" circle type="primary" plain @click="openPerm(row)">
+                <el-icon><Key /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip :disabled="row.code !== 'ADMIN'" content="删除" placement="top">
+              <span class="op-wrap">
+                <el-button class="op-btn" size="small" circle type="danger" plain :disabled="row.code === 'ADMIN'" @click="onDelete(row)">
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+              </span>
+            </el-tooltip>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -175,3 +191,9 @@ const submitPerms = async () => {
     </el-dialog>
   </div>
 </template>
+<style scoped>
+/* 操作列: 图标按钮 + 悬浮提示 */
+.ops { display: flex; align-items: center; gap: 4px; }
+.op-btn { margin-left: 0 !important; padding: 5px !important; }
+.op-wrap { display: inline-flex; }
+</style>

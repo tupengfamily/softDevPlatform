@@ -13,6 +13,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.LinkedHashMap;
@@ -69,5 +70,17 @@ public class AdminSecurityConfig implements WebMvcConfigurer {
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
         resolvers.add(currentUserResolver);
+    }
+
+    /** 注册管理员权限拦截器(@RequireAdmin 标记的接口校验 ADMIN 角色) */
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(adminInterceptor())
+                .addPathPatterns("/api/**");
+    }
+
+    @Bean
+    public AdminInterceptor adminInterceptor() {
+        return new AdminInterceptor();
     }
 }

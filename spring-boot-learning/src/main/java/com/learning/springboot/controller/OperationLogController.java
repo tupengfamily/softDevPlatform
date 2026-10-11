@@ -1,5 +1,6 @@
 package com.learning.springboot.controller;
 
+import com.learning.springboot.annotation.RequireAdmin;
 import com.learning.springboot.common.Result;
 import com.learning.springboot.dto.OperationLogQuery;
 import com.learning.springboot.dto.PageResult;
@@ -20,6 +21,7 @@ import java.time.LocalDateTime;
  */
 @RestController
 @RequestMapping("/api/logs")
+@RequireAdmin("操作日志仅管理员可操作")
 public class OperationLogController {
 
     @Autowired private OperationLogService operationLogService;

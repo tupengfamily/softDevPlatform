@@ -27,12 +27,12 @@ const stack = [
   <div class="page-container">
     <div class="page-header">
       <div class="page-title">关于本项目</div>
-      <div class="page-subtitle">Java Web 前后端分离 + 后台管理系统</div>
+      <div class="page-subtitle">通用学习平台 · 前后端分离架构</div>
     </div>
 
     <el-card shadow="never" style="margin-bottom:20px;">
       <h3>📚 项目简介</h3>
-      <p>本项目基于 Spring Boot 3 + Vue 3 + Element Plus + SQLite 实现的<strong>完整后台管理系统</strong>。</p>
+      <p>本项目基于 Spring Boot 3 + Vue 3 + Element Plus + SQLite 实现的<strong>通用学习平台</strong>,课程内容不限于单一技术方向。</p>
       <p>覆盖了 Java 企业开发的常见环节 — JPA 三种查询、事务、连接池调优、AOP、安全、异常、缓存、字典、审计、Dashboard。</p>
     </el-card>
 
@@ -40,7 +40,7 @@ const stack = [
     <el-row :gutter="16">
       <el-col :span="8" v-for="f in features" :key="f.title" style="margin-bottom:16px;">
         <el-card shadow="hover" class="feature-card">
-          <div class="feature-icon"><el-icon size="28" color="#409eff"><component :is="f.icon" /></el-icon></div>
+          <div class="feature-icon"><el-icon size="28" color="#2563eb"><component :is="f.icon" /></el-icon></div>
           <div class="feature-title">{{ f.title }}</div>
           <div class="feature-desc">{{ f.desc }}</div>
         </el-card>
@@ -87,7 +87,7 @@ const stack = [
         └── views/               # Login/Register/Dashboard/User/Role/Dict/Log</pre>
 
     <el-alert
-      title="⚠️ 默认账号仅用于本地学习,生产环境务必修改密码并使用 HTTPS + httpOnly Cookie"
+      title="注意: 默认账号仅用于本地学习,生产环境务必修改密码并使用 HTTPS + httpOnly Cookie"
       type="warning"
       show-icon
       :closable="false"
@@ -100,9 +100,9 @@ const stack = [
 .feature-card { height: 100%; text-align: center; padding: 16px 0; }
 .feature-icon { margin-bottom: 8px; }
 .feature-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
-.feature-desc { font-size: 13px; color: #909399; line-height: 1.5; }
+.feature-desc { font-size: 13px; color: #6b7280; line-height: 1.5; }
 .code-block {
-  background: #f5f7fa; border: 1px solid #ebeef5; border-radius: 4px;
+  background: #f5f7fa; border: 1px solid #ebeef5; border-radius: var(--r-s);
   padding: 16px; font-family: 'Courier New', Courier, monospace;
   font-size: 12px; line-height: 1.6; color: #303133; overflow-x: auto;
 }

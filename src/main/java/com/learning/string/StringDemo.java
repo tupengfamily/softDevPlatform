@@ -3,6 +3,7 @@ package com.learning.string;
 /**
  * 字符串(String)
  * <p>
+ * char 是基本类型(一个 Unicode 字符), String 是引用类型(指向字符串对象)。
  * String 是不可变对象(Immutable),任何修改都会创建新对象。
  * 字符串常量池: 节省内存,JVM对相同字符串只存储一份。
  * <p>
@@ -14,11 +15,38 @@ package com.learning.string;
 public class StringDemo {
 
     public static void main(String[] args) {
+        demonstrateCharAndUnicode();
         demonstrateCreate();
         demonstrateImmutability();
         demonstrateCommonMethods();
+        demonstrateTextBlocks();
         demonstrateStringBuilder();
         demonstrateStringPool();
+    }
+
+    /**
+     * char 与 Unicode: 码元 / 码点
+     */
+    public static void demonstrateCharAndUnicode() {
+        System.out.println("===== char 与 Unicode =====");
+
+        char c1 = 'A';
+        char c2 = '中';
+        char c3 = '\u0041';               // 就是 'A'
+        System.out.println(c1 + " -> " + (int) c1);   // A -> 65
+        System.out.println(c2 + " -> " + (int) c2);   // 中 -> 20013
+        System.out.println("c3 == c1: " + (c3 == c1));
+
+        // 码元与码点: emoji 需要两个 char(代理对)
+        String emoji = "😀";
+        System.out.println("length: " + emoji.length());                 // 2
+        System.out.println("codePoints: " + emoji.codePoints().count()); // 1
+
+        // 转义字符: \" \\ \n \t 以及 反斜杠u + 4位十六进制(如 A)
+        String q = "ABC\n\u4e2d\u6587";
+        System.out.println("q.length: " + q.length()); // 6
+
+        System.out.println();
     }
 
     /**
@@ -43,18 +71,14 @@ public class StringDemo {
 
         System.out.println("s1=" + s1 + ", s2=" + s2 + ", s3=" + s3 + ", s4=" + s4);
 
-        // 字符串拼接
+        // 字符串拼接: + 自动把其他类型转字符串;编译期常量会折叠
         String result = "Hello" + " " + "World";
-        System.out.println("拼接结果: " + result);
+        int age = 25;
+        System.out.println("拼接结果: " + result + ", age is " + age);
 
-        // 文本块(Java 15+)
-        String json = """
-                {
-                  "name": "张三",
-                  "age": 25
-                }
-                """;
-        System.out.println("JSON: " + json);
+        // 注意: null 参与拼接得到 "null",不报错更隐蔽
+        String n = null;
+        System.out.println("n + \"x\" = " + n + "x");
 
         System.out.println();
     }
@@ -121,9 +145,49 @@ public class StringDemo {
         String formatted = String.format("姓名:%s, 年龄:%d, 分数:%.2f", "张三", 25, 95.5);
         System.out.println("格式化: " + formatted);
 
-        // 空判断
+        // 空判断: isEmpty 只认长度0, isBlank 连全空白也算空(Java 11+)
         System.out.println("isEmpty: " + "".isEmpty());
-        System.out.println("isBlank: " + "   ".isBlank()); // Java 11+
+        System.out.println("isBlank: " + "   ".isBlank());
+
+        // lines() 逐行处理(Java 11+)
+        "line1\nline2".lines().forEach(System.out::println);
+
+        // 实例格式化(Java 15+)
+        System.out.println("姓名:%s, 分数:%.2f".formatted("张三", 95.5));
+
+        System.out.println();
+    }
+
+    /**
+     * 文本块 Text Blocks(Java 13 预览, Java 15 转正): 多行字符串直接书写
+     */
+    public static void demonstrateTextBlocks() {
+        System.out.println("===== Text Blocks =====");
+
+        String json = """
+                {
+                  "name": "张三",
+                  "age": 25
+                }
+                """;
+        System.out.println("JSON: " + json);
+
+        // 公共缩进自动剥离;行尾 \ 续行拼成一行; \s 显式保留空格
+        String sql = """
+                SELECT * FROM users \
+                WHERE id > 100
+                """;
+        System.out.println("SQL: " + sql);
+
+        // 与 formatted 组合生成动态文本
+        int id = 1001;
+        String tpl = """
+                {
+                  "id": %d,
+                  "name": "%s"
+                }
+                """.formatted(id, "张三");
+        System.out.println("动态 JSON: " + tpl);
 
         System.out.println();
     }

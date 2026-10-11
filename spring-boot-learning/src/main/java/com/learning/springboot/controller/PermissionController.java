@@ -1,5 +1,6 @@
 package com.learning.springboot.controller;
 
+import com.learning.springboot.annotation.RequireAdmin;
 import com.learning.springboot.common.Result;
 import com.learning.springboot.dto.PermissionDTO;
 import com.learning.springboot.entity.Permission;
@@ -21,6 +22,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/permissions")
+@RequireAdmin("权限管理仅管理员可操作")
 public class PermissionController {
 
     @Autowired private PermissionService permissionService;

@@ -238,15 +238,35 @@ const submitRoles = async () => {
       <el-table-column label="创建时间" width="170">
         <template #default="{ row }">{{ row.createTime?.slice(0, 19) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="320" fixed="right">
+      <el-table-column label="操作" width="190" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" type="warning" @click="openPassword(row)">改密</el-button>
-          <el-button v-if="userStore.roles.includes('ADMIN')" size="small" type="primary" @click="openRole(row)">分配角色</el-button>
-          <el-button size="small" :type="row.status === 1 ? 'info' : 'success'" @click="toggleStatus(row)">
-            {{ row.status === 1 ? '禁用' : '启用' }}
-          </el-button>
-          <el-button size="small" type="danger" @click="onDelete(row)">删除</el-button>
+          <div class="ops">
+            <el-tooltip content="编辑" placement="top">
+              <el-button class="op-btn" size="small" circle @click="openEdit(row)">
+                <el-icon><Edit /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="修改密码" placement="top">
+              <el-button class="op-btn" size="small" circle type="warning" plain @click="openPassword(row)">
+                <el-icon><Key /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip v-if="userStore.roles.includes('ADMIN')" content="分配角色" placement="top">
+              <el-button class="op-btn" size="small" circle type="primary" plain @click="openRole(row)">
+                <el-icon><UserFilled /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip :content="row.status === 1 ? '禁用' : '启用'" placement="top">
+              <el-button class="op-btn" size="small" circle :type="row.status === 1 ? 'info' : 'success'" plain @click="toggleStatus(row)">
+                <el-icon><component :is="row.status === 1 ? 'Lock' : 'Unlock'" /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="删除" placement="top">
+              <el-button class="op-btn" size="small" circle type="danger" plain @click="onDelete(row)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </el-tooltip>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -326,7 +346,11 @@ const submitRoles = async () => {
 <style scoped>
 .search-form {
   margin-bottom: 16px; padding: 16px;
-  background: #f5f7fa; border-radius: 4px;
+  background: #f5f7fa; border-radius: var(--r-s);
 }
-.record-count { color: #909399; font-size: 13px; }
+.record-count { color: #6b7280; font-size: 13px; }
+/* 操作列: 图标按钮 + 悬浮提示 */
+.ops { display: flex; align-items: center; gap: 4px; }
+.op-btn { margin-left: 0 !important; padding: 5px !important; }
+.op-wrap { display: inline-flex; }
 </style>

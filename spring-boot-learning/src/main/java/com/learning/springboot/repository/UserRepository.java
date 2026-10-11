@@ -55,6 +55,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsernameWithRoles(@Param("username") String username);
 
     /**
+     * 查询全部用户并预加载角色
+     * <p>
+     * 用于 /api/users 兼容接口: roles 是懒加载,直接 findAll() 会在序列化时
+     * (事务已关闭)抛 LazyInitializationException,故用 JOIN FETCH 一次取全。
+     */
+    @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles ORDER BY u.id")
+    List<User> findAllWithRoles();
+
+    /**
      * 多条件动态分页查询
      */
     @Query("""

@@ -109,16 +109,16 @@ const onSubmit = async () => {
 .auth-page {
   min-height: 100vh;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
 }
 .auth-card {
   width: 460px;
-  border-radius: 8px;
+  border-radius: var(--r-s);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
 }
 .auth-header { text-align: center; margin-bottom: 24px; }
 .auth-header h2 { margin: 0 0 6px 0; color: #303133; }
-.auth-header p { margin: 0; color: #909399; font-size: 13px; }
+.auth-header p { margin: 0; color: #6b7280; font-size: 13px; }
 .auth-tip { text-align: center; margin-top: 16px; font-size: 13px; }
-.auth-tip a { color: #409eff; text-decoration: none; }
+.auth-tip a { color: #2563eb; text-decoration: none; }
 </style>

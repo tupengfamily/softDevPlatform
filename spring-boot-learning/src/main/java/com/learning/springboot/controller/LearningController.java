@@ -1,0 +1,81 @@
+package com.learning.springboot.controller;
+
+import com.learning.springboot.annotation.OperationLog;
+import com.learning.springboot.common.Result;
+import com.learning.springboot.dto.LearningVO;
+import com.learning.springboot.security.CurrentUser;
+import com.learning.springboot.service.LearningService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * 学习中心 API
+ * <p>
+ * 全部接口需要登录(JWT),进度以"当前登录用户"为维度。
+ * 任何角色(USER/ADMIN)都可以学习并跟踪自己的进度。
+ */
+@RestController
+@RequestMapping("/api/learning")
+public class LearningController {
+
+    @Autowired private LearningService learningService;
+
+    /** 课程树(阶段 -> 章节 -> 课时,含当前用户学习状态) */
+    @GetMapping("/curriculum")
+    public ResponseEntity<?> curriculum(@CurrentUser Long userId) {
+        List<LearningVO.StageVO> data = learningService.getCurriculum(userId);
+        return Result.ok(data);
+    }
+
+    /** 学习进度总览(总体 + 分阶段 + 最近学习) */
+    @GetMapping("/progress")
+    public ResponseEntity<?> progress(@CurrentUser Long userId) {
+        LearningVO.ProgressStatsVO data = learningService.getProgressStats(userId);
+        return Result.ok(data);
+    }
+
+    /**
+     * 学习看板
+     * <p>
+     * 管理员: 全员学习进度(教学管理视角);普通用户: 仅返回自己一条。
+     * 数据范围由服务端的角色判断决定,普通用户即使改请求参数也拿不到他人数据。
+     */
+    @GetMapping("/board")
+    public ResponseEntity<?> board(@CurrentUser Long userId, @CurrentUser("roles") Set<String> roles) {
+        LearningVO.BoardOverviewVO data = learningService.getBoardOverview(userId, roles);
+        return Result.ok(data);
+    }
+
+    /** 课时详情 */
+    @GetMapping("/lessons/{id}")
+    public ResponseEntity<?> lesson(@PathVariable Long id, @CurrentUser Long userId) {
+        LearningVO.LessonDetailVO data = learningService.getLessonDetail(id, userId);
+        return Result.ok(data);
+    }
+
+    /** 标记课时已学 */
+    @PostMapping("/lessons/{id}/learn")
+    @OperationLog(module = "学习中心", action = "完成课时")
+    public ResponseEntity<?> markLearned(@PathVariable Long id, @CurrentUser Long userId) {
+        learningService.markLearned(id, userId);
+        return Result.ok("已标记为完成", Map.of("lessonId", id, "learned", true));
+    }
+
+    /** 取消已学标记 */
+    @DeleteMapping("/lessons/{id}/learn")
+    @OperationLog(module = "学习中心", action = "取消课时完成")
+    public ResponseEntity<?> unmarkLearned(@PathVariable Long id, @CurrentUser Long userId) {
+        learningService.unmarkLearned(id, userId);
+        return Result.ok("已取消完成标记", Map.of("lessonId", id, "learned", false));
+    }
+}

@@ -1,5 +1,6 @@
 package com.learning.springboot.controller;
 
+import com.learning.springboot.annotation.RequireAdmin;
 import com.learning.springboot.common.Result;
 import com.learning.springboot.dto.RoleDTO;
 import com.learning.springboot.dto.RoleUpsertRequest;
@@ -25,6 +26,7 @@ import java.util.Set;
  */
 @RestController
 @RequestMapping("/api/roles")
+@RequireAdmin("角色管理仅管理员可操作")
 public class RoleController {
 
     @Autowired private RoleService roleService;

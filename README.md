@@ -1,13 +1,22 @@
 # Java 全栈学习项目 ☕
 
-> Java 零基础学习 + Spring Boot 实战 + Vue 3 后台管理系统的**一体化学习项目**。
+> Java 零基础学习 + Spring Boot 实战 + Vue 3 后台管理系统的**一体化学习项目**,内置**学习平台**——结构化课程 + 逐人学习进度跟踪。
 
 ## 📋 项目简介
 
 本项目由三大模块组成:
 - **`java-learning/`** (根模块) — Java 零基础到核心的 13 章系统学习。
-- **`spring-boot-learning/`** — Spring Boot 3.3 实战: **后台管理系统**(JWT 鉴权 + RBAC + 操作日志 + 数据字典 + Dashboard)。
-- **`frontend-learning/`** — Vue 3 + Element Plus + Pinia 后台前端。
+- **`spring-boot-learning/`** — Spring Boot 3.3 实战: **后台管理系统**(JWT 鉴权 + RBAC + 操作日志 + 数据字典 + Dashboard + **学习平台 API**)。
+- **`frontend-learning/`** — Vue 3 + Element Plus + Pinia 后台前端,含**学习中心**页面。
+
+## 📖 学习平台(2026-10 新增)
+
+登录后台后,左侧菜单新增 **学习中心**:
+
+- **结构化课程体系**:4 大阶段(入门基础 → 核心基础 → 进阶特性 → 综合实战)· 17 章 · 40 课时,从 Hello World 一路学到反射与综合项目实战,每课含知识讲解 + 示例代码 + 对应练习位置。
+- **完整学习进度跟踪**:总进度百分比、分阶段进度条、章节完成率、最近学习时间线;目录里可一键勾选"已学",课时页支持"学完,下一课"连续学习。
+- **进度按用户隔离**:复用后台 JWT 登录,每个账号都有独立的学习进度(user 和 admin 各学各的)。
+- **技术实现**:后端 `LearningChapter / LearningLesson / LessonProgress` 三张表 + `LearningController` 五个接口;课程内容由 `lessons.json` 启动时自动导入(幂等);前端 `LearningCenter.vue` + `LessonDetail.vue`。
 
 ## 🚀 快速启动
 
