@@ -54,8 +54,9 @@ const onSubmit = async () => {
   <div class="auth-page">
     <el-card class="auth-card">
       <div class="auth-header">
+        <div class="brand-mark"><el-icon :size="26" color="#fff"><Promotion /></el-icon></div>
         <h2>通用学习平台</h2>
-        <p>Spring Boot 3 + Vue 3 + Element Plus + SQLite</p>
+        <p>登录后同步你的学习进度与完成记录</p>
       </div>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" size="large" @submit.prevent="onSubmit">
         <el-form-item label="用户名" prop="username">
@@ -74,18 +75,44 @@ const onSubmit = async () => {
 </template>
 
 <style scoped>
+/* 浅色柔和渐变 + 柔光晕染(业界通用的现代登录页背景) */
 .auth-page {
   min-height: 100vh;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  position: relative; overflow: hidden;
+  background:
+    radial-gradient(900px 420px at 12% -8%, rgba(79, 70, 229, .12), transparent 62%),
+    radial-gradient(820px 420px at 108% 112%, rgba(37, 99, 235, .10), transparent 58%),
+    linear-gradient(160deg, #eef2f9 0%, #f7f9fc 48%, #edf1f8 100%);
+}
+.auth-page::before, .auth-page::after {
+  content: ''; position: absolute; border-radius: 50%;
+  filter: blur(60px); opacity: .55; pointer-events: none;
+}
+.auth-page::before {
+  width: 420px; height: 420px; left: -120px; top: -120px;
+  background: radial-gradient(circle, rgba(99, 102, 241, .28), transparent 70%);
+}
+.auth-page::after {
+  width: 480px; height: 480px; right: -160px; bottom: -180px;
+  background: radial-gradient(circle, rgba(56, 189, 248, .22), transparent 70%);
 }
 .auth-card {
   width: 420px;
-  border-radius: var(--r-s);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  position: relative; z-index: 1;
+  border: 1px solid rgba(226, 232, 240, .9);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 16px 40px rgba(15, 23, 42, .10);
 }
 .auth-header { text-align: center; margin-bottom: 24px; }
-.auth-header h2 { margin: 0 0 6px 0; color: #303133; }
+.brand-mark {
+  width: 52px; height: 52px; margin: 0 auto 14px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, .32);
+}
+.auth-header h2 { margin: 0 0 6px 0; color: #1f2937; font-size: 22px; letter-spacing: .3px; }
 .auth-header p { margin: 0; color: #6b7280; font-size: 13px; }
 .auth-tip { text-align: center; margin-top: 16px; font-size: 13px; }
 .auth-tip a { color: #2563eb; text-decoration: none; }

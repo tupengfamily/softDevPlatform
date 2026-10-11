@@ -22,4 +22,7 @@ public interface LearningLessonRepository extends JpaRepository<LearningLesson, 
 
     /** 章节下的课时详情 */
     Optional<LearningLesson> findByIdAndChapterId(Long id, Long chapterId);
+
+    /** 删除章节时级联删除课时 */
+    void deleteByChapterId(Long chapterId);
 }

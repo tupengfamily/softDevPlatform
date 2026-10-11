@@ -16,7 +16,8 @@
           "difficulty": 1,
           "durationMinutes": 15,
           "content": "## Java 语言的特点\n- 面向对象:一切皆对象,代码以类为基本单位组织\n- 跨平台:一次编译,到处运行(Write Once, Run Anywhere)\n- 强类型 + 静态编译:错误尽量在编译期暴露\n- 生态庞大:企业级后端、大数据(Scala/Kafka 基于 JVM)、安卓开发的基石\n\n## JDK / JRE / JVM 的关系\n- JVM(Java 虚拟机):负责把 .class 字节码解释/编译成机器码执行,跨平台的关键\n- JRE(Java 运行环境)= JVM + 核心类库,只能运行程序\n- JDK(开发工具包)= JRE + 编译器 javac + 调试工具等,能开发程序\n\n## 版本选择\n- LTS(长期支持)版本:8、11、17、21,生产环境首选\n- 本项目使用 Java 21:支持虚拟线程、record、sealed 等新特性",
-          "codeExample": "# 验证环境\njava -version    # 查看 JRE 版本\njavac -version  # 查看编译器版本(装了 JDK 才有)"
+          "codeExample": "public class Main {\n    public static void main(String[] args) {\n        // JDK 提供编译器(javac), JRE 提供运行环境, JVM 负责执行字节码\n        System.out.println(\"Java 版本: \" + System.getProperty(\"java.version\"));\n        System.out.println(\"虚拟机:   \" + System.getProperty(\"java.vm.name\"));\n        System.out.println(\"运行时:   \" + System.getProperty(\"java.runtime.name\"));\n        System.out.println(\"操作系统: \" + System.getProperty(\"os.name\"));\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -25,7 +26,8 @@
           "difficulty": 1,
           "durationMinutes": 20,
           "content": "## 从源码到运行的完整链路\n- 编写:.java 源文件,文件名必须与 public 类名完全一致\n- 编译:javac HelloWorld.java 生成 HelloWorld.class 字节码\n- 运行:java HelloWorld,JVM 加载并执行 main 方法\n\n## 程序结构逐行解读\n- public class HelloWorld:定义一个公开类,类是 Java 代码的最小组织单位\n- public static void main(String[] args):程序入口,JVM 从这里开始执行\n  - public:JVM 需要从外部调用,必须公开\n  - static:无需创建对象即可调用\n  - String[] args:命令行参数\n- System.out.println(...):向控制台输出一行文本\n\n## 动手实验\n- 修改输出内容再运行,观察结果\n- 故意把类名和文件名改成不一致,看编译报错\n- 给 main 加一个打印 args 的小循环,试着传入参数运行",
-          "codeExample": "public class HelloWorld {\n    public static void main(String[] args) {\n        // 尝试修改引号里的内容再运行\n        System.out.println(\"Hello, Java!\");\n    }\n}"
+          "codeExample": "// 沙箱约定: 单文件源码必须包含 public class Main 与 main 方法\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello, World!\");   // 一切从打印一行字开始\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 3,
@@ -34,7 +36,8 @@
           "difficulty": 1,
           "durationMinutes": 25,
           "content": "## Maven 解决什么问题\n- 自动下载和管理第三方依赖(不用手动拷 jar 包)\n- 统一项目结构,约定优于配置\n- 提供标准化构建流程:编译、测试、打包一条命令搞定\n\n## pom.xml 核心概念\n- 坐标三要素:groupId(组织)、artifactId(项目名)、version(版本),全球唯一定位一个构件\n- packaging:打包方式,jar(库/应用)/ war(Web 应用)/ pom(聚合父工程)\n- dependencies:声明依赖,Maven 会自动解析传递依赖并下载到本地仓库 ~/.m2\n- properties:统一定义版本号、编码等变量\n\n## 标准目录布局\n- src/main/java:源代码\n- src/main/resources:配置文件\n- src/test/java:测试代码\n- target:构建输出目录(可随时删除)\n\n## 常用命令\n- mvn clean compile:清理并编译\n- mvn test:运行单元测试\n- mvn package:打包成 jar\n- mvn exec:java -Dexec.mainClass=...:运行指定主类",
-          "codeExample": "<!-- pom.xml 最小示例 -->\n<groupId>com.learning</groupId>\n<artifactId>java-learning</artifactId>\n<version>1.0.0-SNAPSHOT</version>\n\n<dependencies>\n    <dependency>\n        <groupId>org.junit.jupiter</groupId>\n        <artifactId>junit-jupiter</artifactId>\n        <version>5.10.2</version>\n        <scope>test</scope>\n    </dependency>\n</dependencies>"
+          "codeExample": "public class Main {\n    public static void main(String[] args) {\n        // Maven 标准目录结构(约定优于配置): 放对位置,构建工具才知道去哪找代码\n        String[] layout = {\n            \"my-app/\",\n            \"  pom.xml              项目对象模型: 依赖与构建配置\",\n            \"  src/main/java        业务源码\",\n            \"  src/main/resources   配置文件(yml/properties)\",\n            \"  src/test/java        测试源码\",\n            \"  target               构建输出(自动生成,勿手改)\"\n        };\n        for (String s : layout) System.out.println(s);\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -63,7 +66,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 自动类型转换(小 -> 大,安全)\n- byte -> short -> int -> long -> float -> double\n- char -> int 也可以自动转\n- 整数与浮点运算时,结果自动提升为大类型\n\n## 强制类型转换(大 -> 小,可能丢失精度)\n- 语法:(目标类型) 值\n- 溢出:超范围的强转结果不可预测,如 (byte) 300\n- 经典题:int i = 200; byte b = (byte) i; 结果是负数(只保留低 8 位)\n\n## 包装类(Wrappers)\n- 每个基本类型都有对应包装类:int->Integer、long->Long、char->Character\n- 自动装箱:Integer a = 5; 自动拆箱:int b = a;\n- 缓存陷阱:Integer 缓存 -128~127,此范围内 == 为 true,范围外为 false\n- 结论:包装类比较一律用 equals,不用 ==\n\n## null 风险\n- Integer 若为 null,自动拆箱会抛 NullPointerException",
-          "codeExample": "Integer a = 127, b = 127;\nInteger c = 128, d = 128;\nSystem.out.println(a == b);   // true (缓存池内)\nSystem.out.println(c == d);  // false (超出缓存,新对象)\nSystem.out.println(c.equals(d)); // true (永远用 equals)"
+          "codeExample": "public class Main {\n    public static void main(String[] args) {\n        int i = 42;\n        double d = i;           // 自动拓宽: 小范围 -> 大范围\n        int back = (int) 3.99;  // 强制收缩: 截断小数,不四舍五入\n        System.out.println(\"拓宽:   int \" + i + \" -> double \" + d);\n        System.out.println(\"收缩:   3.99 -> \" + back);\n\n        Integer boxed = Integer.valueOf(100);  // 装箱: 基本类型 -> 包装对象\n        int unboxed = boxed;                   // 拆箱: 包装对象 -> 基本类型\n        System.out.println(\"装箱/拆箱: \" + boxed + \" -> \" + unboxed);\n        System.out.println(\"缓存区间 == 比较: \" + (Integer.valueOf(127) == Integer.valueOf(127)));\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -92,7 +96,8 @@
           "difficulty": 2,
           "durationMinutes": 15,
           "content": "## 按位运算\n- &(与)、|(或)、^(异或)、~(按位取反),操作的是二进制位\n- 异或特性:x ^ x = 0,x ^ 0 = x,可用来交换两个变量或找唯一数\n- 常见应用:权限标志位(RWX 组合,用 |= 授予权限,& 判断权限)\n\n## 移位运算\n- 左移 <<:相当于乘 2 的 n 次方,1 << 3 = 8\n- 右移 >>:相当于除 2,高位补符号位(负数右移还是负数)\n- 无符号右移 >>>:高位补 0,负数会变成大正数\n\n## 使用建议\n- 位运算性能好但可读性差,业务代码慎用\n- 在 JDK 源码(如 HashMap 的 hash 扰动)中大量出现,读源码必须掌握",
-          "codeExample": "int flags = 0;\nint READ = 1, WRITE = 2;          // 二进制 01, 10\nflags |= READ;                     // 授予读: 01\nSystem.out.println((flags & READ) != 0);   // true, 有读权限\nSystem.out.println((flags & WRITE) != 0);  // false\n\nSystem.out.println(1 << 10);      // 1024\nSystem.out.println(-8 >> 1);      // -4 (保持符号)\nSystem.out.println(-8 >>> 1);     // 2147483644 (补 0)"
+          "codeExample": "public class Main {\n    public static void main(String[] args) {\n        int a = 0b1010, b = 0b1100;   // 二进制字面量: 1010 / 1100\n        System.out.println(\"a & b = \" + Integer.toBinaryString(a & b));  // 1000\n        System.out.println(\"a | b = \" + Integer.toBinaryString(a | b));  // 1110\n        System.out.println(\"a ^ b = \" + Integer.toBinaryString(a ^ b));  // 0110\n        System.out.println(\"~a    = \" + Integer.toBinaryString(~a));\n\n        System.out.println(\"1 << 4     = \" + (1 << 4));      // 16  相当于 *2^4\n        System.out.println(\"16 >> 2    = \" + (16 >> 2));     // 4   相当于 /2^2\n        System.out.println(\"-16 >>> 28 = \" + (-16 >>> 28));  // 无符号右移,高位补 0\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -150,7 +155,8 @@
           "difficulty": 1,
           "durationMinutes": 15,
           "content": "## 二维数组\n- 本质:一维数组,每个元素又是一个一维数组(所以每行长度可以不同)\n- 定义:int[][] m = new int[3][4]; 或直接初始化 {{1,2},{3,4,5}}\n- 遍历用嵌套 for,m[i].length 取每行长度\n\n## Arrays 工具类(java.util)\n- toString:打印数组内容(直接 print 数组会输出地址)\n- sort:排序(默认升序);fill:填充;copyOf/copyOfRange:扩容拷贝\n- equals:内容比较(== 是地址比较)\n- binarySearch:二分查找(必须先有序)\n- asList:转 List,注意返回定长列表且存的是包装类时才有对象语义",
-          "codeExample": "int[][] m = {{1, 2}, {3, 4, 5}};\nfor (int i = 0; i < m.length; i++) {\n    for (int j = 0; j < m[i].length; j++) {\n        System.out.print(m[i][j] + \" \");\n    }\n}\n\nint[] a = {5, 2, 9};\nArrays.sort(a);\nSystem.out.println(Arrays.toString(a));  // [2, 5, 9]"
+          "codeExample": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[][] grid = {{1, 2, 3}, {4, 5, 6}};\n        System.out.println(\"grid[1][2] = \" + grid[1][2]);   // 6\n        for (int[] row : grid) {\n            System.out.println(Arrays.toString(row));\n        }\n\n        int[] arr = {5, 2, 9, 1};\n        Arrays.sort(arr);\n        System.out.println(\"排序后: \" + Arrays.toString(arr));\n        System.out.println(\"二分查找 9 的下标: \" + Arrays.binarySearch(arr, 9));\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -179,7 +185,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## 递归\n- 方法自己调用自己,必须有出口(基准情形),否则 StackOverflowError\n- 三要素:出口条件、递推公式、参数向出口收敛\n- 经典:阶乘、斐波那契(注意重复计算,可用数组/记忆化优化)\n- 尾递归在 JVM 中没有优化,深递归慎用,可改循环\n\n## 值传递(必考)\n- Java 只有值传递:传基本类型拷贝值,传对象拷贝引用的值(地址副本)\n- 结论:方法内无法让实参本身指向新对象;但可以通过引用修改对象内容\n- 经典题:swap 交换两个 Integer 无效,因为改不了调用方的引用\n\n## 判断口诀\n- 想在方法里 new 一个新对象赋给参数?调用方看不到\n- 想通过参数改对象的字段内容?调用方能看到",
-          "codeExample": "static void change(StringBuilder sb, int x) {\n    sb.append(\"-changed\");   // 生效: 通过引用改内容\n    sb = new StringBuilder();  // 不生效: 只改了副本\n    x = 100;                    // 不生效: 基本类型副本\n}\n\nStringBuilder bu = new StringBuilder(\"hi\");\nint n = 1;\nchange(bu, n);\nSystem.out.println(bu + \", \" + n);  // hi-changed, 1"
+          "codeExample": "public class Main {\n    // 递归: 阶乘\n    static long fact(int n) {\n        return n <= 1 ? 1 : n * fact(n - 1);\n    }\n\n    static void addOne(int x) { x += 1; }      // 基本类型: 只改副本\n\n    static void mutate(int[] a) { a[0] = 2; }  // 数组是引用: 改的是同一对象\n\n    public static void main(String[] args) {\n        System.out.println(\"5! = \" + fact(5));\n        int n = 10;\n        addOne(n);\n        System.out.println(\"值传递后 n = \" + n);          // 仍是 10\n        int[] arr = {1};\n        mutate(arr);\n        System.out.println(\"引用传递后 arr[0] = \" + arr[0]); // 变成 2\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -199,7 +206,8 @@
           "difficulty": 2,
           "durationMinutes": 30,
           "content": "## 类与对象\n- 类是图纸(模板),对象是根据图纸创建的实例(堆内存中)\n- 成员:字段(属性)+ 方法(行为)\n- 一个类可以 new 无数个对象,彼此独立\n\n## 封装(Encapsulation)\n- 字段私有 private,对外提供公有 getter/setter\n- 好处:可以在 setter 中做校验(如年龄不能为负),内部实现可自由修改\n- 这是一切框架 POJO/Entity 的标准写法\n\n## 构造器\n- 与类同名、无返回值;不写则编译器给默认无参构造\n- 一旦手写了带参构造,默认无参就没了(注意保留)\n- 构造器可用 this(...) 调用同类其他构造器,必须在第一行\n\n## this\n- 指当前对象,常用于区分成员变量和参数(setter 里 this.name = name)",
-          "codeExample": "public class Student {\n    private String name;\n    private int age;\n\n    public Student(String name, int age) {\n        this.name = name;\n        setAge(age);\n    }\n\n    public void setAge(int age) {\n        if (age < 0 || age > 150) throw new IllegalArgumentException(\"年龄非法\");\n        this.age = age;\n    }\n\n    @Override\n    public String toString() { return \"Student{name=\" + name + \", age=\" + age + \"}\"; }\n\n    public static void main(String[] args) {\n        Student s = new Student(\"张三\", 20);\n        System.out.println(s);\n        // 试着把年龄改成 -1 看异常\n        // new Student(\"李四\", -1);\n    }\n}"
+          "codeExample": "class Student {\n    private String name;\n    private int score;\n\n    Student(String name, int score) {\n        this.name = name;\n        setScore(score);          // 统一走校验入口\n    }\n\n    public String getName() { return name; }\n    public int getScore() { return score; }\n\n    public void setScore(int score) {\n        if (score < 0 || score > 100) {\n            throw new IllegalArgumentException(\"分数非法: \" + score);\n        }\n        this.score = score;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Student s = new Student(\"张三\", 95);\n        System.out.println(s.getName() + \" -> \" + s.getScore());\n        try {\n            s.setScore(120);\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"封装的校验生效: \" + e.getMessage());\n        }\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -208,7 +216,8 @@
           "difficulty": 2,
           "durationMinutes": 30,
           "content": "## 继承(Inheritance)\n- extends:子类自动获得父类的字段和方法(代码复用)\n- Java 单继承:一个类只能有一个直接父类(可用组合弥补)\n- 所有类最终都继承 Object\n\n## 方法重写(Override)规则\n- 子类方法签名必须与父类完全相同,访问权限只能扩大不能缩小\n- 异常只能抛出更小的异常\n- 加 @Override 注解:让编译器帮你检查拼写,强烈建议总是加\n- 重写 vs 重载:重写是父子类间,重载是同类中\n\n## super\n- super.field / super.method():访问父类被遮蔽的成员\n- super(...):调用父类构造器,必须在子类构造器第一行\n- 子类构造器默认第一行隐含 super(),若父类没有无参构造则必须显式调用\n\n## final\n- final 类不能被继承(如 String),final 方法不能被重写",
-          "codeExample": "class Animal {\n    protected String name;\n    public Animal(String name) { this.name = name; }\n    public void makeSound() { System.out.println(name + \": ...\"); }\n}\n\nclass Dog extends Animal {\n    public Dog(String name) { super(name); }      // 必须先构造父类\n    @Override\n    public void makeSound() {\n        super.makeSound();                          // 可选择复用父类逻辑\n        System.out.println(name + \": 汪汪\");\n    }\n}"
+          "codeExample": "class Animal {\n    String name;\n    Animal(String name) { this.name = name; }\n\n    String speak() { return name + \" 发出声音\"; }\n}\n\nclass Dog extends Animal {\n    Dog(String name) { super(name); }\n\n    @Override\n    String speak() { return name + \" 汪汪叫\"; }   // 重写父类行为\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Animal a = new Animal(\"动物\");\n        Animal d = new Dog(\"旺财\");\n        System.out.println(a.speak());\n        System.out.println(d.speak());   // 调用的是 Dog 重写后的方法\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 3,
@@ -217,7 +226,8 @@
           "difficulty": 3,
           "durationMinutes": 35,
           "content": "## 多态(Polymorphism)\n- 父类引用指向子类对象:Animal a = new Dog(...);\n- 编译看左边,运行看右边:调用的方法在运行时由真实对象类型决定\n- 前提:继承 + 重写 + 向上转型\n\n## 能调什么\n- 只能调用父类中声明过的方法(编译期检查)\n- 子类新增的方法,用父类引用调不到,需要强转回去\n\n## instanceof 与模式匹配\n- 判断真实类型:a instanceof Dog 才能强转,否则 ClassCastException\n- JDK 16+ 模式匹配:if (a instanceof Dog d) { d.bark(); } 一步到位\n\n## 为什么需要多态\n- 方法参数写父类类型,可以接收一切子类(如 List Animal 收容所有动物)\n- 新增子类不需要改原有代码 —— 开闭原则,框架设计的基石\n\n## 转型\n- 向上转型自动,安全;向下转型必须 instanceof 判断",
-          "codeExample": "Animal a = new Dog(\"旺财\");\na.makeSound();          // 输出狗叫(运行时看真实类型)\n// a.bark();            // 编译错: Animal 没有 bark\n\nif (a instanceof Dog d) {\n    d.bark();           // 模式匹配,安全强转\n}\n\nAnimal[] zoo = { new Dog(\"1号\"), new Cat(\"2号\") };\nfor (Animal an : zoo) an.makeSound();   // 各叫各的"
+          "codeExample": "abstract class Shape {\n    abstract double area();     // 抽象方法: 约定\"每个形状都会算面积\"\n}\n\nclass Circle extends Shape {\n    double r;\n    Circle(double r) { this.r = r; }\n    @Override double area() { return Math.PI * r * r; }\n}\n\nclass Rect extends Shape {\n    double w, h;\n    Rect(double w, double h) { this.w = w; this.h = h; }\n    @Override double area() { return w * h; }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        // 父类引用指向子类对象 -> 运行期动态绑定到实际类型的实现\n        Shape[] shapes = {new Circle(2), new Rect(3, 4)};\n        for (Shape s : shapes) {\n            System.out.println(s.getClass().getSimpleName()\n                + \" 面积 = \" + String.format(\"%.2f\", s.area()));\n        }\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 4,
@@ -226,7 +236,8 @@
           "difficulty": 3,
           "durationMinutes": 35,
           "content": "## 抽象类(半成品模板)\n- abstract class:可包含字段、构造器、具体方法和抽象方法\n- 抽象方法只有声明没有实现,子类必须重写(除非子类也是抽象类)\n- 不能 new 抽象类,但可以有构造器(给子类 super 用)\n- 适合:同一族类的公共骨架(如 AbstractList)\n\n## 接口(行为契约)\n- interface:方法默认 public abstract,JDK 8+ 可有 default/static 方法\n- 字段默认 public static final(常量)\n- 类可implements 多个接口,弥补单继承\n- 适合:定义能力/行为(Comparable、Flyable、Swimmable)\n\n## 如何选择\n- is-a 关系且需要公共状态 -> 抽象类\ncan-do 能力 -> 接口\n- 优先定义接口,再提供抽象骨架类(如 List -> AbstractList)\n\n## 面向接口编程\n- 变量声明为接口类型:List list = new ArrayList<>();\n- 实现可替换而不影响调用方 —— 这是本项目后台 Service/Repository 分层的依据",
-          "codeExample": "interface Flyable { void fly(); }\ninterface Swimmable { default void swim() { System.out.println(\"默认漂浮\"); } }\n\nabstract class Bird {\n    abstract void tweet();\n    void sleep() { System.out.println(\"睡觉\"); }   // 公共实现\n}\n\nclass Duck extends Bird implements Flyable, Swimmable {\n    void tweet() { System.out.println(\"嘎嘎\"); }\n    public void fly() { System.out.println(\"扑腾着飞\"); }\n}"
+          "codeExample": "interface Flyable {\n    void fly();                 // 接口: 只声明能力,不关心怎么实现\n}\n\nabstract class Bird implements Flyable {\n    String name;\n    Bird(String name) { this.name = name; }\n    abstract String sing();     // 抽象类: 共享状态 + 抽象行为\n}\n\nclass Sparrow extends Bird {\n    Sparrow(String name) { super(name); }\n    @Override String sing() { return name + \" 叽叽喳\"; }\n    @Override public void fly() { System.out.println(name + \" 扑棱翅膀飞\"); }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Bird b = new Sparrow(\"麻雀\");\n        System.out.println(b.sing());\n        b.fly();\n        Flyable f = b;          // 同一对象,用接口视角使用\n        f.fly();\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -302,7 +313,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## HashSet\n- 底层就是 HashMap(key 存元素,value 占位)\n- 无序,增删查 O(1)\n- 去重依据:先比 hash,再用 equals;两者都要重写才能正确去重\n\n## equals / hashCode 契约(必考)\n- equals 相等 -> hashCode 必须相等;反之不要求\n- 只重写 equals 不重写 hashCode,HashSet 会存进重复对象\n- IDE 一键生成两者,或用 record(JDK 14+)自动生成\n\n## LinkedHashSet\n- 在 HashSet 基础上用链表维护插入顺序,遍历时按放入顺序输出\n- 代价:每个节点多两个指针\n\n## TreeSet\n- 底层红黑树,天然排序(升序遍历),增删查 O(log n)\n- 元素必须可比较:实现 Comparable,或构造时传 Comparator\n- 去重依据是比较结果为 0,与 equals/hashCode 无关!\n\n## 选型\n- 去重用 HashSet;需要保持插入顺序用 LinkedHashSet;需要排序用 TreeSet",
-          "codeExample": "Set<String> set = new HashSet<>();\nset.add(\"a\");\nset.add(\"a\");                 // 重复插入,返回 false,不会被加入\nSystem.out.println(set.size());  // 1\n\n// TreeSet 排序\nSet<Integer> sorted = new TreeSet<>(Comparator.reverseOrder());\nsorted.addAll(List.of(3, 1, 2));\nSystem.out.println(sorted);       // [3, 2, 1]"
+          "codeExample": "import java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Set;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) {\n        Set<String> hash = new HashSet<>(Arrays.asList(\"b\", \"a\", \"c\", \"a\"));\n        System.out.println(\"HashSet 去重且不保证顺序: \" + hash);\n\n        Set<String> tree = new TreeSet<>(Arrays.asList(\"b\", \"a\", \"c\"));\n        System.out.println(\"TreeSet 自动排序: \" + tree);\n\n        System.out.println(\"contains(a): \" + hash.contains(\"a\"));\n        hash.remove(\"a\");\n        System.out.println(\"remove(a) 后: \" + hash);\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 3,
@@ -311,7 +323,8 @@
           "difficulty": 3,
           "durationMinutes": 30,
           "content": "## HashMap 核心概念\n- 数组 + 链表/红黑树(JDK 8+ 链表长度到 8 且容量够 64 转红黑树)\n- put 时按 hash 定位桶,hash 冲突拉链;默认容量 16,负载因子 0.75,超限 2 倍扩容\n- key 的 hash 由 hashCode 高位扰动得到,减少冲突\n- 允许 null key(放 0 号桶)\n\n## 常用 API\n- put/get/remove/containsKey/containsValue/size\n- getOrDefault(k, 默认值):统计计数利器\n- computeIfAbsent(k, k -> new ArrayList<>()).add(v):构建 Map<K, List<V>>\n- merge(k, 1, Integer::sum):一行实现计数器\n\n## 三种遍历\n- entrySet():同时要 key 和 value 时首选\n- keySet() + get:性能差(每次 get 都要查桶)\n- values():只要 value 时用\n\n## 其他实现\n- LinkedHashMap:保持插入顺序/可做 LRU;TreeMap:按 key 排序;Hashtable 过时勿用\n- key 若是自定义类,同样要重写 equals/hashCode,否则查不到",
-          "codeExample": "Map<String, Integer> counter = new HashMap<>();\nfor (String w : List.of(\"a\", \"b\", \"a\", \"c\", \"a\")) {\n    counter.merge(w, 1, Integer::sum);      // 一行计数\n}\nSystem.out.println(counter);               // {a=3, b=1, c=1}\n\nfor (Map.Entry<String, Integer> e : counter.entrySet()) {\n    System.out.println(e.getKey() + \" -> \" + e.getValue());\n}"
+          "codeExample": "import java.util.HashMap;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, Integer> scores = new HashMap<>();\n        scores.put(\"张三\", 90);\n        scores.put(\"李四\", 85);\n        scores.put(\"王五\", 92);\n        scores.put(\"张三\", 95);          // key 重复 -> 覆盖旧值\n\n        System.out.println(\"大小: \" + scores.size());   // 3,不是 4\n        for (Map.Entry<String, Integer> e : scores.entrySet()) {\n            System.out.println(e.getKey() + \" -> \" + e.getValue());\n        }\n        System.out.println(\"getOrDefault: \" + scores.getOrDefault(\"赵六\", -1));\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -331,7 +344,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## 异常继承树\n- Throwable\n  - Error:严重错误,程序不该捕获(StackOverflowError 等)\n  - Exception\n    - 受检异常(Checked):IOException、SQLException —— 编译器强制处理\n    - RuntimeException(非受检):NPE、越界、算术异常等 —— 多为代码写错\n\n## try-catch 执行顺序\n- 从上往下匹配 catch,子类异常必须写在父类前面,否则编译错\n- 匹配到就不再走其他 catch\n- finally 无论如何都执行(除非 System.exit),常用于关资源\n- 执行顺序:try 正常 -> finally;try 抛异常 -> catch -> finally\n\n## 多 catch\n- JDK 7+ 可写 catch (IOException | SQLException e) 合并捕获\n\n## try-with-resources(推荐)\n- try (var in = new FileInputStream(f)) { ... } 自动关闭,实现 AutoCloseable 即可\n- 彻底替代 finally 里 close 的老写法,还能自动处理关闭时的异常抑制",
-          "codeExample": "try {\n    int[] a = new int[3];\n    System.out.println(a[5]);\n} catch (ArrayIndexOutOfBoundsException e) {\n    System.out.println(\"越界: \" + e.getMessage());\n} catch (Exception e) {          // 父类兜底,必须放后面\n    System.out.println(\"其他异常\");\n} finally {\n    System.out.println(\"总是执行\");\n}"
+          "codeExample": "public class Main {\n    public static void main(String[] args) {\n        try {\n            int[] arr = {1, 2, 3};\n            System.out.println(arr[10]);          // 故意越界\n        } catch (ArrayIndexOutOfBoundsException e) {\n            System.out.println(\"捕获运行时异常: \" + e);\n        } finally {\n            System.out.println(\"finally 总会执行(资源清理放这里)\");\n        }\n        System.out.println(\"异常处理后程序继续执行\");\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -340,7 +354,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## throws 与 throw\n- throw:方法内部主动抛出一个异常对象(动作)\n- throws:方法签名上声明可能抛出的异常类型(告知调用者)\n- 受检异常要么 catch 要么 throws,二选一;RuntimeException 不强制\n\n## 自定义异常(业务必备)\n- 继承 RuntimeException(全局异常处理器统一接住)或 Exception\n- 命名:xxxException,携带业务码和消息字段\n- 本项目后台就有 BusinessException 思路的统一响应:code + message\n\n## 最佳实践\n- 早抛出晚捕获:校验失败立即抛,在合适的统一层处理\n- 不要 catch (Exception e) {} 吞异常(排查问题灾难)\n- 日志与抛出二选一:记录日志后再抛出会重复打两份\n- 不要用异常控制正常流程(性能 + 可读性双输)\n- 异常链:throw new BizException(\"下单失败\", e) 保留根因",
-          "codeExample": "public class BizException extends RuntimeException {\n    private final int code;\n    public BizException(int code, String message) {\n        super(message);\n        this.code = code;\n    }\n    public int getCode() { return code; }\n}\n\npublic void withdraw(double amount) {\n    if (amount <= 0) throw new BizException(400, \"金额必须大于 0\");\n    if (amount > balance) throw new BizException(4002, \"余额不足\");\n    balance -= amount;\n}"
+          "codeExample": "class InsufficientBalanceException extends RuntimeException {\n    InsufficientBalanceException(double need, double have) {\n        super(\"余额不足: 需要 \" + need + \", 仅有 \" + have);\n    }\n}\n\nclass Account {\n    private double balance = 100;\n\n    void withdraw(double amount) {\n        if (amount > balance) {\n            throw new InsufficientBalanceException(amount, balance);  // throw 抛出\n        }\n        balance -= amount;\n        System.out.println(\"取款 \" + amount + \" 成功, 余额 \" + balance);\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        Account acc = new Account();\n        acc.withdraw(30);\n        try {\n            acc.withdraw(100);\n        } catch (InsufficientBalanceException e) {\n            System.out.println(\"业务异常: \" + e.getMessage());\n        }\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -360,7 +375,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## java.io.File\n- 表示路径或文件(不一定真实存在)\n- exists / isFile / isDirectory / mkdirs / delete / listFiles\n- 跨平台路径分隔符:File.separator\n\n## 流的分类\n- 方向:输入流 / 输出流(站在程序视角)\n- 单位:字节流(InputStream/OutputStream)适合一切文件;字符流适合文本\n\n## 字节流读写骨架\n- read() 返回 -1 表示结束,read(byte[]) 返回实际读取长度\n- 标准写法:int len; while ((len = in.read(buf)) != -1) { out.write(buf, 0, len); }\n\n## 为什么用 NIO 的 Files 更好\n- JDK 7+ java.nio.file.Files 一行搞定:Files.readAllBytes / Files.writeString\n- 新代码优先用 Files + Path,老流用于理解原理与处理大文件\n\n## 注意\n- 流用完必须关闭(用 try-with-resources)\n- 中文文本不要用字节流直接读(乱码),要用字符流并指定编码",
-          "codeExample": "try (FileInputStream in = new FileInputStream(\"a.txt\");\n     FileOutputStream out = new FileOutputStream(\"b.txt\")) {\n    byte[] buf = new byte[1024];\n    int len;\n    while ((len = in.read(buf)) != -1) {\n        out.write(buf, 0, len);\n    }\n}\n\n// 新式一行读取\nString content = Files.readString(Path.of(\"a.txt\"), StandardCharsets.UTF_8);"
+          "codeExample": "import java.io.FileInputStream;\nimport java.io.FileOutputStream;\nimport java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        byte[] data = {104, 101, 108, 108, 111};   // \"hello\"\n\n        try (FileOutputStream out = new FileOutputStream(\"demo.bin\")) {\n            out.write(data);                       // 字节流: 按字节写出\n        }\n        try (FileInputStream in = new FileInputStream(\"demo.bin\")) {\n            byte[] buf = in.readAllBytes();        // 字节流: 按字节读回\n            System.out.println(\"读回字节: \" + Arrays.toString(buf));\n            System.out.println(\"内容: \" + new String(buf));\n        }\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -369,7 +385,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## 字符流\n- Reader / Writer,按字符处理文本,要显式指定编码(UTF-8)\n- InputStreamReader 是字节流到字符流的桥梁(指定编码)\n\n## 缓冲流(装饰器模式)\n- BufferedInputStream / BufferedReader 包装基础流,内部有缓冲区减少系统调用\n- BufferedReader.readLine() 按行读,常配合 split 解析 CSV\n- BufferedWriter.newLine() 跨平台换行;PrintWriter.println 方便输出\n\n## try-with-resources 回顾\n- 多个流分号分隔,自动按逆序关闭\n\n## 序列化\n- Serializable 标记接口,ObjectOutputStream.writeObject 保存对象图\n- serialVersionUID 保持一致,否则升级类后反序列化失败\n- transient 字段不参与序列化(如密码)\n- 实际开发更多用 JSON(Jackson)替代 Java 原生序列化",
-          "codeExample": "try (BufferedReader br = new BufferedReader(\n        new InputStreamReader(new FileInputStream(\"a.txt\"), StandardCharsets.UTF_8))) {\n    String line;\n    while ((line = br.readLine()) != null) {\n        System.out.println(line);\n    }\n}\n\ntry (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(\"user.dat\"))) {\n    oos.writeObject(new Student(\"Tom\", 20));   // Student 需 implements Serializable\n}"
+          "codeExample": "import java.io.BufferedReader;\nimport java.io.BufferedWriter;\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.io.FileReader;\nimport java.io.FileWriter;\nimport java.io.ObjectInputStream;\nimport java.io.ObjectOutputStream;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        // 缓冲字符流: 按字符读写,带缓冲区更快\n        try (BufferedWriter w = new BufferedWriter(new FileWriter(\"note.txt\"))) {\n            w.write(\"第一行: 字符流\");\n            w.newLine();\n            w.write(\"第二行: 缓冲流减少磁盘交互\");\n        }\n        try (BufferedReader r = new BufferedReader(new FileReader(\"note.txt\"))) {\n            r.lines().forEach(System.out::println);\n        }\n\n        // 序列化: 对象 -> 字节流, 反序列化: 字节流 -> 对象\n        ByteArrayOutputStream bos = new ByteArrayOutputStream();\n        try (ObjectOutputStream oos = new ObjectOutputStream(bos)) {\n            oos.writeObject(\"可序列化的字符串\");\n        }\n        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bos.toByteArray()))) {\n            System.out.println(\"反序列化: \" + ois.readObject());\n        }\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -389,7 +406,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## 泛型解决什么问题\n- 没有泛型的集合存的是 Object,取出来要强转,类型错误要运行时才炸\n- 泛型把类型检查提前到编译期,消除强制转换\n- 典型:List<String> 只能存 String\n\n## 泛型类\n- class Box<T> { private T value; }\n- 类型参数命名惯例:T(Type)、E(Element)、K/V(Key/Value)、R(Return)\n\n## 泛型方法\n- 修饰符 <T> T pick(T a, T b) —— 方法前的 <T> 必须写\n- 调用时类型自动推断,通常不用显式指定\n\n## 泛型接口\n- interface Comparable<T> { int compareTo(T o); }\n- 实现类可以指定具体类型,也可以继续泛化\n\n## 有界泛型\n- <T extends Comparable<T>> 限定 T 必须可比较,既能调用其方法又保证安全",
-          "codeExample": "class Box<T> {\n    private T value;\n    public void set(T value) { this.value = value; }\n    public T get() { return value; }\n}\n\n// 泛型方法 + 上界约束\npublic static <T extends Comparable<T>> T max(T a, T b) {\n    return a.compareTo(b) >= 0 ? a : b;\n}\n\nBox<String> name = new Box<>();\nInteger m = max(3, 7);   // 自动推断 T = Integer"
+          "codeExample": "interface Printer<T> {\n    void print(T item);          // 泛型接口\n}\n\nclass Box<T> {                   // 泛型类\n    private final T item;\n    Box(T item) { this.item = item; }\n    T get() { return item; }\n}\n\npublic class Main {\n    static <T> void show(T value) {   // 泛型方法\n        System.out.println(\"泛型方法: \" + value + \" (\" + value.getClass().getSimpleName() + \")\");\n    }\n\n    public static void main(String[] args) {\n        Box<Integer> box = new Box<>(42);\n        System.out.println(\"泛型类: \" + box.get());\n        show(\"字符串\");\n        Printer<String> p = s -> System.out.println(\"泛型接口: \" + s);\n        p.print(\"lambda 实现\");\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -398,7 +416,8 @@
           "difficulty": 3,
           "durationMinutes": 25,
           "content": "## 通配符\n- ? extends T:上界,只读生产者(Producer)—— 可以安全读出 T\n- ? super T:下界,只写消费者(Consumer)—— 可以安全写入 T\n- PECS 原则:Producer-Extends, Consumer-Super(JDK 的 Collections.copy 就是这么写的)\n- 直接 List<Object> 与 List<String> 没有继承关系!泛型不支持协变\n\n## 类型擦除(Type Erasure)\n- 泛型只存在于编译期,运行时 T 被擦成 Object(或有界类型的上界)\n- 所以:不能 new T()、不能 T.class、不能泛型数组 new T[]\n- List<String> 与 List<Integer> 的 getClass() 相同\n- 想拿运行时类型:传入 Class<T> 参数(工厂模式常用套路)\n\n## 面试经典题\n- 是否能写 List<int>?不能,泛型参数只能是引用类型(自动装箱)\n- 泛型擦除后如何保留信息?@SuppressWarnings 与签名里的局部类型表,反射可用 getGenericType 读取部分信息",
-          "codeExample": "// PECS 示例\nstatic double sum(List<? extends Number> nums) {   // 只读\n    double s = 0;\n    for (Number n : nums) s += n.doubleValue();\n    return s;\n}\n\nstatic void fill(List<? super Integer> list) {     // 只写\n    for (int i = 1; i <= 3; i++) list.add(i);\n}\n\nList<Integer> a = List.of(1, 2, 3);\nSystem.out.println(sum(a));   // 6.0"
+          "codeExample": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    static double sum(List<? extends Number> list) {   // 上界: 只读 Number 能力\n        double s = 0;\n        for (Number n : list) s += n.doubleValue();\n        return s;\n    }\n\n    static void fillInt(List<? super Integer> list) {  // 下界: 只写 Integer\n        list.add(1);\n        list.add(2);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(\"sum(List<Integer>) = \" + sum(Arrays.asList(1, 2, 3)));\n        System.out.println(\"sum(List<Double>)  = \" + sum(Arrays.asList(1.5, 2.5)));\n\n        List<Number> dst = new ArrayList<>();\n        fillInt(dst);\n        System.out.println(\"下界填充后: \" + dst);\n        System.out.println(\"类型擦除: 运行时泛型类是 \" + dst.getClass().getName());\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -418,7 +437,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 为什么用枚举\n- int 常量没有类型约束(可以把星期数赋给状态),枚举天然限定取值范围\n- 枚举是天然的单例(JVM 保证每个枚举值只实例化一次,反射也无法破坏)\n\n## 基本用法\n- enum Status { ACTIVE, DISABLED }\n- values():遍历全部枚举值;valueOf(\"ACTIVE\"):按名字取\n- 枚举可与 switch 完美配合(可不写 default,新增枚举值编译器可辅助检查)\n\n## 带字段与方法的枚举(进阶常用)\n- 构造器私有,字段 final,提供 getter\n- 可以为每个枚举值实现自己的行为(抽象方法各写各的)\n\n## 项目实战联想\n- 本项目后台的 OperationLog 实体如果有\"日志类型\",用枚举比魔法数字更清晰\n\n## 实现接口\n- 枚举可以实现接口,但不能继承类(隐式继承了 java.lang.Enum)",
-          "codeExample": "enum Status {\n    ACTIVE(1, \"正常\"),\n    DISABLED(0, \"禁用\");\n\n    private final int code;\n    private final String desc;\n\n    Status(int code, String desc) { this.code = code; this.desc = desc; }\n\n    public int getCode() { return code; }\n    public String getDesc() { return desc; }\n}\n\nfor (Status s : Status.values()) {\n    System.out.println(s.name() + \" = \" + s.getDesc());\n}"
+          "codeExample": "public class Main {\n    enum Season { SPRING, SUMMER, AUTUMN, WINTER }\n\n    enum Level {\n        LOW(1), MEDIUM(2), HIGH(3);\n        final int rank;\n        Level(int rank) { this.rank = rank; }\n    }\n\n    public static void main(String[] args) {\n        Season s = Season.SUMMER;\n        switch (s) {\n            case SPRING -> System.out.println(\"春暖花开\");\n            case SUMMER -> System.out.println(\"炎炎夏日\");\n            case AUTUMN -> System.out.println(\"秋高气爽\");\n            case WINTER -> System.out.println(\"寒冬腊月\");\n        }\n        System.out.println(\"枚举名: \" + s.name() + \", 序号: \" + s.ordinal());\n        System.out.println(\"带属性枚举: HIGH.rank = \" + Level.HIGH.rank);\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -427,7 +447,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## 内置常用注解\n- @Override:编译器检查重写拼写\n- @Deprecated:标记过时\n- @FunctionalInterface:函数式接口约束(见第 14 章)\n- @SuppressWarnings:压制警告\n\n## 元注解(注解的注解)\n- @Target:能贴在哪(类/方法/字段/参数)\n- @Retention:保留到什么时候 —— SOURCE(丢弃)/ CLASS(字节码)/ RUNTIME(反射可读,框架必备)\n\n## 自定义注解\n- @interface 声明,属性以无参方法形式定义,default 给默认值\n- 属性名 value 使用时可不写名字\n\n## 运行时读取(和反射联动)\n- method.isAnnotationPresent(xxx.class) 判断\n- method.getAnnotation(xxx.class) 拿到并取属性\n- 本项目的 @OperationLog 注解 + AOP 切面就是这样实现操作日志的!\n\n## 框架的本质\n- Spring 的 @Controller、JPA 的 @Entity 都只是 RUNTIME 注解 + 反射/字节码处理,读懂这一点,框架不再是魔法",
-          "codeExample": "@Retention(RetentionPolicy.RUNTIME)\n@Target(ElementType.METHOD)\npublic @interface LogPoint {\n    String module();\n    boolean required() default true;\n}\n\n// 使用 + 读取\n@LogPoint(module = \"订单\")\npublic void createOrder() { ... }\n\nMethod m = OrderService.class.getMethod(\"createOrder\");\nif (m.isAnnotationPresent(LogPoint.class)) {\n    System.out.println(m.getAnnotation(LogPoint.class).module());  // 订单\n}"
+          "codeExample": "import java.lang.annotation.ElementType;\nimport java.lang.annotation.Retention;\nimport java.lang.annotation.RetentionPolicy;\nimport java.lang.annotation.Target;\nimport java.lang.reflect.Method;\n\n@Retention(RetentionPolicy.RUNTIME)      // 运行期保留,反射才能读到\n@Target(ElementType.METHOD)              // 只能标注在方法上\n@interface LogPoint {\n    String value() default \"\";\n}\n\npublic class Main {\n    @LogPoint(\"下单入口\")\n    void createOrder() { System.out.println(\"createOrder() 执行\"); }\n\n    public static void main(String[] args) throws Exception {\n        Main m = new Main();\n        for (Method method : Main.class.getDeclaredMethods()) {\n            if (method.isAnnotationPresent(LogPoint.class)) {\n                LogPoint lp = method.getAnnotation(LogPoint.class);\n                System.out.println(\"发现日志点: \" + method.getName() + \" -> \" + lp.value());\n                method.invoke(m);\n            }\n        }\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -457,7 +478,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 方法引用(Lambda 的缩写)\n- 静态方法:Integer::parseInt\n- 实例方法(对象):: \"abc\"::length\n- 实例方法(类型):String::toUpperCase —— 第一个参数成为调用者\n- 构造器:ArrayList::new\n- 判断标准:Lambda 体只有一句方法调用,就能缩写\n\n## Optional\n- 目的:让 null 显式出现在类型签名里,强制调用方处理\n- 创建:Optional.of(x) 不能传 null / ofNullable(x) 可传 null / empty()\n- 消费:ifPresent(Consumer)、orElse(默认值)、orElseGet(Supplier)、orElseThrow()\n- 映射:map(Function)、flatMap、filter(Predicate)\n\n## 使用守则\n- 不要 optional.get() + isPresent() 组合(回到 if-null 老路)\n- 不要用 Optional 做字段/参数(设计反模式),用在返回值\n- 链式:opt.map(User::getAddress).map(Address::getCity).orElse(\"未知\")\n\n## 经典对比\n- 三层嵌套 if (a != null && a.b != null && a.b.c != null) -> 一行 Optional 链",
-          "codeExample": "Optional.ofNullable(user)\n        .map(User::getAddress)\n        .map(Address::getCity)\n        .filter(c -> c.length() > 0)\n        .orElse(\"未知城市\");\n\n// 方法引用四形态\nFunction<String, Integer> f1 = Integer::parseInt;      // 静态\nSupplier<LocalDate> f2  = LocalDate::now;               // 静态\nFunction<String, Integer> f3 = String::length;          // 实例(类型)\nSupplier<ArrayList<String>> f4 = ArrayList::new;       // 构造器"
+          "codeExample": "import java.util.Arrays;\nimport java.util.List;\nimport java.util.Optional;\n\npublic class Main {\n    static void print(String s) { System.out.println(\"打印: \" + s); }\n\n    public static void main(String[] args) {\n        List<String> names = Arrays.asList(\"alice\", \"bob\", \"carol\");\n\n        names.forEach(Main::print);                          // 静态方法引用\n        names.stream().map(String::toUpperCase)              // 实例方法引用\n             .forEach(System.out::println);                  // 输出流方法引用\n\n        Optional<String> maybe = Optional.ofNullable(null);\n        System.out.println(\"空值兜底: \" + maybe.orElse(\"默认值\"));\n        Optional<String> found = names.stream().filter(n -> n.startsWith(\"b\")).findFirst();\n        found.ifPresent(n -> System.out.println(\"找到: \" + n));\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 3,
@@ -487,7 +509,8 @@
           "difficulty": 1,
           "durationMinutes": 20,
           "content": "## 为什么弃用旧 API\n- Date 可变、非线程安全;Calendar 又重又难用,月份从 0 开始\n- java.time(JDK 8+)全部不可变、线程安全、API 直白\n\n## 核心类\n- LocalDate:日期(2026-10-10);LocalTime:时间(23:30:00)\n- LocalDateTime:日期 + 时间;Instant:机器时间戳(UTC)\n\n## 创建与取值\n- now() / of(2026, 10, 10) / parse(\"2026-10-10\")\n- getYear / getMonth(Month 枚举)/ getDayOfWeek / getDayOfMonth\n\n## 计算(都返回新对象)\n- plusDays / minusMonths / withYear(改年份)/ withDayOfYear\n- isBefore / isAfter / isEqual;compareTo 排序\n- between(LocalDate a, LocalDate b):Period 求差\n\n## 常见业务\n- 计算年龄:Period.between(birth, LocalDate.now()).getYears()\n- 判断今天是否在区间内:!today.isBefore(start) && !today.isAfter(end)",
-          "codeExample": "LocalDate today = LocalDate.now();\nLocalDate birthday = LocalDate.of(2000, 6, 1);\n\nint age = Period.between(birthday, today).getYears();\nLocalDate nextMonth = today.plusMonths(1).withDayOfMonth(1);\n\nLocalDateTime meet = LocalDateTime.of(2026, 10, 10, 19, 0);\nlong minutes = Duration.between(LocalDateTime.now(), meet).toMinutes();\n\nSystem.out.println(today.getDayOfWeek());   // SATURDAY 等"
+          "codeExample": "import java.time.LocalDate;\nimport java.time.LocalDateTime;\nimport java.time.temporal.ChronoUnit;\n\npublic class Main {\n    public static void main(String[] args) {\n        LocalDate today = LocalDate.of(2026, 10, 11);\n        System.out.println(\"日期: \" + today + \" (\" + today.getDayOfWeek() + \")\");\n        System.out.println(\"加 30 天: \" + today.plusDays(30));\n        System.out.println(\"月末: \" + today.withDayOfMonth(today.lengthOfMonth()));\n\n        LocalDateTime now = LocalDateTime.of(2026, 10, 11, 19, 30, 0);\n        System.out.println(\"日期时间: \" + now);\n        System.out.println(\"距 2027 元旦还有 \"\n            + ChronoUnit.DAYS.between(today, LocalDate.of(2027, 1, 1)) + \" 天\");\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -496,7 +519,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 格式化\n- DateTimeFormatter 线程安全(SimpleDateFormat 不是!)\n- 预定义:ISO_LOCAL_DATE_TIME\n- 自定义:ofPattern(\"yyyy-MM-dd HH:mm:ss\")\n- format:对象 -> 字符串;parse:字符串 -> 对象\n\n## 时区\n- ZonedDateTime = LocalDateTime + ZoneId\n- ZoneId.of(\"Asia/Shanghai\") / systemDefault()\n- 转换:同一时刻在不同时区的表示 withZoneSameInstant\n- 夏令时由 ZoneId 内部规则自动处理\n\n## 与旧 API / 时间戳互转\n- Instant <-> System.currentTimeMillis()\n- Date.from(instant) / date.toInstant()(对接老代码用)\n- LocalDateTime 本身无时区,入库/显示要约定 ZoneId\n\n## 数据库映射\n- JPA 实体字段用 LocalDateTime,项目后台的 User.createTime 就是这么做的",
-          "codeExample": "DateTimeFormatter f = DateTimeFormatter.ofPattern(\"yyyy/MM/dd HH:mm:ss\");\nLocalDateTime now = LocalDateTime.now();\nSystem.out.println(now.format(f));\n\nZonedDateTime tokyo = ZonedDateTime.now(ZoneId.of(\"Asia/Tokyo\"));\nZonedDateTime beijing = tokyo.withZoneSameInstant(ZoneId.of(\"Asia/Shanghai\"));\n\nlong epochMilli = Instant.now().toEpochMilli();   // 时间戳\nInstant i = Instant.ofEpochMilli(epochMilli);      // 反向"
+          "codeExample": "import java.time.LocalDateTime;\nimport java.time.ZoneId;\nimport java.time.ZonedDateTime;\nimport java.time.format.DateTimeFormatter;\n\npublic class Main {\n    public static void main(String[] args) {\n        LocalDateTime now = LocalDateTime.of(2026, 10, 11, 19, 30, 0);\n\n        DateTimeFormatter f = DateTimeFormatter.ofPattern(\"yyyy年MM月dd日 HH:mm\");\n        System.out.println(\"格式化: \" + now.format(f));\n\n        ZonedDateTime tokyo = now.atZone(ZoneId.of(\"Asia/Tokyo\"));\n        ZonedDateTime utc = tokyo.withZoneSameInstant(ZoneId.of(\"UTC\"));\n        System.out.println(\"东京:       \" + tokyo);\n        System.out.println(\"同一时刻UTC: \" + utc);\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -516,7 +540,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 反射是什么\n- 程序在运行时\"照镜子\":拿到任意对象的类信息,并直接操作字段/方法/构造器\n- 编译期不知道类型也能干活,框架(Spring/JPA/MyBatis)的基石\n\n## 获取 Class 的三种方式\n- 类名.class:编译期已知\n- 对象.getClass():运行期拿到\n- Class.forName(\"全限定名\"):按名字动态加载(JDBC 驱动老写法)\n\n## Class 能告诉你什么\n- getName / getSimpleName / getPackage\n- getSuperclass / getInterfaces\n- isInterface / isEnum / isAnnotation\n- getDeclaredFields / getMethods(含继承)/ getDeclaredMethods(仅本类,含私有)\n\n## 动态代理的伏笔\n- AOP 的底层就是反射调用目标方法 + 增强逻辑,本项目操作日志切面在运行时靠类似机制工作",
-          "codeExample": "Class<?> c1 = String.class;\nClass<?> c2 = \"hello\".getClass();\nClass<?> c3 = Class.forName(\"java.lang.String\");\n\nSystem.out.println(c1 == c2 && c2 == c3);   // true, 同一个 Class 对象\n\nfor (Method m : String.class.getMethods()) {\n    if (m.getName().startsWith(\"to\")) System.out.println(m.getName());\n}"
+          "codeExample": "public class Main {\n    public static void main(String[] args) throws Exception {\n        Class<?> c1 = Main.class;                  // 1. 类字面量(最常用)\n        Class<?> c2 = new Main().getClass();       // 2. 实例 getClass()\n        Class<?> c3 = Class.forName(\"Main\");       // 3. 全限定名字符串\n\n        System.out.println(\"三种方式同一个 Class: \" + (c1 == c2 && c2 == c3));\n        System.out.println(\"类名: \" + c1.getName());\n        System.out.println(\"声明的方法数: \" + c1.getDeclaredMethods().length);\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -525,7 +550,8 @@
           "difficulty": 3,
           "durationMinutes": 30,
           "content": "## 创建对象\n- clazz.getDeclaredConstructor().newInstance()(要求有无参构造)\n- 有参:newInstance(args...) 或先 getConstructor(参数类型...)\n\n## 调用方法\n- getMethod(名字, 参数类型) -> invoke(对象, 实参)\n- 静态方法 invoke 第一个参数传 null\n- setAccessible(true) 可调用私有方法\n\n## 访问字段\n- getDeclaredField 拿到任何字段(含私有),setAccessible(true) 后 get/set\n- 这也是序列化框架能读私有字段的原因\n\n## 迷你 DI 示例(理解框架原理)\n- 扫描类的字段,发现 @Inject 注解就 new 一个实例注入进去 —— Spring 干的就是这件事的工业级版本\n\n## 注意\n- setAccessible 突破封装,仅用于框架/工具,业务代码不要用\n- 反射有安全检查开销,高频调用可用 MethodHandle;可读性差,能用类型直接调就别反射",
-          "codeExample": "Class<?> c = Class.forName(\"com.learning.oop.Dog\");\nObject dog = c.getDeclaredConstructor(String.class).newInstance(\"旺财\");\n\nMethod speak = c.getMethod(\"makeSound\");\nspeak.invoke(dog);                      // 反射调用\n\nField f = c.getDeclaredField(\"name\");\nf.setAccessible(true);                   // 突破 private\nSystem.out.println(f.get(dog));         // 旺财"
+          "codeExample": "import java.lang.reflect.Constructor;\nimport java.lang.reflect.Field;\nimport java.lang.reflect.Method;\n\nclass Dog {\n    public String name = \"旺财\";\n    public Dog() {}\n\n    public String bark(String sound) { return name + \" 叫: \" + sound; }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Constructor<Dog> ctor = Dog.class.getConstructor();\n        Dog dog = ctor.newInstance();                 // 反射创建对象\n\n        Field f = Dog.class.getField(\"name\");\n        f.set(dog, \"来福\");                           // 反射读写字段\n        System.out.println(\"反射改字段: \" + f.get(dog));\n\n        Method m = Dog.class.getMethod(\"bark\", String.class);\n        System.out.println(\"反射调方法: \" + m.invoke(dog, \"汪汪\"));  // 反射调方法\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -545,7 +571,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## 需求\n- 维护学生信息(学号/姓名/班级/成绩):增删改查\n- 统计:按班级分组平均分、及格率、排名\n\n## 分层设计(从上到下)\n- Main(表现层):菜单交互、输入校验、结果打印\n- StudentService(业务层):增删改查 + 统计规则,不碰输入输出\n- Student model(数据层):纯数据载体,封装 + toString\n\n## 为什么分层\n- 职责单一:改 UI 不动业务,改统计规则不碰 UI\n- 可测试:Service 不依赖控制台才能写单元测试\n- 这是后续 Spring Boot Controller/Service/Repository 分层的思想原型\n\n## 建模要点\n- 学号用 String(前导零问题),成绩用 double,班级用 String 或枚举\n- 重写 equals/hashCode(按学号)、toString(打印友好)",
-          "codeExample": "public class Student {\n    private final String id;\n    private String name;\n    private String className;\n    private double score;\n\n    public Student(String id, String name, String className, double score) {\n        this.id = id;\n        this.name = name;\n        this.className = className;\n        this.score = score;\n    }\n    // getter / setter / equals(按 id) / toString 省略\n}"
+          "codeExample": "// 综合实战·学生管理系统: 先把分层搭起来(实体 + 仓库 + 服务)\nclass Student {\n    String name; int classId; double score;\n    Student(String name, int classId, double score) {\n        this.name = name; this.classId = classId; this.score = score;\n    }\n    @Override public String toString() { return name + \"(班\" + classId + \", \" + score + \"分)\"; }\n}\n\nclass StudentRepo {\n    final java.util.List<Student> data = new java.util.ArrayList<>(java.util.List.of(\n        new Student(\"张三\", 1, 92), new Student(\"李四\", 1, 78), new Student(\"王五\", 2, 85)));\n    java.util.List<Student> findAll() { return data; }\n}\n\nclass StudentService {\n    private final StudentRepo repo = new StudentRepo();\n    void printAll() { repo.findAll().forEach(System.out::println); }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        new StudentService().printAll();\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -554,7 +581,8 @@
           "difficulty": 2,
           "durationMinutes": 30,
           "content": "## CRUD 实现要点\n- 存储:List<Student>(后续可换数据库,接口不变)\n- 增加:先按学号判重,再 add\n- 删除:removeIf(s -> s.getId().equals(id)),返回 boolean 告知结果\n- 修改:先 stream().filter().findFirst() 找到,再改字段\n- 查询:返回副本或不可变 List,防止外部破坏内部数据(防御性拷贝)\n\n## 统计(Stream 套路)\n- 按班级分组平均分:groupingBy(className, averagingDouble(score))\n- 及格率:filter(s -> s.score >= 60).count() * 100.0 / total\n- 排名:sorted(comparing(score).reversed()) 配 limit 取前三\n- 最高分学生:max(comparing(Student::getScore)) 返回 Optional\n\n## 设计细节\n- 业务失败用异常而非返回魔法值:学号不存在 -> 抛异常\n- Service 返回统计结果用小 DTO(如 ClassStat 记录班级/平均分/人数)",
-          "codeExample": "public Map<String, Double> avgByClass(List<Student> list) {\n    return list.stream()\n        .collect(Collectors.groupingBy(Student::getClassName,\n                 Collectors.averagingDouble(Student::getScore)));\n}\n\npublic List<Student> top3(List<Student> list) {\n    return list.stream()\n        .sorted(Comparator.comparingDouble(Student::getScore).reversed())\n        .limit(3)\n        .toList();\n}"
+          "codeExample": "import java.util.List;\nimport java.util.Map;\nimport java.util.stream.Collectors;\n\nclass Student {\n    String name; int classId; double score;\n    Student(String name, int classId, double score) {\n        this.name = name; this.classId = classId; this.score = score;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Student> list = List.of(\n            new Student(\"张三\", 1, 92), new Student(\"李四\", 1, 78),\n            new Student(\"王五\", 2, 85), new Student(\"赵六\", 2, 96));\n\n        double avg = list.stream().mapToDouble(s -> s.score).average().orElse(0);\n        System.out.println(\"平均分: \" + String.format(\"%.1f\", avg));\n\n        Map<Integer, List<Student>> byClass = list.stream()\n            .collect(Collectors.groupingBy(s -> s.classId));\n        byClass.forEach((k, v) -> System.out.println(\"班级 \" + k + \" 共 \" + v.size() + \" 人\"));\n\n        List<String> top = list.stream()\n            .filter(s -> s.score >= 90).map(s -> s.name).collect(Collectors.toList());\n        System.out.println(\"优秀学员: \" + top);\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 3,
@@ -563,7 +591,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## 业务异常\n- 自定义 StudentNotFoundException,Service 抛出,Main 捕获后友好提示\n- 保证控制台程序不因异常崩溃\n\n## JUnit 5 单元测试\n- @Test 标记测试方法;断言:assertEquals / assertTrue / assertThrows\n- 一个测试只验证一个行为,命名:testAddDuplicateId\n- @BeforeEach:每个测试前构造干净数据(测试之间互不干扰)\n\n## 测试的价值\n- 重构统计逻辑时,测试保证行为不变\n- 本项目根模块的 src/test 就是这种写法,可直接运行 mvn test 体验\n\n## 学完本课程后的路线\n- 并发编程(JUC):多线程、锁、线程池\n- JDBC 与 MySQL:亲手写增删改查,理解连接池\n- Spring Boot:本项目 spring-boot-learning 模块就是完整后台实战\n- 设计模式:先吃透策略/模板/工厂三件套\n- 保持习惯:每天读一点 JDK 源码(ArrayList/HashMap 优先)",
-          "codeExample": "@Test\nvoid addDuplicateIdThrows() {\n    StudentService svc = new StudentService();\n    svc.add(new Student(\"001\", \"张三\", \"1班\", 90));\n    assertThrows(IllegalArgumentException.class,\n        () -> svc.add(new Student(\"001\", \"李四\", \"1班\", 80)));\n}\n\n@Test\nvoid avgByClass() {\n    StudentService svc = new StudentService();\n    svc.add(new Student(\"001\", \"张三\", \"1班\", 80));\n    svc.add(new Student(\"002\", \"李四\", \"1班\", 90));\n    assertEquals(85.0, svc.avgByClass().get(\"1班\"), 0.001);\n}"
+          "codeExample": "import java.util.Objects;\n\nclass Student {\n    String name; double score;\n    Student(String name, double score) {\n        if (score < 0 || score > 100) throw new IllegalArgumentException(\"分数非法: \" + score);\n        this.name = name; this.score = score;\n    }\n}\n\npublic class Main {\n    // 沙箱不引入 JUnit, 用迷你断言演示测试思路\n    static void assertEquals(Object expect, Object actual, String msg) {\n        if (!Objects.equals(expect, actual)) {\n            throw new AssertionError(msg + \" 期望 \" + expect + \" 实际 \" + actual);\n        }\n        System.out.println(\"[PASS] \" + msg);\n    }\n\n    public static void main(String[] args) {\n        assertEquals(\"张三\", new Student(\"张三\", 88).name, \"构造正常\");\n        try {\n            new Student(\"李四\", 120);\n            throw new AssertionError(\"应当抛出异常却没有\");\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"[PASS] 非法分数被拦截: \" + e.getMessage());\n        }\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -591,8 +620,9 @@
           "summary": "三大基础查询:查询、过滤、排序。",
           "difficulty": 1,
           "durationMinutes": 30,
-          "content": "## SELECT 语法骨架\n```sql\nSELECT 列1, 列2, ...\nFROM 表名\nWHERE 条件\nORDER BY 列 [ASC|DESC]\nLIMIT n;\n```\n\n## WHERE 常用条件\n- `=` `!=` `<` `>` `<=` `>=`\n- `AND` `OR` `NOT`\n- `IN (a, b, c)` / `BETWEEN x AND y`\n- `LIKE '张%'` 模糊匹配 (% = 任意字符, _ = 单个字符)\n- `IS NULL` / `IS NOT NULL`\n\n## ORDER BY 多列排序\n先按第一列排, 同值再按第二列。DESC 表示降序。\n\n## 动手做\n找出 1 班中所有女同学, 按 id 升序。\n提示: `gender = 'F' AND class_id = 1`",
-          "codeExample": "SELECT id, name, gender, class_id FROM students WHERE class_id = 1 AND gender = 'F' ORDER BY id;"
+          "content": "## 场景\n新学期要打印 1 班男生花名册,并按学号排序——这就是最经典的「筛选 + 排序」需求。\n\n## 语法要点\n- `SELECT 列 FROM 表`:选列;`SELECT *` 仅在临时探索时用\n- `WHERE` 支持 `AND / OR / NOT`、`BETWEEN`、`IN`、`LIKE` 模糊匹配\n- `ORDER BY 列 [ASC|DESC]`:ASC 升序(默认),DESC 降序;可多列排序\n\n## 案例\n**案例 1 · 花名册筛选**(沙箱可直接运行右侧示例)\n\n**案例 2 · 模糊匹配与区间**:找名字含\"三\"的同学,以及 2024 年入学的:\n- `SELECT name, enrolled_at FROM students WHERE name LIKE '%三%';`\n- `SELECT name, enrolled_at FROM students WHERE enrolled_at BETWEEN '2024-01-01' AND '2024-12-31' ORDER BY enrolled_at;`\n\n**案例 3 · 多列排序**:先按班级升序,同班按姓名降序\n- `SELECT name, class_id FROM students ORDER BY class_id, name DESC;`\n\n## 动手练习\n1. 查出所有女生的姓名与班级,按学号倒序\n2. 查出 2 班且 2024 年入学的学生\n3. 用 `IN` 一次查出学号 1、3、5 的学生(提示:`WHERE id IN (1,3,5)`)\n",
+          "codeExample": "SELECT id, name, gender, class_id FROM students WHERE class_id = 1 AND gender = 'M' ORDER BY id;",
+          "codeType": "sql"
         },
         {
           "lessonNo": 3,
@@ -600,8 +630,9 @@
           "summary": "用聚合函数一行得到统计信息。",
           "difficulty": 2,
           "durationMinutes": 25,
-          "content": "## 五大聚合\n- `COUNT(*)` 行数 / `COUNT(列)` 非空行数\n- `SUM(列)` 总和\n- `AVG(列)` 平均值\n- `MIN(列)` 最小值 / `MAX(列)` 最大值\n\n## 注意 NULL\n聚合函数自动忽略 NULL; `COUNT(*)` 与 `COUNT(列)` 结果可能不同。\n\n## 动手做\n1. 统计学生总人数\n2. 统计 Java 基础课 (course_id = 1) 的最高分、最低分、平均分",
-          "codeExample": "SELECT\n  COUNT(*) AS 总人数,\n  MAX(score) AS 最高分,\n  MIN(score) AS 最低分,\n  ROUND(AVG(score), 1) AS 平均分\nFROM scores WHERE course_id = 1;"
+          "content": "## 场景\n期末出报表:全年级多少人考试?最高分、最低分、平均分是多少?聚合函数一行搞定。\n\n## 语法要点\n- `COUNT(*)` 计行数、`COUNT(列)` 计非空值\n- `SUM / AVG / MIN / MAX`:求和、平均、最小、最大\n- `ROUND(x, n)` 保留 n 位小数;`AS 起别名` 让结果列名可读\n\n## 案例\n**案例 1 · 全科成绩总览**(右侧示例一键运行)\n\n**案例 2 · 单科统计**:Java 基础(course_id=1)的考试情况\n- `SELECT COUNT(*) AS 人数, AVG(score) AS 均分 FROM scores WHERE course_id = 1;`\n\n**案例 3 · 去重计数**:统计有成绩记录的学生数(一人多科只算一次)\n- `SELECT COUNT(DISTINCT student_id) AS 有成绩的学生 FROM scores;`\n\n## 动手练习\n1. 统计成绩表共多少条记录\n2. 查 course_id=2 的最高分与最低分\n3. 统计 1 班学生人数(表 students)\n",
+          "codeExample": "SELECT COUNT(*) AS 总人数, MAX(score) AS 最高分, MIN(score) AS 最低分, ROUND(AVG(score),1) AS 平均分 FROM scores;",
+          "codeType": "sql"
         }
       ]
     },
@@ -620,8 +651,9 @@
           "summary": "用 INSERT INTO 写入数据, 注意列与值的对应。",
           "difficulty": 1,
           "durationMinutes": 20,
-          "content": "## INSERT 语法\n```sql\nINSERT INTO 表名 (列1, 列2, ...) VALUES (值1, 值2, ...);\n```\n\n## 省略列的写法\n如果给所有列都赋值, 可以省略列名清单, 但顺序必须与建表一致 —— 不推荐, 易出错。\n\n## 常见错误\n- 列数与值数不匹配\n- NOT NULL 列没有给值\n- 唯一约束 (UNIQUE) 冲突\n\n## 动手做\n向 students 插入一个新学生, 名字'测试同学', class_id = 3, gender = 'M', enrolled_at = '2026-01-01'。",
-          "codeExample": "INSERT INTO students (name, class_id, gender, enrolled_at) VALUES ('测试同学', 3, 'M', '2026-01-01');"
+          "content": "## 场景\n新生报到,要把他的信息写进学生表——数据的\"增\"从 INSERT 开始。\n\n## 语法要点\n- `INSERT INTO 表(列1,列2,...) VALUES (值1,值2,...)`:列与值一一对应、类型匹配\n- 一次插入多行:VALUES 后跟多组元组\n- 主键 id 自增,可不写;违反约束(如 NOT NULL)会插入失败并报错\n\n## 案例\n**案例 1 · 插入一名新生**(右侧示例)。插入后用 `SELECT * FROM students ORDER BY id DESC LIMIT 3;` 查看最新记录\n\n**案例 2 · 批量插入两门新课**:\n- `INSERT INTO courses (name, teacher, credit) VALUES ('操作系统', '赵老师', 3), ('算法与数据结构', '钱老师', 4);`\n\n**案例 3 · 插入踩坑**:漏写 NOT NULL 列会怎样?\n- `INSERT INTO students (name) VALUES ('无班级同学');` → 报错 class_id 无默认值\n\n## 动手练习\n1. 插入一位 2 班的女生\"测试乙\",入学日期 2026-03-01\n2. 一次插入两条课程记录(自拟课程名)\n3. 插入后查出刚插入的记录(按 id 倒序取前 2)\n",
+          "codeExample": "INSERT INTO students (name, class_id, gender, enrolled_at) VALUES ('测试同学', 3, 'M', '2026-01-01');",
+          "codeType": "sql"
         },
         {
           "lessonNo": 2,
@@ -629,8 +661,9 @@
           "summary": "UPDATE 修改数据, 但没有 WHERE 会更新全表。",
           "difficulty": 2,
           "durationMinutes": 20,
-          "content": "## UPDATE 语法\n```sql\nUPDATE 表名 SET 列 = 新值 [, 列 = 新值, ...] WHERE 条件;\n```\n\n## 经典血泪教训\n不带 WHERE 的 UPDATE 会改全表, 是生产事故的高发地。建议:\n- 先 SELECT 看会命中哪些行\n- 必要时包在事务里, 错了回滚\n\n## 动手做\n1. 把 students 中所有 class_id = 99 的记录删掉(先查询确认)\n2. 给 1 号课程的最低分加 5 分",
-          "codeExample": "UPDATE scores SET score = score + 5 WHERE course_id = 1 AND score < 60;"
+          "content": "## 场景\n老师想给 Java 基础的不及格同学加 5 分\"平时分\"——批量改数据用 UPDATE,但**WHERE 是保险丝**。\n\n## 语法要点\n- `UPDATE 表 SET 列=新值 WHERE 条件`:没有 WHERE = 全表改写,生产事故高发\n- 可同时改多列:`SET a=1, b=2`\n- 执行前先用同条件 `SELECT` 预演影响范围\n\n## 案例\n**案例 1 · 给不及格加 5 分**(右侧示例)。先预演:`SELECT student_id, score FROM scores WHERE course_id = 1 AND score < 60;`\n\n**案例 2 · 幂等陷阱**:同一条 UPDATE 执行两次会怎样?加 5 分会加两次——设计更新时要考虑幂等\n\n**案例 3 · 危险示范(别在真实库跑)**:不带 WHERE 的 `UPDATE students SET gender = 'M';` 会把全表改成 M——沙箱里可以试试,再点\"重置教学库\"恢复\n\n## 动手练习\n1. 把\"测试同学\"改名为\"测试甲\"(表 students)\n2. 把 course_id=2 的所有成绩减 1 分(封顶不低于 0,提示:WHERE 条件限定)\n3. 先 SELECT 预演,再 UPDATE,再 SELECT 验证——养成三步习惯\n",
+          "codeExample": "UPDATE scores SET score = score + 5 WHERE course_id = 1 AND score < 60;",
+          "codeType": "sql"
         },
         {
           "lessonNo": 3,
@@ -638,8 +671,9 @@
           "summary": "DELETE 按条件删除, 不带 WHERE 会清空全表。",
           "difficulty": 2,
           "durationMinutes": 20,
-          "content": "## DELETE\n```sql\nDELETE FROM 表名 WHERE 条件;\n```\n不带 WHERE 会删除所有行(教学沙箱已禁 DDL/DML, 不允许 DROP, 用'重置教学库'恢复)。\n\n## DELETE vs TRUNCATE\n- DELETE: 按条件, 慢, 触发器, 可回滚, 自增继续\n- TRUNCATE: 全表清空, 快, 不触发器, 部分数据库不可回滚, 自增重置\n\n## 动手做\n1. 删除你刚 INSERT 的测试同学\n2. 查询确认影响行数",
-          "codeExample": "DELETE FROM students WHERE name = '测试同学';"
+          "content": "## 场景\n测试数据用完了要清掉。DELETE 按行删除、可带 WHERE;TRUNCATE 整表清空(DDL,SQLite 不支持)。\n\n## 语法要点\n- `DELETE FROM 表 WHERE 条件`:同样,**不带 WHERE = 清空全表**\n- DELETE 逐行删除、可回滚(事务内);TRUNCATE 直接回收数据页、不可回滚、速度快\n- 自增 id 不会因 DELETE 回退,继续往后编\n\n## 案例\n**案例 1 · 删掉测试数据**(右侧示例)。验证:`SELECT COUNT(*) FROM students;`\n\n**案例 2 · 删除后 id 不回退**:再插入一条新学生,观察 id 是继续递增而不是复用被删的号\n\n**案例 3 · 删除 vs 更新**:把学生标记为\"毕业\"通常用 UPDATE(软删除,留痕),真删用 DELETE——生产上软删除更安全\n\n## 动手练习\n1. 删除名字以\"测试\"开头的所有学生(提示:`LIKE '测试%'`)\n2. 删除 scores 表中 score < 0 的记录(即便没有,也练习语法)\n3. 统计删除前后 students 行数变化\n",
+          "codeExample": "DELETE FROM students WHERE name = '测试同学';",
+          "codeType": "sql"
         }
       ]
     },
@@ -658,8 +692,9 @@
           "summary": "INNER JOIN 只保留双方都有的; LEFT JOIN 保留左表全部。",
           "difficulty": 2,
           "durationMinutes": 30,
-          "content": "## INNER JOIN(内连接)\n两张表都满足条件才出现:\n```sql\nSELECT s.name, c.name 课程, sc.score\nFROM students s\nINNER JOIN scores sc ON s.id = sc.student_id\nINNER JOIN courses c ON c.id = sc.course_id;\n```\n\n## LEFT JOIN(左外连接)\n左表全部出现, 右表没有匹配则填 NULL:\n```sql\nSELECT s.name, c.name FROM students s LEFT JOIN scores sc ...\n```\n\n## 别名\n`FROM students s` 给表起别名, 后面的列要 `s.name`。\n\n## 动手做\n列出每个学生的 Java 基础课分数(没参加的成绩不显示)。",
-          "codeExample": "SELECT s.name, sc.score\nFROM students s\nINNER JOIN scores sc ON s.id = sc.student_id\nWHERE sc.course_id = 1\nORDER BY sc.score DESC;"
+          "content": "## 场景\n出一份\"成绩榜单\":学生姓名 + 课程名 + 分数,数据横跨三张表——JOIN 把它们拼起来。\n\n## 语法要点\n- `INNER JOIN ... ON 关联条件`:只保留两边都匹配的行\n- `LEFT JOIN`:左表全保留,右表无匹配补 NULL——找\"没选课的学生\"必用\n- 起别名(`students s`)让 SQL 简洁;关联条件写在 ON,过滤条件写在 WHERE\n\n## 案例\n**案例 1 · 三表成绩榜单**(右侧示例)\n\n**案例 2 · 谁还没出成绩?**(LEFT JOIN + IS NULL):教学库里有学生没有成绩记录\n- `SELECT s.name FROM students s LEFT JOIN scores sc ON s.id = sc.student_id WHERE sc.id IS NULL;`\n\n**案例 3 · 没人选的课**(反向 LEFT JOIN):\n- `SELECT c.name FROM courses c LEFT JOIN scores sc ON c.id = sc.course_id WHERE sc.id IS NULL;`\n\n## 动手练习\n1. 查\"张三\"的所有课程成绩(课程名+分数)\n2. 用 LEFT JOIN 列出所有课程的选课人数(没人选显示 0,提示:COUNT(sc.id))\n3. 对比 INNER JOIN 与 LEFT JOIN 在案例 2 上的结果差异\n",
+          "codeExample": "SELECT s.name, c.name AS 课程, sc.score FROM students s INNER JOIN scores sc ON s.id = sc.student_id INNER JOIN courses c ON sc.course_id = c.id ORDER BY sc.score DESC LIMIT 5;",
+          "codeType": "sql"
         },
         {
           "lessonNo": 2,
@@ -667,8 +702,9 @@
           "summary": "分组聚合, HAVING 在分组后过滤。",
           "difficulty": 2,
           "durationMinutes": 30,
-          "content": "## GROUP BY\n把多行按某些列分组, 聚合出每组一行。\n```sql\nSELECT class_id, COUNT(*) 人数, AVG(score) 均分\nFROM students s JOIN scores sc ON s.id = sc.student_id\nGROUP BY class_id;\n```\n\n## HAVING vs WHERE\n- WHERE 在分组前过滤单行\n- HAVING 在分组后过滤聚合结果\n\n## 动手做\n按班级统计平均分, 只保留平均分大于 80 的班级。",
-          "codeExample": "SELECT s.class_id, COUNT(*) AS 人数, ROUND(AVG(sc.score), 1) AS 均分\nFROM students s\nJOIN scores sc ON s.id = sc.student_id\nGROUP BY s.class_id\nHAVING AVG(sc.score) > 80\nORDER BY 均分 DESC;"
+          "content": "## 场景\n教务处要\"按班级出成绩对比\":每班多少人、平均分多少——先分组(GROUP BY)再聚合,再用 HAVING 过滤组。\n\n## 语法要点\n- `GROUP BY 列`:按列分组,SELECT 里只能放分组列或聚合函数\n- `WHERE` 过滤**行**(分组前),`HAVING` 过滤**组**(分组后)——别混淆\n- 执行顺序:FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY\n\n## 案例\n**案例 1 · 班级均分对比**(右侧示例)\n\n**案例 2 · 找\"学霸班级\"**:平均分超过 85 的班级\n- 在案例 1 后追加 `HAVING AVG(sc.score) > 85`\n\n**案例 3 · 每门课的选课人数与最高分**:\n- `SELECT course_id, COUNT(*) AS 人数, MAX(score) AS 最高分 FROM scores GROUP BY course_id;`\n\n## 动手练习\n1. 统计每个班的男女生人数(GROUP BY class_id, gender)\n2. 找出选课超过 2 门的学生 id(GROUP BY student_id HAVING COUNT(*) > 2)\n3. 把案例 1 的 WHERE 去掉换成 HAVING 同条件,对比结果差异\n",
+          "codeExample": "SELECT s.class_id, COUNT(*) AS 人数, ROUND(AVG(sc.score),1) AS 均分 FROM students s JOIN scores sc ON s.id = sc.student_id GROUP BY s.class_id ORDER BY 均分 DESC;",
+          "codeType": "sql"
         },
         {
           "lessonNo": 3,
@@ -676,8 +712,9 @@
           "summary": "在 SELECT 内部嵌套另一个查询, 解决复杂问题。",
           "difficulty": 3,
           "durationMinutes": 30,
-          "content": "## 子查询的位置\n- `WHERE 列 IN (子查询)`\n- `SELECT (子查询) AS 别名` —— 标量子查询\n- `FROM (子查询) AS 别名` —— 派生表\n\n## 实战:高于平均分的学生\n```sql\nSELECT name, score FROM students s JOIN scores sc ...\nWHERE sc.score > (SELECT AVG(score) FROM scores);\n```\n\n## 动手做\n找出 Java 基础课分数高于该课平均分的所有学生。",
-          "codeExample": "SELECT s.name, sc.score\nFROM students s\nJOIN scores sc ON s.id = sc.student_id\nWHERE sc.course_id = 1\n  AND sc.score > (SELECT AVG(score) FROM scores WHERE course_id = 1);"
+          "content": "## 场景\n\"找出高于平均分的成绩\"——平均分本身要查一次才能知道,把这条查询嵌进主查询就是子查询。\n\n## 语法要点\n- 子查询:嵌在 WHERE/SELECT/FROM 里的小查询,先执行、供外层使用\n- 标量子查询(返回单值)可直接比较;`IN (子查询)` 判断集合\n- 视图:把常用查询\"存成虚拟表\"(`CREATE VIEW ... AS SELECT ...`),简化复用\n\n## 案例\n**案例 1 · 高于平均分的成绩**(右侧示例)\n\n**案例 2 · IN 子查询**:查出有成绩记录的学生名单\n- `SELECT name FROM students WHERE id IN (SELECT DISTINCT student_id FROM scores);`\n\n**案例 3 · 视图语法(了解)**:\n- `CREATE VIEW v_score_sheet AS SELECT s.name, c.name AS course, sc.score FROM students s JOIN scores sc ON s.id = sc.student_id JOIN courses c ON sc.course_id = c.id;`\n- 注意:沙箱教学库只开放 DML,视图(DDL)请在本地 MySQL/SQLite 客户端练习\n\n## 动手练习\n1. 用子查询找出\"高于本课程平均分\"的成绩(相关子查询,挑战题)\n2. 查出没有任何成绩记录的学生(用 NOT IN 子查询实现)\n3. 对比子查询与 JOIN 两种写法,各写一遍\"有成绩的学生名单\"\n",
+          "codeExample": "SELECT s.name, sc.score FROM students s JOIN scores sc ON s.id = sc.student_id WHERE sc.score > (SELECT AVG(score) FROM scores) ORDER BY sc.score DESC;",
+          "codeType": "sql"
         }
       ]
     },
@@ -696,8 +733,9 @@
           "summary": "全表扫描 vs 索引查找, 性能差几个数量级。",
           "difficulty": 2,
           "durationMinutes": 25,
-          "content": "## 没有索引时\n数据库必须一行一行找(`O(n)`), 1 万行要查 1 万次。\n\n## 有索引时\n类似书的目录, 数据库通过 B-Tree 直接定位到目标行附近(`O(log n)`)。\n1 万行的查找从 ~1ms 降到 ~0.01ms。\n\n## 索引的代价\n- 写入变慢: INSERT/UPDATE/DELETE 都要维护索引\n- 占用磁盘: 索引是单独的数据结构\n- 一张表索引不宜过多(一般 3-5 个)\n\n## 动手做\n虽然沙箱不支持 CREATE INDEX,但你可以用 `EXPLAIN QUERY PLAN` 看查询计划。",
-          "codeExample": "EXPLAIN QUERY PLAN SELECT * FROM students WHERE name = '张三';"
+          "content": "## 场景\n数据到十万行,按姓名查询从 1ms 变 500ms——全表扫描是元凶,索引就是\"目录\"。\n\n## 语法要点\n- 无索引:逐行比对(全表扫描,全表 I/O)\n- B-Tree 索引:按列排序的查找结构,O(log n) 定位\n- 代价:占空间、拖慢写入(INSERT/UPDATE 要维护索引)——按查询模式建,别乱建\n\n## 案例\n**案例 1 · 看查询计划**:右侧示例输出若含 `SCAN students`(全表扫描)即未命中索引\n\n**案例 2 · 建索引再看**(DDL,请在本地练习):\n- `CREATE INDEX idx_students_name ON students(name);`\n- 再跑 `EXPLAIN QUERY PLAN SELECT * FROM students WHERE name = '张三';` → 变为 `SEARCH students USING INDEX ...`\n\n**案例 3 · 索引失效场景(面试常问)**:对列用函数(`WHERE UPPER(name)=...`)、前导模糊(`LIKE '%三'`)、类型不匹配都会让索引失效\n\n## 动手练习\n1. 用 EXPLAIN QUERY PLAN 查 `SELECT * FROM scores WHERE student_id = 1;` 的计划(该表有外键索引吗?)\n2. 列出 scores 表上适合建索引的 3 个列并说明理由\n3. 思考:为什么主键查询总是最快?\n",
+          "codeExample": "EXPLAIN QUERY PLAN SELECT * FROM students WHERE name = '张三';",
+          "codeType": "sql"
         },
         {
           "lessonNo": 2,
@@ -705,8 +743,9 @@
           "summary": "读懂查询计划, 找到慢在哪。",
           "difficulty": 2,
           "durationMinutes": 25,
-          "content": "## EXPLAIN QUERY PLAN\nSQLite 用 `EXPLAIN QUERY PLAN` 看执行计划。输出形如:\n```\nSEARCH TABLE scores USING INDEX scores_idx_student (student_id=?)\n```\n\n## 关键字段\n- `SCAN TABLE` 全表扫描 (慢)\n- `SEARCH TABLE ... USING INDEX` 用索引 (快)\n\n## 慢查询三大原因\n1. 缺少合适索引\n2. SELECT * 取了太多列\n3. JOIN 没有索引列\n\n## 动手做\n跑两个查询的 EXPLAIN, 对比带 WHERE 与不带 WHERE 的执行计划。",
-          "codeExample": "EXPLAIN QUERY PLAN SELECT * FROM scores WHERE student_id = 1;"
+          "content": "## 场景\nJOIN + WHERE 的复杂查询变慢了,EXPLAIN QUERY PLAN 是\"X 光片\":看它先扫哪张表、用没用索引、有没有临时排序。\n\n## 语法要点\n- 读计划关键字:`SCAN`=全表扫描(慢),`SEARCH ... USING INDEX`=走索引(快)\n- `USE TEMP B-TREE FOR ORDER BY`:排序没走索引,靠临时结构,数据量大时要命\n- 优化三板斧:过滤条件提前、给关联/过滤列建索引、避免 SELECT *\n\n## 案例\n**案例 1 · JOIN 查询计划**(右侧示例):观察两张表各是 SCAN 还是 SEARCH\n\n**案例 2 · 排序的代价**:\n- `EXPLAIN QUERY PLAN SELECT * FROM scores ORDER BY score DESC;` → 若出现 TEMP B-TREE,给 score 建索引可消除\n\n**案例 3 · 慢查询排查流程(方法论)**:复现 SQL → EXPLAIN 看计划 → 找 SCAN/TEMP → 建索引或改写 SQL → 复测计划\n\n## 动手练习\n1. 对比 `WHERE class_id=1` 与 `WHERE score>90` 的查询计划,预测哪个更容易优化\n2. 给出\"三表成绩榜单\"的最优执行计划描述(哪张表做驱动表)\n3. 用 EXPLAIN QUERY PLAN 验证你的描述\n",
+          "codeExample": "EXPLAIN QUERY PLAN SELECT s.name, sc.score FROM students s JOIN scores sc ON s.id = sc.student_id WHERE s.class_id = 1;",
+          "codeType": "sql"
         }
       ]
     },
@@ -725,8 +764,9 @@
           "summary": "原子性 / 一致性 / 隔离性 / 持久性。",
           "difficulty": 2,
           "durationMinutes": 25,
-          "content": "## 四个字母\n- A 原子性(Atomicity): 要么都成功要么都失败\n- C 一致性(Consistency): 事务前后数据库都满足业务约束\n- I 隔离性(Isolation): 多个事务并发互不干扰\n- D 持久性(Durability): 提交后即使断电也不丢\n\n## 经典例子:转账\nA 账户 -100, B +100。如果只执行了一半就崩了,钱就消失了。事务保证要么两步都成功,要么两步都回滚。\n\n## 动手做\nSQLite 单条 DML 是隐式事务, 自动提交。多条 DML 想保证原子性, 需要显式事务(在 JDBC 章节会讲)。",
-          "codeExample": null
+          "content": "## 场景\n转账 100 元:A 扣款成功、B 入账失败,钱就\"消失\"了。事务把多步操作捆成**要么全成、要么全不成**的原子单位。\n\n## 语法要点(ACID)\n- **A 原子性**:全做或全不做(失败整体回滚)\n- **C 一致性**:约束不被破坏(转账前后总额不变)\n- **I 隔离性**:并发事务互不干扰(隔离级别决定干扰程度)\n- **D 持久性**:提交后落盘不丢\n\n## 案例\n**案例 1 · 转账伪代码**(单条语句仅供体验查询,完整事务在本地客户端练习):\n- `BEGIN; UPDATE accounts SET balance=balance-100 WHERE id=1; UPDATE accounts SET balance=balance+100 WHERE id=2; COMMIT;`\n- 沙箱教学库仅开放单条 DML,多语句事务请在本地 SQLite/MySQL 练习\n\n**案例 2 · 回滚的意义**:第三条语句报错时,ROLLBACK 让前两条也作废——账不错乱\n\n**案例 3 · 查余额变化**:右侧示例先记住学生 1 的成绩分布,后续 UPDATE 后再来对比\n\n## 动手练习\n1. 用一条 UPDATE 模拟\"A 扣款\"(本地练习,注意 WHERE)\n2. 列举一个没有事务会造成资损的业务场景\n3. 思考:为什么支付系统的事务隔离级别通常选 REPEATABLE READ?\n",
+          "codeExample": "SELECT student_id, score FROM scores WHERE student_id = 1 ORDER BY course_id;",
+          "codeType": "sql"
         },
         {
           "lessonNo": 2,
@@ -734,8 +774,9 @@
           "summary": "三个经典并发问题与四种隔离级别。",
           "difficulty": 3,
           "durationMinutes": 30,
-          "content": "## 三种异常\n- 脏读: 读到未提交的数据(可能回滚)\n- 不可重复读: 同一条记录两次读不一致(被其他事务改了)\n- 幻读: 同一查询两次结果行数不同(被其他事务插了)\n\n## 四种隔离级别\n| 级别 | 脏读 | 不可重复读 | 幻读 |\n|---|---|---|---|\n| READ UNCOMMITTED | 有 | 有 | 有 |\n| READ COMMITTED | 无 | 有 | 有 |\n| REPEATABLE READ | 无 | 无 | 有 |\n| SERIALIZABLE | 无 | 无 | 无 |\n\n## 实际选择\n- PostgreSQL 默认 READ COMMITTED\n- MySQL InnoDB 默认 REPEATABLE READ\n- SQLite 简化模型, 默认 SERIALIZABLE\n\n## 动手做\n思考: 转账场景下应该选哪种隔离级别?",
-          "codeExample": null
+          "content": "## 场景\n两个事务同时改一行数据,能读到对方\"改了一半\"的数据吗?——隔离级别就是回答这个问题的四档答案。\n\n## 语法要点(现象从轻到重)\n- **脏读**:读到别人未提交的修改(READ UNCOMMITTED)\n- **不可重复读**:同一事务内两次读同一行结果不同(READ COMMITTED)\n- **幻读**:同一条件两次查询行数变了(REPEATABLE READ 之上靠间隙锁/序列化解决)\n- 隔离级别越高越安全、性能越差:READ UNCOMMITTED → READ COMMITTED → REPEATABLE READ → SERIALIZABLE\n\n## 案例\n**案例 1 · 读到\"改了一半\"**(本地双会话练习):事务 A `BEGIN; UPDATE scores SET score=0 WHERE id=1;` 不提交;事务 B 查询 id=1 的值——不同隔离级别下结果不同\n\n**案例 2 · 不可重复读**:事务 A 两次 `SELECT ... WHERE id=1;` 之间,事务 B 提交了 UPDATE——A 两次读不一致\n\n**案例 3 · 幻读**:事务 A 两次 `SELECT COUNT(*) FROM scores WHERE student_id=1;` 之间,B 插入了一条——行数变化\n\n**观察工具**:右侧示例(按学生统计)可在你做 UPDATE/INSERT 前后各跑一次,观察\"读\"的稳定性\n\n## 动手练习\n1. 用自己的话解释脏读/不可重复读/幻读的区别\n2. MySQL 默认隔离级别是哪档?为什么电商订单选它?\n3. 列举\"宁可慢也不能错\"和\"能容忍脏读\"的业务各一个\n",
+          "codeExample": "SELECT student_id, COUNT(*) AS 次数, ROUND(AVG(score),1) AS 均分 FROM scores GROUP BY student_id ORDER BY 均分 DESC;",
+          "codeType": "sql"
         }
       ]
     },
@@ -754,8 +795,9 @@
           "summary": "用 JDBC 跑你的第一条查询。",
           "difficulty": 2,
           "durationMinutes": 30,
-          "content": "## JDBC 三步走\n1. `DriverManager.getConnection(url, user, pwd)` 获取 Connection\n2. 通过 Connection 创建 Statement, 执行 SQL\n3. 拿到 ResultSet 遍历结果\n\n## 代码骨架\n```java\ntry (Connection c = DriverManager.getConnection(URL, U, P);\n     Statement s = c.createStatement();\n     ResultSet rs = s.executeQuery(\"SELECT ...\")) {\n    while (rs.next()) System.out.println(rs.getString(\"name\"));\n}\n```\n\n## 注意\n- 一定要用 try-with-resources 关连接\n- 永远用 PreparedStatement 而不是 Statement(防 SQL 注入, 见下节课)\n\n## 动手做\n跑通下面的代码, 它会连接到我们的沙箱库并打印前 5 个学生。",
-          "codeExample": "import java.sql.*;\n\npublic class Main {\n    // 沙箱库(教学用, 无密码)\n    static final String URL = \"jdbc:sqlite:sandbox.db\";\n\n    public static void main(String[] args) throws Exception {\n        Class.forName(\"org.sqlite.JDBC\");\n        try (Connection c = DriverManager.getConnection(URL);\n             Statement s = c.createStatement();\n             ResultSet rs = s.executeQuery(\"SELECT id, name, class_id FROM students LIMIT 5\")) {\n            while (rs.next()) {\n                System.out.println(rs.getInt(\"id\") + \" | \"\n                    + rs.getString(\"name\") + \" | 班级\"\n                    + rs.getInt(\"class_id\"));\n            }\n        }\n    }\n}"
+          "content": "## 场景\nJava 程序怎么连数据库、发 SQL、取结果?JDBC 四步走:加载驱动 → 建连接 → 发 SQL(Statement) → 遍历结果集(ResultSet)。\n\n## 语法要点(Java API)\n- `DriverManager.getConnection(url)` 拿连接(SQLite:`jdbc:sqlite:xxx.db`,内存库:`jdbc:sqlite::memory:`)\n- `Statement.executeQuery(sql)` 查询 → `ResultSet.next()` 逐行取\n- try-with-resources 自动关闭,顺序:ResultSet → Statement → Connection\n\n## 案例\n**案例 1 · 完整 JDBC 流程**:右侧 Java 沙箱已内置 SQLite 驱动,切到\"Java 沙箱\"运行本课示例(内存建表 + 插入 + 查询)\n\n**案例 2 · 增删改用 executeUpdate**:返回受影响行数,可据此判断是否成功\n\n**案例 3 · 事务提交**:conn.setAutoCommit(false) → 多条 SQL → conn.commit()/rollback()\n\n## 动手练习\n1. 把示例改成查询 score > 80 的学生\n2. 给表加一列 age 并插入带年龄的记录(提示:ALTER TABLE 在本地练习,沙箱用建表时带上)\n3. 用 executeUpdate 实现\"把张三改名为张三丰\"\n",
+          "codeExample": "import java.sql.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        // 沙箱内置 SQLite 驱动, 内存库免安装、随进程销毁, 适合教学演示\n        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n            Statement st = conn.createStatement();\n            st.execute(\"CREATE TABLE students(id INTEGER PRIMARY KEY, name TEXT, score REAL)\");\n            st.execute(\"INSERT INTO students(name, score) VALUES ('张三', 92), ('李四', 78)\");\n\n            ResultSet rs = st.executeQuery(\"SELECT * FROM students ORDER BY score DESC\");\n            while (rs.next()) {\n                System.out.println(rs.getInt(\"id\") + \" | \" + rs.getString(\"name\")\n                    + \" | \" + rs.getDouble(\"score\"));\n            }\n        }\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -763,8 +805,9 @@
           "summary": "PreparedStatement 用 ? 占位, 永远不会被注入。",
           "difficulty": 2,
           "durationMinutes": 30,
-          "content": "## SQL 注入案例\n如果拼接 SQL:\n```java\nString sql = \"SELECT * FROM users WHERE name = '\" + name + \"'\";\n```\n用户输入 `' OR '1'='1` 就变成万能钥匙, 整个表都出来了。\n\n## PreparedStatement 防注入\n```java\nString sql = \"SELECT * FROM users WHERE name = ?\";\nPreparedStatement ps = c.prepareStatement(sql);\nps.setString(1, name);\nResultSet rs = ps.executeQuery();\n```\n? 是占位符, 参数被严格类型校验, 不参与 SQL 解析。\n\n## 性能\n数据库会对 prepared SQL 做预编译缓存, 同一条 SQL 多次执行更快。\n\n## 动手做\n用 PreparedStatement 实现一个根据 class_id 查询学生的函数。",
-          "codeExample": "import java.sql.*;\n\npublic class Main {\n    static final String URL = \"jdbc:sqlite:sandbox.db\";\n\n    public static void main(String[] args) throws Exception {\n        Class.forName(\"org.sqlite.JDBC\");\n        int targetClass = 1;\n        String sql = \"SELECT id, name FROM students WHERE class_id = ?\";\n        try (Connection c = DriverManager.getConnection(URL);\n             PreparedStatement ps = c.prepareStatement(sql)) {\n            ps.setInt(1, targetClass);\n            try (ResultSet rs = ps.executeQuery()) {\n                while (rs.next()) {\n                    System.out.println(rs.getInt(\"id\") + \" \" + rs.getString(\"name\"));\n                }\n            }\n        }\n    }\n}"
+          "content": "## 场景\n登录框输入 `admin' --` 就能绕过密码?拼接 SQL 的下场。PreparedStatement 用参数占位(?)把数据与语法分离,注入彻底失效。\n\n## 语法要点\n- 拼接:`\"... WHERE pwd='\" + input + \"'\"` → 输入即语法,灾难起点\n- 参数化:`prepareStatement(\"... WHERE pwd=?\")` + `setString(1, input)` → 占位符永远不当语法解析\n- 附赠好处:预编译执行计划可复用,批量插入更快\n\n## 案例\n**案例 1 · 注入攻防演示**:右侧 Java 沙箱运行本课示例——同样注入字符串,拼接 SQL 命中全表,参数化 SQL 命中 0 行\n\n**案例 2 · 批量插入提速**:ps.addBatch() + executeBatch(),比循环 executeUpdate 快一个量级\n\n**案例 3 · 取值用列名**:rs.getString(\"name\") 比下标更抗 SQL 改动\n\n## 动手练习\n1. 把示例中的登录校验改成\"查出用户并打印角色\"\n2. 构造一个能删库的注入字符串(仅思考,别用在真实系统!)\n3. 用参数化写法实现按姓名模糊查询(提示:`setString(1, \"%\" + kw + \"%\")`)\n",
+          "codeExample": "import java.sql.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n            Statement st = conn.createStatement();\n            st.execute(\"CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT, pwd TEXT)\");\n            st.execute(\"INSERT INTO users(name, pwd) VALUES ('admin', '123456'), ('guest', 'guest')\");\n\n            String evil = \"x' OR '1'='1\";   // 注入攻击字符串\n\n            // 危险: 字符串拼接 SQL -> 注入得手, 绕过密码\n            ResultSet rs = st.executeQuery(\n                \"SELECT * FROM users WHERE name='admin' AND pwd='\" + evil + \"'\");\n            System.out.println(\"拼接 SQL 命中行数: \" + count(rs) + \" (注入得手!)\");\n\n            // 安全: PreparedStatement 参数化 -> 数据永远不当语法解析\n            PreparedStatement ps = conn.prepareStatement(\n                \"SELECT * FROM users WHERE name=? AND pwd=?\");\n            ps.setString(1, \"admin\");\n            ps.setString(2, evil);\n            System.out.println(\"参数化 SQL 命中行数: \" + count(ps.executeQuery()) + \" (安全)\");\n        }\n    }\n\n    static int count(ResultSet rs) throws SQLException {\n        int n = 0;\n        while (rs.next()) n++;\n        return n;\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 3,
@@ -793,7 +836,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## 改造目标\nv1 是内存版(ArrayList 存数据), v2 用 JDBC 持久化。\n\n## 三层结构\n- model: Student 数据类\n- dao: StudentDao 接口 + StudentDaoImpl(所有 SQL 都在这里)\n- service: StudentService(业务编排, 调用 DAO)\n- ui: Main 入口(命令行菜单)\n\n## DAO 接口设计\n```java\ninterface StudentDao {\n    void insert(Student s);\n    void update(Student s);\n    void deleteById(int id);\n    Student findById(int id);\n    List<Student> findAll();\n}\n```\n\n## 设计原则\n业务层只依赖 DAO 接口不依赖实现, 后续可换 MySQL 实现而不改 Service。\n\n## 动手做\n设计你的 StudentDao, 把上面 5 个方法签名写出来。",
-          "codeExample": "// Student.java\npublic class Student {\n    private int id;\n    private String name;\n    private int score;\n    public Student(int id, String name, int score) {\n        this.id = id; this.name = name; this.score = score;\n    }\n    @Override public String toString() { return id + \" | \" + name + \" | \" + score; }\n    // getter / setter\n    public int getId() { return id; }\n    public String getName() { return name; }\n    public int getScore() { return score; }\n    public void setName(String n) { this.name = n; }\n    public void setScore(int s) { this.score = s; }\n}"
+          "codeExample": "// JDBC 版学生管理(v2): 先明确领域模型与分层\nclass Student {\n    private final int id; private final String name; private final int classId;\n    public Student(int id, String name, int classId) {\n        this.id = id; this.name = name; this.classId = classId;\n    }\n    public int getId() { return id; }\n    public String getName() { return name; }\n    @Override public String toString() { return \"#\" + id + \" \" + name + \" (班\" + classId + \")\"; }\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"目标功能: 增删改查 + 分页 + 按班级统计\");\n        System.out.println(\"分层: Controller -> Service -> DAO -> SQLite\");\n        Student s = new Student(1, \"张三\", 1);\n        System.out.println(\"领域对象示例: \" + s);\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 2,
@@ -802,7 +846,8 @@
           "difficulty": 3,
           "durationMinutes": 45,
           "content": "## DAO 实现要点\n- 所有 SQL 用 PreparedStatement\n- 异常向上抛, 让 Service 处理\n- 资源用 try-with-resources 自动关\n\n## 测试 DAO\n不要在 main 里测试 —— 用 JUnit 5 + @BeforeEach 重置数据库。\n\n## 动手做\n实现 StudentDaoImpl 的 insert/findById/findAll, 用教学库表 students(name, score, class_id)。\n提示: 你可以直接用 sandbox.db, 也可以新开一个 student_manager.db。",
-          "codeExample": "import java.sql.*;\nimport java.util.*;\n\npublic class StudentDaoImpl implements StudentDao {\n    static final String URL = \"jdbc:sqlite:sandbox.db\";\n\n    @Override\n    public void insert(Student s) throws SQLException {\n        String sql = \"INSERT INTO students(name, class_id, gender, enrolled_at) VALUES (?, ?, 'M', ?)\";\n        try (Connection c = DriverManager.getConnection(URL);\n             PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {\n            ps.setString(1, s.getName());\n            ps.setInt(2, 99);\n            ps.setString(3, \"2026-01-01\");\n            ps.executeUpdate();\n            try (ResultSet keys = ps.getGeneratedKeys()) {\n                if (keys.next()) /* s.setId(keys.getInt(1)) */;\n            }\n        }\n    }\n\n    @Override\n    public List<Student> findAll() throws SQLException {\n        List<Student> list = new ArrayList<>();\n        try (Connection c = DriverManager.getConnection(URL);\n             PreparedStatement ps = c.prepareStatement(\"SELECT id, name, score FROM students WHERE class_id = 99\")) {\n            try (ResultSet rs = ps.executeQuery()) {\n                while (rs.next()) {\n                    list.add(new Student(rs.getInt(\"id\"), rs.getString(\"name\"), rs.getInt(\"score\")));\n                }\n            }\n        }\n        return list;\n    }\n}"
+          "codeExample": "import java.sql.Connection;\nimport java.sql.DriverManager;\nimport java.sql.PreparedStatement;\nimport java.sql.ResultSet;\nimport java.sql.SQLException;\nimport java.sql.Statement;\nimport java.util.ArrayList;\nimport java.util.List;\n\nclass Student {\n    int id; String name;\n    Student(int id, String name) { this.id = id; this.name = name; }\n    @Override public String toString() { return \"#\" + id + \" \" + name; }\n}\n\ninterface StudentDao {\n    void insert(String name);\n    List<Student> findAll();\n}\n\nclass StudentDaoImpl implements StudentDao {\n    private final Connection conn;\n    StudentDaoImpl(Connection conn) { this.conn = conn; }\n\n    public void insert(String name) {\n        try (PreparedStatement ps = conn.prepareStatement(\"INSERT INTO students(name) VALUES (?)\")) {\n            ps.setString(1, name);\n            ps.executeUpdate();\n        } catch (SQLException e) { throw new RuntimeException(e); }\n    }\n\n    public List<Student> findAll() {\n        List<Student> list = new ArrayList<>();\n        try (Statement st = conn.createStatement();\n             ResultSet rs = st.executeQuery(\"SELECT id, name FROM students ORDER BY id\")) {\n            while (rs.next()) list.add(new Student(rs.getInt(1), rs.getString(2)));\n        } catch (SQLException e) { throw new RuntimeException(e); }\n        return list;\n    }\n}\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        // 沙箱内用内存 SQLite 自包含演示(真实项目连接 data/sandbox.db 或 MySQL)\n        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n            conn.createStatement().execute(\"CREATE TABLE students(id INTEGER PRIMARY KEY, name TEXT)\");\n            StudentDao dao = new StudentDaoImpl(conn);\n            dao.insert(\"张三\");\n            dao.insert(\"李四\");\n            System.out.println(\"DAO 查全部: \" + dao.findAll());\n        }\n    }\n}",
+          "codeType": "java"
         }
       ]
     },
@@ -1359,7 +1404,8 @@
           "difficulty": 4,
           "durationMinutes": 30,
           "content": "## 什么是横切关注点\n- 日志、事务、权限、缓存、性能监控——它们散布在所有业务方法上,却与业务逻辑无关\n- 如果每个方法都手写\"记日志 + 开事务 + 校验权限\",代码将被污染成\"业务 + 样板\"的混合物\n- AOP(面向切面编程)把这些横切逻辑\"抽取到切面\",由代理在方法前后自动织入\n\n## Spring AOP 的四个概念\n- 切点(Pointcut): 在哪些方法上织入,如 execution(* com.learning..service..*(..))\n- 通知(Advice): 何时做什么——@Before/@After/@Around/@AfterThrowing\n- 切面(Aspect): 切点 + 通知的组合(@Aspect 类)\n- 织入(Weaving): 生成代理对象,把通知嵌进方法调用链\n\n## 底层:动态代理\n- JDK 动态代理: 基于接口,Proxy.newProxyInstance + InvocationHandler——Spring 默认\n- CGLIB: 基于继承生成子类,可代理没有接口的类\n- 关键结论: 代理对象是\"包装过的壳\",调用方法时先过壳(切面),再到真实对象\n\n## 本项目实战\n- LoggingAspect 用 @Around 记录每个 Service/Controller 方法的耗时与参数\n- @OperationLog 注解 + AOP 把用户操作写进 t_operation_log 表\n- 你在日志里看到的 \"[AOP] 调用 LearningServiceImpl.getLessonDetail, 参数: [86, 1]\" 就是切面输出的\n\n## 动手做\n右侧代码用 JDK 动态代理实现日志切面与耗时统计,再手写一个简化版 @OperationLog 注解拦截器。",
-          "codeExample": "import java.lang.annotation.*;\nimport java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n\n    // ---------- 业务接口与实现 ----------\n    interface UserService {\n        String findUser(long id);\n        void deleteUser(long id);\n    }\n\n    static class UserServiceImpl implements UserService {\n        public String findUser(long id) { sleep(30); return \"用户#\" + id; }\n        public void deleteUser(long id) { sleep(10); System.out.println(\"    删除用户 \" + id + \" 成功\"); }\n        private void sleep(int ms) {\n            try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }\n        }\n    }\n\n    // ---------- 自定义注解(对照本项目的 @OperationLog) ----------\n    @Retention(RetentionPolicy.RUNTIME) @Target(ElementType.METHOD)\n    @interface OperationLog { String value(); }\n\n    /** 演示用: 带注解的接口,代理会识别并\"记操作日志\" */\n    interface AdminService {\n        @OperationLog(\"删除用户\")\n        void removeUser(long id);\n        void queryUser(long id);\n    }\n    static class AdminServiceImpl implements AdminService {\n        public void removeUser(long id) { System.out.println(\"    [业务] 已删除用户 \" + id); }\n        public void queryUser(long id) { System.out.println(\"    [业务] 查询用户 \" + id); }\n    }\n\n    // ---------- 切面: JDK 动态代理 + InvocationHandler ----------\n    @SuppressWarnings(\"unchecked\")\n    static <T> T createProxy(T target, Class<T> interfaceType) {\n        return (T) Proxy.newProxyInstance(\n                interfaceType.getClassLoader(),\n                new Class<?>[]{interfaceType},\n                (proxy, method, args) -> {\n                    String methodName = method.getName();\n                    // 通知 @Before: 记录操作日志注解\n                    OperationLog logAnno = method.getAnnotation(OperationLog.class);\n                    if (logAnno != null) {\n                        System.out.println(\"    [操作日志] 记录: \" + logAnno.value()\n                                + \" (参数: \" + Arrays.toString(args) + \")\");\n                    }\n                    // 通知 @Around: 计时\n                    long begin = System.currentTimeMillis();\n                    Object result = method.invoke(target, args);\n                    long cost = System.currentTimeMillis() - begin;\n                    System.out.println(\"    [性能监控] \" + methodName + \" 耗时 \" + cost + \"ms\");\n                    return result;\n                });\n    }\n\n    public static void main(String[] args) {\n        System.out.println(\"--- 场景1: 日志与耗时切面(代理 UserService) ---\");\n        UserService userService = createProxy(new UserServiceImpl(), UserService.class);\n        System.out.println(\"  调用 findUser(1001): \" + userService.findUser(1001));\n        System.out.println(\"  调用 deleteUser(1002):\");\n        userService.deleteUser(1002);\n\n        System.out.println(\"\\n--- 场景2: 注解驱动的操作日志(对照本项目 @OperationLog + AOP) ---\");\n        AdminService adminService = createProxy(new AdminServiceImpl(), AdminService.class);\n        System.out.println(\"  调用 removeUser(2001) [有 @OperationLog]:\");\n        adminService.removeUser(2001);\n        System.out.println(\"  调用 queryUser(2001) [无注解]:\");\n        adminService.queryUser(2001);\n\n        System.out.println(\"\\n--- 验证: 代理不是原对象 ---\");\n        System.out.println(\"  \" + userService.getClass().getName());\n        System.out.println(\"  isProxy = \" + Proxy.isProxyClass(userService.getClass()));\n\n        System.out.println(\"\\n结论: 业务代码一行没改,日志/耗时/操作记录全被'织入'——这就是 AOP 的价值\");\n    }\n}"
+          "codeExample": "import java.lang.reflect.InvocationHandler;\nimport java.lang.reflect.Method;\nimport java.lang.reflect.Proxy;\n\ninterface UserService {\n    void save(String user);\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        UserService target = user -> System.out.println(\"业务: 保存 \" + user);\n\n        // JDK 动态代理: 在不改业务代码的前提下织入横切逻辑(日志/耗时)\n        UserService proxy = (UserService) Proxy.newProxyInstance(\n            Main.class.getClassLoader(),\n            new Class[]{UserService.class},\n            (proxyObj, method, args2) -> {\n                long t = System.nanoTime();\n                System.out.println(\"[AOP] \" + method.getName() + \" 开始\");\n                Object r = method.invoke(target, args2);\n                System.out.println(\"[AOP] \" + method.getName() + \" 耗时 \"\n                    + (System.nanoTime() - t) / 1000 + \"us\");\n                return r;\n            });\n\n        proxy.save(\"张三\");\n    }\n}",
+          "codeType": "java"
         },
         {
           "lessonNo": 4,
@@ -1368,7 +1414,8 @@
           "difficulty": 4,
           "durationMinutes": 25,
           "content": "## @Transactional 做了什么\n- 加在方法上,Spring 通过 AOP 代理在方法前开启事务、正常返回后提交、抛异常后回滚\n- 你一行代码没写,事务就生效了——这是声明式编程的威力\n- 本质: 一个 @Around 通知,包裹了 TransactionManager 的 begin/commit/rollback\n\n## 三条必知规则\n- 默认只对 RuntimeException 和 Error 回滚;受检异常(IOException)不会回滚 -> 需显式 @Transactional(rollbackFor = Exception.class)\n- 只对 public 方法生效(代理机制决定);private/protected 上加了也无效\n- 默认传播行为 REQUIRED: 加入当前事务;如果本来没事务就开一个新的\n\n## 最经典的坑:自调用失效\n- 同类内部直接调用(this.method())不经过代理 -> 事务、AOP 全部不生效!\n- 原因: 事务靠代理织入,自调用走的是原始对象,绕过了壳\n- 解法: 拆到另一个类、注入自身(@Lazy 自注入)、或用 AopContext.currentProxy()\n\n## 其他常见陷阱\n- try-catch 吞掉异常: 事务管理器看不到异常,以为成功了就提交 -> 数据不一致\n- 事务方法里做长耗时操作(远程调用、循环): 连接被长时间占用,拖垮数据库\n- 大事务: 一次修改几万行,锁范围大、回滚代价高 -> 拆小批处理\n\n## 本项目对照\n- 种子服务 LearningDataSeedService.seedLearningData 标了 @Transactional(rollbackFor = Exception.class):\n  课程导入要么全成功要么全回滚,不会留下半截数据\n\n## 动手做\n右侧代码用动态代理模拟事务管理器,演示\"正常提交 / 异常回滚 / 自调用失效\"三种情况。",
-          "codeExample": "import java.lang.reflect.*;\nimport java.util.*;\n\npublic class Main {\n\n    /** 模拟数据库: 一张账户表 */\n    static final Map<String, Integer> DB = new LinkedHashMap<>();\n\n    /** 事务管理器(简化版) */\n    static class TxManager {\n        /** 事务内的操作日志,回滚时据此撤销 */\n        private final List<Runnable> undoLog = new ArrayList<>();\n        private boolean inTransaction = false;\n\n        void begin() {\n            inTransaction = true;\n            undoLog.clear();\n            System.out.println(\"  [事务] BEGIN\");\n        }\n\n        void record(String account, int oldValue) {\n            undoLog.add(() -> DB.put(account, oldValue));\n        }\n\n        void commit() {\n            inTransaction = false;\n            undoLog.clear();\n            System.out.println(\"  [事务] COMMIT (全部生效)\");\n        }\n\n        void rollback() {\n            // 逆序撤销\n            for (int i = undoLog.size() - 1; i >= 0; i--) undoLog.get(i).run();\n            inTransaction = false;\n            System.out.println(\"  [事务] ROLLBACK (已撤销 \" + undoLog.size() + \" 步操作)\");\n            undoLog.clear();\n        }\n    }\n\n    static final TxManager TX = new TxManager();\n\n    /** 转账业务: 未加事务的原始逻辑 */\n    static void transferRaw(String from, String to, int amount, boolean failAfterDebit) {\n        int f = DB.get(from), t = DB.get(to);\n        DB.put(from, f - amount);\n        TX.record(from, f);\n        System.out.println(\"    已扣款: \" + from + \" -\" + amount);\n        if (failAfterDebit) throw new IllegalStateException(\"模拟: 收款方账户异常\");\n        DB.put(to, t + amount);\n        TX.record(to, t);\n        System.out.println(\"    已入账: \" + to + \" +\" + amount);\n    }\n\n    /** 事务代理: 对应 @Transactional 的 AOP 织入 */\n    static void transferWithTx(String from, String to, int amount, boolean fail) {\n        TX.begin();\n        try {\n            transferRaw(from, to, amount, fail);\n            TX.commit();\n        } catch (Exception e) {\n            System.out.println(\"    异常: \" + e.getMessage());\n            TX.rollback();\n        }\n    }\n\n    static void reset() { DB.clear(); DB.put(\"张三\", 1000); DB.put(\"李四\", 1000); }\n\n    public static void main(String[] args) {\n        System.out.println(\"=== 场景1: 正常转账(有事务) ===\");\n        reset();\n        transferWithTx(\"张三\", \"李四\", 100, false);\n        System.out.println(\"  结果: \" + DB);\n\n        System.out.println(\"\\n=== 场景2: 扣款后异常(有事务 -> 回滚) ===\");\n        reset();\n        transferWithTx(\"张三\", \"李四\", 100, true);\n        System.out.println(\"  结果: \" + DB + \"  <- 张三的钱回来了,数据一致\");\n\n        System.out.println(\"\\n=== 场景3: 同样的异常,但没有事务 ===\");\n        reset();\n        transferRaw(\"张三\", \"李四\", 100, true);\n        System.out.println(\"  结果: \" + DB + \"  <- 钱凭空消失 100! 这就是必须用事务的理由\");\n\n        System.out.println(\"\\n=== 场景4: 自调用陷阱演示 ===\");\n        System.out.println(\"  class A { public void outer() { this.inner(); } @Transactional public void inner() {...} }\");\n        System.out.println(\"  outer -> this.inner(): 不经过代理 -> 事务不生效!\");\n        System.out.println(\"  正解: 拆到另一个 Bean,或自注入后调 proxy.inner()\");\n\n        System.out.println(\"\\n对照本项目: LearningDataSeedService 的 @Transactional(rollbackFor = Exception.class)\");\n        System.out.println(\"保证 91 个课时的导入要么全成功、要么全回滚,不会留下半截课程数据\");\n    }\n}"
+          "codeExample": "import java.lang.reflect.Proxy;\nimport java.util.ArrayList;\nimport java.util.List;\n\ninterface AccountDao {\n    void transfer(String from, String to, double amount);\n}\n\npublic class Main {\n    static final List<String> TX_LOG = new ArrayList<>();\n\n    public static void main(String[] args) {\n        AccountDao dao = (from, to, amount) ->\n            System.out.println(\"业务: \" + from + \" -> \" + to + \" \" + amount);\n\n        // 用代理模拟 @Transactional: 方法前 BEGIN, 正常 COMMIT, 异常 ROLLBACK\n        AccountDao tx = (AccountDao) Proxy.newProxyInstance(\n            Main.class.getClassLoader(), new Class[]{AccountDao.class},\n            (p, m, a) -> {\n                TX_LOG.add(\"BEGIN\");\n                try {\n                    Object r = m.invoke(dao, a);\n                    TX_LOG.add(\"COMMIT\");\n                    return r;\n                } catch (Exception e) {\n                    TX_LOG.add(\"ROLLBACK: \" + e.getCause().getMessage());\n                    throw e;\n                }\n            });\n\n        tx.transfer(\"张三\", \"李四\", 100);\n        System.out.println(\"事务日志: \" + TX_LOG);\n        System.out.println(\"经典陷阱: 同类内部自调用不走代理, 事务会失效!\");\n    }\n}",
+          "codeType": "java"
         }
       ]
     },

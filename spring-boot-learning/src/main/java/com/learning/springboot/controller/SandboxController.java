@@ -75,12 +75,15 @@ public class SandboxController {
         sandboxJdbc.execute("DROP TABLE IF EXISTS scores");
         sandboxJdbc.execute("DROP TABLE IF EXISTS students");
         sandboxJdbc.execute("DROP TABLE IF EXISTS courses");
+        sandboxJdbc.execute("DROP TABLE IF EXISTS classes");
         // 重建 + 灌种子
         dataInitializer.init();
         Map<String, Object> info = new LinkedHashMap<>();
+        Integer clCount = sandboxJdbc.queryForObject("SELECT COUNT(*) FROM classes", Integer.class);
         Integer sCount = sandboxJdbc.queryForObject("SELECT COUNT(*) FROM students", Integer.class);
         Integer cCount = sandboxJdbc.queryForObject("SELECT COUNT(*) FROM courses", Integer.class);
         Integer scCount = sandboxJdbc.queryForObject("SELECT COUNT(*) FROM scores", Integer.class);
+        info.put("classes", clCount == null ? 0 : clCount);
         info.put("students", sCount == null ? 0 : sCount);
         info.put("courses", cCount == null ? 0 : cCount);
         info.put("scores", scCount == null ? 0 : scCount);
@@ -91,6 +94,7 @@ public class SandboxController {
     @GetMapping("/sql-info")
     public ResponseEntity<?> sqlInfo() {
         Map<String, Object> info = new LinkedHashMap<>();
+        info.put("classes", sandboxJdbc.queryForObject("SELECT COUNT(*) FROM classes", Integer.class));
         info.put("students", sandboxJdbc.queryForObject("SELECT COUNT(*) FROM students", Integer.class));
         info.put("courses", sandboxJdbc.queryForObject("SELECT COUNT(*) FROM courses", Integer.class));
         info.put("scores", sandboxJdbc.queryForObject("SELECT COUNT(*) FROM scores", Integer.class));

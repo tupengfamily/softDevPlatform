@@ -50,9 +50,15 @@ request.interceptors.response.use(
 
       if (status === 401) {
         const userStore = useUserStore()
+        const wasGuest = !userStore.token
         userStore.clear()
-        // 优先用后端返回的具体原因(如"Token 无效或已过期"),否则用默认提示
-        ElMessage.error(message || '登录已过期,请重新登录')
+        if (wasGuest) {
+          // 游客访问了需要登录的功能: 温和引导登录,不做"过期"误导
+          ElMessage.info('该功能需要登录后使用')
+        } else {
+          // 优先用后端返回的具体原因(如"Token 无效或已过期"),否则用默认提示
+          ElMessage.error(message || '登录已过期,请重新登录')
+        }
         // 仅在不是登录页时跳转,避免循环
         if (router.currentRoute.value.path !== '/login') {
           router.push({

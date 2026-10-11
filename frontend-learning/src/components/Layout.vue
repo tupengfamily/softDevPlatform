@@ -2,18 +2,43 @@
 // 整体布局: 可折叠侧栏 + 顶部栏 + 内容区
 // 菜单按角色分级: 学习板块对所有人开放, 系统管理仅管理员可见
 // 菜单分组支持展开/收起(记忆到 localStorage);新版本公告弹窗(按已读版本去重)
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useUserStore } from '../store/user'
+import { useSubjectStore } from '../store/subject'
+import { useNotificationStore } from '../store/notification'
 import { lessonCrumbTitle } from '../store/crumb'
 import { getLatestRelease } from '../api/release'
+import { recentNotifications, markRead, markAllRead } from '../api/notifications'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const subjectStore = useSubjectStore()
+const notifStore = useNotificationStore()
 
 const isAdmin = computed(() => userStore.roles.includes('ADMIN'))
+
+// ============== 游客访问 ==============
+// 未登录用户可浏览学习中心/课时详情;个人操作由页面内引导登录
+const isGuest = computed(() => !userStore.isLogin)
+const guestBannerVisible = ref(sessionStorage.getItem('guestBannerClosed') !== '1')
+const dismissGuestBanner = () => {
+  guestBannerVisible.value = false
+  sessionStorage.setItem('guestBannerClosed', '1')
+}
+const goLogin = () => router.push({ path: '/login', query: { redirect: route.fullPath } })
+const goRegister = () => router.push({ path: '/register', query: { redirect: route.fullPath } })
+
+// ============== 学习语言选择(头像旁) ==============
+// 记忆用户偏好:下次进入默认展示该语言的学习内容(store 内双重记忆:本地+后端)
+const langChanging = ref(false)
+const onLangChange = async (sid) => {
+  langChanging.value = true
+  await subjectStore.setPreferred(sid)
+  langChanging.value = false
+}
 
 // 侧栏折叠状态(记忆到 localStorage)
 const collapsed = ref(localStorage.getItem('menuCollapsed') === '1')
@@ -38,10 +63,17 @@ const menuGroups = computed(() => {
         { path: '/users',     title: '用户管理', icon: 'User' },
         { path: '/roles',     title: '角色管理', icon: 'UserFilled' },
         { path: '/dicts',     title: '数据字典', icon: 'Collection' },
-        { path: '/logs',      title: '操作日志', icon: 'Document' }
+        { path: '/logs',      title: '操作日志', icon: 'Document' },
+        { path: '/learning-config', title: '学习配置', icon: 'Setting' }
       ]
     })
   }
+  groups.push({
+    title: '交流',
+    items: [
+      { path: '/forum', title: '论坛专区', icon: 'ChatLineRound' }
+    ]
+  })
   groups.push({
     title: '其他',
     items: [
@@ -74,10 +106,51 @@ watch(() => route.path, (p) => {
 
 // 课时详情页(/learning/lesson/:id)也高亮"学习中心"
 const activePath = computed(() => {
-  if (route.path.startsWith('/learning')) return '/learning'
+  if (route.path.startsWith('/learning/')) return '/learning'
+  if (route.path.startsWith('/forum/')) return '/forum'
   return route.path
 })
 const goTo = (path) => router.push(path)
+
+// ============== 消息中心(头部铃铛) ==============
+// 未读数 60s 轮询(store 与消息页共享);面板展示最近 8 条,点击跳转关联内容(帖子/课时)
+const unread = computed(() => notifStore.unread)
+const msgList = ref([])
+const msgVisible = ref(false)
+const typeTag = { SYSTEM: 'primary', REPLY: 'warning', TASK: 'success' }
+
+const openMsgPanel = async () => {
+  msgVisible.value = !msgVisible.value
+  if (!msgVisible.value) return
+  try {
+    const res = await recentNotifications()
+    msgList.value = res.data || []
+  } catch (e) { /* 静默 */ }
+}
+const fmtMsgTime = (t) => (t || '').replace('T', ' ').slice(0, 16)
+const onMsgClick = async (n) => {
+  msgVisible.value = false
+  if (!n.read) {
+    try {
+      await markRead(n.id)
+      n.read = true
+      notifStore.decUnread()
+    } catch (e) { /* 静默 */ }
+  }
+  if (n.relatedType === 'POST' && n.relatedId) router.push(`/forum/${n.relatedId}`)
+  else if (n.relatedType === 'LESSON' && n.relatedId) router.push(`/learning/lesson/${n.relatedId}`)
+}
+const readAllMsgs = async () => {
+  try {
+    await markAllRead()
+    notifStore.clearUnread()
+    msgList.value.forEach(n => { n.read = true })
+    ElMessage.success('已全部标记已读')
+  } catch (e) { /* 已统一弹错 */ }
+}
+const goNotifications = () => { msgVisible.value = false; router.push('/notifications') }
+
+let msgTimer = null
 
 // ============== 新版本公告弹窗 ==============
 // 对比 localStorage 已读版本,有新版本则弹窗;关闭即视为已读
@@ -86,7 +159,14 @@ const noticeRelease = ref(null)
 const SEEN_KEY = 'lastSeenReleaseVersion'
 
 onMounted(async () => {
+  subjectStore.load()   // 科目列表 + 学习语言偏好(异步即可,不阻塞公告;游客仅拉科目列表)
+  if (userStore.isLogin) {
+    notifStore.fetchUnread()
+    msgTimer = setInterval(() => notifStore.fetchUnread(), 60000)   // 未读数轮询
+  }
   try {
+    // 新版本公告面向登录用户(游客跳过,避免匿名 401)
+    if (!userStore.isLogin) return
     const res = await getLatestRelease()
     const rel = res.data
     if (rel && rel.version && localStorage.getItem(SEEN_KEY) !== rel.version) {
@@ -95,6 +175,8 @@ onMounted(async () => {
     }
   } catch (e) { /* 未登录或接口异常时静默 */ }
 })
+
+onBeforeUnmount(() => { if (msgTimer) clearInterval(msgTimer) })
 
 const closeNotice = () => {
   if (noticeRelease.value?.version) localStorage.setItem(SEEN_KEY, noticeRelease.value.version)
@@ -178,8 +260,8 @@ const onCommand = async (cmd) => {
 
       <!-- 底部角色提示 -->
       <div class="aside-foot" v-show="!collapsed">
-        <span class="dot" :class="isAdmin ? 'admin' : 'user'"></span>
-        {{ isAdmin ? '管理员模式 · 可管理全站' : '学员模式 · 专注你的学习' }}
+        <span class="dot" :class="isGuest ? 'guest' : (isAdmin ? 'admin' : 'user')"></span>
+        {{ isGuest ? '游客模式 · 登录后记录学习进度' : (isAdmin ? '管理员模式 · 可管理全站' : '学员模式 · 专注你的学习') }}
       </div>
     </el-aside>
 
@@ -200,7 +282,7 @@ const onCommand = async (cmd) => {
         <div class="header-left">
           <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: isAdmin ? '/dashboard' : '/learning' }">首页</el-breadcrumb-item>
-            <el-breadcrumb-item v-if="route.path.startsWith('/learning')" :to="{ path: '/learning' }">
+            <el-breadcrumb-item v-if="route.path === '/learning' || route.path.startsWith('/learning/')" :to="{ path: '/learning' }">
               学习中心
             </el-breadcrumb-item>
             <el-breadcrumb-item v-if="route.path.startsWith('/learning/lesson') && lessonCrumbTitle">
@@ -212,33 +294,113 @@ const onCommand = async (cmd) => {
           </el-breadcrumb>
         </div>
         <div class="header-right">
-          <el-tag :type="isAdmin ? 'danger' : 'success'" size="small" effect="light" round>
-            {{ isAdmin ? '管理员' : '普通用户' }}
-          </el-tag>
-          <el-dropdown trigger="click" @command="onCommand">
-            <span class="user-trigger">
-              <el-avatar :size="28" :style="{ background: isAdmin ? '#e6483d' : '#16a34a' }">
-                {{ userStore.username?.charAt(0)?.toUpperCase() || '?' }}
-              </el-avatar>
-              {{ userStore.username }}
-              <el-icon style="margin-left:4px;"><ArrowDown /></el-icon>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="collapse">
-                  <el-icon><Fold /></el-icon>{{ collapsed ? '展开菜单' : '收起菜单' }}
-                </el-dropdown-item>
-                <el-dropdown-item command="logout" divided>
-                  <el-icon><SwitchButton /></el-icon>退出登录
-                </el-dropdown-item>
-              </el-dropdown-menu>
+          <el-select
+            class="lang-select"
+            :model-value="subjectStore.preferredSubjectId"
+            placeholder="选择学习语言"
+            size="small"
+            :disabled="langChanging"
+            @change="onLangChange"
+          >
+            <template #prefix>
+              <el-icon><Connection /></el-icon>
             </template>
-          </el-dropdown>
+            <el-option v-for="s in subjectStore.subjects" :key="s.id" :label="s.name" :value="s.id">
+              <span>{{ s.name }}</span>
+              <small class="lang-opt-meta">{{ s.totalLessons }} 课时</small>
+            </el-option>
+          </el-select>
+
+          <!-- 消息中心铃铛(登录用户) -->
+          <div v-if="!isGuest" class="msg-wrap">
+            <button class="msg-bell" title="消息中心" aria-label="消息中心" @click="openMsgPanel">
+              <el-badge :value="unread" :hidden="!unread" :max="99">
+                <el-icon :size="18"><Bell /></el-icon>
+              </el-badge>
+            </button>
+            <div v-if="msgVisible" class="msg-mask" @click="msgVisible = false"></div>
+            <transition name="fade">
+              <div v-if="msgVisible" class="msg-panel">
+                <div class="msg-head">
+                  <b>消息中心</b>
+                  <el-button v-if="unread" text type="primary" size="small" @click="readAllMsgs">全部已读</el-button>
+                </div>
+                <div class="msg-body">
+                  <div
+                    v-for="n in msgList"
+                    :key="n.id"
+                    class="msg-row"
+                    :class="{ unread: !n.read }"
+                    role="button"
+                    tabindex="0"
+                    @click="onMsgClick(n)"
+                    @keydown.enter="onMsgClick(n)"
+                  >
+                    <el-tag size="small" effect="plain" :type="typeTag[n.type] || 'info'">{{ n.typeLabel }}</el-tag>
+                    <div class="msg-text">
+                      <div class="msg-t">{{ n.title }}</div>
+                      <div class="msg-c">{{ n.content }}</div>
+                      <div class="msg-time">{{ fmtMsgTime(n.createTime) }}</div>
+                    </div>
+                  </div>
+                  <el-empty v-if="!msgList.length" description="暂无消息" :image-size="48" />
+                </div>
+                <div class="msg-foot" role="button" tabindex="0" @click="goNotifications" @keydown.enter="goNotifications">
+                  查看全部消息 →
+                </div>
+              </div>
+            </transition>
+          </div>
+
+          <!-- 游客:身份提示 + 登录引导 -->
+          <template v-if="isGuest">
+            <el-tag type="info" size="small" effect="light" round>
+              <el-icon style="vertical-align:-2px;margin-right:2px"><UserFilled /></el-icon>游客访问
+            </el-tag>
+            <el-button size="small" @click="goLogin">登录</el-button>
+            <el-button size="small" type="primary" @click="goRegister">注册</el-button>
+          </template>
+
+          <template v-else>
+            <el-tag :type="isAdmin ? 'danger' : 'success'" size="small" effect="light" round>
+              {{ isAdmin ? '管理员' : '普通用户' }}
+            </el-tag>
+            <el-dropdown trigger="click" @command="onCommand">
+              <span class="user-trigger">
+                <el-avatar :size="28" :style="{ background: isAdmin ? '#e6483d' : '#16a34a' }">
+                  {{ userStore.username?.charAt(0)?.toUpperCase() || '?' }}
+                </el-avatar>
+                {{ userStore.username }}
+                <el-icon style="margin-left:4px;"><ArrowDown /></el-icon>
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="collapse">
+                    <el-icon><Fold /></el-icon>{{ collapsed ? '展开菜单' : '收起菜单' }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="logout" divided>
+                    <el-icon><SwitchButton /></el-icon>退出登录
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </template>
         </div>
       </el-header>
 
       <!-- 内容区 -->
       <el-main>
+        <!-- 游客访问提示: 明确告知当前身份与登录后的权益 -->
+        <div v-if="isGuest && guestBannerVisible" class="guest-bar" role="status">
+          <el-icon class="gb-ic"><UserFilled /></el-icon>
+          <span class="gb-text">
+            您当前处于<strong>游客访问</strong>模式,可自由浏览全部课程;登录后可标记学习完成、同步学习进度并参与互动。
+          </span>
+          <div class="gb-btns">
+            <el-button size="small" type="primary" @click="goLogin">去登录</el-button>
+            <el-button size="small" text @click="dismissGuestBanner">不再提示</el-button>
+          </div>
+        </div>
         <RouterView v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -277,11 +439,11 @@ const onCommand = async (cmd) => {
 }
 .logo {
   display: flex; align-items: center; gap: 9px;
-  height: 60px; padding: 0 20px; flex: none;
+  height: 52px; padding: 0 20px; flex: none;
   background: rgba(255, 255, 255, .04);
 }
 .logo.collapsed { padding: 0; justify-content: center; }
-.logo-text { color: #fff; font-size: var(--fs-md); font-weight: 600; white-space: nowrap; letter-spacing: .2px; }
+.logo-text { color: #fff; font-size: var(--fs-md); font-weight: 600; white-space: nowrap; letter-spacing: .2px; line-height: 1; }
 
 .menu-scroll { flex: 1; }
 .aside-menu { border-right: none; padding: 6px 0; }
@@ -295,7 +457,7 @@ const onCommand = async (cmd) => {
 .group-title .g-arrow { transition: transform .2s; font-size: 12px; }
 .group-title.collapsed .g-arrow { transform: rotate(-90deg); }
 .aside-menu :deep(.el-menu-item) {
-  height: 42px; line-height: 42px; margin: 3px 10px; border-radius: 8px;
+  height: 40px; line-height: 40px; margin: 3px 10px; border-radius: 8px;
   transition: background .18s, color .18s;
 }
 .aside-menu :deep(.el-menu-item:hover) { background: rgba(255, 255, 255, .07) !important; color: #fff !important; }
@@ -325,10 +487,13 @@ const onCommand = async (cmd) => {
 .aside-foot .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
 .aside-foot .dot.admin { background: #f87171; }
 .aside-foot .dot.user { background: #4ade80; }
+.aside-foot .dot.guest { background: #94a3b8; }
 
 /* ============ 顶部 ============ */
 .main-wrap { min-width: 0; }
 .header {
+  --el-header-height: 52px;
+  height: 52px; line-height: 1;
   display: flex; justify-content: space-between; align-items: center;
   background: #fff; border-bottom: 1px solid #eceff4; padding: 0 20px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, .04); z-index: 10;
@@ -353,10 +518,67 @@ const onCommand = async (cmd) => {
 }
 .header-right { display: flex; align-items: center; gap: 12px; }
 
+/* 头像旁学习语言选择框 */
+.lang-select { width: 150px; }
+.lang-select :deep(.el-input__wrapper) { border-radius: var(--r-full); background: #f5f7fb; }
+.lang-opt-meta { color: var(--c-text-3); font-size: var(--fs-xs); margin-left: 8px; }
+
+/* 消息中心铃铛 + 下拉面板 */
+.msg-wrap { position: relative; display: inline-flex; }
+.msg-bell {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; border: none; border-radius: 50%;
+  background: transparent; color: var(--c-text-2); cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.msg-bell:hover { background: var(--c-primary-bg); color: var(--c-primary); }
+.msg-mask { position: fixed; inset: 0; z-index: 99; }
+.msg-panel {
+  position: absolute; top: calc(100% + 10px); right: -8px; z-index: 100;
+  width: 320px; background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, .14); overflow: hidden;
+}
+.msg-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid #f1f3f8; font-size: var(--fs-sm);
+}
+.msg-body { max-height: 340px; overflow: auto; }
+.msg-row {
+  display: flex; gap: 8px; padding: 10px 14px; cursor: pointer;
+  border-bottom: 1px solid #f5f7fa; transition: background .12s;
+}
+.msg-row:hover { background: #f8fafd; }
+.msg-row.unread { background: #f6f9ff; }
+.msg-text { flex: 1; min-width: 0; }
+.msg-t { font-size: var(--fs-sm); font-weight: 600; color: var(--c-text-1); }
+.msg-c {
+  margin-top: 2px; font-size: var(--fs-xs); color: var(--c-text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.msg-time { margin-top: 4px; font-size: var(--fs-xs); color: #94a3b8; }
+.msg-foot {
+  padding: 9px 14px; text-align: center; font-size: var(--fs-xs); color: var(--c-primary);
+  cursor: pointer; background: #fafbfd;
+}
+.msg-foot:hover { background: var(--c-primary-bg); }
+
 .user-trigger { display: inline-flex; align-items: center; cursor: pointer; color: var(--c-text-1); }
 .user-trigger:hover { color: var(--c-primary); }
 
 .el-main { padding: 0; background: #f5f7fb; overflow-x: hidden; }
+
+/* ============ 游客访问提示条 ============ */
+.guest-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin: 12px 24px 0; padding: 10px 16px;
+  background: linear-gradient(90deg, #eef2ff, #f0f7ff);
+  border: 1px solid #dbe4ff; border-radius: var(--r-m);
+  font-size: var(--fs-sm); color: var(--c-text-1);
+}
+.guest-bar .gb-ic { color: #4f46e5; font-size: 18px; flex: none; }
+.guest-bar .gb-text { flex: 1; min-width: 0; line-height: 1.6; }
+.guest-bar .gb-text strong { color: #4f46e5; }
+.guest-bar .gb-btns { flex: none; display: flex; align-items: center; gap: 4px; }
 
 .fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

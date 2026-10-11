@@ -1,15 +1,30 @@
 <script setup>
 // 学习中心首页(现代主流学习平台风格)
-// 设计稿 1: 顶部 KPI + 阶段卡片(每阶段显示章/课时/进度)
-import { computed, onMounted, ref } from 'vue'
+// - 顶部 KPI + 阶段卡片(每阶段显示章/课时/进度)
+// - 科目(语言)维度切换: Java / Python / JavaScript ...(管理员可在学习配置中维护)
+// - 底部"社区补充章节": 用户自建章节与子节点,补充课程缺失内容
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getCurriculum, getProgress } from '../api/learning'
+import { useSubjectStore } from '../store/subject'
+import { useUserStore } from '../store/user'
+import SupplementTree from '../components/SupplementTree.vue'
 
 const router = useRouter()
+const subjectStore = useSubjectStore()
+const userStore = useUserStore()
 
 const loading = ref(false)
 const stages = ref([])
 const progress = ref(null)
+
+// 游客可浏览课程;进度/完成记录仅登录用户有
+const isGuest = computed(() => !userStore.isLogin)
+const goLogin = () => router.push({ path: '/login', query: { redirect: '/learning' } })
+
+// 语言维度完全跟随头部"学习语言"选择框(页内不再提供选择,节省显示空间)
+const activeSubjectId = computed(() => subjectStore.preferredSubjectId)
+const activeSubject = computed(() => subjectStore.preferredSubject)
 
 const stageGradients = [
   'linear-gradient(135deg, #2563eb, #4f46e5)',    // 阶段 1 入门基础
@@ -30,9 +45,11 @@ const learnedCount = computed(() => progress.value?.learnedLessons || 0)
 const loadData = async () => {
   loading.value = true
   try {
+    const sid = activeSubjectId.value
+    // 游客只拉课程树(进度是用户维度数据,未登录不请求)
     const [curriculumRes, progressRes] = await Promise.all([
-      getCurriculum(),
-      getProgress()
+      getCurriculum(sid),
+      isGuest.value ? Promise.resolve({ data: null }) : getProgress(sid)
     ])
     stages.value = curriculumRes.data || []
     progress.value = progressRes.data || null
@@ -40,6 +57,14 @@ const loadData = async () => {
     loading.value = false
   }
 }
+
+const loadSubjects = async () => {
+  // 语言由 store 提供(头部选择框记忆),这里只需确保偏好加载完成后取数
+  if (!subjectStore.loaded) await subjectStore.load()
+  await loadData()
+}
+
+watch(activeSubjectId, loadData)
 
 const openLesson = (id) => { if (id) router.push(`/learning/lesson/${id}`) }
 
@@ -80,8 +105,8 @@ const learnedChapters = computed(() => stages.value.reduce(
   (n, st) => n + st.chapters.filter(c => c.totalLessons > 0 && c.learnedLessons === c.totalLessons).length, 0))
 const remainLessons = computed(() => Math.max(0, totalLessons.value - learnedCount.value))
 
-// 关键: 组件挂载后加载课程数据(此前遗漏该调用,导致页面始终显示 0/0)
-onMounted(loadData)
+// 关键: 组件挂载后加载科目与课程数据
+onMounted(loadSubjects)
 </script>
 
 <template>
@@ -90,11 +115,13 @@ onMounted(loadData)
     <!-- 顶部欢迎 + KPI -->
     <div class="hero">
       <div>
-        <h1>你好, 学习者</h1>
-        <p>已学 {{ learnedCount }} / {{ totalLessons }} 课时 · {{ totalChapters }} 章节 · 跟随阶段式课程一路前行。</p>
+        <h1>{{ isGuest ? '欢迎来到学习中心' : '你好, 学习者' }}<template v-if="activeSubject"> · {{ activeSubject.name }}</template></h1>
+        <p v-if="isGuest">全部 {{ totalLessons }} 课时 · {{ totalChapters }} 章节 · 游客可自由浏览,登录后记录你的学习进度。</p>
+        <p v-else>已学 {{ learnedCount }} / {{ totalLessons }} 课时 · {{ totalChapters }} 章节 · 跟随阶段式课程一路前行。</p>
       </div>
       <div class="btns">
-        <button class="btn primary" @click="continueLearning">继续学习 <el-icon><ArrowRight /></el-icon></button>
+        <button v-if="isGuest" class="btn primary" @click="goLogin">登录后开始学习 <el-icon><ArrowRight /></el-icon></button>
+        <button v-else class="btn primary" @click="continueLearning">继续学习 <el-icon><ArrowRight /></el-icon></button>
       </div>
     </div>
 
@@ -174,11 +201,22 @@ onMounted(loadData)
         </div>
       </div>
     </div>
+
+    <!-- 社区补充章节: 用户自建章节与子节点 -->
+    <SupplementTree
+      v-if="activeSubjectId"
+      class="sup-section"
+      :subject-id="activeSubjectId"
+      title="社区补充章节"
+      root-label="添加补充章节"
+    />
   </div>
 </template>
 
 <style scoped>
 .page { padding:24px 32px; max-width:1200px; margin:0 auto }
+
+.sup-section { margin-top:22px }
 
 .hero { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px }
 .hero h1 { margin:0 0 4px; font-size:var(--fs-xl); font-weight:600; color:var(--c-text-1) }

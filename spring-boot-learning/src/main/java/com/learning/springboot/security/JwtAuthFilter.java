@@ -62,6 +62,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     FilterChain chain) throws ServletException, IOException {
         String token = jwtUtil.resolveToken(req);
         if (token == null || token.isEmpty()) {
+            // 游客可读接口:不带 token 也放行(不写入用户属性,userId 为空)
+            // 支撑"游客访问学习中心":浏览课程/课时/补充内容,个人操作仍需登录
+            if (isGuestReadable(req)) {
+                chain.doFilter(req, resp);
+                return;
+            }
             writeUnauthorized(resp, "缺少认证凭证");
             return;
         }
@@ -83,6 +89,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             log.error("[JWT] 鉴权异常", e);
             writeUnauthorized(resp, "认证失败");
         }
+    }
+
+    /**
+     * 游客可读接口(匿名 GET 放行,userId 为空):
+     * 科目列表 / 课程树 / 课时详情 / 补充内容树 — 支撑游客浏览学习中心。
+     * 个人相关接口(进度、标记完成、偏好、看板、写操作)仍要求登录。
+     */
+    private boolean isGuestReadable(HttpServletRequest req) {
+        if (!"GET".equalsIgnoreCase(req.getMethod())) return false;
+        String path = req.getRequestURI();
+        return path.equals("/api/learning/subjects")
+            || path.equals("/api/learning/curriculum")
+            || path.matches("/api/learning/lessons/\\d+")
+            || path.equals("/api/learning/supplements");
     }
 
     private void writeUnauthorized(HttpServletResponse resp, String message) throws IOException {

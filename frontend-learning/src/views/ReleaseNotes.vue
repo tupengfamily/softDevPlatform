@@ -1,6 +1,7 @@
 <script setup>
 // 更新日志页: 版本公告时间线(最新在前),内容为富文本(Quill 编辑, HTML 存储)
-// 管理员可发布 / 编辑 / 删除公告;发布后老用户会收到新版本公告弹窗
+// 管理员可发布公告;已到发布日期的公告即锁定,不允许再编辑/删除(后端强制)
+// 发布后老用户会收到新版本公告弹窗
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { QuillEditor } from '@vueup/vue-quill'
@@ -49,6 +50,10 @@ const editingId = ref(null)
 const form = ref({ version: '', title: '', content: '', releaseDate: '' })
 const saving = ref(false)
 
+// 已到发布日期的公告锁定(不允许编辑/删除);未来的预发公告可调整
+const todayStr = () => new Date().toISOString().slice(0, 10)
+const canManage = (r) => (r.releaseDate || '') > todayStr()
+
 const openCreate = () => {
   editingId.value = null
   dialogTitle.value = '发布新版本'
@@ -76,9 +81,10 @@ const save = async () => {
   saving.value = true
   try {
     const payload = { ...form.value, releaseDate: form.value.releaseDate || undefined }
-    if (editingId.value) await updateRelease(editingId.value, payload)
+    const isEdit = !!editingId.value
+    if (isEdit) await updateRelease(editingId.value, payload)
     else await createRelease(payload)
-    ElMessage.success('已保存')
+    ElMessage.success(isEdit ? '已保存' : '已发布')
     dialogVisible.value = false
     loadData()
   } catch (e) { /* 已统一弹错 */ } finally {
@@ -129,10 +135,11 @@ onMounted(loadData)
               </el-tag>
               <span class="rel-title">{{ r.title }}</span>
               <span v-if="r === releases[0]" class="rel-latest">最新版本</span>
-              <span v-if="isAdmin" class="rel-ops">
+              <span v-if="isAdmin && canManage(r)" class="rel-ops">
                 <el-button link type="primary" size="small" @click="openEdit(r)">编辑</el-button>
                 <el-button link type="danger" size="small" @click="remove(r)">删除</el-button>
               </span>
+              <span v-else-if="isAdmin" class="rel-locked">已发布 · 不可修改</span>
             </div>
             <div class="rel-body rich-text" v-html="r.content"></div>
           </div>
@@ -162,6 +169,10 @@ onMounted(loadData)
             style="min-height:220px; width:100%"
           />
         </el-form-item>
+        <div class="lock-tip">
+          <el-icon><Lock /></el-icon>
+          公告到达发布日期后即锁定,不允许再编辑或删除,请确认无误后再发布。
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -189,6 +200,16 @@ onMounted(loadData)
 .rel-title { font-size:var(--fs-md); font-weight:600; color:var(--c-text-1) }
 .rel-latest { font-size:var(--fs-xs); color:var(--c-success); background:var(--c-success-bg); padding:2px 8px; border-radius:var(--r-full) }
 .rel-ops { margin-left:auto }
+.rel-locked {
+  margin-left:auto; font-size:var(--fs-xs); color:var(--c-text-3);
+  background:#f1f3f8; padding:2px 8px; border-radius:var(--r-full);
+}
+
+/* 发布对话框锁定提示 */
+.lock-tip {
+  display:flex; align-items:center; gap:6px; margin:-4px 0 4px 80px;
+  font-size:var(--fs-xs); color:var(--c-text-3);
+}
 
 .rel-body { margin-top:10px }
 /* 富文本内容排版 */

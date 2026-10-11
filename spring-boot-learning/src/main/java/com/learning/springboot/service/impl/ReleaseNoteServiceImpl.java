@@ -4,7 +4,10 @@ import com.learning.springboot.dto.ReleaseNoteDTO;
 import com.learning.springboot.entity.ReleaseNote;
 import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.repository.ReleaseNoteRepository;
+import com.learning.springboot.service.NotificationService;
 import com.learning.springboot.service.ReleaseNoteService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +21,10 @@ import java.util.List;
 @Service
 public class ReleaseNoteServiceImpl implements ReleaseNoteService {
 
+    private static final Logger log = LoggerFactory.getLogger(ReleaseNoteServiceImpl.class);
+
     @Autowired private ReleaseNoteRepository releaseNoteRepository;
+    @Autowired private NotificationService notificationService;
 
     @Override
     public List<ReleaseNote> list() {
@@ -39,7 +45,14 @@ public class ReleaseNoteServiceImpl implements ReleaseNoteService {
         }
         ReleaseNote note = new ReleaseNote();
         apply(note, dto);
-        return releaseNoteRepository.save(note);
+        ReleaseNote saved = releaseNoteRepository.save(note);
+        // 新版本公告同时作为系统通知推送给全体用户(失败不影响发版)
+        try {
+            notificationService.sendSystemNotice("新版本 v" + saved.getVersion() + " 发布", saved.getTitle());
+        } catch (Exception e) {
+            log.warn("新版本系统通知推送失败: {}", e.getMessage());
+        }
+        return saved;
     }
 
     @Override
@@ -47,6 +60,7 @@ public class ReleaseNoteServiceImpl implements ReleaseNoteService {
     public ReleaseNote update(Long id, ReleaseNoteDTO dto) {
         ReleaseNote note = releaseNoteRepository.findById(id)
             .orElseThrow(() -> new BusinessException("公告不存在"));
+        requireNotPublished(note);
         validate(dto);
         // 版本号可改,但不能与其他公告冲突
         if (dto.getVersion() != null) {
@@ -61,7 +75,18 @@ public class ReleaseNoteServiceImpl implements ReleaseNoteService {
     @Override
     @Transactional
     public void delete(Long id) {
-        releaseNoteRepository.deleteById(id);
+        ReleaseNote note = releaseNoteRepository.findById(id)
+            .orElseThrow(() -> new BusinessException("公告不存在"));
+        requireNotPublished(note);
+        releaseNoteRepository.delete(note);
+    }
+
+    /** 已到发布日期的公告一经发布即锁定,不允许再编辑/删除 */
+    private void requireNotPublished(ReleaseNote note) {
+        LocalDate date = note.getReleaseDate() != null ? note.getReleaseDate() : LocalDate.now();
+        if (!date.isAfter(LocalDate.now())) {
+            throw new BusinessException("已发布的公告不允许编辑/删除");
+        }
     }
 
     private void validate(ReleaseNoteDTO dto) {

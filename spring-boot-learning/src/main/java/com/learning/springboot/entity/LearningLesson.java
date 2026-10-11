@@ -45,6 +45,9 @@ public class LearningLesson {
     @Column(columnDefinition = "TEXT")
     private String codeExample;
 
+    /** 示例代码类型: java(Java 沙箱) / sql(SQL 沙箱), 默认 java */
+    private String codeType;
+
     /** 难度: 1=简单 2=中等 3=较难 */
     @Column(nullable = false)
     private Integer difficulty = 1;
@@ -77,6 +80,8 @@ public class LearningLesson {
 
     public String getCodeExample() { return codeExample; }
     public void setCodeExample(String codeExample) { this.codeExample = codeExample; }
+    public String getCodeType() { return codeType; }
+    public void setCodeType(String codeType) { this.codeType = codeType; }
 
     public Integer getDifficulty() { return difficulty; }
     public void setDifficulty(Integer difficulty) { this.difficulty = difficulty; }

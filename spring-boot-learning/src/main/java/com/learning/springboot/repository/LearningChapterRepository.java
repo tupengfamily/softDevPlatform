@@ -15,4 +15,10 @@ public interface LearningChapterRepository extends JpaRepository<LearningChapter
 
     /** 某阶段下的章节 */
     List<LearningChapter> findByStageNoOrderByChapterNoAsc(Integer stageNo);
+
+    /** 某科目下的全部章节,按章节序号升序 */
+    List<LearningChapter> findBySubjectIdOrderByChapterNoAsc(Long subjectId);
+
+    /** 某科目下的章节数 */
+    long countBySubjectId(Long subjectId);
 }

@@ -31,8 +31,8 @@ public class SqlSandboxService {
 
     private static final Logger log = LoggerFactory.getLogger(SqlSandboxService.class);
 
-    /** 允许的语句类型(首关键字) */
-    private static final List<String> ALLOWED_VERBS = List.of("SELECT", "INSERT", "UPDATE", "DELETE");
+    /** 允许的语句类型(首关键字); EXPLAIN 为只读查询计划, 教学索引章节需要 */
+    private static final List<String> ALLOWED_VERBS = List.of("SELECT", "INSERT", "UPDATE", "DELETE", "EXPLAIN");
 
     /** 拒绝的语句类型 */
     private static final List<String> REJECTED_VERBS = List.of(
@@ -73,11 +73,11 @@ public class SqlSandboxService {
             return errorResult(r, "教学沙箱不支持 " + firstWord + " 语句(请用'重置数据库'恢复初始结构)", start);
         }
         if (!ALLOWED_VERBS.contains(firstWord)) {
-            return errorResult(r, "仅支持 SELECT/INSERT/UPDATE/DELETE 语句", start);
+            return errorResult(r, "仅支持 SELECT/INSERT/UPDATE/DELETE/EXPLAIN 语句", start);
         }
 
         try {
-            if ("SELECT".equals(firstWord)) {
+            if ("SELECT".equals(firstWord) || "EXPLAIN".equals(firstWord)) {
                 executeSelect(trimmed, r);
             } else {
                 r.rowCount = jdbc.update(trimmed);

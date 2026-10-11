@@ -21,6 +21,10 @@ public class LearningChapter {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** 所属科目(语言)ID,关联 t_learning_subject;空=默认科目(Java) */
+    @Column(name = "subject_id")
+    private Long subjectId;
+
     /** 阶段编号: 1=入门基础 2=核心基础 3=进阶特性 4=综合实战 */
     @Column(name = "stage_no", nullable = false)
     private Integer stageNo;
@@ -55,6 +59,9 @@ public class LearningChapter {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getSubjectId() { return subjectId; }
+    public void setSubjectId(Long subjectId) { this.subjectId = subjectId; }
 
     public Integer getStageNo() { return stageNo; }
     public void setStageNo(Integer stageNo) { this.stageNo = stageNo; }

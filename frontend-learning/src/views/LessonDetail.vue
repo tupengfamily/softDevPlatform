@@ -3,15 +3,31 @@
 // 设计稿风格:三栏(章节侧栏 / 正文 / 进度侧栏),代码区与 SQL 控制台直接内嵌正文
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCurriculum, getLesson, markLearned, unmarkLearned } from '../api/learning'
 import { runJava } from '../api/sandbox'
 import { lessonCrumbTitle } from '../store/crumb'
+import { useUserStore } from '../store/user'
+import { renderMarkdown } from '../utils/markdown'
 import CodeEditor from '../components/CodeEditor.vue'
 import SqlConsole from '../components/SqlConsole.vue'
+import SupplementTree from '../components/SupplementTree.vue'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
+
+// 游客可浏览课时;标记完成等个人操作需登录
+const isGuest = computed(() => !userStore.isLogin)
+const promptLogin = () => {
+  ElMessageBox.confirm('登录后即可标记学习完成、记录学习进度', '该功能需要登录', {
+    confirmButtonText: '去登录',
+    cancelButtonText: '暂不登录',
+    type: 'info'
+  }).then(() => {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+  }).catch(() => { /* 暂不登录 */ })
+}
 
 const loading = ref(false)
 const lesson = ref(null)
@@ -21,60 +37,18 @@ const centerRef = ref(null)
 
 const difficultyMap = { 1: { text: '简单', type: 'success' }, 2: { text: '中等', type: 'warning' }, 3: { text: '较难', type: 'danger' } }
 
-// ============== 课程树与选中 ==============
-const loadCurriculum = async () => {
+// ============== 课程树与选中(限定当前课时的语言) ==============
+const curriculumSubjectId = ref(undefined)   // undefined=未加载
+const loadCurriculum = async (subjectId) => {
   try {
-    const res = await getCurriculum()
+    const res = await getCurriculum(subjectId)
     curriculum.value = res.data || []
+    curriculumSubjectId.value = subjectId ?? null
   } catch (e) {}
 }
 
-// ============== 课时正文 + Markdown 解析 ==============
-// 轻量 Markdown: "## " 标题 / "- " 列表 / ``` 代码围栏 / `行内代码` / 其余段落
-const blocks = computed(() => {
-  const text = lesson.value?.content || ''
-  const result = []
-  let list = null
-  let code = null
-  for (const raw of text.split('\n')) {
-    const line = raw.trimEnd()
-    if (line.trim().startsWith('```')) {
-      if (list) { result.push(list); list = null }
-      if (code) { result.push({ type: 'code', text: code.join('\n') }); code = null }
-      else code = []
-      continue
-    }
-    if (code) { code.push(raw); continue }
-    if (line.startsWith('## ')) {
-      if (list) { result.push(list); list = null }
-      result.push({ type: 'h', text: line.slice(3) })
-    } else if (line.startsWith('- ')) {
-      if (!list) list = { type: 'ul', items: [] }
-      list.items.push(line.slice(2))
-    } else if (line.trim()) {
-      if (list) { result.push(list); list = null }
-      result.push({ type: 'p', text: line })
-    }
-  }
-  if (code) result.push({ type: 'code', text: code.join('\n') })
-  if (list) result.push(list)
-  return result
-})
-
-// 行内 `code` 拆成片段,供模板渲染 <code>
-const fmt = (t) => {
-  const parts = []
-  const re = /`([^`]+)`/g
-  let last = 0
-  let m
-  while ((m = re.exec(t))) {
-    if (m.index > last) parts.push({ code: false, s: t.slice(last, m.index) })
-    parts.push({ code: true, s: m[1] })
-    last = m.index + m[0].length
-  }
-  if (last < t.length) parts.push({ code: false, s: t.slice(last) })
-  return parts.length ? parts : [{ code: false, s: t }]
-}
+// ============== 课时正文(开源 marked 渲染,支持基本 Markdown 语法) ==============
+const renderedContent = computed(() => renderMarkdown(lesson.value?.content || ''))
 
 const loadLesson = async () => {
   // 局部更新: 保留旧正文直到新数据到达,只在首次加载时显示整块 loading(避免点击章节时页面闪动)
@@ -85,11 +59,17 @@ const loadLesson = async () => {
     lesson.value = res.data
     // 面包屑动态标题: 首页 / 学习中心 / <课时标题>
     lessonCrumbTitle.value = lesson.value.title
+    // 目录只展示当前课时所属语言(多语言课程),语言变化时重新加载
+    if (curriculumSubjectId.value !== (lesson.value.subjectId ?? null)) {
+      loadCurriculum(lesson.value.subjectId)
+    }
     if (lesson.value.chapterId) {
       const cid = String(lesson.value.chapterId)
       if (!expandedChapters.value.includes(cid)) expandedChapters.value.push(cid)
     }
     javaCode.value = lesson.value.codeExample || javaCode.value
+    // SQL 类型示例灌入 SQL 控制台(而非 Java 编辑器)
+    if (lesson.value.codeType === 'sql') sqlCode.value = lesson.value.codeExample || ''
     // 切换课时后内容区回到顶部(平滑滚动,不整页闪动)
     if (!firstLoad) centerRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (e) {} finally {
@@ -98,18 +78,34 @@ const loadLesson = async () => {
 }
 
 // ============== 进度 ==============
+// 同步左侧目录的完成图标与章节进度(修复"标记完成后图标不更新")
+const syncLearned = (lessonId, learned) => {
+  for (const stage of curriculum.value) {
+    for (const ch of stage.chapters) {
+      const ls = ch.lessons.find(l => l.id === lessonId)
+      if (ls) {
+        ls.learned = learned
+        ch.learnedLessons = ch.lessons.filter(l => l.learned).length
+      }
+    }
+  }
+}
+
 const toggling = ref(false)
 const toggleLearned = async () => {
   if (!lesson.value || toggling.value) return
+  if (isGuest.value) return promptLogin()   // 游客点击 → 引导登录
   toggling.value = true
   try {
     if (lesson.value.learned) {
       await unmarkLearned(lesson.value.id)
       lesson.value.learned = false
+      syncLearned(lesson.value.id, false)
       ElMessage.info('已取消完成标记')
     } else {
       await markLearned(lesson.value.id)
       lesson.value.learned = true
+      syncLearned(lesson.value.id, true)
       ElMessage.success('恭喜完成本课时!')
     }
   } finally {
@@ -119,7 +115,12 @@ const toggleLearned = async () => {
 
 const completeAndNext = async () => {
   if (!lesson.value) return
-  if (!lesson.value.learned) await markLearned(lesson.value.id)
+  if (isGuest.value) return promptLogin()   // 游客点击 → 引导登录
+  if (!lesson.value.learned) {
+    await markLearned(lesson.value.id)
+    lesson.value.learned = true
+    syncLearned(lesson.value.id, true)
+  }
   if (lesson.value.nextLessonId) {
     router.push(`/learning/lesson/${lesson.value.nextLessonId}`)
     ElMessage.success('已记录, 进入下一课')
@@ -145,6 +146,7 @@ const javaCode = ref(`public class Main {
         System.out.println("Hello, Sandbox!");
     }
 }`)
+const sqlCode = ref('')
 const javaMarkers = ref([])
 const javaResult = ref(null)
 const javaRunning = ref(false)
@@ -176,8 +178,7 @@ const resetJavaCode = () => {
 watch(() => route.params.id, () => { if (route.name === 'LessonDetail') loadLesson() })
 
 onMounted(async () => {
-  await loadCurriculum()
-  await loadLesson()
+  await loadLesson()   // 内部按课时语言加载目录
 })
 </script>
 
@@ -239,23 +240,11 @@ onMounted(async () => {
 
         <p v-if="lesson.summary" class="summary">{{ lesson.summary }}</p>
 
-        <template v-for="(block, i) in blocks" :key="i">
-          <h3 v-if="block.type === 'h'" class="md-h">
-            <template v-for="(p, j) in fmt(block.text)" :key="j"><code v-if="p.code" class="md-ic">{{ p.s }}</code><template v-else>{{ p.s }}</template></template>
-          </h3>
-          <p v-else-if="block.type === 'p'" class="md-p">
-            <template v-for="(p, j) in fmt(block.text)" :key="j"><code v-if="p.code" class="md-ic">{{ p.s }}</code><template v-else>{{ p.s }}</template></template>
-          </p>
-          <ul v-else-if="block.type === 'ul'" class="md-ul">
-            <li v-for="(item, j) in block.items" :key="j">
-              <template v-for="(p, k) in fmt(item)" :key="k"><code v-if="p.code" class="md-ic">{{ p.s }}</code><template v-else>{{ p.s }}</template></template>
-            </li>
-          </ul>
-          <pre v-else-if="block.type === 'code'" class="md-code"><code>{{ block.text }}</code></pre>
-        </template>
+        <!-- 正文: 开源 marked 渲染的 Markdown(支持标题/列表/表格/代码块/行内代码/链接等基本语法) -->
+        <div class="md-body" v-html="renderedContent"></div>
 
-        <!-- 代码练习卡 -->
-        <div class="practice">
+        <!-- 代码练习卡(sql 类型课时不展示,避免把 SQL 塞进 Java 编辑器) -->
+        <div v-if="lesson?.codeType !== 'sql'" class="practice">
           <div class="phead">
             <h4>动手做 · Java 沙箱 <small>单文件代码 · 5 秒超时</small></h4>
             <div class="meta-mini">{{ javaResult ? `${javaResult.elapsedMs}ms` : '尚未运行' }}</div>
@@ -276,17 +265,26 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- SQL 练习卡:仅"数据库与 JDBC"阶段(stageNo=5)的课时展示,避免其他课时出现无关面板 -->
-        <div v-if="lesson?.stageNo === 5" class="practice">
+        <!-- SQL 练习卡:数据库阶段(stageNo=5)或 sql 类型示例的课时展示 -->
+        <div v-if="lesson?.stageNo === 5 || lesson?.codeType === 'sql'" class="practice">
           <div class="phead">
             <h4>动手做 · SQL 沙箱 <small>教学库 sandbox.db · 仅 DML</small></h4>
           </div>
-          <div style="padding:14px"><SqlConsole /></div>
+          <div style="padding:14px"><SqlConsole v-model="sqlCode" /></div>
         </div>
       </article>
       <el-empty v-else-if="!loading" description="课时不存在或已下线">
         <el-button type="primary" @click="backToList">返回学习中心</el-button>
       </el-empty>
+
+      <!-- 本章补充内容: 用户自建子节点(记录/补充课程缺失,富文本+Markdown) -->
+      <SupplementTree
+        v-if="lesson"
+        class="sup-block"
+        :chapter-id="lesson.chapterId"
+        title="本章补充内容"
+        root-label="添加补充内容"
+      />
     </main>
 
     <!-- 右：导航与笔记 -->
@@ -303,6 +301,7 @@ onMounted(async () => {
         <el-button :type="lesson?.learned ? 'success' : 'primary'" :plain="lesson?.learned" :loading="toggling" @click="toggleLearned" style="width:100%;margin-bottom:8px">
           {{ lesson?.learned ? '取消完成' : '标记为已学' }}
         </el-button>
+        <div v-if="isGuest" class="guest-tip">当前为游客访问,登录后可记录学习进度</div>
         <div class="nav-row" :class="{ disabled: !lesson?.prevLessonId }" role="button" tabindex="0"
              :aria-disabled="!lesson?.prevLessonId" @click="goPrev" @keydown="onKeyActivate($event, goPrev)">
           <span><el-icon><ArrowLeft /></el-icon> 上一课</span>
@@ -329,16 +328,25 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.layout { display:grid; grid-template-columns:280px 1fr 280px; min-height:calc(100vh - 60px) }
+.layout { display:grid; grid-template-columns:280px 1fr 280px; min-height:calc(100vh - 52px) }
 
 /* 左 */
-.lside { background:#fff; border-right:1px solid var(--c-border); overflow:auto; height:calc(100vh - 60px); position:sticky; top:60px }
-.lhead { padding:18px 20px 18px 28px; border-bottom:1px solid var(--c-border) }
-.crumb { font-size:var(--fs-xs); color:var(--c-text-3); margin-bottom:6px; display:flex; align-items:center; gap:4px }
+.lside { background:#fff; border-right:1px solid var(--c-border); overflow:auto; height:calc(100vh - 52px); position:sticky; top:52px }
+.lhead { padding:12px 20px 10px 28px; border-bottom:1px solid var(--c-border) }
+.crumb { font-size:var(--fs-xs); color:var(--c-text-3); margin-bottom:4px; display:flex; align-items:center; gap:4px }
 .lhead-title { margin:0; font-size:var(--fs-md); font-weight:600 }
-.parts { padding:8px 0 }
+.parts { padding:2px 0 }
 /* 一级标题与左侧主菜单之间留出间距,层级更清晰 */
-.part-h { padding:14px 20px 8px 28px; font-size:var(--fs-xs); color:var(--c-text-3); letter-spacing:.5px; text-transform:uppercase; font-weight:600 }
+.part-h { padding:8px 20px 4px 28px; font-size:var(--fs-xs); color:var(--c-text-3); letter-spacing:.5px; text-transform:uppercase; font-weight:600 }
+/* 章节折叠头压扁(Element Plus 默认 min-height:48px 会撑高,需一并覆盖)
+   注意:不能定死 height+line-height,长标题换行会被裁切/溢出叠到下一节点——
+   用 min-height 保底 + 自然行高,单行仍为 38px,多行自动撑高 */
+.parts :deep(.el-collapse-item__header) {
+  height:auto; min-height:38px; padding:8px 20px 8px 28px; line-height:1.5;
+  font-size:var(--fs-sm); font-weight:500; color:var(--c-text-1)
+}
+.parts :deep(.el-collapse-item__wrap) { border-bottom:none }
+.parts :deep(.el-collapse-item__content) { padding-bottom:0 }
 .lesson-item { display:flex; align-items:center; gap:10px; padding:9px 20px 9px 28px; cursor:pointer; border-left:2px solid transparent; font-size:var(--fs-sm) }
 .lesson-item:hover { background:#f7f8fb }
 .lesson-item.active { background:var(--c-primary-bg); border-left-color:var(--c-primary) }
@@ -354,14 +362,37 @@ onMounted(async () => {
 .meta-row { display:flex; gap:8px; align-items:center; margin-bottom:24px; flex-wrap:wrap }
 .meta-item { font-size:var(--fs-sm); color:var(--c-text-3); display:inline-flex; align-items:center; gap:4px }
 .summary { background:var(--c-primary-bg); border-left:3px solid var(--c-primary); padding:14px 18px; border-radius:var(--r-s); color:var(--c-text-2); font-size:var(--fs-md); margin-bottom:28px }
-.md-h { font-size:var(--fs-lg); margin:30px 0 12px; padding-left:12px; border-left:3px solid var(--c-primary); color:var(--c-text-1) }
-.md-p { font-size:var(--fs-md); line-height:1.85; margin:0 0 14px; color:var(--c-text-1) }
-.md-ul { padding-left:22px; margin:0 0 14px }
-.md-ul li { font-size:var(--fs-md); line-height:1.85; margin-bottom:6px; color:var(--c-text-1) }
-.md-ul li::marker { color:var(--c-primary) }
-.md-ic { font-family:"SFMono-Regular",Consolas,Menlo,monospace; font-size:.88em; background:#f1f4f9; color:#b93a86; padding:1px 6px; border-radius:4px }
-.md-code { margin:0 0 16px; padding:16px 18px; background:#0f172a; color:#e2e8f0; border-radius:var(--r-s); overflow-x:auto; font-family:"SFMono-Regular",Consolas,Menlo,monospace; font-size:var(--fs-sm); line-height:1.7; tab-size:4 }
-.md-code code { font-family:inherit; background:none; color:inherit; padding:0 }
+/* Markdown 正文(marked 渲染,支持基本语法) */
+.md-body :deep(h1), .md-body :deep(h2), .md-body :deep(h3), .md-body :deep(h4) {
+  font-size:var(--fs-lg); margin:30px 0 12px; padding-left:12px; border-left:3px solid var(--c-primary); color:var(--c-text-1)
+}
+.md-body :deep(h1) { font-size:var(--fs-xl) }
+.md-body :deep(h4) { font-size:var(--fs-md) }
+.md-body :deep(p) { font-size:var(--fs-md); line-height:1.85; margin:0 0 14px; color:var(--c-text-1) }
+.md-body :deep(ul), .md-body :deep(ol) { padding-left:22px; margin:0 0 14px }
+.md-body :deep(li) { font-size:var(--fs-md); line-height:1.85; margin-bottom:6px; color:var(--c-text-1) }
+.md-body :deep(li::marker) { color:var(--c-primary) }
+.md-body :deep(code) {
+  font-family:"SFMono-Regular",Consolas,Menlo,monospace; font-size:.88em;
+  background:#f1f4f9; color:#b93a86; padding:1px 6px; border-radius:4px
+}
+.md-body :deep(pre) {
+  margin:0 0 16px; padding:16px 18px; background:#0f172a; color:#e2e8f0;
+  border-radius:var(--r-s); overflow-x:auto; font-family:"SFMono-Regular",Consolas,Menlo,monospace;
+  font-size:var(--fs-sm); line-height:1.7; tab-size:4
+}
+.md-body :deep(pre code) { background:none; color:inherit; padding:0; font-size:inherit }
+.md-body :deep(blockquote) {
+  margin:8px 0 16px; padding:10px 16px; border-left:3px solid var(--c-primary);
+  background:var(--c-primary-bg); color:var(--c-text-2); border-radius:0 var(--r-s) var(--r-s) 0
+}
+.md-body :deep(blockquote p) { margin:0 }
+.md-body :deep(a) { color:var(--c-primary); text-decoration:underline }
+.md-body :deep(hr) { border:none; border-top:1px solid var(--c-border); margin:20px 0 }
+.md-body :deep(table) { border-collapse:collapse; margin:0 0 16px; width:100%; font-size:var(--fs-sm) }
+.md-body :deep(th), .md-body :deep(td) { border:1px solid var(--c-border); padding:8px 12px; text-align:left }
+.md-body :deep(th) { background:#f8fafd; color:var(--c-text-2); font-weight:600 }
+.md-body :deep(img) { max-width:100%; border-radius:var(--r-s) }
 
 /* 练习卡 */
 .practice { margin:30px 0; background:#fff; border:1px solid var(--c-border); border-radius:var(--r-m); overflow:hidden; box-shadow:0 2px 6px rgba(20,30,60,.06); scroll-margin-top:80px }
@@ -383,12 +414,13 @@ onMounted(async () => {
 .stderr { color:#991b1b; font-size:var(--fs-xs) }
 
 /* 右 */
-.rside { background:#fff; border-left:1px solid var(--c-border); padding:18px 18px; overflow:auto; height:calc(100vh - 60px); position:sticky; top:60px }
-.next-up { background:linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; border-radius:var(--r-m); padding:14px; margin-bottom:14px }
-.next-up small { font-size:var(--fs-xs); opacity:.85; display:block; margin-bottom:6px }
+.rside { background:#fff; border-left:1px solid var(--c-border); padding:12px 14px; overflow:auto; height:calc(100vh - 52px); position:sticky; top:52px }
+.next-up { background:linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; border-radius:var(--r-m); padding:12px; margin-bottom:10px }
+.next-up small { font-size:var(--fs-xs); opacity:.85; display:block; margin-bottom:5px }
 .next-up b { font-size:var(--fs-base); display:block; margin-bottom:8px }
 .next-up .next-btn { color:#fff; border-color:rgba(255,255,255,.4); background:rgba(255,255,255,.1); width:100% }
-.action-card { background:#fff; border:1px solid var(--c-border); border-radius:var(--r-m); padding:14px; margin-bottom:14px }
+.action-card { background:#fff; border:1px solid var(--c-border); border-radius:var(--r-m); padding:12px; margin-bottom:12px }
+.guest-tip { margin:-2px 0 8px; font-size:var(--fs-xs); color:var(--c-text-3); text-align:center; line-height:1.5 }
 .nav-row { display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-radius:var(--r-s); cursor:pointer; font-size:var(--fs-sm); color:var(--c-text-1) }
 .nav-row:hover { background:#f5f7fa }
 .nav-row.disabled { cursor:not-allowed; opacity:.5 }
@@ -398,4 +430,5 @@ onMounted(async () => {
 .card-title { font-size:var(--fs-sm); font-weight:600; margin-bottom:8px; color:var(--c-text-1); display:flex; align-items:center; gap:4px }
 .code-path { background:var(--c-primary-bg); color:var(--c-primary); padding:8px 10px; border-radius:var(--r-s); font-size:var(--fs-xs); word-break:break-all; font-family:'JetBrains Mono',monospace }
 .tip { color:var(--c-text-3); font-size:var(--fs-xs); margin:8px 0 0; line-height:1.6 }
+.sup-block { margin-top:18px }
 </style>

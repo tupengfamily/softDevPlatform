@@ -25,4 +25,7 @@ public interface LessonProgressRepository extends JpaRepository<LessonProgress, 
 
     /** 取消学习标记 */
     void deleteByUserIdAndLessonId(Long userId, Long lessonId);
+
+    /** 批量删除某些课时的全部进度(删除章节时级联清理) */
+    void deleteByLessonIdIn(java.util.Collection<Long> lessonIds);
 }

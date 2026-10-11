@@ -16,11 +16,11 @@ watch(sql, v => emit('update:modelValue', v))
 const running = ref(false)
 const error = ref('')
 const result = ref(null)             // {columns, rows, rowCount, elapsedMs}
-const info = ref({ students: 0, courses: 0, scores: 0 })
+const info = ref({ classes: 0, students: 0, courses: 0, scores: 0 })
 
 const tablesText = computed(() => {
   const i = info.value
-  return `students: ${i.students} · courses: ${i.courses} · scores: ${i.scores}`
+  return `classes: ${i.classes} · students: ${i.students} · courses: ${i.courses} · scores: ${i.scores}`
 })
 
 // 把后端返回的技术异常翻译成学习者能看懂的中文提示(原始信息收进"技术细节")
@@ -39,7 +39,7 @@ const friendlyError = computed(() => {
   const tbl = grab(/no such table:\s*([\w.]+)/i)
   if (tbl) return {
     title: `表「${tbl}」不存在`,
-    hint: '教学库包含 students / courses / scores 三张表,请检查表名。',
+    hint: '教学库包含 classes / students / courses / scores 四张表,请检查表名。',
     detail: raw
   }
 
@@ -98,7 +98,7 @@ const runQuery = async () => {
 
 const onReset = async () => {
   try {
-    await ElMessageBox.confirm('将删除并重建 students/courses/scores 三张表, 当前所有修改会丢失, 继续?', '重置教学库', {
+    await ElMessageBox.confirm('将删除并重建 classes/students/courses/scores 四张表, 当前所有修改会丢失, 继续?', '重置教学库', {
       type: 'warning', confirmButtonText: '确认重置', cancelButtonText: '取消'
     })
   } catch (_) { return }

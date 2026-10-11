@@ -1,19 +1,30 @@
 <script setup>
-// 学习看板
-// - 管理员: 全员学习进度(教学管理视角),可搜索、可对比
-// - 普通用户: 只呈现自己的学习进度(后端已限定数据范围)
-import { computed, onMounted, ref } from 'vue'
+// 学习看板 — 管理员与普通用户看到的维度不同:
+// - 管理员: 全部用户的学习进度 + 学习偏好分布/偏好语言,可搜索
+// - 普通用户: 当前语言(头像旁选择框记忆的语言)的个人学习进度
+// - 语言维度完全跟随头部"学习语言"选择框,页内不再提供语言选择(节省显示空间)
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getBoard } from '../api/learning'
+import { useSubjectStore } from '../store/subject'
 
 const router = useRouter()
+const subjectStore = useSubjectStore()
 
 const loading = ref(false)
 const board = ref(null)
 const keyword = ref('')
+const subjectId = ref(null)     // 跟随头部"学习语言"选择(存储偏好)
 
 const isAdmin = computed(() => board.value?.scope === 'ALL')
 const myRow = computed(() => (board.value?.rows || []).find(r => r.self) || null)
+const subjectStats = computed(() => board.value?.subjects || [])
+const preferenceStats = computed(() =>
+  (board.value?.preferenceStats || []).filter(p => p.userCount > 0))
+const subjectName = computed(() => {
+  if (subjectId.value == null) return '全部科目'
+  return subjectStats.value.find(s => s.subjectId === subjectId.value)?.subjectName || '全部科目'
+})
 
 // 搜索过滤(仅管理员视图使用)
 const rows = computed(() => {
@@ -28,12 +39,18 @@ const rows = computed(() => {
 const load = async () => {
   loading.value = true
   try {
-    const res = await getBoard()
+    const res = await getBoard(subjectId.value)
     board.value = res.data
   } catch (e) { /* 已统一弹错 */ } finally {
     loading.value = false
   }
 }
+watch(subjectId, load)
+// 头部语言选择框切换 -> 看板维度同步
+watch(() => subjectStore.preferredSubjectId, (sid) => {
+  const next = sid ?? null
+  if (next !== subjectId.value) subjectId.value = next
+})
 
 const barColor = (p) => (p >= 80 ? '#16a34a' : p >= 40 ? '#2563eb' : '#f59e0b')
 const rankClass = (i) => (i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '')
@@ -43,17 +60,23 @@ const displayRole = (roles) => {
   return '普通用户'
 }
 
-onMounted(load)
+onMounted(async () => {
+  // 默认维度 = 用户正在学习的语言(偏好),让"看板"与学习内容保持同一语言
+  if (!subjectStore.loaded) await subjectStore.load()
+  if (subjectStore.preferredSubjectId) subjectId.value = subjectStore.preferredSubjectId
+  await load()
+})
 </script>
 
 <template>
   <div class="page" v-loading="loading">
+
     <!-- ① 管理员: 全员看板 -->
     <template v-if="isAdmin">
       <div class="hero admin">
         <div>
-          <h1>学习看板 <small>管理员视角 · 全员进度</small></h1>
-          <p>查看每位学员的完成度与最近学习时间,可搜索定位,帮助落后的学员。</p>
+          <h1>学习看板 <small>管理员视角 · 全员进度 · {{ subjectName }}</small></h1>
+          <p>查看每位学员的完成度与最近学习时间,可按语言维度对比,帮助落后的学员。</p>
         </div>
         <el-input
           v-model="keyword"
@@ -85,9 +108,40 @@ onMounted(load)
         </div>
       </div>
 
+      <!-- 各科目(语言)平均完成度对比(纯展示,语言选择在头部) -->
+      <div class="subject-stats" v-if="subjectStats.length">
+        <div
+          v-for="s in subjectStats"
+          :key="s.subjectId"
+          class="sub-card"
+          :class="{ active: subjectId === s.subjectId }"
+        >
+          <div class="sub-name">{{ s.subjectName }}</div>
+          <div class="sub-pct">{{ s.avgPercent }}<small>%</small></div>
+          <div class="bar"><i :style="{ width: s.avgPercent + '%', background: barColor(s.avgPercent) }"></i></div>
+          <div class="sub-meta">全员平均完成度 · {{ s.totalLessons }} 课时</div>
+        </div>
+      </div>
+
+      <!-- 学习偏好分布:学员们正在学习的语言 -->
+      <div class="pref-bar" v-if="preferenceStats.length">
+        <span class="pref-title">学习偏好分布</span>
+        <el-tag
+          v-for="p in preferenceStats"
+          :key="p.subjectId"
+          size="small"
+          effect="plain"
+          round
+          class="pref-tag"
+        >
+          {{ p.subjectName }} · {{ p.userCount }} 人
+        </el-tag>
+        <span class="pref-hint">来自头像旁"学习语言"选择框的用户偏好</span>
+      </div>
+
       <div class="card">
         <div class="card-head">
-          <h3>学员进度明细</h3>
+          <h3>学员进度明细 <small class="hint-inline">{{ subjectName }}</small></h3>
           <span class="hint">共 {{ rows.length }} 条 · 最高完成度 {{ board?.maxPercent || 0 }}%</span>
         </div>
         <table class="board-table">
@@ -96,6 +150,7 @@ onMounted(load)
               <th style="width:56px">排名</th>
               <th>学员</th>
               <th style="width:110px">角色</th>
+              <th style="width:110px">学习偏好</th>
               <th style="width:230px">学习进度</th>
               <th style="width:110px">已学课时</th>
               <th style="width:150px">最近学习</th>
@@ -122,6 +177,10 @@ onMounted(load)
                   {{ displayRole(r.roles) }}
                 </el-tag>
               </td>
+              <td class="muted">
+                <el-tag v-if="r.preferredSubject" size="small" effect="plain" round>{{ r.preferredSubject }}</el-tag>
+                <template v-else>未设置</template>
+              </td>
               <td>
                 <div class="progress-cell">
                   <div class="bar"><i :style="{ width: r.percent + '%', background: barColor(r.percent) }"></i></div>
@@ -132,19 +191,19 @@ onMounted(load)
               <td class="muted">{{ r.lastLearnedAt || '尚未开始' }}</td>
             </tr>
             <tr v-if="!rows.length">
-              <td colspan="6" class="empty">没有匹配的学员</td>
+              <td colspan="7" class="empty">没有匹配的学员</td>
             </tr>
           </tbody>
         </table>
       </div>
     </template>
 
-    <!-- ② 普通用户: 我的学习进度 -->
+    <!-- ② 普通用户: 当前语言的个人学习进度 -->
     <template v-else>
       <div class="hero">
         <div>
-          <h1>我的学习进度</h1>
-          <p>这里只展示你自己的学习数据,专注当下这一课。</p>
+          <h1>我的学习进度 <small>{{ subjectName }}</small></h1>
+          <p>这里展示你在「{{ subjectName }}」上的学习进度,专注当下这一课。</p>
         </div>
         <el-button type="primary" @click="router.push('/learning')">去学习 <el-icon><ArrowRight /></el-icon></el-button>
       </div>
@@ -158,9 +217,9 @@ onMounted(load)
             </div>
           </div>
           <div class="self-meta">
+            <div class="row"><span>当前语言</span><b>{{ subjectName }}</b></div>
             <div class="row"><span>已学课时</span><b>{{ myRow?.learnedLessons || 0 }} / {{ myRow?.totalLessons || 0 }}</b></div>
             <div class="row"><span>最近学习</span><b>{{ myRow?.lastLearnedAt || '尚未开始' }}</b></div>
-            <div class="row"><span>账号角色</span><b>{{ displayRole(myRow?.roles) }}</b></div>
             <el-button type="primary" plain style="margin-top:14px" @click="router.push('/learning')">
               继续学习
             </el-button>
@@ -183,6 +242,31 @@ onMounted(load)
 
 <style scoped>
 .page { padding: 24px 26px 40px; max-width: 1240px; margin: 0 auto; }
+
+/* 各科目平均完成度卡片(纯展示,当前语言高亮) */
+.subject-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.sub-card {
+  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m);
+  padding: 14px 16px; transition: all .15s; box-shadow: 0 2px 6px rgba(20, 30, 60, .05);
+}
+.sub-card.active { border-color: var(--c-primary); box-shadow: 0 8px 18px rgba(37, 99, 235, .15); }
+.sub-name { color: #64748b; font-size: var(--fs-xs); margin-bottom: 4px; }
+.sub-pct { font-size: var(--fs-xl); font-weight: 700; color: #1f2937; line-height: 1.2; }
+.sub-pct small { font-size: var(--fs-xs); color: #64748b; margin-left: 2px; }
+.sub-card .bar { margin-top: 8px; height: 5px; border-radius: var(--r-full); background: var(--c-border); overflow: hidden; }
+.sub-card .bar i { display: block; height: 100%; border-radius: var(--r-full); transition: width .4s ease; }
+.sub-meta { margin-top: 6px; color: #94a3b8; font-size: var(--fs-xs); }
+.hint-inline { color: #94a3b8; font-size: var(--fs-xs); font-weight: 400; margin-left: 6px; }
+
+/* 学习偏好分布 */
+.pref-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m);
+  padding: 11px 16px; margin-bottom: 16px; box-shadow: 0 2px 6px rgba(20, 30, 60, .05);
+}
+.pref-title { font-size: var(--fs-xs); color: #64748b; font-weight: 600; margin-right: 4px; }
+.pref-tag { flex: none; }
+.pref-hint { margin-left: auto; color: #94a3b8; font-size: var(--fs-xs); }
 
 .hero {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 20px;

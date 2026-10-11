@@ -74,6 +74,10 @@ replay_pid*.log
 # 本地工具工作区(token / 截图 / 临时脚本)
 /.workbuddy/
 
+# java-learning IO 流等示例的运行产物
+/note.txt
+/demo.bin
+
 # 遗留的过程截图与设计稿(非项目资产)
 /01-login.png
 /02-after-login.png

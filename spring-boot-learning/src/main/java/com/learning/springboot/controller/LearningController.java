@@ -11,7 +11,10 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -23,6 +26,7 @@ import java.util.Set;
  * <p>
  * 全部接口需要登录(JWT),进度以"当前登录用户"为维度。
  * 任何角色(USER/ADMIN)都可以学习并跟踪自己的进度。
+ * 支持 subjectId(语言/科目维度)筛选,为空表示全部科目。
  */
 @RestController
 @RequestMapping("/api/learning")
@@ -30,17 +34,26 @@ public class LearningController {
 
     @Autowired private LearningService learningService;
 
-    /** 课程树(阶段 -> 章节 -> 课时,含当前用户学习状态) */
-    @GetMapping("/curriculum")
-    public ResponseEntity<?> curriculum(@CurrentUser Long userId) {
-        List<LearningVO.StageVO> data = learningService.getCurriculum(userId);
+    /** 启用的科目(语言)列表(学习中心/看板维度切换) */
+    @GetMapping("/subjects")
+    public ResponseEntity<?> subjects() {
+        List<LearningVO.SubjectVO> data = learningService.getSubjects();
         return Result.ok(data);
     }
 
-    /** 学习进度总览(总体 + 分阶段 + 最近学习) */
+    /** 课程树(阶段 -> 章节 -> 课时,含当前用户学习状态);subjectId 可选 */
+    @GetMapping("/curriculum")
+    public ResponseEntity<?> curriculum(@CurrentUser Long userId,
+                                        @RequestParam(required = false) Long subjectId) {
+        List<LearningVO.StageVO> data = learningService.getCurriculum(userId, subjectId);
+        return Result.ok(data);
+    }
+
+    /** 学习进度总览(总体 + 分阶段 + 分科目 + 最近学习);subjectId 可选 */
     @GetMapping("/progress")
-    public ResponseEntity<?> progress(@CurrentUser Long userId) {
-        LearningVO.ProgressStatsVO data = learningService.getProgressStats(userId);
+    public ResponseEntity<?> progress(@CurrentUser Long userId,
+                                      @RequestParam(required = false) Long subjectId) {
+        LearningVO.ProgressStatsVO data = learningService.getProgressStats(userId, subjectId);
         return Result.ok(data);
     }
 
@@ -48,12 +61,42 @@ public class LearningController {
      * 学习看板
      * <p>
      * 管理员: 全员学习进度(教学管理视角);普通用户: 仅返回自己一条。
+     * subjectId: 语言维度筛选(可选),并返回分科目概览。
      * 数据范围由服务端的角色判断决定,普通用户即使改请求参数也拿不到他人数据。
      */
     @GetMapping("/board")
-    public ResponseEntity<?> board(@CurrentUser Long userId, @CurrentUser("roles") Set<String> roles) {
-        LearningVO.BoardOverviewVO data = learningService.getBoardOverview(userId, roles);
+    public ResponseEntity<?> board(@CurrentUser Long userId, @CurrentUser("roles") Set<String> roles,
+                                   @RequestParam(required = false) Long subjectId) {
+        LearningVO.BoardOverviewVO data = learningService.getBoardOverview(userId, roles, subjectId);
         return Result.ok(data);
+    }
+
+    /**
+     * 学习偏好(正在学习的语言/科目)
+     * <p>
+     * 头像旁语言选择框的记忆:登录后拉取、切换时保存,下次进入默认展示该语言的学习内容。
+     */
+    @GetMapping("/preference")
+    public ResponseEntity<?> getPreference(@CurrentUser Long userId) {
+        Long subjectId = learningService.getPreferredSubject(userId);
+        return Result.ok(Map.of("subjectId", subjectId == null ? 0 : subjectId));
+    }
+
+    /** 保存学习偏好(请求体 {subjectId: 数字或 null},0/null 表示清除) */
+    @PutMapping("/preference")
+    @OperationLog(module = "学习中心", action = "切换学习语言")
+    public ResponseEntity<?> savePreference(@CurrentUser Long userId, @RequestBody Map<String, Object> body) {
+        Object raw = body.get("subjectId");
+        Long subjectId = null;
+        if (raw instanceof Number n) {
+            subjectId = n.longValue();
+            if (subjectId == 0) subjectId = null;
+        } else if (raw instanceof String s && !s.isBlank()) {
+            subjectId = Long.parseLong(s);
+            if (subjectId == 0) subjectId = null;
+        }
+        learningService.savePreferredSubject(userId, subjectId);
+        return Result.ok("学习语言已更新", Map.of("subjectId", subjectId == null ? 0 : subjectId));
     }
 
     /** 课时详情 */

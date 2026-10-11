@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learning.springboot.entity.LearningChapter;
 import com.learning.springboot.entity.LearningLesson;
+import com.learning.springboot.entity.LearningSubject;
 import com.learning.springboot.repository.LearningChapterRepository;
 import com.learning.springboot.repository.LearningLessonRepository;
+import com.learning.springboot.repository.LearningSubjectRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +24,12 @@ import java.util.Map;
  * 学习课程种子 Service(增量 upsert 版)
  * <p>
  * 启动时从 classpath:data/lessons.json 同步课程体系(阶段 -> 章节 -> 课时):
- * - 章节按 chapterNo 匹配:已存在则更新元信息(含 stageNo/stageName),不存在则插入;
+ * - 章节按 chapterNo 匹配:已存在则更新元信息(含 stageNo/stageName/subjectId),不存在则插入;
  * - 课时按 (chapterId, lessonNo) 匹配:已存在则更新内容,不存在则插入;
  * - 不删除 JSON 中已移除的章节/课时,保证用户学习进度(LessonProgress 关联 lessonId)不丢失。
+ * <p>
+ * 科目(语言)维度: 内置科目 java / python / javascript 由本 Service 保证存在;
+ * lessons.json 中的课程默认归属 java 科目。
  */
 @Service
 public class LearningDataSeedService {
@@ -35,12 +40,16 @@ public class LearningDataSeedService {
 
     @Autowired private LearningChapterRepository chapterRepository;
     @Autowired private LearningLessonRepository lessonRepository;
+    @Autowired private LearningSubjectRepository subjectRepository;
 
     @Transactional(rollbackFor = Exception.class)
     public void seedLearningData() {
         try (InputStream in = new ClassPathResource(SEED_FILE).getInputStream()) {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode chapters = mapper.readTree(in).get("chapters");
+
+            // 保证内置科目存在,课程默认归属 java
+            Long javaSubjectId = ensureBuiltinSubjects();
 
             // 已有章节按 chapterNo 建索引
             Map<Integer, LearningChapter> existingByNo = new HashMap<>();
@@ -58,6 +67,7 @@ public class LearningDataSeedService {
                 if (isNewChapter) {
                     chapter = new LearningChapter();
                 }
+                chapter.setSubjectId(javaSubjectId);
                 chapter.setStageNo(ch.get("stageNo").asInt());
                 chapter.setStageName(ch.get("stageName").asText());
                 chapter.setChapterNo(chapterNo);
@@ -89,6 +99,7 @@ public class LearningDataSeedService {
                     lesson.setSummary(ls.path("summary").asText(null));
                     lesson.setContent(ls.get("content").asText());
                     lesson.setCodeExample(ls.path("codeExample").asText(null));
+                    lesson.setCodeType(ls.path("codeType").asText("java"));
                     lesson.setDifficulty(ls.path("difficulty").asInt(1));
                     lesson.setDurationMinutes(ls.path("durationMinutes").asInt(15));
                     lessonRepository.save(lesson);
@@ -101,5 +112,33 @@ public class LearningDataSeedService {
             log.error("学习课程种子同步失败", e);
             throw new IllegalStateException("课程种子同步失败: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 保证内置科目(语言)存在:java / python / javascript。
+     * 平台定位为通用学习平台,Python/JS 等科目的课程内容由管理员后续在学习配置中补充。
+     *
+     * @return java 科目的 id(课程数据的默认归属)
+     */
+    private Long ensureBuiltinSubjects() {
+        LearningSubject java = ensureSubject("java", "Java", "Java 全栈开发:基础语法 → 进阶 → 并发 → 数据库 → 框架生态", 1);
+        ensureSubject("python", "Python", "Python 语言开发(课程建设中)", 2);
+        ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3);
+        return java.getId();
+    }
+
+    private LearningSubject ensureSubject(String code, String name, String description, int sortNo) {
+        return subjectRepository.findByCode(code).orElseGet(() -> {
+            LearningSubject s = new LearningSubject();
+            s.setCode(code);
+            s.setName(name);
+            s.setDescription(description);
+            s.setSortNo(sortNo);
+            s.setEnabled(true);
+            s.setBuiltin(true);
+            LearningSubject saved = subjectRepository.save(s);
+            log.info("内置学习科目初始化: {} ({})", name, code);
+            return saved;
+        });
     }
 }

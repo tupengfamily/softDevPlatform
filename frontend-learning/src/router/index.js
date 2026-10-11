@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '../store/user'
 
 // 公开路由(登录、注册)— 无需 token
+// 游客路由(meta.guest: 学习中心/课时详情)— 未登录可浏览,个人操作在页面内引导登录
 // 受保护路由(在 Layout 下)— 必须登录
 // meta.roles: 限定可访问的角色(缺省=所有登录用户);ADMIN 专属页面在守卫中统一拦截
 const routes = [
@@ -28,19 +29,43 @@ const routes = [
         path: 'learning',
         name: 'LearningCenter',
         component: () => import('../views/LearningCenter.vue'),
-        meta: { title: '学习中心', icon: 'Reading' }
+        meta: { title: '学习中心', icon: 'Reading', guest: true }
       },
       {
         path: 'learning/lesson/:id',
         name: 'LessonDetail',
         component: () => import('../views/LessonDetail.vue'),
-        meta: { title: '课时学习', icon: 'Reading' }
+        meta: { title: '课时学习', icon: 'Reading', guest: true }
       },
       {
         path: 'board',
         name: 'LearningBoard',
         component: () => import('../views/LearningBoard.vue'),
         meta: { title: '学习看板', icon: 'TrendCharts' }
+      },
+      {
+        path: 'learning-config',
+        name: 'LearningConfig',
+        component: () => import('../views/LearningConfig.vue'),
+        meta: { title: '学习配置', icon: 'Setting', roles: ['ADMIN'] }
+      },
+      {
+        path: 'notifications',
+        name: 'Notifications',
+        component: () => import('../views/Notifications.vue'),
+        meta: { title: '消息中心', icon: 'Bell' }
+      },
+      {
+        path: 'forum',
+        name: 'Forum',
+        component: () => import('../views/Forum.vue'),
+        meta: { title: '论坛专区', icon: 'ChatLineRound' }
+      },
+      {
+        path: 'forum/:id',
+        name: 'ForumDetail',
+        component: () => import('../views/ForumDetail.vue'),
+        meta: { title: '帖子详情', icon: 'ChatLineRound' }
       },
       {
         path: 'users',
@@ -115,8 +140,11 @@ router.beforeEach((to, from, next) => {
     return next()
   }
 
-  // 受保护路由: 检查登录
+  // 受保护路由: 检查登录(游客路由放行,个人功能在页面内引导登录)
   if (!userStore.isLogin) {
+    if (to.meta.guest) return next()
+    // 用户相关页面: 引导登录,并记住来路
+    ElMessage.info('请先登录后再访问该功能')
     return next({ path: '/login', query: { redirect: to.fullPath } })
   }
 
