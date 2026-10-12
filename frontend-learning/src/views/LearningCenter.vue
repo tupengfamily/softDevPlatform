@@ -26,15 +26,16 @@ const goLogin = () => router.push({ path: '/login', query: { redirect: '/learnin
 const activeSubjectId = computed(() => subjectStore.preferredSubjectId)
 const activeSubject = computed(() => subjectStore.preferredSubject)
 
+// 阶段徽章渐变: 色标经对比度校准,白字均 >= 4.5:1(WCAG AA)
 const stageGradients = [
   'linear-gradient(135deg, #2563eb, #4f46e5)',    // 阶段 1 入门基础
   'linear-gradient(135deg, #4f46e5, #2563eb)',    // 阶段 2 核心基础
-  'linear-gradient(135deg, #f59e0b, #ef4444)',    // 阶段 3 进阶特性
-  'linear-gradient(135deg, #0ea5e9, #22c55e)',    // 阶段 4 并发编程
-  'linear-gradient(135deg, #8b5cf6, #ec4899)',    // 阶段 5 数据库与 JDBC
-  'linear-gradient(135deg, #14b8a6, #0ea5e9)',    // 阶段 6 工程化与设计
-  'linear-gradient(135deg, #f97316, #f59e0b)',    // 阶段 7 Web 与框架生态
-  'linear-gradient(135deg, #94a3b8, #475569)'     // 阶段 8 综合实战
+  'linear-gradient(135deg, #b45309, #c03228)',    // 阶段 3 进阶特性
+  'linear-gradient(135deg, #0369a1, #15803d)',    // 阶段 4 并发编程
+  'linear-gradient(135deg, #6d28d9, #be185d)',    // 阶段 5 数据库与 JDBC
+  'linear-gradient(135deg, #0f766e, #0369a1)',    // 阶段 6 工程化与设计
+  'linear-gradient(135deg, #c2410c, #b45309)',    // 阶段 7 Web 与框架生态
+  'linear-gradient(135deg, #64748b, #475569)'     // 阶段 8 综合实战
 ]
 const stageGradient = (no) => stageGradients[(no - 1) % stageGradients.length]
 
@@ -156,7 +157,7 @@ onMounted(loadSubjects)
             {{ stage.stageNo }}
           </div>
           <div>
-            <div class="stage-title">{{ stage.stageName }}</div>
+            <h2 class="stage-title">{{ stage.stageName }}</h2>
             <div class="stage-sub">
               {{ stage.chapters.length }} 章 ·
               {{ stage.chapters.reduce((n, c) => n + c.totalLessons, 0) }} 课时
@@ -238,11 +239,11 @@ onMounted(loadSubjects)
 .stage { background:#fff; border:1px solid var(--c-border); border-radius:var(--r-l); overflow:hidden; box-shadow:0 2px 6px rgba(20,30,60,.04) }
 .stage-head { display:flex; align-items:center; gap:14px; padding:18px 22px; border-bottom:1px solid var(--c-border) }
 .stage-num { width:36px; height:36px; border-radius:var(--r-m); display:grid; place-items:center; color:#fff; font-weight:600; font-size:var(--fs-md); flex-shrink:0 }
-.stage-title { font-size:var(--fs-md); font-weight:600; color:var(--c-text-1) }
+.stage-title { margin:0; font-size:var(--fs-md); font-weight:600; color:var(--c-text-1) }
 .stage-sub { font-size:var(--fs-xs); color:var(--c-text-3); margin-top:2px }
 .stage-meta { margin-left:auto; display:flex; align-items:center; gap:14px; color:var(--c-text-2); font-size:var(--fs-sm) }
-.tag { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:var(--r-full); font-size:var(--fs-xs); background:var(--c-primary-bg); color:var(--c-primary); font-weight:500 }
-.tag.green { background:var(--c-success-bg); color:#0e8a4f }
+.tag { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:var(--r-full); font-size:var(--fs-xs); background:var(--c-primary-bg); color:#1d4ed8; font-weight:500 }
+.tag.green { background:var(--c-success-bg); color:#146c33 }
 .pct { font-size:var(--fs-base); font-weight:600; color:var(--c-text-1); min-width:38px; text-align:right }
 
 .chapters { display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; padding:18px 22px }

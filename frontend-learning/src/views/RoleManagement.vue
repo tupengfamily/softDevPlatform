@@ -126,18 +126,18 @@ const submitPerms = async () => {
         <template #default="{ row }">
           <div class="ops">
             <el-tooltip content="编辑" placement="top">
-              <el-button class="op-btn" size="small" circle @click="openEdit(row)">
+              <el-button class="op-btn" size="small" circle aria-label="编辑角色" @click="openEdit(row)">
                 <el-icon><Edit /></el-icon>
               </el-button>
             </el-tooltip>
             <el-tooltip content="分配权限" placement="top">
-              <el-button class="op-btn" size="small" circle type="primary" plain @click="openPerm(row)">
+              <el-button class="op-btn" size="small" circle type="primary" plain aria-label="分配权限" @click="openPerm(row)">
                 <el-icon><Key /></el-icon>
               </el-button>
             </el-tooltip>
             <el-tooltip :disabled="row.code !== 'ADMIN'" content="删除" placement="top">
               <span class="op-wrap">
-                <el-button class="op-btn" size="small" circle type="danger" plain :disabled="row.code === 'ADMIN'" @click="onDelete(row)">
+                <el-button class="op-btn" size="small" circle type="danger" plain aria-label="删除角色" :disabled="row.code === 'ADMIN'" @click="onDelete(row)">
                   <el-icon><Delete /></el-icon>
                 </el-button>
               </span>
@@ -194,6 +194,6 @@ const submitPerms = async () => {
 <style scoped>
 /* 操作列: 图标按钮 + 悬浮提示 */
 .ops { display: flex; align-items: center; gap: 4px; }
-.op-btn { margin-left: 0 !important; padding: 5px !important; }
+.op-btn { margin-left: 0 !important; padding: 8px !important; min-width: 32px; min-height: 32px; }
 .op-wrap { display: inline-flex; }
 </style>

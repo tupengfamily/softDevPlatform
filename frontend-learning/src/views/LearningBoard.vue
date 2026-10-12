@@ -163,7 +163,7 @@ onMounted(async () => {
               </td>
               <td>
                 <div class="who">
-                  <span class="avatar" :style="{ background: r.roles?.includes('ADMIN') ? '#e6483d' : '#16a34a' }">
+                  <span class="avatar" :style="{ background: r.roles?.includes('ADMIN') ? '#c22b2b' : '#15803d' }">
                     {{ (r.username || '?').charAt(0).toUpperCase() }}
                   </span>
                   <div class="who-info">
@@ -255,8 +255,8 @@ onMounted(async () => {
 .sub-pct small { font-size: var(--fs-xs); color: #64748b; margin-left: 2px; }
 .sub-card .bar { margin-top: 8px; height: 5px; border-radius: var(--r-full); background: var(--c-border); overflow: hidden; }
 .sub-card .bar i { display: block; height: 100%; border-radius: var(--r-full); transition: width .4s ease; }
-.sub-meta { margin-top: 6px; color: #94a3b8; font-size: var(--fs-xs); }
-.hint-inline { color: #94a3b8; font-size: var(--fs-xs); font-weight: 400; margin-left: 6px; }
+.sub-meta { margin-top: 6px; color: #64748b; font-size: var(--fs-xs); }
+.hint-inline { color: #64748b; font-size: var(--fs-xs); font-weight: 400; margin-left: 6px; }
 
 /* 学习偏好分布 */
 .pref-bar {
@@ -266,7 +266,7 @@ onMounted(async () => {
 }
 .pref-title { font-size: var(--fs-xs); color: #64748b; font-weight: 600; margin-right: 4px; }
 .pref-tag { flex: none; }
-.pref-hint { margin-left: auto; color: #94a3b8; font-size: var(--fs-xs); }
+.pref-hint { margin-left: auto; color: #64748b; font-size: var(--fs-xs); }
 
 .hero {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 20px;
@@ -304,9 +304,9 @@ onMounted(async () => {
 .board-table tbody tr:hover { background: #fafbfe; }
 
 .rank { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 50%; background: #f1f4f9; color: #6b7280; font-size: var(--fs-xs); font-weight: 600; }
-.rank.gold { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #fff; }
-.rank.silver { background: linear-gradient(135deg, #cbd5e1, #94a3b8); color: #fff; }
-.rank.bronze { background: linear-gradient(135deg, #d6a97e, #b08258); color: #fff; }
+.rank.gold { background: linear-gradient(135deg, #b45309, #92400e); color: #fff; }
+.rank.silver { background: linear-gradient(135deg, #64748b, #556275); color: #fff; }
+.rank.bronze { background: linear-gradient(135deg, #9a6b42, #7d5632); color: #fff; }
 
 .who { display: flex; align-items: center; gap: 10px; }
 .avatar { width: 30px; height: 30px; border-radius: 50%; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-sm); font-weight: 600; flex: none; }

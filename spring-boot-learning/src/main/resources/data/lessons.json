@@ -1868,6 +1868,550 @@
         }
       ],
       "subject": "sql"
+    },
+    {
+      "subject": "python",
+      "stageNo": 1,
+      "stageName": "Python 入门",
+      "chapterNo": 1,
+      "title": "Python 入门",
+      "description": "认识 Python:语言定位与哲学、解释器与运行方式、第一个程序、数据类型与变量。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Python 简介与设计哲学",
+          "summary": "认识 Python:解释型高级语言的定位、诞生故事与「优雅、明确、简单」的设计哲学、主要应用领域,以及与 Java 的对比。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "Python 是一门解释型的高级编程语言,由 Guido van Rossum(社区昵称「龟叔」)在 1989 年底创造,如今稳居 TIOBE 排行榜前列。它最大的标签是:语法简洁、开发效率高,同样的功能,Java 可能要写 100 行,Python 也许 20 行就搞定。\n\n## 为什么值得学\n- 语法接近自然语言,零基础友好,是公认的最佳入门语言之一\n- 标准库极其丰富(被称为「内置电池」),网络、文件、数据库、文本处理开箱即用\n- 生态庞大:PyPI 上有几十万个第三方库,数据分析、人工智能、爬虫、Web 后端都有成熟方案\n- 与你已学的 Java 互补:Java 擅长大型工程与高并发服务,Python 擅长快速验证、脚本自动化与数据处理\n\n## 应用领域\n- Web 后端:Django、Flask、FastAPI(Instagram、豆瓣都用 Python)\n- 数据科学与 AI:pandas、NumPy、PyTorch,机器学习领域的事实标准语言\n- 自动化脚本:运维、测试、办公自动化——比如本项目生成课程数据的补丁脚本就是 Python 写的\n- 爬虫与工具:requests + BeautifulSoup 快速抓取与处理数据\n\n## 设计哲学\nPython 之禅(在解释器里输入 import this 可以看到)强调:优雅胜于丑陋、明确胜于晦涩、简单胜于复杂。写 Python 要追求「一眼能看懂」的代码,炫技式的晦涩代码在这里不受待见。\n\n## 客观看待缺点\n- 运行速度比 C/Java 慢:解释执行、动态类型都有代价;但多数业务瓶颈在网络和 IO,用户无感\n- 代码难以加密:发布即源码;好在互联网时代靠卖服务而非卖软件\n- GIL 限制了单进程多线程的 CPU 并行(第 11 章细讲),但有多进程与异步方案\n\n## 动手练习\n1. 用一句话说出 Python 相对 Java 的优势场景\n2. 举两个你身边可能用 Python 做的事情",
+          "codeExample": "print('Hello, Python!')\nprint('同一门语言,写 Web、做 AI、跑脚本')",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "安装 Python 与解释器",
+          "summary": "理解解释器与源码执行的关系,安装 Python 3、使用交互式 REPL、运行 .py 文件,以及本平台 Python 在线沙箱的用法。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "Python 源码(.py 文件)需要「翻译」成机器指令才能运行,负责翻译的就是解释器。最常用的实现是 CPython——你在官网 python.org 下载安装的默认就是它。\n\n## 安装与验证\n- Windows/macOS:官网下载 Python 3 安装包(macOS 可用 Homebrew:brew install python3)\n- 验证安装:命令行执行 python3 --version,看到 Python 3.x.x 即成功\n- 注意:Python 2 已停止维护,新项目一律用 Python 3,本课程全部基于 3.x\n\n## 两种运行方式\n1. 交互式(REPL):命令行输入 python3 进入 >>> 提示符,输一行执行一行,适合试验小片段;exit() 退出\n2. 脚本文件:把代码写进 hello.py,执行 python3 hello.py 一次跑完\n\n## 开发工具\n- 轻量:VS Code + Python 插件(推荐初学)\n- 专业:PyCharm 社区版(免费),调试、补全、重构一应俱全\n- 本平台:课时页右侧的「Python 沙箱」可以直接运行示例代码,无需本地安装,改完点「运行」即见结果\n\n## 解释器小档案\n解释执行意味着:不需要先编译,改完即跑,开发迭代快;代价是运行时逐行翻译,速度不如编译型语言。另外注意大小写敏感——Print 和 print 是两个东西。\n\n## 动手练习\n1. 本地安装 Python 3 并用 --version 确认版本\n2. 在 REPL 里试验 2 ** 10 和 'py' * 3,观察输出",
+          "codeExample": "print('2 的 10 次方 =', 2 ** 10)\nprint('重复拼接:', 'py' * 3)",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "第一个程序:输出、注释与缩进",
+          "summary": "掌握 print/input 的用法与格式化输出,理解 # 注释与 4 空格缩进规则——缩进就是 Python 的语法,大小写必须严格。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "第一行 Python 代码:\n```python\nprint('Hello, Python!')\n```\nprint 负责输出,括号里是要打印的内容。它有几个常用参数:sep(多个值的分隔符,默认空格)、end(结尾符,默认换行)。\n\n## 输入:input\n```python\nname = input('请输入你的名字: ')\nprint('你好,', name)\n```\ninput 会暂停程序等待用户输入,**返回值永远是字符串**。要当数字用必须转换:score = int(input(...)) 或 float(...)。注意在线沙箱里无法交互,示例代码会避免 input,你可以在本地练习。\n\n## 注释\n以 # 开头的行是注释,给人看的说明文字,解释器直接忽略。三引号包裹的多行字符串也常被用作多行注释/文档字符串(函数那章细讲)。\n\n## 缩进:Python 的「大括号」\n其他语言用 {} 划分代码块,Python 用缩进。约定俗成:**4 个空格**,永远不要混用 Tab 和空格:\n```python\nif True:\n    print('缩进的行属于 if 块')\n    print('同一层级对齐')\nprint('缩进结束,块也结束')\n```\n语句以冒号 : 结尾,下一行缩进的就是它的代码块。复制粘贴代码后务必检查缩进——这是 Python 新手报错的头号来源。\n\n## 易错点\n- print 写成 Print,大小写敏感直接报 NameError\n- 中文引号「」『』混入代码,Python 只认英文引号 ' \" \n- input 的返回值做加法:input('a') + input('b') 是字符串拼接,不是加法\n\n## 动手练习\n1. 打印一句自我介绍,用 sep 和 end 控制格式\n2. 写一个 if/else 小程序,体会缩进错误时的报错信息",
+          "codeExample": "name = '张三'\nprint('姓名:', name, end=' | ')\nprint('科目:', 'Python', 'Java', sep='/')",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 4,
+          "title": "数据类型与变量",
+          "summary": "认识 int/float/str/bool/None 五大基本类型与 type() 检查,理解动态类型与变量命名规范,警惕浮点数精度陷阱。",
+          "difficulty": 1,
+          "durationMinutes": 25,
+          "content": "变量就是「给数据起个名字」。Python 里定义变量不用声明类型,直接赋值即可:\n```python\nname = '张三'\nage = 18\nscore = 92.5\n```\n\n## 五大基本类型\n- int 整数:任意精度,想多大有多大(999...9 也不会溢出)\n- float 浮点数:小数,但有精度问题(见下文)\n- str 字符串:文本,单双引号皆可,不可变\n- bool 布尔:True / False(注意首字母大写)\n- None 空值:表示「什么都没有」,不同于 0、空字符串\n\n用 type() 检查类型:print(type(score)) 输出 <class 'float'>。\n\n## 动态类型与类型转换\n变量没有固定类型标签,绑定什么就是什么(这是与 Java 的根本差异):\n```python\nx = 10      # x 是 int\nx = '十'    # x 变成 str,合法\n```\n类型转换要显式写:int('92')、float('3.14')、str(100)。转换失败会抛 ValueError(第 9 章学异常处理)。\n\n## 浮点精度陷阱\n```python\nprint(0.1 + 0.2)   # 0.30000000000000004,不是 0.3!\n```\n二进制无法精确表示部分小数。比较浮点数不要用 ==,用 round(a - b, 9) < 0.000000001 之类的容差写法;金额场景优先用 decimal 模块。\n\n## 命名规范\n- 变量名:snake_case(下划线命名),如 student_score\n- 只能字母、数字、下划线,不能以数字开头,不能用关键字(if/for/class…)\n- 见名知意:score 比 s 好,students 比 list1 好\n\n## 动手练习\n1. 定义姓名、年龄、成绩三个变量并打印类型\n2. 验证 0.1 + 0.2 != 0.3,想想为什么\n3. 把字符串 '100' 转成整数并加 1",
+          "codeExample": "name = '张三'\nage = 18\nscore = 92.5\nflag = True\nnothing = None\nprint(type(name), type(age), type(score), type(flag), type(nothing))\nprint(0.1 + 0.2)",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 1,
+      "stageName": "Python 入门",
+      "chapterNo": 2,
+      "title": "字符串、编码与格式化",
+      "description": "文本处理基本功:str/bytes 与 UTF-8、三代格式化方案、常用方法与切片。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "字符串与编码",
+          "summary": "理解 str 与 bytes 的区别、UTF-8 编码与解码、ord/chr 与字符本质,处理中英文混排的长度与编码问题。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "字符串是 Python 最常用的类型。计算机只认字节,文本要靠「编码」转换:Unicode 是字符集(给每个字符一个编号),UTF-8 是最通用的编码方案(变长存储,英文 1 字节、中文通常 3 字节)。\n\n## str 与 bytes\n```python\ns = '你好'\nb = s.encode('utf-8')     # str -> bytes\nprint(b)                  # b'\\xe4\\xbd\\xa0\\xe5\\xa5\\xbd'\nprint(b.decode('utf-8'))  # bytes -> str\n```\n带 b 前缀的是 bytes,网络传输和文件读写底层都是 bytes;decode 时编码不匹配会抛 UnicodeDecodeError。\n\n## 字符与编号\n- ord('A') = 65:取字符的 Unicode 编号\n- chr(20320) = '你':由编号还原字符\n- len('你好, Python') = 10:len 数的是字符数,不是字节数(len('你好'.encode()) 才是 6)\n\n## 中文处理三要点\n1. 源文件声明编码(现代 Python 3 默认 UTF-8,一般无需声明)\n2. 读写文件显式指定 encoding='utf-8',避免 Windows 默认 GBK 捣乱\n3. 日志/终端乱码九成是编码不一致,统一 UTF-8 能解决大部分问题\n\n## 字符串不可变\n所有「修改」字符串的方法其实都是返回新字符串:\n```python\ns = 'Python'\ns[0] = 'J'        # 报错!\ns2 = 'J' + s[1:]  # 正确:拼出新串 'Jython'\n```\n不可变的好处:可以放心做字典键、安全共享。\n\n## 易错点\n- 用 == 判断类型:type(x) == str 尚可,isinstance(x, str) 更 Pythonic\n- 对 bytes 做 str 操作(或反之):b'abc' + 'd' 报 TypeError\n- 忘记 decode 就打印 bytes,满屏 \\xe4 转义\n\n## 动手练习\n1. 计算 'Python 教程' 的字符数和 UTF-8 字节数\n2. 把字符串 '20320' 转成编号再还原成字符,看看是什么字\n3. 解释为什么字符串不能原地修改",
+          "codeExample": "s = '你好, Python'\nprint('字符数:', len(s))\nprint('字节数:', len(s.encode('utf-8')))\nprint('编码:', s.encode('utf-8'))\nprint('解码回来:', s.encode('utf-8').decode('utf-8'))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "字符串格式化:%、format 与 f-string",
+          "summary": "三代字符串格式化方案对比:%占位符、str.format() 与 f-string,掌握精度控制、对齐填充与表达式内嵌,f-string 是首选。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "把变量嵌进字符串,是拼日志、出报表的日常。Python 有三代方案,现在首选 f-string。\n\n## f-string(Python 3.6+,首选)\n在字符串前加 f,花括号里直接写变量甚至表达式:\n```python\nname, score = '张三', 92.5\nprint(f'{name} 的成绩是 {score:.1f}')\nprint(f'{\"优秀\" if score >= 90 else \"良好\"}')\nprint(f'{\"张三\":>8}|')   # 右对齐,宽度 8\n```\n- :.1f 保留 1 位小数;:06.2f 补零宽度 6;:>8 右对齐、:<8 左对齐、:^8 居中\n- 花括号里可以放任何表达式,可读性极佳\n\n## format 方法\n```python\nprint('{} 的成绩是 {:.1f}'.format(name, score))\nprint('{0} 和 {0} 都是学生'.format(name))\nprint('{n} 考了 {s}'.format(n=name, s=score))\n```\n功能与 f-string 相当,适合模板提前写好、数据后填的场景。\n\n## % 格式化(老式,C 风格)\n```python\nprint('%s 的成绩是 %.1f' % (name, score))\n```\n%s 字符串、%d 整数、%f 浮点。参数多时元组容易错位,新代码不推荐,但老项目里常见,要能读懂。\n\n## 三者选型\n- 新代码一律 f-string:最短最直观\n- 模板复用:format 或 Template\n- 维护旧代码:认识 % 写法即可\n\n## 易错点\n- 忘记 f 前缀:f'{name}' 写成 '{name}' 会原样输出花括号\n- 花括号里写赋值语句(f'{x=}' 的调试技巧除外)\n- 格式符与类型不匹配:%d 格式化字符串抛 TypeError\n\n## 动手练习\n1. 用三种方式分别输出「李四 78.5 分」,保留一位小数\n2. 把成绩列表每人一行输出成「姓名: xx,等级: xx」的报表\n3. 用对齐控制打印一个小表格(姓名/成绩两列)",
+          "codeExample": "name, score = '张三', 92.5\nprint('%s 的成绩是 %.1f' % (name, score))\nprint('{} 的成绩 is {:.1f}'.format(name, score))\nprint(f'{name} 的成绩是 {score:.1f}, 等级 {\"优秀\" if score >= 90 else \"良好\"}')",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "字符串常用方法与切片入门",
+          "summary": "熟练使用 split/join/strip/replace/upper 等高频方法,掌握切片 s[a:b:c] 语法与负索引,理解一切切片都是新对象。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "字符串方法是处理文本的「瑞士军刀」。注意:所有方法都返回新字符串,原串不变。\n\n## 高频方法\n```python\ns = '  Hello, Python  '\nprint(s.strip())           # 去两端空白 'Hello, Python'\nprint(s.strip().lower())   # 小写 'hello, python'\nprint('a-b-c'.split('-'))  # ['a', 'b', 'c']\nprint(','.join(['张三', '李四']))  # '张三,李四'\nprint('banana'.replace('na', 'NA', 1))  # 'baNAna',可限定次数\nprint('python'.upper(), 'PYTHON'.title())\nprint('python'.find('th'))  # 2,找不到返回 -1\nprint('python'.startswith('py'), 'python'.endswith('on'))\n```\n拆分选 split,拼接选 join——join 拼列表比循环 += 快得多。\n\n## 切片:s[a:b:c]\n切片从序列里「抠」出一段,生成新对象:\n```python\ns = 'Python'\nprint(s[0], s[-1])    # P n(负索引从右数,-1 是最后一个)\nprint(s[1:4])         # yth [起始含,结束不含)\nprint(s[:3], s[3:])   # Pyt hon(省略边界)\nprint(s[::2])         # Pto 步长 2\nprint(s[::-1])        # nohtyP 反转\n```\n口诀:含头不含尾。列表同样适用(第 4 章)。\n\n## 实战组合:解析一行成绩\n```python\nline = '张三,92,优秀'\nname, score, level = line.split(',')\n```\n一行拆三值,批量处理 CSV 风格数据的常见姿势。\n\n## 易错点\n- split() 不带参数按任意空白切,split(' ') 按单空格切,多空格会切出空串\n- s[3] 取出的是单字符字符串(长度 1),s[3:4] 才是切片\n- 切片越界不报错:s = 'ab'; s[10] 报错,但 s[2:10] 返回 ''\n\n## 动手练习\n1. 把 '  learn python  ' 处理成 'Learn Python'\n2. 反转字符串 'abcdef' 并统计字符 a 的个数\n3. 用 split+join 把 'a,,b,c' 的多余逗号清理干净",
+          "codeExample": "s = '  Hello, Python  '\nprint(s.strip().title())\nprint('a-b-c'.split('-'))\nprint(','.join(['张三', '李四', '王五']))\nprint('Python'[::-1])\nprint('Python'[:3], 'Python'[3:])",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 1,
+      "stageName": "Python 入门",
+      "chapterNo": 3,
+      "title": "流程控制",
+      "description": "分支与循环:if/elif/else、for/while、break/continue,综合练习打牢骨架。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "条件判断 if / elif / else",
+          "summary": "掌握条件分支的完整写法与嵌套,理解 Python 的真值规则(0/空串/None 为假)与 and/or/not 短路逻辑,实战成绩评级。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "程序要会「做决定」。Python 的条件分支长这样:\n```python\nscore = 87\nif score >= 90:\n    level = '优秀'\nelif score >= 80:\n    level = '良好'\nelif score >= 60:\n    level = '及格'\nelse:\n    level = '不及格'\n```\n- if / elif / else 后面都要冒号,分支体靠缩进\n- elif 可以有多个;else 可省略\n- 条件自上而下匹配,命中即止,顺序会影响结果(上面的顺序反了就全乱了)\n\n## 真值规则\nPython 里这些值在条件中视为假(False):\n- 数字 0、0.0\n- 空容器:[], {}, ()\n- 空字符串 ''、None、False\n\n其余为真。所以 if students: 相当于「列表非空」,if name: 相当于「name 非空串」,简洁又 Pythonic。\n\n## 逻辑运算\nand(与)、or(或)、not(非),优先级 not > and > or。有短路特性:\n```python\nif name and name.startswith('张'):   # name 为空时不会执行 startswith\n    print('姓张的同学')\n```\n判断相等用 ==(值相等),is 判断是否同一对象(用于 None:if x is None)。\n\n## 三元表达式\n简单的二选一可以一行写完:\n```python\nlevel = '及格' if score >= 60 else '不及格'\n```\n\n## 易错点\n- 习惯性写 if score == 60: 而忘 >=,边界值最容易出 Bug\n- 用 = 做比较(那是赋值),Python 会在条件里提示语法错误\n- 混淆 == 与 is:is 比的是身份,小整数缓存会造成错觉\n\n## 动手练习\n1. 输入分数输出等级(优秀/良好/及格/不及格)\n2. 判断一个年份是否闰年(能被 4 整除且不能被 100 整除,或能被 400 整除)\n3. 用三元表达式改写第 1 题",
+          "codeExample": "score = 87\nlevel = '优秀' if score >= 90 else '良好' if score >= 80 else '及格' if score >= 60 else '不及格'\nprint(f'{score} 分 -> {level}')\nname = ''\nif name and name.startswith('张'):\n    print('姓张')\nelse:\n    print('名字为空或不姓张')",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "循环:for、while 与 break/continue",
+          "summary": "掌握 range 与 for 遍历、while 条件循环、break/continue/else 的控制流,理解「遍历什么就 for 什么」的循环选择原则。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "重复劳动交给循环。Python 有两种:for 负责「遍历」,while 负责「条件」。\n\n## for 循环\n```python\ntotal = 0\nfor i in range(1, 101):   # 1..100\n    total += i\nprint(total)              # 5050\n```\nrange(start, stop, step) 生成整数序列(含头不含尾),range(101) 就是 0~100。for 什么都能遍历:字符串、列表、字典、文件行……「遍历什么就 for 什么」。\n\n## while 循环\n条件为真就一直执行,必须自己改变条件,否则死循环:\n```python\nn, cnt = 100, 0\nwhile n > 1:\n    n //= 2\n    cnt += 1\nprint('除以 2 共', cnt, '次')   # 6 次\n```\n\n## break 与 continue\n- break:立即结束整个循环\n- continue:跳过本次,进入下一轮\n```python\nfor x in [1, 2, 3, 4, 5]:\n    if x == 3:\n        continue\n    if x == 5:\n        break\n    print(x)      # 输出 1 2 4\n```\n循环还支持 else 子句:循环自然结束(没被 break)时执行,适合「搜完没找到」的场景。\n\n## 循环怎么选\n- 知道要遍历的对象/次数 → for\n- 知道停止条件、不知道次数 → while\n- 能用 for 就别用 while,更不易死循环\n\n## 易错点\n- range 忘记「不含尾」:range(1, 10) 只到 9\n- while 条件永不变化 → 死循环(在线沙箱 5 秒超时会掐断)\n- 遍历列表时删除元素(边遍历边改),结果错乱;先拷贝再改\n\n## 动手练习\n1. 求 1~100 中所有 3 的倍数之和(答案:1683)\n2. 用 while 找出第一个大于 1000 的 2 的幂\n3. 遍历成绩列表 [63, 74, 50, 85, 57],统计不及格人数",
+          "codeExample": "total = 0\nfor i in range(1, 101):\n    total += i\nprint('1+2+...+100 =', total)\n\nscores = [63, 74, 50, 85, 57]\nfail = 0\nfor s in scores:\n    if s < 60:\n        fail += 1\nprint('不及格:', fail, '人')",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "循环综合练习:九九乘法表与成绩统计",
+          "summary": "用嵌套循环打印九九乘法表,结合列表与循环做成绩统计(总分/均分/最高/及格率),完成第一个完整小程序。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "学完分支和循环,来写两个完整小程序热热身。\n\n## 九九乘法表(嵌套循环)\n```python\nfor i in range(1, 10):\n    for j in range(1, i + 1):\n        print(f'{j}x{i}={i * j}', end='\\t')\n    print()\n```\n外层循环控制行(1~9),内层控制列(1~i),print 的 end='\\t' 让同一行不换行,内层结束后 print() 换行。输出一个左下三角的乘法表——嵌套循环的经典入门题。\n\n## 成绩统计小程序\n```python\nscores = [63, 74, 85, 92, 47, 58, 76]\ntotal = 0\nmax_score = -1\npass_cnt = 0\nfor s in scores:\n    total += s\n    if s > max_score:\n        max_score = s\n    if s >= 60:\n        pass_cnt += 1\n\navg = total / len(scores)\nprint(f'总分 {total}, 平均 {avg:.1f}, 最高 {max_score}')\nprint(f'及格率 {pass_cnt / len(scores):.0%}')\n```\n这段代码浓缩了「遍历 + 累加 + 打擂台(求最大) + 条件计数」四个基本功,是数据统计的最小原型。其实 Python 内置 sum/max/min 一行就能算,自己写一遍是为了练逻辑,下一章学了列表方法会让你见识简写法。\n\n## 拆解思路\n写程序的正确姿势:先想清楚「输入什么、输出什么、中间要记哪些状态」,再翻译成循环和条件。直接上手敲代码、边敲边想,是新手低效的主因。\n\n## 易错点\n- 嵌套循环忘记内层换行,输出糊成一行\n- 平均分用整数除法:total / len(scores) 在 Python 3 里是真除,别担心;要整数用 //\n- max_score 初始化为 -1 假设成绩非负;更稳的写法是取第一个元素当初值\n\n## 动手练习\n1. 把乘法表改成右上三角(提示:内层 range(i, 10))\n2. 成绩统计加上「最低分」和「不及格人数」\n3. 找出列表中第二大的数(不许用 sort)",
+          "codeExample": "for i in range(1, 10):\n    for j in range(1, i + 1):\n        print(f'{j}x{i}={i * j}', end='\\t')\n    print()",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 2,
+      "stageName": "核心语法",
+      "chapterNo": 4,
+      "title": "数据结构:list、dict 与 set",
+      "description": "Python 的灵魂容器:列表/元组/字典/集合、切片复制陷阱、列表生成式。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "list 与 tuple",
+          "summary": "列表的增删改查与排序、切片操作复用,元组的不可变特性与使用场景,掌握 append/sort/sorted 等高频操作。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "列表(list)是 Python 的主力数据结构:有序、可变、装什么都行。\n\n## 增删改查\n```python\nscores = [92, 87, 76]\nscores.append(95)        # 尾部追加 -> [92, 87, 76, 95]\nscores.insert(0, 68)     # 指定位置插入 -> [68, 92, 87, 76, 95]\nscores[1] = 90           # 修改 -> [68, 90, 87, 76, 95]\nscores.remove(76)        # 按值删除第一个 76\nlast = scores.pop()      # 弹出并返回末尾元素\nprint(len(scores), 90 in scores)\n```\n- 查:下标索引、切片(上一章的 s[a:b:c] 完全适用)、in 判断存在\n- 排序:scores.sort() 原地排;sorted(scores, reverse=True) 返回新列表;sort(key=len) 按自定义键\n\n## 常用套路\n```python\nnums = [3, 1, 4, 1, 5]\nprint(min(nums), max(nums), sum(nums), sum(nums) / len(nums))\nnums.sort(reverse=True)\nprint(nums[:3])          # 前三大\nprint([x * 2 for x in nums])  # 列表生成式,下一课细讲\n```\n\n## tuple 元组:不可变的列表\n```python\npoint = (3, 4)\n# point[0] = 5   # 报错,元组不可变\nx, y = point     # 解包\n```\n- 不可变 → 可作字典键、放心共享,函数多值返回其实就是元组\n- 单元素元组要逗号:(1,) 而不是 (1)\n\n## list vs tuple 怎么选\n- 需要增删改 → list\n- 表示固定结构(坐标、记录、返回值)、不希望被改 → tuple\n- 性能差异微乎其微,按语义选\n\n## 易错点\n- append 和 extend 混淆:append 加整个对象,extend 逐个并入\n- 排序混类型:list 里又有数字又有字符串会 TypeError\n- b = a 不是拷贝,b = a.copy() / a[:] / list(a) 才是(下一课细讲)\n\n## 动手练习\n1. 把 [3, 1, 4, 1, 5, 9, 2, 6] 去重并降序排列\n2. 交换两个变量值(提示:一行解包)\n3. 统计列表中最大值出现了几次",
+          "codeExample": "scores = [92, 87, 76]\nscores.append(95)\nscores.insert(0, 68)\nscores.remove(76)\nscores.sort(reverse=True)\nprint(scores, '共', len(scores), '条')\nprint('前 3 名:', scores[:3])\nx, y = (3, 4)\nprint('坐标解包:', x, y)",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "dict 与 set",
+          "summary": "字典的键值查询、增删改与 get 兜底,集合的去重与交并差运算,理解 dict 的 O(1) 查找与「键不可变」约束。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "字典(dict)是「键 → 值」映射,查找速度与大小无关(O(1)),是 Python 最重要的数据结构之一。\n\n## 字典操作\n```python\nstudent = {'name': '张三', 'score': 92}\nstudent['class'] = '一班'         # 新增\nstudent['score'] = 95             # 修改\nprint(student['name'])            # 查,键不存在抛 KeyError\nprint(student.get('age', 0))      # 安全查,不存在返回默认值\ndel student['class']              # 删除\nfor k, v in student.items():\n    print(k, v)\n```\n遍历用 items()(键值对)、keys()(键)、values()(值)。键必须不可变:字符串、数字、元组可以,列表不行。\n\n## 集合(set):自动去重的无序容器\n```python\ns = set([1, 2, 2, 3])        # {1, 2, 3}\nprint(1 in s)                # O(1) 成员判断\nprint(s | {3, 4})            # 并 {1, 2, 3, 4}\nprint(s & {2, 3, 5})         # 交 {2, 3}\nprint(s - {1})               # 差 {2, 3}\n```\n去重一行搞定:list(set(nums));成员判断比列表快得多,大集合尤甚。\n\n## 实战组合:成绩档案\n```python\nscores = {'张三': 92, '李四': 78, '王五': 88}\ngood = [name for name, sc in scores.items() if sc >= 85]\nprint(good)          # ['张三', '王五']\nprint('班级均分', sum(scores.values()) / len(scores))\n```\n\n## 易错点\n- 取不存在的键用 [],该用 get() 兜底\n- 遍历字典时修改大小:RuntimeError;先 list(scores.items()) 再改\n- set 无序,别按下标取值;需要顺序就用 list 或 dict(3.7+ 保持插入序)\n\n## 动手练习\n1. 统计字符串 'hello python' 各字符出现次数(提示:dict 计数)\n2. 用集合求两个列表的公共元素\n3. 把成绩字典按分数从高到低输出姓名",
+          "codeExample": "scores = {'张三': 92, '李四': 78, '王五': 88}\nscores['赵六'] = 95\nprint(scores.get('钱七', '无此人'))\nprint('均分:', sum(scores.values()) / len(scores))\ngood = [n for n, s in scores.items() if s >= 85]\nprint('优秀:', good)\nprint(set([1, 2, 2, 3]) & set([2, 3, 4]))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "索引与切片:负索引、步长与复制陷阱",
+          "summary": "深入序列索引机制:负索引、步长与反转、嵌套列表的切片行为,重点攻克「赋值不是拷贝」的经典陷阱与浅/深拷贝。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "索引与切片对字符串、列表、元组通用,这一课把细节一次讲透。\n\n## 负索引与步长\n```python\nnums = [0, 1, 2, 3, 4, 5]\nprint(nums[-1])     # 5,最后一个\nprint(nums[::2])    # [0, 2, 4] 步长 2\nprint(nums[::-1])   # [5, 4, 3, 2, 1, 0] 反转\nprint(nums[1:5:2])  # [1, 3]\n```\n切片越界自动「夹」到边界,绝不报错;步长为负就是从右往左走。\n\n## 复制陷阱(面试常考)\n```python\na = [1, 2, 3]\nb = a          # 只是起别名!a、b 指向同一个列表\nb.append(4)\nprint(a)       # [1, 2, 3, 4],a 也被改了!\n```\n真正的浅拷贝:b = a.copy()、b = a[:]、b = list(a)。修改 b 不再影响 a。\n\n## 浅拷贝 vs 深拷贝\n嵌套结构时,浅拷贝只复制最外层:\n```python\na = [[1, 2], [3, 4]]\nb = a.copy()\nb[0].append(99)\nprint(a)       # [[1, 2, 99], [3, 4]],内层列表还是同一个!\n```\n要连内层一起复制,用 copy 模块的 deepcopy:\n```python\nimport copy\nc = copy.deepcopy(a)\n```\n\n## 应用场景\n- 函数参数传列表:函数内 append 会影响调用方(可变对象共享),要隔离就 copy\n- 处理原始数据前先拷贝一份,改坏了随时还原\n- 切片做「快照」:snapshot = data[:]\n\n## 易错点\n- b = a 后以为互不影响,是最常见的隐蔽 Bug\n- 深拷贝比浅拷贝慢很多,嵌套不深就别用 deepcopy\n- 切片产生新对象,但元素仍是原对象的引用(所以要 deepcopy)\n\n## 动手练习\n1. 一行反转字符串 'Python' 与列表 [1,2,3]\n2. 写一个 safe_append(lst, x) 函数,返回追加后的新列表,不影响原列表\n3. 验证浅拷贝的内层共享现象并用 deepcopy 修复",
+          "codeExample": "nums = [0, 1, 2, 3, 4, 5]\nprint(nums[-1], nums[::2], nums[::-1])\na = [1, 2, 3]\nb = a.copy()\nb.append(4)\nprint('浅拷贝后 a =', a, ', b =', b)\nimport copy\nx = [[1, 2], [3, 4]]\ny = copy.deepcopy(x)\ny[0].append(99)\nprint('深拷贝隔离:', x)",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 4,
+          "title": "列表生成式与生成器表达式",
+          "summary": "用一行生成式替代循环拼列表:[表达式 for x in ... if 条件],支持字典/集合推导与嵌套,对比生成器表达式的惰性优势。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "列表生成式(List Comprehension)是 Python 最优雅的语法之一:把「循环 + 条件 + 拼装」压成一行。\n\n## 基本语法\n```python\nprint([x * x for x in range(1, 6)])        # [1, 4, 9, 16, 25]\nprint([x for x in range(10) if x % 2 == 0])  # [0, 2, 4, 6, 8]\n```\n读法:「对于 range(1,6) 里的每个 x,取 x*x」。条件过滤放在后面,多条件可叠加。\n\n## 字典与集合推导\n```python\nscores = {'张三': 92, '李四': 78, '王五': 88}\ngood = {name: sc for name, sc in scores.items() if sc >= 85}\nprint(good)                     # {'张三': 92, '王五': 88}\nprint({x % 3 for x in range(10)})   # {0, 1, 2},集合自动去重\n```\n\n## 嵌套与实战\n```python\nstudents = [('张三', 1), ('李四', 2), ('王五', 1)]\nprint([f'{n}班{s}' for n, s in students])\n# 两层循环压平嵌套列表:\nmatrix = [[1, 2], [3, 4]]\nprint([x for row in matrix for x in row])   # [1, 2, 3, 4]\n```\n\n## 生成器表达式:惰性求值\n把 [] 换成 () 就是生成器:不一次生成全部,用到才产出,省内存:\n```python\ng = (x * x for x in range(1000000))   # 瞬间完成,不占大内存\nprint(next(g), next(g))               # 0 1\n```\n数据量大、只需遍历一遍时用生成器;要反复用、随机访问就用列表。\n\n## 可读性红线\n生成式套两三层循环或复杂条件时,反而不如普通 for 清晰。原则:一行能舒服读完就用生成式,否则老实写循环。\n\n## 易错点\n- 生成式里放副作用(如 print)可读性差,别滥用\n- 误以为生成器可以下标访问:next(g) 单向推进\n- 忘记条件位置:if 要放在 for 后面\n\n## 动手练习\n1. 生成 1~20 中既能被 3 整除又能被 5 整除的数的平方列表\n2. 把成绩字典 {'张三':92,'李四':78} 转成 ['张三:92', '李四:78']\n3. 用生成器表达式求 1~100 之和(sum(生成器))",
+          "codeExample": "print([x * x for x in range(1, 6)])\nprint([x for x in range(10) if x % 2 == 0])\nscores = {'张三': 92, '李四': 78, '王五': 88}\nprint({n: s for n, s in scores.items() if s >= 85})\ng = (x * x for x in range(10))\nprint(next(g), next(g))\nprint(sum(x for x in range(1, 101)))",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 2,
+      "stageName": "核心语法",
+      "chapterNo": 5,
+      "title": "函数",
+      "description": "定义与返回、参数全解(*args/**kwargs)、作用域与递归、高阶函数与 lambda。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "函数的定义、返回值与文档",
+          "summary": "用 def 定义函数、return 返回结果(含多值返回的元组解包),理解 docstring 文档字符串与函数设计的单一职责原则。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "函数把一段逻辑「打包」起来起个名字,随用随调,是代码复用的基本单元。\n\n## 定义与调用\n```python\ndef greet(name):\n    # 文档字符串: 向某人问好\n    return f'你好, {name}!'\n\nprint(greet('张三'))\n```\n- def 函数名(参数): 开头,冒号 + 缩进\n- return 返回结果;没有 return 或 return 后无值,返回 None\n- 函数体第一行的三引号字符串是 docstring,help(函数名) 会显示它,好习惯\n\n## 多值返回\n```python\ndef stat(scores):\n    return min(scores), max(scores), sum(scores) / len(scores)\n\nlow, high, avg = stat([92, 87, 76])\nprint(low, high, f'{avg:.1f}')\n```\nreturn a, b, c 其实返回一个元组,解包接收即可。超过 3 个值建议封装成字典或对象,语义更清晰。\n\n## 函数设计原则\n- 单一职责:一个函数只做一件事,名字用动词短语(calc_average、load_data)\n- 参数别太多(3 个以内),多了就传字典/对象\n- 别让函数偷偷改全局状态,副作用显式化\n\n## 空函数与占位\n```python\ndef todo():\n    pass        # 占位,保持语法完整\n```\n\n## 易错点\n- 忘记 return:函数默默返回 None,拿 None 做运算才报错,很隐蔽\n- return 在循环里想返回所有结果却只返回了第一个:应收集到列表再返回\n- 函数名与内置函数重名(如 list、sum),覆盖后行为诡异\n\n## 动手练习\n1. 写一个 is_pass(score) 函数返回是否及格\n2. 写 stat 函数返回成绩列表的(最高, 最低, 平均, 及格率)\n3. 给你的函数写 docstring 并用 help() 查看",
+          "codeExample": "def stat(scores):\n    '''返回 (最低, 最高, 平均分)''' \n    return min(scores), max(scores), sum(scores) / len(scores)\n\nlow, high, avg = stat([92, 87, 76, 95])\nprint(low, high, f'{avg:.1f}')",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "参数详解:默认、可变与关键字参数",
+          "summary": "吃透位置参数/默认参数/可变参数 *args/**kwargs/关键字参数的组合规则与调用语法,避开默认参数为可变对象的经典陷阱。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "Python 的参数语法非常灵活,也是面试重灾区。\n\n## 参数类型全景\n```python\ndef introduce(name, age=18, *scores, **extra):\n    print(name, age, scores, extra)\n\nintroduce('张三')                      # 张三 18 () {}\nintroduce('李四', 20, 92, 87)          # 李四 20 (92, 87) {}\nintroduce('王五', 21, cls='一班')      # 王五 21 () {'cls': '一班'}\n```\n- 位置参数:必填,按顺序传\n- 默认参数 age=18:可省略;**必须放在位置参数之后**\n- *args 收集多余的位置参数成元组\n- **kwargs 收集多余的关键字参数成字典\n\n## 调用技巧\n```python\ndef add(a, b, c):\n    return a + b + c\n\nprint(add(1, 2, 3))\nprint(add(c=3, a=1, b=2))        # 关键字乱序,可读性好\nargs = [1, 2, 3]\nprint(add(*args))                # 列表解包成位置参数\nkw = {'a': 1, 'b': 2, 'c': 3}\nprint(add(**kw))                 # 字典解包成关键字参数\n```\n参数顺序铁律:位置参数 → 默认参数 → *args → 关键字参数 → **kwargs。\n\n## 默认参数陷阱(必考)\n```python\ndef add_item(x, lst=[]):     # 危险!默认列表只创建一次\n    lst.append(x)\n    return lst\n\nprint(add_item(1))   # [1]\nprint(add_item(2))   # [1, 2],不是 [2]!\n```\n修正:def add_item(x, lst=None): 里 if lst is None: lst = []。\n\n## 易错点\n- 默认参数写成可变对象(list/dict),跨调用共享\n- 位置参数传在关键字参数之后:f(1, b=2, 3) 语法错误\n- **extra 里混入与显式参数同名的键:TypeError 重复传参\n\n## 动手练习\n1. 写 my_sum(*nums) 支持任意个数字求和\n2. 写 make_student(name, **info) 组装学生信息字典\n3. 修复默认参数陷阱,验证两次调用互不影响",
+          "codeExample": "def introduce(name, age=18, *scores, **extra):\n    info = f'{name}, {age} 岁'\n    if scores:\n        info += f', 成绩 {scores}'\n    for k, v in extra.items():\n        info += f', {k}={v}'\n    return info\n\nprint(introduce('张三'))\nprint(introduce('李四', 20, 92, 87))\nprint(introduce('王五', 21, cls='一班', hobby='篮球'))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "作用域与递归函数",
+          "summary": "理解 LEGB 作用域规则与 global/nonlocal,掌握递归的两个要素(终止条件+递推式),用阶乘与斐波那契体会递归与迭代的取舍。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "变量在哪里可见、哪里消失,由作用域决定。Python 按 LEGB 规则查找:Local 局部 → Enclosing 外层函数 → Global 全局 → Built-in 内置。\n\n## 作用域示例\n```python\nx = '全局'\ndef f():\n    x = '局部'     # 新的局部变量,不影响全局\n    print(x)\nf()\nprint(x)           # 还是「全局」\n```\n想改全局要显式声明 global x;闭包里改外层变量用 nonlocal(第 6 章细讲)。\n\n## 递归:自己调用自己\n两个要素缺一不可:\n1. 终止条件(基线情形),否则无限递归\n2. 递推式,把问题化小\n```python\ndef fact(n):\n    if n <= 1:\n        return 1\n    return n * fact(n - 1)\n\nprint(fact(5))    # 120\n```\n调用栈一路展开:fact(5)→fact(4)→…→fact(1),再逐层返回相乘。\n\n## 递归 vs 迭代\n```python\ndef fib_rec(n):        # 递归版,简洁但慢(指数级重复计算)\n    if n < 2: return n\n    return fib_rec(n - 1) + fib_rec(n - 2)\n\ndef fib_iter(n):       # 迭代版,快且不占栈\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a\n```\n经验:能用简单循环解决的优先循环;树/图/分治类问题(目录遍历、快速排序)递归更自然。Python 默认递归深度约 1000 层,更深会 RecursionError。\n\n## 易错点\n- 忘记终止条件或写错边界:栈溢出\n- 递归里意外修改参数导致永不收敛\n- 在递归函数里定义可变默认参数(叠加上一课陷阱)\n\n## 动手练习\n1. 用递归求 1+2+...+n\n2. 写递归版 reverse(s) 反转字符串\n3. 用迭代和递归分别实现斐波那契,对比 30 项的耗时",
+          "codeExample": "def fact(n):\n    if n <= 1:\n        return 1\n    return n * fact(n - 1)\n\ndef fib_iter(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a\n\nprint('5! =', fact(5))\nprint('fib(30) =', fib_iter(30))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 4,
+          "title": "高阶函数与 lambda 表达式",
+          "summary": "函数也是对象:掌握 map/filter/sorted(key=...) 三大高阶函数与 lambda 匿名函数,学会用 key 定制排序,对比生成式写法。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "Python 里函数是一等公民:可以赋值给变量、当参数传、当返回值。接受或返回函数的叫高阶函数。\n\n## lambda 匿名函数\n```python\nsquare = lambda x: x * 2\nprint(square(21))    # 42\n```\nlambda 只能写单个表达式,复杂逻辑请用 def。它最常见的家是 key= 参数里。\n\n## sorted 的 key(最高频)\n```python\nstudents = [('张三', 92), ('李四', 78), ('王五', 88)]\nprint(sorted(students, key=lambda s: s[1], reverse=True))\n# [('张三', 92), ('王五', 88), ('李四', 78)]\n```\nkey 提取「排序依据」,默认升序,reverse=True 降序。多级排序用元组 key=lambda s: (s[1], s[0])。\n\n## map 与 filter\n```python\nnums = [1, 2, 3, 4]\nprint(list(map(lambda x: x * x, nums)))       # [1, 4, 9, 16]\nprint(list(filter(lambda x: x % 2 == 0, nums)))  # [2, 4]\n```\nmap 逐个变换,filter 按条件筛,都返回惰性迭代器,要结果用 list() 转换。功能上列表生成式更 Pythonic:\n```python\nprint([x * x for x in nums])\nprint([x for x in nums if x % 2 == 0])\n```\n两者皆可,生成式可读性通常更好,map/filter 在流水线式组合时更顺手。\n\n## 函数式编程的度\nPython 不是纯函数式语言,别为了「函数式」牺牲可读性。实用准则:排序定制用 key,一次性映射过滤用生成式,真正复用的逻辑抽成 def。\n\n## 易错点\n- lambda 写多行逻辑:直接换 def\n- map/filter 忘记 list(),打印出 <map object ...>\n- key 写错字段导致排序错乱(如按姓名字符串排成绩)\n\n## 动手练习\n1. 按成绩给学生列表排序(降序),同分按姓名\n2. 用 map+filter 筛出及格成绩并开方,再用生成式改写\n3. 用一行代码求字典 {'张三':92,'李四':78} 中分数最高者",
+          "codeExample": "students = [('张三', 92), ('李四', 78), ('王五', 88)]\nranked = sorted(students, key=lambda s: (-s[1], s[0]))\nprint(ranked)\nnums = [1, 2, 3, 4, 5]\nprint(list(map(lambda x: x * x, nums)))\nprint(list(filter(lambda x: x % 2 == 0, nums)))",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 2,
+      "stageName": "核心语法",
+      "chapterNo": 6,
+      "title": "函数式进阶",
+      "description": "闭包与装饰器、functools 工具箱(partial/reduce/lru_cache)、迭代器与生成器。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "闭包与装饰器",
+          "summary": "理解闭包捕获外层变量的机制,掌握装饰器语法糖 @wraps、带参数装饰器,实战日志与计时装饰器——Python 最有魅力的语法之一。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "装饰器(Decorator)是 Python 的「语法糖神器」:不改原函数代码,给它动态加功能(日志、计时、权限检查)。理解它要先懂闭包。\n\n## 闭包:函数记住外层变量\n```python\ndef counter():\n    n = 0\n    def inc():\n        nonlocal n     # 修改外层函数的变量必须声明\n        n += 1\n        return n\n    return inc\n\nc = counter()\nprint(c(), c(), c())   # 1 2 3\n```\ninc 这个内层函数「捕获」了外层的 n,counter 返回的是函数本身——这就是闭包。\n\n## 装饰器:套在函数外的壳\n```python\nimport functools\n\ndef log(func):\n    @functools.wraps(func)      # 保留原函数的名字和文档\n    def wrapper(*args, **kw):\n        print(f'调用 {func.__name__}')\n        result = func(*args, **kw)\n        return result\n    return wrapper\n\n@log\ndef add(a, b):\n    return a + b\n\nprint(add(1, 2))\n```\n@log 等价于 add = log(add)。执行 add(1,2) 时实际跑的是 wrapper:先打日志,再调原函数,把结果返回。*args/**kwargs 保证任何签名的函数都能套。\n\n## 带参数的装饰器\n装饰器本身要传参,就再包一层:\n```python\ndef repeat(times):\n    def deco(func):\n        @functools.wraps(func)\n        def wrapper(*args, **kw):\n            for _ in range(times):\n                func(*args, **kw)\n        return wrapper\n    return deco\n\n@repeat(3)\ndef hi():\n    print('hi')\n```\n\n## 实战场景\n- 统计函数耗时(计时装饰器)\n- 统一异常处理与日志\n- 权限校验(本项目 Spring 的 @RequireAdmin 注解思想相通)\n\n## 易错点\n- 忘记 @functools.wraps,函数 __name__ 变成 wrapper,排查问题抓瞎\n- 闭包里直接改外层变量不写 nonlocal:UnboundLocalError\n- 装饰器带括号 @repeat 与不带括号 @log 弄混\n\n## 动手练习\n1. 写 timer 装饰器打印函数执行耗时\n2. 写 require_login(is_login) 带参装饰器模拟权限拦截\n3. 用闭包实现一个乘法器生成器 make_multiplier(n)",
+          "codeExample": "import functools\n\ndef log(func):\n    @functools.wraps(func)\n    def wrapper(*args, **kw):\n        print(f'调用 {func.__name__}{args}')\n        return func(*args, **kw)\n    return wrapper\n\n@log\ndef add(a, b):\n    return a + b\n\nprint('结果:', add(1, 2))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "functools 工具箱:partial、reduce 与缓存",
+          "summary": "掌握 functools 三件套:partial 偏函数固定参数、reduce 滚动聚合、lru_cache 记忆化加速递归,把函数用出更高效率。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "标准库 functools 提供了一批「函数增强工具」,写优雅代码离不开。\n\n## partial:固定部分参数,造新函数\n```python\nimport functools\n\ndef power(base, exp):\n    return base ** exp\n\nsquare = functools.partial(power, exp=2)\ncube = functools.partial(power, exp=3)\nprint(square(5), cube(2))    # 25 8\n```\n把「半成品」函数预先填好参数,得到更专用的新函数,常用于回调和配置化场景。\n\n## reduce:滚动聚合\n```python\nfrom functools import reduce\nprint(reduce(lambda a, b: a + b, [1, 2, 3, 4, 5]))   # 15\nprint(reduce(lambda a, b: a if a > b else b, [3, 1, 4, 1, 5]))  # 5,求最大\n```\n执行过程:((1+2)+3)+4)+5。sum/max/min 就是特化的 reduce,一般直接用内置函数,复杂聚合才上 reduce。\n\n## lru_cache:给函数结果记账\n```python\nfrom functools import lru_cache\n\n@lru_cache(maxsize=None)\ndef fib(n):\n    if n < 2: return n\n    return fib(n - 1) + fib(n - 2)\n\nprint(fib(50))    # 瞬间出结果\n```\n相同的调用直接返回缓存,指数级递归瞬间变线性。注意事项:参数必须可哈希(不能传列表),函数应无副作用(同参数必同结果)。\n\n## 使用建议\n- reduce 与 lambda 组合容易写出天书,复杂逻辑老实写循环\n- lru_cache 适合纯函数(计算、查询);涉及 IO/可变状态别用\n- partial 用来消除重复传参,比 lambda 更可读(自带名字)\n\n## 易错点\n- lru_cache 缓存了带副作用的函数,导致状态错乱\n- partial 的关键字参数与调用时重复传参:TypeError\n- reduce 空序列没指定 initial:TypeError\n\n## 动手练习\n1. 用 partial 做一个「保留两位小数」的格式化函数\n2. 用 reduce 实现成绩列表连乘(概率场景)\n3. 对比 fib(100) 有无 lru_cache 的耗时差异",
+          "codeExample": "import functools\n\npower = lambda base, exp: base ** exp\nsquare = functools.partial(power, exp=2)\nprint('平方:', square(5))\n\nprint('求和:', functools.reduce(lambda a, b: a + b, [1, 2, 3, 4, 5]))\n\n@functools.lru_cache(maxsize=None)\ndef fib(n):\n    if n < 2: return n\n    return fib(n - 1) + fib(n - 2)\n\nprint('fib(50) =', fib(50))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "迭代器与生成器",
+          "summary": "理解可迭代/迭代器协议(iter/next/StopIteration),用 yield 把函数变生成器实现惰性计算,对比列表的内存差异,实战读大文件。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "生成器(Generator)是 Python 处理「大量数据」的利器:边算边出,内存恒定。\n\n## 迭代协议\n- 可迭代对象(iterable):能用 for 遍历,如 list、str、dict、range\n- 迭代器(iterator):支持 next() 取下一个值,取完抛 StopIteration\n```python\nit = iter([1, 2, 3])\nprint(next(it), next(it))   # 1 2\n```\n\n## yield:函数变生成器\n```python\ndef countdown(n):\n    while n > 0:\n        yield n      # 暂停并交出一个值\n        n -= 1\n\nfor x in countdown(3):\n    print(x)          # 3 2 1\n```\n函数体里出现 yield,调用它就不再执行,而是返回生成器;每 next() 一次,跑到下一个 yield 挂起。\n\n## 惰性的价值\n```python\n# 列表:一次性把百万数据装进内存\nbig = [x * x for x in range(1000000)]\n\n# 生成器:只记录「怎么算」,用一个算一个\nbig_g = (x * x for x in range(1000000))\n```\n处理大文件时生成器是标配:\n```python\ndef read_lines(path):\n    with open(path, encoding='utf-8') as f:\n        for line in f:      # 文件本身就是逐行惰性\n            yield line.strip()\n```\n几十 GB 的日志也能一行行处理,内存纹丝不动。\n\n## 协程联动(预告)\nyield 还能向生成器内「发送」数据(send),是 asyncio 协程的前身;第 11 章学 async/await 时会看到它们的影子。\n\n## 易错点\n- 生成器只能遍历一次:再 for 一遍什么都没有,要复用先转 list\n- 函数里有 yield 就是生成器,直接调用不会执行函数体\n- 想对生成器切片/索引:先 list(g) 再操作\n\n## 动手练习\n1. 写生成器 infinite_seq() 无限产出 1,2,3...(用 next 取前 5 个)\n2. 用生成器实现「滑动窗口」输出相邻两项之和\n3. 对比 range(10**7) 与列表的内存占用感受(用 sys.getsizeof 需 import,本地试)",
+          "codeExample": "def countdown(n):\n    while n > 0:\n        yield n\n        n -= 1\n\nprint(list(countdown(5)))\ng = (x * x for x in range(1, 6))\nprint(next(g), next(g))\nprint('剩余求和:', sum(g))",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 2,
+      "stageName": "核心语法",
+      "chapterNo": 7,
+      "title": "模块与包",
+      "description": "import 机制与 __name__、标准库巡礼、pip 与虚拟环境,工程化起点。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "模块与 import 机制",
+          "summary": "理解模块即文件、import/from...import/as 三种导入方式,掌握 __name__ 与 if __name__ == '__main__' 的入口约定,组织多文件项目。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "一个 .py 文件就是一个模块(module)。代码多了要拆文件,拆完靠 import 互相调用。\n\n## 三种导入\n```python\nimport math                  # 导入整个模块,用 math.sqrt\nfrom math import sqrt        # 只导入一个名字,直接用 sqrt\nfrom math import pi as PI    # 导入并起别名\n```\n同名冲突时用别名;一次导入多个:from math import sqrt, pi。自定义模块就是你自己的 .py 文件,放在同一目录直接 import。\n\n## 包(Package)\n有层次的模块目录。目录里放 __init__.py(3.3+ 可省)就是包:\n```\nmyproject/\n  utils/\n    __init__.py\n    text.py\n  main.py\n```\nmain.py 里:from utils.text import clean。项目大了,包结构就是工程骨架。\n\n## __name__ 的魔法\n每个模块有个内置变量 __name__:被直接运行时是 '__main__',被 import 时是模块名。于是有了通用入口写法:\n```python\n# utils/text.py\ndef clean(s):\n    return s.strip()\n\nif __name__ == '__main__':\n    print(clean('  测试  '))   # 只有直接跑这个文件时才执行\n```\n好处:被 import 时不会误触发测试代码。写库/工具模块都该带这个入口。\n\n## 命名与组织\n- 模块名小写、见名知意(text_utils.py)\n- 循环 import 是设计问题:把公共逻辑抽到第三个模块\n- 别通配 from x import *,污染命名空间\n\n## 易错点\n- 模块名与标准库重名(如 random.py),把标准库遮蔽,报错莫名\n- 忘记 __init__.py 导入失败(老版本 Python)\n- 相对导入 from .text import clean 在直接运行脚本时失效,要注意运行方式\n\n## 动手练习\n1. 写一个 mymath.py 提供 add/mul,在另一个文件里导入使用\n2. 给 mymath.py 加 __main__ 入口做简单自测\n3. 用 as 别名解决 datetime 与自定义模块的命名冲突",
+          "codeExample": "import math\nfrom math import sqrt, pi\n\nprint('圆周率:', pi)\nprint('开方:', sqrt(2))\nprint('直角三角形斜边:', math.hypot(3, 4))\n\n# __name__ 的两种身份\nprint('当前模块名:', __name__)",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "标准库巡礼:数据处理常用件",
+          "summary": "巡览高频标准库:datetime 日期时间、collections.Counter/defaultdict、itertools 组合、json 与 re 入门,一课建立工具箱地图。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "Python 的强大一半来自标准库。这一课认识日常最高频的几个,全部开箱即用。\n\n## datetime:日期时间\n```python\nfrom datetime import date, datetime, timedelta\nd = date(2026, 10, 12)\nprint(d.strftime('%Y-%m-%d'))          # 2026-10-12\nprint(d + timedelta(days=7))           # 2026-10-19\nprint((date(2026, 12, 31) - d).days)   # 80 天\n```\n日期加减、格式化、与字符串互转,报表按月分组离不开它。\n\n## collections:增强容器\n```python\nfrom collections import Counter, defaultdict\nwords = ['java', 'python', 'java', 'sql', 'python', 'java']\nprint(Counter(words).most_common(2))   # [('java', 3), ('python', 2)]\n\ngroup = defaultdict(list)\nfor name, cls in [('张三', 1), ('李四', 2), ('王五', 1)]:\n    group[cls].append(name)\nprint(dict(group))   # {1: ['张三', '王五'], 2: ['李四']}\n```\nCounter 计数、defaultdict 免判空分组,数据统计两大利器。\n\n## itertools:迭代工具\n```python\nimport itertools\nprint(list(itertools.chain([1, 2], [3, 4])))   # [1, 2, 3, 4]\nprint(list(itertools.combinations('AB', 2)))   # [('A', 'B')]\n```\n拼接、排列组合、无限序列,惰性高效。\n\n## json 与 re 速览\n- json:数据与字符串互转(第 10 章细讲)\n- re:正则表达式,文本清洗/抽取的终极武器\n```python\nimport re\nprint(re.findall(r'\\d+', '张三92分, 李四78分'))   # ['92', '78']\n```\nr'' 原生字符串防止转义,\\d 匹配数字。\n\n## 动手练习\n1. 统计 'hello python java python' 中各单词词频\n2. 计算距离 2027 年元旦还有多少天\n3. 用 defaultdict 按班级给学生分组",
+          "codeExample": "from datetime import date\nfrom collections import Counter\nimport re\n\nprint(date(2026, 10, 12).strftime('%Y-%m-%d'))\nprint(Counter(['java', 'python', 'java', 'sql']).most_common(2))\nprint(re.findall(r'\\d+', '张三92分, 李四78分'))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "第三方模块、pip 与虚拟环境",
+          "summary": "掌握 pip 安装/升级/卸载、PyPI 生态与国内镜像,学会用 venv 虚拟环境隔离依赖、requirements.txt 管理项目,安全意识先行。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "标准库之外,PyPI(Python Package Index)上有几十万个第三方库。pip 是官方包管理器。\n\n## pip 基本操作\n```bash\npip install requests        # 安装\npip install requests==2.31  # 指定版本\npip install --upgrade requests\npip uninstall requests\npip list                    # 已装清单\npip freeze > requirements.txt   # 导出依赖\n```\n国内网络慢,配置清华镜像:pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple\n\n## 虚拟环境 venv(必会)\n不同项目依赖不同版本,全局安装会互相打架。venv 为每个项目造独立环境:\n```bash\npython3 -m venv .venv        # 创建\nsource .venv/bin/activate    # 激活(macOS/Linux);Windows: .venv\\Scripts\\activate\npip install -r requirements.txt   # 按清单恢复环境\ndeactivate                   # 退出\n```\n惯例:项目根目录放 requirements.txt,.venv 目录加进 .gitignore。\n\n## 常用第三方库速览\n- requests:HTTP 请求,爬虫/调接口首选\n- pandas / NumPy:数据分析,表格与矩阵运算\n- Flask / FastAPI / Django:Web 后端框架(第 12 章预告)\n- pytest:测试框架,比 unittest 更简洁\n\n## 依赖安全\n- 只装可信来源的包,发布前看下载量与仓库\n- requirements.txt 锁定版本,保证同事/服务器环境一致\n- 企业项目可用 poetry/pipenv 做更强的依赖管理\n\n## 动手练习\n1. 本地创建一个 venv 并激活,观察 which python3 的路径变化\n2. 安装 requests 并用 freeze 导出 requirements.txt\n3. 新建第二个 venv,验证两个环境互不干扰",
+          "codeExample": "import json\n# 演示: 模拟用第三方库前先用标准库把数据备好\nrecords = [{'name': '张三', 'score': 92}, {'name': '李四', 'score': 78}]\ntext = json.dumps(records, ensure_ascii=False, indent=2)\nprint(text)\nprint('依赖清单示例: requests==2.31.0 / pandas>=2.0')",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 3,
+      "stageName": "进阶与实战",
+      "chapterNo": 8,
+      "title": "面向对象编程",
+      "description": "类和实例、@property 访问控制、继承与多态、魔术方法定制类。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "类和实例:面向对象入门",
+          "summary": "理解类与实例、__init__ 构造方法与 self 的含义,动手封装一个 Student 类,对比面向过程与面向对象的设计差异。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "面向对象(OOP)把「数据 + 操作数据的方法」打包成对象。Python 一切皆对象,int、list 背后都是类。\n\n## 定义类\n```python\nclass Student:\n    def __init__(self, name, score):\n        self.name = name       # 实例属性\n        self.score = score\n\n    def grade(self):           # 实例方法\n        return '优秀' if self.score >= 90 else '良好' if self.score >= 80 else '及格' if self.score >= 60 else '不及格'\n\ns = Student('张三', 92)\nprint(s.name, s.grade())\n```\n- class 类名: 约定大驼峰\n- __init__ 是构造方法,创建实例时自动调用\n- self 是实例自身的引用,每个方法第一个参数都必须有(调用时不用传)\n\n## 类 vs 面向过程\n同一需求两种写法:过程式用 dict 存数据 + 函数加工;OOP 让对象自己管数据和行为。数据与逻辑绑定后,复用和扩展都更清晰——比如再加个 print_info 方法,不动原有代码。\n\n## 类属性与实例属性\n```python\nclass Student:\n    school = '实验中学'        # 类属性,所有实例共享\n    def __init__(self, name):\n        self.name = name       # 实例属性,各不相同\n```\n访问优先实例属性,找不到再找类属性。计数器、配置等适合放类属性。\n\n## 方法设计\n- 方法里访问自身属性必须 self.xxx\n- 行为命名用动词:calc_average、to_dict\n- 简单数据容器也可以用 collections.namedtuple / dataclass 简写\n\n## 易错点\n- __init__ 忘写 self 或调用时多传 self\n- 在方法里直接写 name 而不是 self.name:NameError\n- 把类属性当实例属性改(实例上赋值会新建实例属性,遮蔽类属性)\n\n## 动手练习\n1. 给 Student 加 calc_average(scores) 方法\n2. 新建 Course 类(名称/教师/学分)并打印信息\n3. 创建 3 个学生实例,遍历打印各自等级",
+          "codeExample": "class Student:\n    school = '实验中学'\n\n    def __init__(self, name, score):\n        self.name = name\n        self.score = score\n\n    def grade(self):\n        return '优秀' if self.score >= 90 else '良好' if self.score >= 80 else '及格' if self.score >= 60 else '不及格'\n\ns = Student('张三', 92)\nprint(s.school, s.name, s.grade())",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "访问限制与 @property 属性",
+          "summary": "理解 _x/__x 的命名约定与私有机制,用 @property 把方法伪装成属性实现安全校验,掌握 getter/setter 的 Pythonic 写法。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "Java 用 private + getter/setter;Python 用命名约定 + @property,更轻巧。\n\n## 命名约定\n- name:公开\n- _name:单下划线,「约定私有」,外部可访问但请勿依赖\n- __name:双下划线,触发名称改写(伪私有),外部直接访问会 AttributeError\n```python\nclass Student:\n    def __init__(self, name, score):\n        self.name = name\n        self.__score = score      # 私有\n\n    def get_score(self):\n        return self.__score\n```\n注意 Python 的私有是防误用不是真安全,认真想藏数据还是靠约定与文档。\n\n## @property:方法变身属性\n```python\nclass Student:\n    def __init__(self, score):\n        self.score = score       # 这里走 setter\n\n    @property\n    def score(self):\n        return self._score\n\n    @score.setter\n    def score(self, value):\n        if not 0 <= value <= 100:\n            raise ValueError('分数必须在 0~100')\n        self._score = value\n\ns = Student(88)\ns.score = 95          # 像改属性一样,实际执行校验\nprint(s.score)        # 像读属性一样,实际执行 getter\n# s.score = 120       # 抛 ValueError\n```\n调用方完全无感:s.score 读写自然,内部却有校验——接口稳定性的最佳实践。\n\n## 使用场景\n- 计算属性(由其他字段算出,如 full_name)\n- 读写校验(范围、类型)\n- 向后兼容:字段改实现,对外仍是属性访问\n\n## 易错点\n- @property 与普通方法混淆:调用方要当属性用,别加括号\n- setter 里又调 self.score = 无限递归(应写 self._score)\n- 过度封装:简单数据类用 dataclass 更省事\n\n## 动手练习\n1. 给 Student 的 score 加 0~100 校验\n2. 用 @property 实现 full_name = first + last\n3. 给 score 做只读属性(只留 getter)并验证无法赋值",
+          "codeExample": "class Student:\n    def __init__(self, score):\n        self.score = score\n\n    @property\n    def score(self):\n        return self._score\n\n    @score.setter\n    def score(self, value):\n        if not 0 <= value <= 100:\n            raise ValueError('分数必须在 0~100')\n        self._score = value\n\ns = Student(88)\ns.score = 95\nprint('合法修改:', s.score)\ntry:\n    s.score = 120\nexcept ValueError as e:\n    print('非法拦截:', e)",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "继承、多态与鸭子类型",
+          "summary": "掌握单继承与 super()、方法重写与多态效果,理解 isinstance/type 判断,认识 Python 特有的鸭子类型与组合优于继承。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "继承让类「站在父类肩膀上」扩展;多态让同一接口呈现不同行为。\n\n## 继承与重写\n```python\nclass Animal:\n    def speak(self):\n        return '...'\n\nclass Dog(Animal):\n    def speak(self):          # 重写父类方法\n        return '汪汪'\n\nclass Cat(Animal):\n    def speak(self):\n        return '喵'\n\nfor a in [Dog(), Cat(), Animal()]:\n    print(a.speak())          # 汪汪 / 喵 / ...\n```\n不重写就沿用父类行为。子类还可以加自己的方法和属性。\n\n## super():调用父类\n```python\nclass GraduateStudent(Student):\n    def __init__(self, name, score, thesis):\n        super().__init__(name, score)   # 先跑父类初始化\n        self.thesis = thesis\n```\n比写类名硬调更稳,支持多继承的 MRO 解析顺序。\n\n## 多态与鸭子类型\nPython 没有强制接口,只要对象有同名方法就能被统一调用——「走起来像鸭子、叫起来像鸭子,就是鸭子」:\n```python\ndef report(obj):\n    print(obj.speak())     # 不管什么类型,有 speak 就行\n```\n这带来了极大灵活性,也让类型检查靠 isinstance(x, Dog) / hasattr(x, 'speak') 自觉约束。\n\n## 继承 vs 组合\n「组合优于继承」:与其造深继承树,不如把能力拆成小类,在类里持有它们(如 Student has a Address)。继承适合真正的 is-a 关系(研究生是学生),组合适合 has-a(学生有地址)。\n\n## 易错点\n- 忘记 super().__init__,父类属性未初始化\n- 方法签名与父类不一致,重写变重载,行为怪异\n- 过深继承层级(超过 2~3 层)难以维护\n\n## 动手练习\n1. 写 Rectangle/Circle 继承 Shape,统一 area() 接口\n2. 用 super() 让子类扩展父类构造\n3. 写一个函数处理任何有 area() 的对象,体会鸭子类型",
+          "codeExample": "class Animal:\n    def speak(self):\n        return '...'\n\nclass Dog(Animal):\n    def speak(self):\n        return '汪汪'\n\nclass Cat(Animal):\n    def speak(self):\n        return '喵'\n\ndef report(a):\n    print(type(a).__name__, '->', a.speak())\n\nfor a in [Dog(), Cat(), Animal()]:\n    report(a)",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 4,
+          "title": "定制类:常用魔术方法",
+          "summary": "用 __str__/__len__/__getitem__/__iter__ 等魔术方法让对象像内置类型一样好用,实战一个成绩册类,理解「协议」式编程。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "双下划线包围的魔术方法(dunder)让类融入 Python 的语法体系:print(x) 会找 __str__,len(x) 找 __len__,for x in obj 找 __iter__。\n\n## 常用魔术方法\n```python\nclass ScoreBook:\n    def __init__(self, scores):\n        self.scores = scores\n\n    def __len__(self):\n        return len(self.scores)\n\n    def __getitem__(self, i):\n        return self.scores[i]\n\n    def __str__(self):\n        return f'ScoreBook({len(self.scores)} 条成绩)'\n\n    __repr__ = __str__\n\nbook = ScoreBook([92, 88, 76])\nprint(book)          # ScoreBook(3 条成绩)\nprint(len(book), book[0])\n```\n- __str__:给人看(print);__repr__:给开发者看(调试回显)\n- __len__:len();__getitem__:下标/切片访问,对象秒变「序列」\n- __eq__:== 比较;__iter__/__next__:for 遍历;__enter__/__exit__:with 上下文\n\n## 实战:可迭代的成绩册\n```python\nclass ScoreBook:\n    def __init__(self, scores):\n        self.scores = scores\n    def __iter__(self):\n        return iter(self.scores)\n\nfor s in ScoreBook([92, 88]):\n    print(s)\n```\n\n## dataclass:懒人福音\n只存数据的类用 @dataclass 自动补全 __init__/__repr__/__eq__:\n```python\nfrom dataclasses import dataclass\n\n@dataclass\nclass Student:\n    name: str\n    score: int\n\nprint(Student('张三', 92))\n```\n\n## 易错点\n- __str__ 里再调 str(self) 之类的无限递归\n- 只实现 __getitem__ 不实现 __len__,len() 报错\n- dataclass 字段默认值顺序(有默认值的字段放后面)\n\n## 动手练习\n1. 给 ScoreBook 实现平均分属性与 __contains__(in 判断)\n2. 用 dataclass 重写 Student 类\n3. 给 ScoreBook 实现 __eq__,按成绩列表比较",
+          "codeExample": "from dataclasses import dataclass\n\nclass ScoreBook:\n    def __init__(self, scores):\n        self.scores = scores\n    def __len__(self):\n        return len(self.scores)\n    def __getitem__(self, i):\n        return self.scores[i]\n    def __str__(self):\n        return f'ScoreBook({len(self.scores)} 条)'\n\nbook = ScoreBook([92, 88, 76])\nprint(book, len(book), book[0], 88 in book.scores)\n\n@dataclass\nclass Student:\n    name: str\n    score: int\n\nprint(Student('张三', 92))",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 3,
+      "stageName": "进阶与实战",
+      "chapterNo": 9,
+      "title": "错误处理与测试",
+      "description": "try/except/raise、assert 与 logging、unittest/pytest 单元测试。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "异常处理:try / except / raise",
+          "summary": "掌握完整的 try/except/else/finally 结构与常见异常类型,学会精确捕获、自定义异常与 raise 抛出,把错误变成可控流程。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "程序不可能永远一帆风顺:文件不存在、除以零、用户乱输入……Python 用异常机制把「出错」变成可控流程。\n\n## 基本结构\n```python\ntry:\n    v = int('abc')\nexcept ValueError as e:\n    print('转换失败:', e)\nelse:\n    print('转换成功', v)      # 没出错才执行\nfinally:\n    print('无论如何都执行')   # 清理资源放这里\n```\n- except 按类型精确捕获;as e 拿到异常对象\n- else:try 成功后的收尾;finally:必做(关闭文件/连接)\n\n## 常见异常\n- ValueError:类型对、值不对(int('abc'))\n- TypeError:类型不对('2' + 2)\n- KeyError / IndexError:字典键 / 序列下标越界\n- FileNotFoundError、ZeroDivisionError、AttributeError\n\n## 抛出与自定义\n```python\ndef to_score(s):\n    v = float(s)\n    if not 0 <= v <= 100:\n        raise ValueError(f'成绩超出范围: {v}')\n    return v\n\nclass ScoreError(Exception):\n    pass\n```\nraise 主动中断;自定义异常继承 Exception,业务语义更清晰。\n\n## 捕获哲学\n- 只捕获能处理的异常,别 except: 一把梭(吞掉错误后患无穷)\n- 捕获后要么修复、要么转换、要么记日志再抛\n- 能提前判断的就别靠异常控制流程(异常有性能成本)\n\n## 易错点\n- except 写在 except 里再触发异常:外层最好兜底记录\n- 忘记 as e,拿不到错误详情\n- 大段代码塞进 try,出错定位困难;try 只包住可能出错的最小范围\n\n## 动手练习\n1. 写 safe_div(a, b),除零返回 None 并打印提示\n2. 把用户输入解析封装成 get_int(prompt),失败重试 3 次\n3. 自定义 NegativeScoreError 并在赋值校验时抛出",
+          "codeExample": "def to_score(s):\n    try:\n        v = float(s)\n    except ValueError:\n        print(f'{s!r} 不是数字')\n        return None\n    else:\n        return v\n    finally:\n        print('--- 解析结束')\n\nprint(to_score('92'))\nprint(to_score('abc'))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "调试与日志:assert 与 logging",
+          "summary": "告别纯 print 调试:用 assert 做内部断言、logging 分级记录日志并输出到控制台/文件,了解 pdb 单步调试的基本姿势。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "代码出 Bug 了怎么办?高手靠调试工具和日志,而不是盯着 print 反复猜。\n\n## assert:不变式检查\n```python\ndef avg(scores):\n    assert len(scores) > 0, '成绩列表不能为空'\n    return sum(scores) / len(scores)\n```\n断言失败抛 AssertionError,用于「程序逻辑上必须成立」的内部检查。注意:python -O 运行会移除断言,别用它做业务校验(业务校验请用 if + raise)。\n\n## logging:专业日志\n```python\nimport logging\nlogging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')\nlogging.debug('细节信息')       # 默认不显示\nlogging.info('处理开始')\nlogging.warning('分数异常: %s', 120)\nlogging.error('出错了')\n```\n- 五个级别:DEBUG < INFO < WARNING < ERROR < CRITICAL\n- basicConfig 可配文件输出:filename='app.log'\n- 支持 %s 惰性格式化,比 print(f'...') 更规范\n\n## print vs logging\n练习用 print 没问题;正式项目用 logging:可分级、可开关、可落盘、可配格式,排查线上问题全靠它。\n\n## pdb 单步调试(了解)\n- 代码里插 breakpoint() 或 python -m pdb app.py\n- n 单步、s 进入函数、p 变量、c 继续、q 退出\n- IDE(PyCharm/VS Code)的图形调试器更友好,断点点一下即可\n\n## 调试方法论\n1. 先看报错最后一行与 traceback,定位出错文件行号\n2. 二分注释代码,缩小范围\n3. 用最小复现例子隔离问题\n4. 搜索报错信息(Stack Overflow/官方文档)\n\n## 动手练习\n1. 给 avg 函数加断言防御空列表\n2. 把一段 print 调试改造成 logging,并按级别过滤输出\n3. 把日志同时输出到控制台和文件",
+          "codeExample": "import logging\nlogging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')\n\ndef avg(scores):\n    assert len(scores) > 0, '成绩列表不能为空'\n    return sum(scores) / len(scores)\n\nlogging.info('平均分: %.1f', avg([92, 88, 76]))\nlogging.warning('发现异常成绩: %s', 120)\ntry:\n    avg([])\nexcept AssertionError as e:\n    logging.error('断言拦截: %s', e)",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "单元测试:unittest 与 pytest",
+          "summary": "建立测试意识:用 assert 快速自测、unittest 的 TestCase/断言/前置 setup,了解 pytest 的简洁写法与测试组织结构。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "写完功能不等于写对功能。单元测试给代码上保险:改坏了立刻报警。\n\n## 最简自测\n```python\ndef add(a, b):\n    return a + b\n\ntests = [(1, 2, 3), (0, 0, 0), (-1, 1, 0)]\nfor a, b, want in tests:\n    got = add(a, b)\n    assert got == want, f'{a}+{b} 应为 {want}, 实际 {got}'\nprint('全部通过')\n```\n用例 = 输入 + 期望输出。覆盖边界(空、0、负数、极大值)才有价值。\n\n## unittest:标准库框架\n```python\nimport unittest\n\nclass TestAdd(unittest.TestCase):\n    def test_basic(self):\n        self.assertEqual(add(1, 2), 3)\n    def test_negative(self):\n        self.assertEqual(add(-1, 1), 0)\n    def setUp(self):\n        pass    # 每个用例前的准备\n\nif __name__ == '__main__':\n    unittest.main()\n```\n运行:python -m unittest test_xxx.py。断言家族:assertEqual/assertTrue/assertRaises(验证抛异常)。\n\n## pytest:更简洁的主流选择\n```python\ndef test_add():\n    assert add(1, 2) == 3\n```\n函数命名 test_ 开头,裸 assert 即可,命令行 pytest 运行,失败信息更友好。新项目推荐 pytest。\n\n## 测试怎么写\n- 一个用例只验一件事,名字说明意图(test_avg_empty_list_raise)\n- 测试也是代码:可读、可复用(公共数据用 fixture/setUp)\n- 目标覆盖:核心逻辑全测、边界必测、异常路径抽测\n\n## 易错点\n- 测试与实现耦合过紧(重命名就全挂),测行为而非实现\n- 测试顺序依赖/共享可变状态,单跑能过、连跑挂掉\n- 只测「快乐路径」,边界和异常才是 Bug 高发区\n\n## 动手练习\n1. 给上一课的 avg 写 3 个 unittest 用例(正常/空列表/单元素)\n2. 用 pytest 风格改写并运行\n3. 给 to_score 的 ValueError 路径写测试(unittest.assertRaises)",
+          "codeExample": "def add(a, b):\n    return a + b\n\n# 轻量测试表: (输入a, 输入b, 期望)\ntests = [(1, 2, 3), (0, 0, 0), (-1, 1, 0), (0.1, 0.2, 0.30000000000000004)]\nfor a, b, want in tests:\n    got = add(a, b)\n    assert got == want, f'{a}+{b} 应为 {want}, 实际 {got}'\nprint(f'{len(tests)} 个用例全部通过')",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 3,
+      "stageName": "进阶与实战",
+      "chapterNo": 10,
+      "title": "文件与 IO",
+      "description": "open/with 文件读写、pathlib 路径处理、JSON 数据交换。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "文件读写:open 与 with",
+          "summary": "掌握 open/read/readline/write 与 with 上下文自动关闭,处理编码与大文件逐行读取,理解文本模式与二进制模式差异。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "程序的数据要持久化,文件读写是基本功。\n\n## 基本读写\n```python\nwith open('demo.txt', 'w', encoding='utf-8') as f:\n    f.write('张三 92\\n')\n    f.write('李四 78\\n')\n\nwith open('demo.txt', encoding='utf-8') as f:\n    content = f.read()          # 一次读全部\nprint(content)\n```\n- with 会自动关闭文件(即使出错),是唯一推荐姿势\n- 模式:'r' 读(默认)、'w' 写(清空重建)、'a' 追加、'x' 排他创建\n- encoding='utf-8' 显式指定,别依赖系统默认\n\n## 逐行处理大文件\n```python\nwith open('demo.txt', encoding='utf-8') as f:\n    for line in f:              # 文件对象本身就是惰性迭代器\n        name, score = line.split()\n        print(name, score)\n```\nread() 会把整个文件装进内存,大文件(GB 级)必须逐行;readline() 一次一行也能用。\n\n## 其他常用方法\n- f.readlines():读成行列表\n- f.write() 返回写入字符数;写多行用 writelines(['a\\n', 'b\\n'])\n- 二进制模式 'rb'/'wb':图片、pickle 等非文本,读出的是 bytes\n\n## 实战组合:成绩文件统计\n```python\ntotal, cnt = 0, 0\nwith open('demo.txt', encoding='utf-8') as f:\n    for line in f:\n        _, score = line.split()\n        total += float(score)\n        cnt += 1\nprint(f'平均分 {total / cnt:.1f}')\n```\n\n## 易错点\n- 忘记 with/不关闭文件:句柄泄漏,Windows 上还可能锁文件\n- 'w' 会清空原文件,想保留用 'a'\n- 编码不一致读出乱码或 UnicodeDecodeError,统一 UTF-8\n- split() 与文件格式不匹配(空格/逗号/制表符)\n\n## 动手练习\n1. 把 5 名学生的成绩写入文件,再读回来求平均\n2. 统计文件行数(不许 read().count)\n3. 把成绩不及格的行复制到 fail.txt",
+          "codeExample": "with open('demo.txt', 'w', encoding='utf-8') as f:\n    f.write('张三 92\\n')\n    f.write('李四 47\\n')\n    f.write('王五 88\\n')\n\ntotal, cnt = 0, 0\nwith open('demo.txt', encoding='utf-8') as f:\n    for line in f:\n        name, score = line.split()\n        total += float(score)\n        cnt += 1\n        print(name, score)\nprint(f'平均分 {total / cnt:.1f}')",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "路径与目录:pathlib 与文件管理",
+          "summary": "用 pathlib.Path 优雅处理路径拼接与判断、目录遍历与文件读写,了解 os/shutil 的常用文件管理操作,跨平台无忧。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "跨平台路径拼接(Windows 反斜杠 vs Unix 斜杠)是经典坑,pathlib 是现代解法。\n\n## pathlib 入门\n```python\nfrom pathlib import Path\n\np = Path('data') / 'scores.txt'    # / 运算符拼路径,跨平台\nprint(p.name, p.suffix, p.parent)  # scores.txt .txt data\nprint(p.exists(), p.is_file())\n```\n- Path('a') / 'b' / 'c.txt':不用管分隔符\n- p.suffix 后缀、p.stem 去后缀的名字、p.parent 父目录\n- p.read_text()/write_text() 一步读写小文件\n\n## 目录操作\n```python\nfrom pathlib import Path\nPath('out').mkdir(exist_ok=True)        # 建目录\nfor f in Path('.').glob('*.txt'):       # 通配查找\n    print(f.name)\nfor f in Path('.').rglob('*.py'):       # 递归查找\n    print(f)\n```\nglob/rglob 批量找文件,做批量处理、清理工具全靠它。\n\n## os 与 shutil 速览\n- os.path.join、os.rename、os.remove:老式路径操作\n- shutil.copy / move / rmtree:复制、移动、删目录树\n新代码优先 pathlib,与 os.path 混用时注意类型(Path 对象要 str() 转换的地方)。\n\n## 实战:批量重命名\n```python\nfrom pathlib import Path\nfor f in Path('logs').glob('*.log'):\n    f.rename(f.with_name(f.stem + '.bak'))\n```\nwith_name/with_suffix 系列生成新路径,原文件不动。\n\n## 易错点\n- 字符串硬编码 '\\' 路径,换系统就挂\n- 用相对路径忘了工作目录(脚本从不同目录启动结果不同),必要时 p.absolute()\n- glob 匹配不到隐藏文件(以 . 开头),要用显式规则\n\n## 动手练习\n1. 拼出 data/2026/scores.csv 的 Path 并打印各部分\n2. 遍历当前目录统计 .py 文件数量\n3. 写脚本找出 7 天前修改的 .txt 文件(提示:os.path.getmtime)",
+          "codeExample": "from pathlib import Path\n\np = Path('data') / 'scores.txt'\nprint('路径:', p)\nprint('名字:', p.name, '后缀:', p.suffix, '父目录:', p.parent)\n\nPath('out').mkdir(exist_ok=True)\n(Path('out') / 'note.txt').write_text('hello pathlib', encoding='utf-8')\nfor f in Path('out').glob('*.txt'):\n    print('找到:', f.name, '->', f.read_text(encoding='utf-8'))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "JSON 与数据交换",
+          "summary": "掌握 json.dumps/loads 的常用参数(ensure_ascii/indent)、文件级 dump/load,处理嵌套结构与常见类型陷阱,对接 API 数据。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "JSON 是互联网数据交换的通用格式:前后端接口、配置文件、日志几乎都是它。\n\n## 字符串与对象互转\n```python\nimport json\n\ndata = {'name': '张三', 'scores': [92, 88], 'passed': True, 'address': None}\ntext = json.dumps(data, ensure_ascii=False, indent=2)\nprint(text)\nback = json.loads(text)\nprint(back['name'], back['scores'][0])\n```\n- ensure_ascii=False:中文正常显示(默认会被转成 \\uXXXX)\n- indent=2:美化输出,适合存配置\n- loads 反序列化回 Python 对象\n\n## 文件级操作\n```python\nimport json\nfrom pathlib import Path\n\nPath('students.json').write_text(\n    json.dumps([{'name': '张三', 'score': 92}], ensure_ascii=False),\n    encoding='utf-8')\n\nlst = json.loads(Path('students.json').read_text(encoding='utf-8'))\nprint(lst[0]['name'])\n```\n小文件直接 read_text + loads;超大文件可用 json.load(f) 流式读。\n\n## 类型对照与陷阱\n| JSON | Python |\n|---|---|\n| object | dict |\n| array | list |\n| string | str |\n| number | int/float |\n| true/false | True/False |\n| null | None |\n注意:JSON 键永远是字符串;元组转成数组;datetime 不能直接序列化(先 strftime 转字符串)。\n\n## 实战:成绩数据分析\n```python\nstudents = [\n    {'name': '张三', 'scores': [92, 88]},\n    {'name': '李四', 'scores': [78, 85]},\n]\ntext = json.dumps(students, ensure_ascii=False)\nfor s in json.loads(text):\n    print(f\"{s['name']} 平均 {sum(s['scores'])/len(s['scores']):.1f}\")\n```\n\n## 易错点\n- 忘记 ensure_ascii=False,中文全是 \\u65b0\n- JSON 的 null → None,直接做运算抛 TypeError\n- trailing comma(最后一个元素后多逗号)不是合法 JSON,loads 报错\n\n## 动手练习\n1. 把成绩列表序列化到文件,再读回验证一致\n2. 解析 API 常见结构 {'code': 0, 'data': {'list': [...]}} 并取出 list\n3. 处理 JSON 里的 null:给缺失字段填默认值",
+          "codeExample": "import json\n\nstudents = [\n    {'name': '张三', 'scores': [92, 88]},\n    {'name': '李四', 'scores': [78, 85]},\n]\ntext = json.dumps(students, ensure_ascii=False, indent=2)\nprint(text)\nfor s in json.loads(text):\n    print(f\"{s['name']} 平均 {sum(s['scores']) / len(s['scores']):.1f}\")",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 4,
+      "stageName": "工程与拓展",
+      "chapterNo": 11,
+      "title": "并发与网络",
+      "description": "多线程/多进程与 GIL、async/await 异步 IO、requests 网络请求实战。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "多线程、多进程与 GIL",
+          "summary": "理解 GIL 对 CPU 并行的限制、IO 密集与 CPU 密集的并发选型,上手 threading 基本用法与线程安全,了解 multiprocessing。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "想让程序「同时」干多件事,就要用并发。Python 有三条路:多线程、多进程、异步(下一课)。\n\n## GIL:绕不开的前提\nCPython 有个全局解释器锁(GIL):同一时刻只有一个线程执行 Python 字节码。后果:\n- CPU 密集任务(大量计算):多线程几乎不提速,甚至更慢 → 用多进程\n- IO 密集任务(网络、磁盘、等待):线程等待时会释放 GIL → 多线程依然有效\n\n## threading 入门\n```python\nimport threading\n\ndone = []\ndef worker(n):\n    done.append(n * n)\n\nts = [threading.Thread(target=worker, args=(i,)) for i in range(5)]\nfor t in ts: t.start()      # 启动\nfor t in ts: t.join()       # 等待完成\nprint(sorted(done))\n```\n- Thread(target=函数, args=(参数,));start() 启动、join() 等待\n- 守护线程 t.daemon = True:主线程退出时一并结束\n\n## 线程安全\n多线程共享数据,交替执行可能出错:\n```python\ncounter = 0\nlock = threading.Lock()\nwith lock:\n    counter += 1        # 临界区,同一时刻只有一个线程\n```\n计数、写共享结构要用锁;局部变量天然安全(各线程独立)。\n\n## multiprocessing\n绕开 GIL 的正解:多进程,每个进程一个解释器:\n```python\nfrom multiprocessing import Pool\nwith Pool(4) as p:\n    print(p.map(abs, [-1, 2, -3]))\n```\n适合 CPU 密集(图像、数值计算)。代价:进程创建与通信开销大。\n\n## 选型口诀\nIO 密集 → threading / asyncio;CPU 密集 → multiprocessing;简单并发需求 → 先别上并发,顺序跑也许更快。\n\n## 动手练习\n1. 用 4 个线程同时下载「模拟任务」(time.sleep 模拟),对比串行耗时\n2. 给共享计数器加锁,验证结果正确\n3. 用 Pool 并行计算一批数的平方",
+          "codeExample": "import threading\n\ndone = []\nlock = threading.Lock()\n\ndef worker(n):\n    with lock:\n        done.append(n * n)\n\nts = [threading.Thread(target=worker, args=(i,)) for i in range(5)]\nfor t in ts: t.start()\nfor t in ts: t.join()\nprint('线程汇总:', sorted(done))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "异步 IO:async / await 与 asyncio",
+          "summary": "理解协程与事件循环的单线程并发模型,掌握 async def/await、asyncio.gather 并发编排,对比多线程,适用高 IO 并发场景。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "异步 IO 是单线程里的「并发」:遇到等待(IO)就切换任务,不靠多线程也能高吞吐。FastAPI、爬虫框架的底层都是它。\n\n## 协程初体验\n```python\nimport asyncio\n\nasync def fetch(name):\n    print(f'{name} 开始')\n    await asyncio.sleep(0.1)     # 模拟 IO 等待,让出控制权\n    return f'{name} 完成'\n\nasync def main():\n    r1, r2 = await asyncio.gather(fetch('A'), fetch('B'))\n    print(r1, r2)\n\nasyncio.run(main())\n```\n- async def 定义协程函数,调用得到协程对象(不执行)\n- await 等待另一个协程,等待期间事件循环调度其他任务\n- asyncio.gather 并发跑多个协程,总耗时≈最慢那个(而非累加)\n\n## 事件循环\nasyncio.run() 启动事件循环:一个线程轮询所有任务,谁就绪谁跑。因为单线程,没有锁的烦恼;但也别在里面放阻塞调用(time.sleep 会卡住整个循环,要用 asyncio.sleep)。\n\n## 适用场景\n- 高并发 IO:Web 服务、爬虫、消息推送、数据库批量查询\n- 不适合:大量 CPU 计算(会卡住事件循环,该用多进程)\n\n## 与多线程对比\n| | asyncio | threading |\n|---|---|---|\n| 并发模型 | 单线程协作 | 多线程抢占 |\n| 切换开销 | 极小 | 较大 |\n| 共享数据 | 天然安全 | 需加锁 |\n| 学习成本 | 高(async 传染) | 低 |\n\n## 易错点\n- 忘记 await:协程根本没跑,还报 RuntimeWarning\n- 在协程里用 requests 等阻塞库:改用 aiohttp\n- async 有传染性:调用协程的函数也得是协程\n\n## 动手练习\n1. 并发跑 5 个协程,统计总耗时\n2. 用 gather 并发转换成绩(模拟 IO),对比串行\n3. 把 time.sleep 的例子改造成 asyncio.sleep,体会差异",
+          "codeExample": "import asyncio\n\nasync def fetch(name):\n    await asyncio.sleep(0.01)\n    return f'{name} 完成'\n\nasync def main():\n    rs = await asyncio.gather(fetch('A'), fetch('B'), fetch('C'))\n    print(rs)\n\nasyncio.run(main())",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "网络编程与 requests 实战",
+          "summary": "了解 TCP/HTTP 协议分层与 Socket 概念,实战 requests 的 GET/POST、headers、超时与错误处理,调用 JSON 接口并解析。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "Python 是网络编程的利器:几行代码就能调接口、写爬虫、起服务。\n\n## 网络基础\n- TCP/IP:可靠传输,三次握手建立连接\n- HTTP:Web 的应用协议,GET 取数据、POST 提交,状态码 200/404/500\n- Socket:传输层接口,Python 的 socket 模块可直接写 TCP 客户端/服务端(了解即可)\n\n## requests:第三方 HTTP 王牌\n```python\nimport requests\n\nresp = requests.get('https://api.example.com/students',\n                    timeout=5)\nprint(resp.status_code, resp.json())\n```\n- timeout 必须设,防止永久挂起\n- resp.json() 直接解析;resp.text 原文;resp.content 字节\n- POST:requests.post(url, json={'name': '张三'}, headers={...})\n\n## 健壮的请求封装\n```python\ndef fetch_students():\n    try:\n        resp = requests.get(url, timeout=5)\n        resp.raise_for_status()        # 4xx/5xx 抛异常\n        return resp.json()\n    except requests.RequestException as e:\n        print('请求失败:', e)\n        return []\n```\n超时、重试、异常处理三件套,是调外部接口的标准姿势。\n\n## 沙箱说明\n本平台 Python 沙箱出于安全只开放教学白名单模块(不含网络库),网络示例请在本地练习:\n```bash\npip install requests\npython demo.py\n```\n\n## 异步爬虫预告\n请求量大时 requests 单线程太慢,配合 asyncio + aiohttp 并发抓取;遵守目标站点的 robots 与频率限制,别做「压测式爬虫」。\n\n## 动手练习\n1. 本地用 requests 调一个公开天气接口并打印关键字段\n2. 封装带 timeout 与异常处理的 get_json(url)\n3. 用 POST 提交一条学生记录并检查响应码",
+          "codeExample": "# 模拟 HTTP 响应处理(沙箱不开网络, 本地可换 requests)\nresp = {'status': 200, 'body': {'list': [{'name': '张三', 'score': 92}]}}\n\nif resp['status'] == 200:\n    for s in resp['body']['list']:\n        print(f\"{s['name']}: {s['score']}\")\nelse:\n    print('请求失败:', resp['status'])",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "subject": "python",
+      "stageNo": 4,
+      "stageName": "工程与拓展",
+      "chapterNo": 12,
+      "title": "综合实战与学习路径",
+      "description": "成绩数据分析综合实战、Python 在工程中的应用图景、进阶路线与期末总结。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "综合实战:成绩数据分析",
+          "summary": "把函数、数据结构、异常处理串成完整小程序:读入成绩数据、分组统计、评级报表与异常数据清洗,输出一份分析报告。",
+          "difficulty": 3,
+          "durationMinutes": 35,
+          "content": "结课实战:用学过的全部知识写一个「成绩数据分析」小程序。需求:清洗数据 → 分组统计 → 输出报表。\n\n## 数据与目标\n```python\nraw = [\n    '张三,一班,92', '李四,一班,78', '王五,二班,88',\n    '赵六,二班,abc', '钱七,一班,55',\n]\n```\n目标:解析每行、跳过脏数据、按班级统计人数/均分/及格率、输出评级。\n\n## 完整实现\n```python\ndef parse(line):\n    name, cls, score = line.split(',')\n    score = float(score)              # 脏数据抛 ValueError\n    if not 0 <= score <= 100:\n        raise ValueError('超范围')\n    return name, cls, score\n\nrecords, bad = [], 0\nfor line in raw:\n    try:\n        records.append(parse(line))\n    except ValueError:\n        bad += 1\n\ngroups = {}\nfor name, cls, score in records:\n    groups.setdefault(cls, []).append(score)\n\nfor cls, scores in sorted(groups.items()):\n    avg = sum(scores) / len(scores)\n    rate = sum(1 for s in scores if s >= 60) / len(scores)\n    print(f'{cls}: {len(scores)} 人, 均分 {avg:.1f}, 及格率 {rate:.0%}')\nprint(f'清洗掉脏数据 {bad} 条')\n```\n\n## 代码里的知识点\n- split 解析、float 转换 + 异常处理(第 9 章)\n- setdefault 分组(第 4 章 dict)\n- 生成器表达式计数(第 4 章)\n- f-string 格式化报表(第 2 章)\n\n## 扩展方向\n- 从 JSON/CSV 文件读入(第 10 章)\n- 按姓名查询、排序导出\n- 用 dataclass 定义 Student 实体(第 8 章)\n- 加上 argparse 命令行参数,变成真正的小工具\n\n## 易错点\n- 一行解析失败就让整个程序崩溃:逐行 try 才健壮\n- 分组键写错(按姓名分组而非班级)\n- 忽略边界:满分 100、0 分、空文件\n\n## 动手练习\n1. 给报表加上「最高分/最低分」\n2. 把数据源换成 students.csv 文件\n3. 增加「按均分给班级排名」的功能",
+          "codeExample": "raw = ['张三,一班,92', '李四,一班,78', '王五,二班,88', '赵六,二班,abc', '钱七,一班,55']\n\ndef parse(line):\n    name, cls, score = line.split(',')\n    score = float(score)\n    if not 0 <= score <= 100:\n        raise ValueError('超范围')\n    return name, cls, score\n\nrecords, bad = [], 0\nfor line in raw:\n    try:\n        records.append(parse(line))\n    except ValueError:\n        bad += 1\n\ngroups = {}\nfor name, cls, score in records:\n    groups.setdefault(cls, []).append(score)\n\nfor cls, scores in sorted(groups.items()):\n    avg = sum(scores) / len(scores)\n    rate = sum(1 for s in scores if s >= 60) / len(scores)\n    print(f'{cls}: {len(scores)} 人, 均分 {avg:.1f}, 及格率 {rate:.0%}')\nprint(f'清洗掉脏数据 {bad} 条')",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Python 与本项目:脚本、数据与 Web",
+          "summary": "看看 Python 在真实工程里的位置:自动化脚本(本项目课程数据就是 Python 维护的)、数据处理、Web 后端框架对比,以及与 Java 技术栈的协同。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "学完基础,看看 Python 在工程实战里怎么用——就以你正在用的这个学习平台为例。\n\n## 场景一:自动化脚本\n本平台的课程数据(lessons.json)由 Python 脚本批量维护:加载 JSON、按章节号定位、批量替换内容、校验格式。几十个课时的更新,几秒跑完:\n```python\nimport json\ndata = json.load(open('lessons.json', encoding='utf-8'))\nfor ch in data['chapters']:\n    ch['lessons'].sort(key=lambda l: l['lessonNo'])\njson.dump(data, open('lessons.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=2)\n```\n日常里类似场景遍地:批量重命名、日志分析、报表生成、定时备份。\n\n## 场景二:数据处理与分析\n- pandas 一两行完成 Excel/CSV 的分组聚合、透视表\n- NumPy 矩阵运算支撑科学计算\n- matplotlib/pyecharts 出图\n数据岗、测试开发、运维开发的日常主力。\n\n## 场景三:Web 后端\n- Flask:轻量微框架,灵活自由\n- FastAPI:现代异步框架,自动文档、类型校验,近年最热\n- Django:全家桶(ORM/后台/认证),适合内容型站点\n与 Java(Spring Boot)对比:Java 擅长大团队大型工程、强类型与高并发;Python 擅长快速迭代、胶水整合、AI 能力集成。两者常同场竞技:核心交易 Java,数据与算法服务 Python。\n\n## 场景四:AI 与大模型\nPyTorch、Transformers、LangChain……AI 生态几乎都长在 Python 上。会 Python = 拿到 AI 时代的入场券。\n\n## 在本平台怎么练\n- 每课的「Python 沙箱」直接改代码跑结果\n- 把练习题改成自己的版本(换数据、加功能)\n- 用脚本解决你身边的一个小问题(整理文件、统计数据),学以致用效果最好\n\n## 动手练习\n1. 写脚本统计一个目录下各类型文件的数量\n2. 用 Python 读取本项目 lessons.json,统计 SQL 科目课时总数\n3. 调研 FastAPI 与 Spring Boot 各自的适用场景,写 100 字对比",
+          "codeExample": "import json\n\n# 模拟课程数据维护(与本项目脚本同思路)\ndata = {'chapters': [\n    {'chapterNo': 2, 'lessons': [{'lessonNo': 2}, {'lessonNo': 1}]},\n    {'chapterNo': 1, 'lessons': [{'lessonNo': 2}, {'lessonNo': 1}]},\n]}\nfor ch in data['chapters']:\n    ch['lessons'].sort(key=lambda l: l['lessonNo'])\ndata['chapters'].sort(key=lambda c: c['chapterNo'])\nprint(json.dumps(data, ensure_ascii=False))",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "学习路径与期末总结",
+          "summary": "复盘 12 章知识地图:从基础语法到并发网络的完整路径,给出进阶方向(数据/爬虫/AI/Web)与资源清单,附期末自测题。",
+          "difficulty": 1,
+          "durationMinutes": 25,
+          "content": "恭喜完成 Python 全程!来复盘地图、规划下一步。\n\n## 知识地图\n1. 入门:语言哲学、解释器、数据类型——认识工具\n2. 字符串:编码、格式化、切片——文本处理基本功\n3. 流程控制:分支与循环——程序的骨架\n4. 数据结构:list/dict/set/生成式——Python 的灵魂\n5. 函数:参数、递归、高阶函数——抽象能力\n6. 函数式进阶:装饰器、生成器——Pythonic 的钥匙\n7. 模块:import、标准库、pip——工程化的起点\n8. 面向对象:类、继承、魔术方法——组织复杂代码\n9. 错误与测试:异常、logging、单元测试——代码质量保障\n10. 文件 IO:文件、路径、JSON——数据进出\n11. 并发网络:线程/进程/协程、requests——性能与互联\n12. 实战:数据分析脚本、工程应用——融会贯通\n\n## 期末自测(答案都在课文中)\n1. 写函数统计一段英文的单词词频,返回 Top3(split + Counter)\n2. 解释浅拷贝与深拷贝的区别,各举一例\n3. 用装饰器给函数加「执行超过 1 秒报警」\n4. 逐行读取大文件求平均,为什么不 read()?\n5. 说明 GIL 及其对线程/进程选型的影响\n\n## 进阶方向\n- 数据方向:pandas → SQL 联动(正好接本平台 SQL 课)→ 可视化\n- Web 方向:FastAPI + 数据库 + 部署,做一个自己的接口服务\n- 爬虫方向:requests → 正则/BeautifulSoup → 异步并发\n- AI 方向:NumPy → scikit-learn → PyTorch,关注大模型应用开发\n\n## 资源清单\n- 官方文档(docs.python.org):最权威的查询手册\n- PyPI:找库;GitHub:找项目练手\n- 刷题:LeetCode 简单题用 Python 重写,语法越用越熟\n\n## 学习方法\n编程是「手上功夫」:每天写一点,把身边的问题用脚本解决,比看十本书都有效。祝你在 Python 之路上越走越远!",
+          "codeExample": "from collections import Counter\ntext = 'java python java sql python java'\ntop = Counter(text.split()).most_common(2)\nprint('词频 Top2:', top)\n\n# 期末寄语\nprint('每天一个小程序, 一年后感谢现在的自己')",
+          "codeType": "python"
+        }
+      ]
     }
   ]
 }

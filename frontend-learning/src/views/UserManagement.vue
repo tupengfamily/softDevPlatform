@@ -205,7 +205,7 @@ const submitRoles = async () => {
         <el-input v-model="search.keyword" placeholder="用户名/邮箱" clearable style="width:180px" @keyup.enter="loadData" />
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="search.status" placeholder="全部" clearable style="width:120px">
+        <el-select v-model="search.status" placeholder="全部" clearable style="width:120px" aria-label="按状态筛选">
           <el-option :value="1" label="启用" />
           <el-option :value="0" label="禁用" />
         </el-select>
@@ -254,27 +254,28 @@ const submitRoles = async () => {
         <template #default="{ row }">
           <div class="ops">
             <el-tooltip content="编辑" placement="top">
-              <el-button class="op-btn" size="small" circle @click="openEdit(row)">
+              <el-button class="op-btn" size="small" circle aria-label="编辑用户" @click="openEdit(row)">
                 <el-icon><Edit /></el-icon>
               </el-button>
             </el-tooltip>
             <el-tooltip content="修改密码" placement="top">
-              <el-button class="op-btn" size="small" circle type="warning" plain @click="openPassword(row)">
+              <el-button class="op-btn" size="small" circle type="warning" plain aria-label="修改密码" @click="openPassword(row)">
                 <el-icon><Key /></el-icon>
               </el-button>
             </el-tooltip>
             <el-tooltip v-if="userStore.roles.includes('ADMIN')" content="分配角色" placement="top">
-              <el-button class="op-btn" size="small" circle type="primary" plain @click="openRole(row)">
+              <el-button class="op-btn" size="small" circle type="primary" plain aria-label="分配角色" @click="openRole(row)">
                 <el-icon><UserFilled /></el-icon>
               </el-button>
             </el-tooltip>
             <el-tooltip :content="row.status === 1 ? '禁用' : '启用'" placement="top">
-              <el-button class="op-btn" size="small" circle :type="row.status === 1 ? 'info' : 'success'" plain @click="toggleStatus(row)">
+              <el-button class="op-btn" size="small" circle :type="row.status === 1 ? 'info' : 'success'" plain
+                         :aria-label="row.status === 1 ? '禁用用户' : '启用用户'" @click="toggleStatus(row)">
                 <el-icon><component :is="row.status === 1 ? 'Lock' : 'Unlock'" /></el-icon>
               </el-button>
             </el-tooltip>
             <el-tooltip content="删除" placement="top">
-              <el-button class="op-btn" size="small" circle type="danger" plain @click="onDelete(row)">
+              <el-button class="op-btn" size="small" circle type="danger" plain aria-label="删除用户" @click="onDelete(row)">
                 <el-icon><Delete /></el-icon>
               </el-button>
             </el-tooltip>
@@ -363,6 +364,6 @@ const submitRoles = async () => {
 .record-count { color: #6b7280; font-size: 13px; }
 /* 操作列: 图标按钮 + 悬浮提示 */
 .ops { display: flex; align-items: center; gap: 4px; }
-.op-btn { margin-left: 0 !important; padding: 5px !important; }
+.op-btn { margin-left: 0 !important; padding: 8px !important; min-width: 32px; min-height: 32px; }
 .op-wrap { display: inline-flex; }
 </style>

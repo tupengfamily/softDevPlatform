@@ -110,6 +110,20 @@ public class LearningDataSeedService {
                     if (isNewLesson) lessonsInserted++; else lessonsUpdated++;
                 }
             }
+            // 有课程内容的科目自动启用(避免「课程建设中」的历史禁用状态挡住已有内容的科目)
+            java.util.Set<String> codes = new java.util.HashSet<>();
+            for (JsonNode ch : chapters) {
+                codes.add(ch.path("subject").asText("java"));
+            }
+            for (String code : codes) {
+                subjectRepository.findByCode(code).ifPresent(s -> {
+                    if (!Boolean.TRUE.equals(s.getEnabled())) {
+                        s.setEnabled(true);
+                        subjectRepository.save(s);
+                        log.info("科目已启用(检测到课程内容): {} ({})", s.getName(), code);
+                    }
+                });
+            }
             log.info("✅ 学习课程种子同步完成: 章节 +{}/更新{}, 课时 +{}/更新{}",
                 chaptersInserted, chaptersUpdated, lessonsInserted, lessonsUpdated);
         } catch (Exception e) {
@@ -126,7 +140,7 @@ public class LearningDataSeedService {
      */
     private Long ensureBuiltinSubjects() {
         LearningSubject java = ensureSubject("java", "Java", "Java 全栈开发:基础语法 → 进阶 → 并发 → 数据库 → 框架生态", 1);
-        ensureSubject("python", "Python", "Python 语言开发(课程建设中)", 2);
+        ensureSubject("python", "Python", "Python 语言开发:基础语法 → 数据结构 → 函数式 → 面向对象 → 并发网络", 2);
         ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3);
         return java.getId();
     }
@@ -151,7 +165,7 @@ public class LearningDataSeedService {
         return switch (code) {
             case "sql" -> ensureSubject("sql", "SQL",
                 "SQL 数据库:关系模型 → 查询 → 修改 → 事务 → 索引 → 管理", 4);
-            case "python" -> ensureSubject("python", "Python", "Python 语言开发(课程建设中)", 2);
+            case "python" -> ensureSubject("python", "Python", "Python 语言开发:基础语法 → 数据结构 → 函数式 → 面向对象 → 并发网络", 2);
             case "javascript" -> ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3);
             default -> ensureSubject("java", "Java", "Java 全栈开发:基础语法 → 进阶 → 并发 → 数据库 → 框架生态", 1);
         };

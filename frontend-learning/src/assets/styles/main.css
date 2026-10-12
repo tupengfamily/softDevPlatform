@@ -7,16 +7,19 @@
   --c-primary: #2563eb;
   --c-primary-hover: #1d4ed8;
   --c-primary-bg: #eef3ff;
-  --c-success: #16a34a;
+  --c-success: #15803d;
   --c-success-bg: #e6f8ee;
-  --c-warning: #d97706;
-  --c-danger: #dc2626;
+  --c-warning: #b45309;
+  --c-danger: #c22b2b;
 
-  /* 文本灰阶(均 >= 4.5:1 对白底) */
+  /* 文本灰阶(均 >= 4.5:1 对白底/浅底) */
   --c-text-1: #1d2330;   /* 主文本 */
   --c-text-2: #5a6478;   /* 次要文本 */
-  --c-text-3: #64748b;   /* 辅助文本 */
-  --c-text-4: #6b7280;   /* 弱化文本 */
+  --c-text-3: #5d6b80;   /* 辅助文本(对 #f7f8fb 5.1:1) */
+  --c-text-4: #6b7280;   /* 弱化文本(对白底 4.8:1) */
+
+  /* 代码字体栈(全局统一,避免 Arial 等混入) */
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, Menlo, monospace;
 
   /* 面 */
   --c-border: #eef0f5;
@@ -50,12 +53,30 @@
   --el-text-color-primary: #1d2330;
   --el-text-color-regular: #5a6478;
   --el-text-color-secondary: #6b7280;
+
+  /* 语义色加深(WCAG AA): 实心按钮白字 / 深色标签白字 均 >= 4.5:1 */
+  --el-color-success: #1a7f37;
+  --el-color-success-dark-2: #15662c;
+  --el-color-danger: #c22b2b;
+  --el-color-danger-dark-2: #9b2222;
+  --el-color-warning: #b45309;
+  --el-color-warning-dark-2: #904207;
+  --el-color-info: #6b7280;
+  --el-color-info-dark-2: #565e6b;
+
+  /* 占位符/弱化文字加深到 4.5:1 */
+  --el-text-color-placeholder: #6b7280;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+/* 表单控件/按钮继承正文字体(避免 UA 默认 Arial 混入) */
+button, input, select, textarea {
+  font-family: inherit;
 }
 
 html, body, #app {
@@ -120,6 +141,58 @@ a {
   display: flex;
   gap: 8px;
 }
+
+/* 代码字体统一 */
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+}
+
+/* ============================================
+   可访问性增强(WCAG AA 对比度 + 触控目标)
+   ============================================ */
+
+/* 面包屑分隔符加深(原 #a8abb2 仅 2.3:1) */
+.el-breadcrumb__separator {
+  color: var(--c-text-4);
+}
+
+/* 浅色/描边标签文字加深到 >= 4.5:1(深色标签走语义色令牌,不受影响) */
+.el-tag:not(.el-tag--dark).el-tag--primary,
+.el-tag:not(.el-tag--dark):not([class*='el-tag--']) { color: #1d4ed8; }
+.el-tag:not(.el-tag--dark).el-tag--success { color: #166b32; }
+.el-tag:not(.el-tag--dark).el-tag--danger { color: #b42318; }
+.el-tag:not(.el-tag--dark).el-tag--warning { color: #8a5300; }
+.el-tag:not(.el-tag--dark).el-tag--info { color: #5f6672; }
+
+/* plain 按钮文字同步加深 */
+.el-button--primary.is-plain { color: #1d4ed8; }
+.el-button--success.is-plain { color: #166b32; }
+.el-button--danger.is-plain { color: #b42318; }
+.el-button--warning.is-plain { color: #8a5300; }
+.el-button--info.is-plain { color: #5f6672; }
+
+/* 实心语义按钮 hover 改为加深(保持白字对比度,替代默认变浅) */
+.el-button--primary:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background-color: var(--el-color-primary-dark-2); border-color: var(--el-color-primary-dark-2);
+}
+.el-button--success:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background-color: var(--el-color-success-dark-2); border-color: var(--el-color-success-dark-2);
+}
+.el-button--danger:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background-color: var(--el-color-danger-dark-2); border-color: var(--el-color-danger-dark-2);
+}
+.el-button--warning:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background-color: var(--el-color-warning-dark-2); border-color: var(--el-color-warning-dark-2);
+}
+.el-button--info:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background-color: var(--el-color-info-dark-2); border-color: var(--el-color-info-dark-2);
+}
+
+/* 触控目标: 小号按钮/选择器/输入框最小 32px 高 */
+.el-button--small { min-height: 32px; }
+.el-button--small.is-circle { min-width: 32px; }
+.el-select--small .el-select__wrapper,
+.el-input--small .el-input__wrapper { min-height: 32px; }
 
 /* 降低动效偏好:关闭过渡与动画 */
 @media (prefers-reduced-motion: reduce) {

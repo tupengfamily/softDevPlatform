@@ -229,7 +229,7 @@ const onCommand = async (cmd) => {
         <span v-show="!collapsed" class="logo-text">通用学习平台</span>
       </div>
 
-      <el-scrollbar class="menu-scroll">
+      <el-scrollbar class="menu-scroll" role="navigation" aria-label="主导航">
         <el-menu
           :default-active="activePath"
           :collapse="collapsed"
@@ -280,7 +280,7 @@ const onCommand = async (cmd) => {
     <!-- 展开/收起把手: 主流做法,悬浮于侧栏右缘垂直居中处 -->
     <button
       class="edge-toggle"
-      :style="{ left: (collapsed ? 45 : 217) + 'px' }"
+      :style="{ left: (collapsed ? 40 : 212) + 'px' }"
       :title="collapsed ? '展开菜单' : '收起菜单'"
       :aria-label="collapsed ? '展开菜单' : '收起菜单'"
       @click="collapsed = !collapsed"
@@ -310,6 +310,7 @@ const onCommand = async (cmd) => {
             class="lang-select"
             :model-value="subjectStore.preferredSubjectId"
             placeholder="选择学习语言"
+            aria-label="选择学习语言"
             size="small"
             :disabled="langChanging"
             @change="onLangChange"
@@ -379,7 +380,7 @@ const onCommand = async (cmd) => {
             </el-tag>
             <el-dropdown trigger="click" @command="onCommand">
               <span class="user-trigger">
-                <el-avatar :size="28" :src="avatarSrc" :style="{ background: isAdmin ? '#e6483d' : '#16a34a', fontSize: avatarSrc ? undefined : '13px' }">
+                <el-avatar :size="28" :src="avatarSrc" :style="{ background: isAdmin ? '#c22b2b' : '#15803d', fontSize: avatarSrc ? undefined : '13px' }">
                   {{ avatarChar }}
                 </el-avatar>
                 {{ userStore.displayName }}
@@ -520,7 +521,7 @@ const onCommand = async (cmd) => {
   position: absolute; top: 50%; z-index: 20;
   transform: translateY(-50%);
   display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; padding: 0;
+  width: 32px; height: 32px; padding: 0;
   border: 1px solid #d0d7e2; border-radius: 50%;
   background: #fff; color: #5a6478; cursor: pointer;
   box-shadow: 0 2px 6px rgba(15, 23, 42, .12);

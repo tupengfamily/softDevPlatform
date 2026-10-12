@@ -4,6 +4,10 @@ import request from '../utils/request'
 export const runJava = (source) =>
   request({ url: '/sandbox/run-java', method: 'post', data: { source } })
 
+// POST /api/sandbox/run-python — 解释执行 Python 单文件(5 秒超时)
+export const runPython = (source) =>
+  request({ url: '/sandbox/run-python', method: 'post', data: { source } })
+
 // POST /api/sandbox/run-sql — 在教学库执行 SELECT/INSERT/UPDATE/DELETE
 export const runSql = (sql) =>
   request({ url: '/sandbox/run-sql', method: 'post', data: { sql } })

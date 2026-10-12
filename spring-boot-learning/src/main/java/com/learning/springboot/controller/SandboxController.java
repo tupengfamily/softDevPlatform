@@ -4,6 +4,7 @@ import com.learning.springboot.annotation.OperationLog;
 import com.learning.springboot.bootstrap.SandboxDataInitializer;
 import com.learning.springboot.common.Result;
 import com.learning.springboot.sandbox.JavaSandboxService;
+import com.learning.springboot.sandbox.PythonSandboxService;
 import com.learning.springboot.sandbox.SqlSandboxService;
 import com.learning.springboot.sandbox.SqlSandboxService.SqlResult;
 import com.learning.springboot.security.CurrentUser;
@@ -26,6 +27,7 @@ import java.util.Map;
  * 教学代码 / SQL 沙箱 API
  * <p>
  * - /api/sandbox/run-java  提交 Java 单文件源码, 编译并执行, 返回 stdout/stderr/编译错误
+ * - /api/sandbox/run-python 提交 Python 单文件源码, 解释执行(5 秒超时, import 白名单)
  * - /api/sandbox/run-sql   在独立教学库上执行 SELECT/INSERT/UPDATE/DELETE
  * - /api/sandbox/reset-sql 一键重置教学库(恢复 students/courses/scores 种子)
  * <p>
@@ -38,6 +40,7 @@ public class SandboxController {
     private static final Logger log = LoggerFactory.getLogger(SandboxController.class);
 
     @Autowired private JavaSandboxService javaSandbox;
+    @Autowired private PythonSandboxService pythonSandbox;
     @Autowired private SqlSandboxService sqlSandbox;
     @Autowired private SandboxDataInitializer dataInitializer;
     @Autowired @Qualifier("sandboxJdbcTemplate") private JdbcTemplate sandboxJdbc;
@@ -52,6 +55,19 @@ public class SandboxController {
 
         var result = javaSandbox.compileAndRun(code, userId);
         log.info("[Sandbox] user={} status={} elapsed={}ms", userId, result.status, result.elapsedMs);
+        return Result.ok(result);
+    }
+
+    /** 解释执行 Python 代码 */
+    @PostMapping("/run-python")
+    @OperationLog(module = "代码沙箱", action = "运行 Python")
+    public ResponseEntity<?> runPython(@RequestBody Map<String, String> body, @CurrentUser Long userId) {
+        String code = body.getOrDefault("source", "");
+        if (code.isBlank()) return Result.badRequest("代码不能为空");
+        if (code.length() > 20_000) return Result.badRequest("代码长度不能超过 20000 字符");
+
+        var result = pythonSandbox.run(code, userId);
+        // 运行结果全部 200 返回, 前端按 status 展示(更友好)
         return Result.ok(result);
     }
 

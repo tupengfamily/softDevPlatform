@@ -109,6 +109,6 @@ const onResetClick = () => emit('reset')
 .reset-btn { background:transparent; color:#9ba3b4; border-color:#30363d }
 .reset-btn:hover { color:#fff; border-color:#58a6ff }
 .run-btn { background:var(--c-success); color:#fff }
-.run-btn:hover { background:#15803d }
+.run-btn:hover { background:#146c33 }
 .editor { flex:1; min-height:0 }
 </style>

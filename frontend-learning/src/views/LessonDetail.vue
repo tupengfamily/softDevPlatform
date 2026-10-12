@@ -5,7 +5,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCurriculum, getLesson, markLearned, unmarkLearned } from '../api/learning'
-import { runJava } from '../api/sandbox'
+import { runJava, runPython } from '../api/sandbox'
 import { lessonCrumbTitle } from '../store/crumb'
 import { useUserStore } from '../store/user'
 import { renderMarkdown } from '../utils/markdown'
@@ -70,6 +70,8 @@ const loadLesson = async () => {
     javaCode.value = lesson.value.codeExample || javaCode.value
     // SQL 类型示例灌入 SQL 控制台(而非 Java 编辑器)
     if (lesson.value.codeType === 'sql') sqlCode.value = lesson.value.codeExample || ''
+    // Python 类型示例灌入 Python 编辑器
+    if (lesson.value.codeType === 'python') pyCode.value = lesson.value.codeExample || ''
     // 切换课时后内容区回到顶部(平滑滚动,不整页闪动)
     if (!firstLoad) centerRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (e) {} finally {
@@ -175,6 +177,36 @@ const resetJavaCode = () => {
   javaResult.value = null
 }
 
+// ============== Python 沙箱 ==============
+const pyCode = ref("print('Hello, Python!')")
+const pyMarkers = ref([])
+const pyResult = ref(null)
+const pyRunning = ref(false)
+
+const runPythonCode = async () => {
+  if (pyRunning.value) return
+  pyRunning.value = true
+  pyResult.value = null
+  pyMarkers.value = []
+  try {
+    const res = await runPython(pyCode.value)
+    pyResult.value = res.data
+    if (pyResult.value.status === 'COMPILE_ERROR') {
+      pyMarkers.value = (pyResult.value.errors || []).map(e => ({
+        line: e.line, column: e.column, message: e.message, severity: 'error'
+      }))
+    }
+  } catch (e) { /* 已统一弹错 */ } finally {
+    pyRunning.value = false
+  }
+}
+
+const resetPythonCode = () => {
+  pyCode.value = lesson.value?.codeExample || pyCode.value
+  pyMarkers.value = []
+  pyResult.value = null
+}
+
 watch(() => route.params.id, () => { if (route.name === 'LessonDetail') loadLesson() })
 
 onMounted(async () => {
@@ -243,10 +275,10 @@ onMounted(async () => {
         <!-- 正文: 开源 marked 渲染的 Markdown(支持标题/列表/表格/代码块/行内代码/链接等基本语法) -->
         <div class="md-body" v-html="renderedContent"></div>
 
-        <!-- 代码练习卡(sql 类型课时不展示,避免把 SQL 塞进 Java 编辑器) -->
-        <div v-if="lesson?.codeType !== 'sql'" class="practice">
+        <!-- 代码练习卡(sql/python 类型课时不展示 Java 沙箱,避免语言错配) -->
+        <div v-if="!lesson?.codeType || lesson.codeType === 'java'" class="practice">
           <div class="phead">
-            <h4>动手做 · Java 沙箱 <small>单文件代码 · 5 秒超时</small></h4>
+            <h3>动手做 · Java 沙箱 <small>单文件代码 · 5 秒超时</small></h3>
             <div class="meta-mini">{{ javaResult ? `${javaResult.elapsedMs}ms` : '尚未运行' }}</div>
           </div>
           <div class="editor-area">
@@ -265,10 +297,32 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- Python 练习卡: python 类型示例的课时展示 -->
+        <div v-if="lesson?.codeType === 'python'" class="practice">
+          <div class="phead">
+            <h3>动手做 · Python 沙箱 <small>单文件代码 · 5 秒超时</small></h3>
+            <div class="meta-mini">{{ pyResult ? `${pyResult.elapsedMs}ms` : '尚未运行' }}</div>
+          </div>
+          <div class="editor-area">
+            <CodeEditor v-model="pyCode" language="python" :markers="pyMarkers" @run="runPythonCode" @reset="resetPythonCode" />
+          </div>
+          <div v-if="pyResult" class="result-area" :class="pyResult.status.toLowerCase()">
+            <div class="r-head">
+              <span v-if="pyResult.status === 'OK'" class="ok"><el-icon><CircleCheckFilled /></el-icon> 运行成功 · {{ pyResult.exitCode }} · {{ pyResult.elapsedMs }}ms</span>
+              <span v-else-if="pyResult.status === 'COMPILE_ERROR'" class="ce"><el-icon><WarningFilled /></el-icon> 语法错误 · {{ pyResult.errors?.length || 0 }} 处</span>
+              <span v-else-if="pyResult.status === 'RUNTIME_ERROR'" class="re"><el-icon><WarningFilled /></el-icon> 运行时异常</span>
+              <span v-else-if="pyResult.status === 'TIMEOUT'" class="to"><el-icon><Timer /></el-icon> 执行超时(&gt;5s)</span>
+              <span v-else>{{ pyResult.status }}</span>
+            </div>
+            <pre v-if="pyResult.stdout" class="stdout">{{ pyResult.stdout }}</pre>
+            <pre v-if="pyResult.stderr" class="stderr">{{ pyResult.stderr }}</pre>
+          </div>
+        </div>
+
         <!-- SQL 练习卡:数据库阶段(stageNo=5)或 sql 类型示例的课时展示 -->
         <div v-if="lesson?.stageNo === 5 || lesson?.codeType === 'sql'" class="practice">
           <div class="phead">
-            <h4>动手做 · SQL 沙箱 <small>教学库 sandbox.db · 仅 DML</small></h4>
+            <h3>动手做 · SQL 沙箱 <small>教学库 sandbox.db · 仅 DML</small></h3>
           </div>
           <div style="padding:14px"><SqlConsole v-model="sqlCode" /></div>
         </div>
@@ -397,7 +451,7 @@ onMounted(async () => {
 /* 练习卡 */
 .practice { margin:30px 0; background:#fff; border:1px solid var(--c-border); border-radius:var(--r-m); overflow:hidden; box-shadow:0 2px 6px rgba(20,30,60,.06); scroll-margin-top:80px }
 .phead { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:linear-gradient(180deg,#fafbff,#fff); border-bottom:1px solid var(--c-border) }
-.phead h4 { margin:0; font-size:var(--fs-md) }
+.phead h3 { margin:0; font-size:var(--fs-md) }
 .phead small { color:var(--c-text-3); font-weight:400; margin-left:8px; font-size:var(--fs-xs) }
 .phead .meta-mini { font-size:var(--fs-xs); color:var(--c-text-3); font-family:'JetBrains Mono',monospace }
 
@@ -407,7 +461,7 @@ onMounted(async () => {
 .result-area.ce, .result-area.re { background:#fef2f2; border-top-color:#ef4444 }
 .result-area.to { background:#fff7e6; border-top-color:#f59e0b }
 .r-head { margin-bottom:10px; font-size:var(--fs-base); display:flex; align-items:center; gap:4px }
-.r-head .ok { color:#0e8a4f; font-weight:500 }
+.r-head .ok { color:#146c33; font-weight:500 }
 .r-head .ce, .r-head .re { color:#c12828; font-weight:500 }
 .r-head .to { color:#b45309; font-weight:500 }
 .stdout, .stderr { margin:8px 0 0; white-space:pre-wrap; color:var(--c-text-1) }
@@ -428,7 +482,7 @@ onMounted(async () => {
 .nav-row > span:first-child { display:inline-flex; align-items:center; gap:4px }
 .code-path-card { background:#fff; border:1px solid var(--c-border); border-radius:var(--r-m); padding:14px }
 .card-title { font-size:var(--fs-sm); font-weight:600; margin-bottom:8px; color:var(--c-text-1); display:flex; align-items:center; gap:4px }
-.code-path { background:var(--c-primary-bg); color:var(--c-primary); padding:8px 10px; border-radius:var(--r-s); font-size:var(--fs-xs); word-break:break-all; font-family:'JetBrains Mono',monospace }
+.code-path { background:var(--c-primary-bg); color:var(--c-primary-hover); padding:8px 10px; border-radius:var(--r-s); font-size:var(--fs-xs); word-break:break-all; font-family:var(--font-mono) }
 .tip { color:var(--c-text-3); font-size:var(--fs-xs); margin:8px 0 0; line-height:1.6 }
 .sup-block { margin-top:18px }
 </style>
