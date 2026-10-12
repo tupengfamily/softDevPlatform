@@ -3,6 +3,7 @@ package com.learning.springboot.service.impl;
 import com.learning.springboot.config.JwtProperties;
 import com.learning.springboot.dto.LoginRequest;
 import com.learning.springboot.dto.LoginResponse;
+import com.learning.springboot.dto.ProfileUpdateRequest;
 import com.learning.springboot.dto.RegisterRequest;
 import com.learning.springboot.entity.Role;
 import com.learning.springboot.entity.User;
@@ -16,7 +17,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -70,6 +75,11 @@ public class AuthServiceImpl implements AuthService {
         resp.setUserId(user.getId());
         resp.setUsername(user.getUsername());
         resp.setEmail(user.getEmail());
+        resp.setNickname(user.getNickname());
+        resp.setAvatar(user.getAvatar());
+        resp.setSignature(user.getSignature());
+        resp.setAge(user.getAge());
+        resp.setAddress(user.getAddress());
         resp.setStatus(user.getStatus());
         resp.setRoles(roleCodes);
         resp.setPermissions(new HashSet<>(perms));
@@ -111,6 +121,11 @@ public class AuthServiceImpl implements AuthService {
         resp.setUserId(saved.getId());
         resp.setUsername(saved.getUsername());
         resp.setEmail(saved.getEmail());
+        resp.setNickname(saved.getNickname());
+        resp.setAvatar(saved.getAvatar());
+        resp.setSignature(saved.getSignature());
+        resp.setAge(saved.getAge());
+        resp.setAddress(saved.getAddress());
         resp.setStatus(saved.getStatus());
         resp.setRoles(roleCodes);
         resp.setPermissions(new HashSet<>());
@@ -131,10 +146,81 @@ public class AuthServiceImpl implements AuthService {
         resp.setUserId(user.getId());
         resp.setUsername(user.getUsername());
         resp.setEmail(user.getEmail());
+        resp.setNickname(user.getNickname());
+        resp.setAvatar(user.getAvatar());
+        resp.setSignature(user.getSignature());
+        resp.setAge(user.getAge());
+        resp.setAddress(user.getAddress());
         resp.setStatus(user.getStatus());
         resp.setRoles(roleCodes);
         resp.setPermissions(new HashSet<>(perms));
         return resp;
+    }
+
+    @Override
+    @Transactional
+    public LoginResponse updateProfile(Long userId, ProfileUpdateRequest req) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new BusinessException(404, "用户不存在"));
+
+        // 只更新请求中带了的字段(null = 不修改)
+        if (req.getNickname() != null) user.setNickname(req.getNickname().trim());
+        if (req.getAvatar() != null) user.setAvatar(req.getAvatar().trim());
+        if (req.getSignature() != null) user.setSignature(req.getSignature().trim());
+        if (req.getEmail() != null) {
+            String email = req.getEmail().trim();
+            userRepository.findByEmail(email)
+                .filter(u -> !u.getId().equals(userId))
+                .ifPresent(u -> { throw new BusinessException(409, "邮箱已被其他账号使用"); });
+            user.setEmail(email);
+        }
+        if (req.getAge() != null) user.setAge(req.getAge());
+        if (req.getAddress() != null) user.setAddress(req.getAddress().trim());
+
+        userRepository.save(user);
+        return me(userId);
+    }
+
+    /** 头像允许的图片类型 */
+    private static final Set<String> AVATAR_EXTS = Set.of("jpg", "jpeg", "png", "gif", "webp");
+    private static final long AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2MB
+
+    @Override
+    @Transactional
+    public String updateAvatar(Long userId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(400, "请选择要上传的图片");
+        }
+        if (file.getSize() > AVATAR_MAX_BYTES) {
+            throw new BusinessException(400, "头像图片不能超过 2MB");
+        }
+
+        // 只按白名单扩展名放行(文件名取原始扩展名小写)
+        String original = file.getOriginalFilename() == null ? "" : file.getOriginalFilename();
+        int dot = original.lastIndexOf('.');
+        String ext = dot >= 0 ? original.substring(dot + 1).toLowerCase() : "";
+        if (!AVATAR_EXTS.contains(ext)) {
+            throw new BusinessException(400, "仅支持 jpg / jpeg / png / gif / webp 图片");
+        }
+
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new BusinessException(404, "用户不存在"));
+
+        // 落盘 data/uploads(相对运行目录),文件名随机化避免覆盖/伪造
+        try {
+            Path dir = Path.of("data", "uploads");
+            Files.createDirectories(dir);
+            String filename = "avatar_" + userId + "_" + System.currentTimeMillis() + "." + ext;
+            Path target = dir.resolve(filename);
+            file.transferTo(target.toAbsolutePath().toFile());
+
+            String url = "/uploads/" + filename;
+            user.setAvatar(url);
+            userRepository.save(user);
+            return url;
+        } catch (IOException e) {
+            throw new BusinessException(500, "头像保存失败: " + e.getMessage());
+        }
     }
 
     private String getUsername(Long userId) {

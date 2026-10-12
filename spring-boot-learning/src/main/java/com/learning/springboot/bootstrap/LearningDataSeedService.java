@@ -24,12 +24,13 @@ import java.util.Map;
  * 学习课程种子 Service(增量 upsert 版)
  * <p>
  * 启动时从 classpath:data/lessons.json 同步课程体系(阶段 -> 章节 -> 课时):
- * - 章节按 chapterNo 匹配:已存在则更新元信息(含 stageNo/stageName/subjectId),不存在则插入;
+ * - 章节按 (subjectId, chapterNo) 匹配:已存在则更新元信息(含 stageNo/stageName),不存在则插入;
+ *   章节序号在科目内独立编号,每门课程的章节都从 1 开始;
  * - 课时按 (chapterId, lessonNo) 匹配:已存在则更新内容,不存在则插入;
  * - 不删除 JSON 中已移除的章节/课时,保证用户学习进度(LessonProgress 关联 lessonId)不丢失。
  * <p>
- * 科目(语言)维度: 内置科目 java / python / javascript 由本 Service 保证存在;
- * lessons.json 中的课程默认归属 java 科目。
+ * 科目(语言)维度: 内置科目 java / python / javascript / sql 由本 Service 保证存在;
+ * lessons.json 中的章节按 "subject" 字段(科目 code)归属,缺省 java;"archived": true 的章节下架。
  */
 @Service
 public class LearningDataSeedService {
@@ -48,13 +49,13 @@ public class LearningDataSeedService {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode chapters = mapper.readTree(in).get("chapters");
 
-            // 保证内置科目存在,课程默认归属 java
-            Long javaSubjectId = ensureBuiltinSubjects();
+            // 保证内置科目存在;章节按 JSON 的 subject 字段归属科目(缺省 java)
+            ensureBuiltinSubjects();
 
-            // 已有章节按 chapterNo 建索引
-            Map<Integer, LearningChapter> existingByNo = new HashMap<>();
+            // 已有章节按 (subjectId, chapterNo) 建索引:章节序号在科目内独立编号(每门课程从 1 开始)
+            Map<String, LearningChapter> existingByKey = new HashMap<>();
             for (LearningChapter c : chapterRepository.findAll()) {
-                existingByNo.put(c.getChapterNo(), c);
+                existingByKey.put(c.getSubjectId() + ":" + c.getChapterNo(), c);
             }
 
             int chaptersInserted = 0, chaptersUpdated = 0;
@@ -62,12 +63,14 @@ public class LearningDataSeedService {
 
             for (JsonNode ch : chapters) {
                 int chapterNo = ch.get("chapterNo").asInt();
-                LearningChapter chapter = existingByNo.get(chapterNo);
+                // 章节可指定科目(subject 字段为科目 code),缺省归属 java
+                Long subjectId = ensureSubjectForCode(ch.path("subject").asText("java")).getId();
+                LearningChapter chapter = existingByKey.get(subjectId + ":" + chapterNo);
                 boolean isNewChapter = (chapter == null);
                 if (isNewChapter) {
                     chapter = new LearningChapter();
                 }
-                chapter.setSubjectId(javaSubjectId);
+                chapter.setSubjectId(subjectId);
                 chapter.setStageNo(ch.get("stageNo").asInt());
                 chapter.setStageName(ch.get("stageName").asText());
                 chapter.setChapterNo(chapterNo);
@@ -75,6 +78,7 @@ public class LearningDataSeedService {
                 chapter.setDescription(ch.path("description").asText(null));
                 chapter.setCodePath(ch.path("codePath").asText(null));
                 chapter.setEstimatedHours(ch.path("estimatedHours").asInt(0));
+                chapter.setArchived(ch.path("archived").asBoolean(false));
                 LearningChapter saved = chapterRepository.save(chapter);
                 if (isNewChapter) chaptersInserted++; else chaptersUpdated++;
 
@@ -140,5 +144,16 @@ public class LearningDataSeedService {
             log.info("内置学习科目初始化: {} ({})", name, code);
             return saved;
         });
+    }
+
+    /** 按 code 取科目,不存在则创建(lessons.json 中章节 subject 字段的归属入口) */
+    private LearningSubject ensureSubjectForCode(String code) {
+        return switch (code) {
+            case "sql" -> ensureSubject("sql", "SQL",
+                "SQL 数据库:关系模型 → 查询 → 修改 → 事务 → 索引 → 管理", 4);
+            case "python" -> ensureSubject("python", "Python", "Python 语言开发(课程建设中)", 2);
+            case "javascript" -> ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3);
+            default -> ensureSubject("java", "Java", "Java 全栈开发:基础语法 → 进阶 → 并发 → 数据库 → 框架生态", 1);
+        };
     }
 }

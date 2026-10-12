@@ -139,7 +139,6 @@ onMounted(loadData)
                 <el-button link type="primary" size="small" @click="openEdit(r)">编辑</el-button>
                 <el-button link type="danger" size="small" @click="remove(r)">删除</el-button>
               </span>
-              <span v-else-if="isAdmin" class="rel-locked">已发布 · 不可修改</span>
             </div>
             <div class="rel-body rich-text" v-html="r.content"></div>
           </div>
@@ -200,10 +199,6 @@ onMounted(loadData)
 .rel-title { font-size:var(--fs-md); font-weight:600; color:var(--c-text-1) }
 .rel-latest { font-size:var(--fs-xs); color:var(--c-success); background:var(--c-success-bg); padding:2px 8px; border-radius:var(--r-full) }
 .rel-ops { margin-left:auto }
-.rel-locked {
-  margin-left:auto; font-size:var(--fs-xs); color:var(--c-text-3);
-  background:#f1f3f8; padding:2px 8px; border-radius:var(--r-full);
-}
 
 /* 发布对话框锁定提示 */
 .lock-tip {

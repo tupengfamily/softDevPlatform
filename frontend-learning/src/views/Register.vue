@@ -141,11 +141,11 @@ const onSubmit = async () => {
   width: 52px; height: 52px; margin: 0 auto 14px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 14px;
-  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  background: var(--c-primary-grad, linear-gradient(135deg, #2563eb, #4f46e5));
   box-shadow: 0 8px 20px rgba(37, 99, 235, .32);
 }
 .auth-header h2 { margin: 0 0 6px 0; color: #1f2937; font-size: 22px; letter-spacing: .3px; }
 .auth-header p { margin: 0; color: #6b7280; font-size: 13px; }
 .auth-tip { text-align: center; margin-top: 16px; font-size: 13px; }
-.auth-tip a { color: #2563eb; text-decoration: none; }
+.auth-tip a { color: var(--c-primary, #2563eb); text-decoration: none; }
 </style>

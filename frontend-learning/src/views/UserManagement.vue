@@ -4,7 +4,7 @@
  * <p>
  * 演示: 分页 + CRUD + 角色分配 + 启停 + 改密码
  */
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   pageUsers, createUser, updateUser, deleteUser,
@@ -83,12 +83,23 @@ const openCreate = () => {
   dialogMode.value = 'create'
   Object.assign(form, { id: null, username: '', password: '', email: '', age: 18, address: '' })
   dialogVisible.value = true
+  // 清掉上一次表单残留的校验错误(新增/编辑共用同一个表单实例)
+  nextTick(() => formRef.value?.clearValidate())
 }
 
 const openEdit = (row) => {
   dialogMode.value = 'edit'
-  Object.assign(form, { ...row, password: '' })
+  // 只带入编辑需要的字段,避免把行数据里的其他字段(nickname/avatar/signature 等)混入表单
+  Object.assign(form, {
+    id: row.id,
+    username: row.username,
+    password: '',
+    email: row.email || '',
+    age: row.age ?? 18,
+    address: row.address || ''
+  })
   dialogVisible.value = true
+  nextTick(() => formRef.value?.clearValidate())
 }
 
 const submitForm = async () => {
@@ -145,6 +156,7 @@ const openPassword = (row) => {
   pwdForm.oldPassword = ''
   pwdForm.newPassword = ''
   pwdDialogVisible.value = true
+  nextTick(() => pwdFormRef.value?.clearValidate())
 }
 const submitPassword = async () => {
   if (!pwdFormRef.value) return

@@ -31,6 +31,16 @@ const dismissGuestBanner = () => {
 const goLogin = () => router.push({ path: '/login', query: { redirect: route.fullPath } })
 const goRegister = () => router.push({ path: '/register', query: { redirect: route.fullPath } })
 
+// 头像展示:URL 显示图片;emoji/字符显示文本;未设置显示名字首字母
+const avatarSrc = computed(() => {
+  const a = userStore.avatar || ''
+  return (/^https?:\/\//.test(a) || a.startsWith('data:') || a.startsWith('/uploads/')) ? a : undefined
+})
+const avatarChar = computed(() => {
+  const a = userStore.avatar || ''
+  return a && !avatarSrc.value ? a : (userStore.displayName || '?').charAt(0).toUpperCase()
+})
+
 // ============== 学习语言选择(头像旁) ==============
 // 记忆用户偏好:下次进入默认展示该语言的学习内容(store 内双重记忆:本地+后端)
 const langChanging = ref(false)
@@ -191,7 +201,9 @@ const goReleases = () => {
 
 // 用户下拉菜单
 const onCommand = async (cmd) => {
-  if (cmd === 'logout') {
+  if (cmd === 'profile') {
+    router.push('/profile')
+  } else if (cmd === 'logout') {
     try {
       await ElMessageBox.confirm('确定退出登录吗?', '提示', {
         confirmButtonText: '退出',
@@ -367,15 +379,18 @@ const onCommand = async (cmd) => {
             </el-tag>
             <el-dropdown trigger="click" @command="onCommand">
               <span class="user-trigger">
-                <el-avatar :size="28" :style="{ background: isAdmin ? '#e6483d' : '#16a34a' }">
-                  {{ userStore.username?.charAt(0)?.toUpperCase() || '?' }}
+                <el-avatar :size="28" :src="avatarSrc" :style="{ background: isAdmin ? '#e6483d' : '#16a34a', fontSize: avatarSrc ? undefined : '13px' }">
+                  {{ avatarChar }}
                 </el-avatar>
-                {{ userStore.username }}
+                {{ userStore.displayName }}
                 <el-icon style="margin-left:4px;"><ArrowDown /></el-icon>
               </span>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="collapse">
+                  <el-dropdown-item command="profile">
+                    <el-icon><User /></el-icon>个人信息设置
+                  </el-dropdown-item>
+                  <el-dropdown-item command="collapse" divided>
                     <el-icon><Fold /></el-icon>{{ collapsed ? '展开菜单' : '收起菜单' }}
                   </el-dropdown-item>
                   <el-dropdown-item command="logout" divided>
@@ -433,7 +448,7 @@ const onCommand = async (cmd) => {
 /* ============ 侧栏 ============ */
 .aside {
   display: flex; flex-direction: column;
-  background: linear-gradient(180deg, #0f172a 0%, #141f36 100%);
+  background: linear-gradient(180deg, var(--c-sidebar-from, #0f172a) 0%, var(--c-sidebar-to, #141f36) 100%);
   transition: width .22s cubic-bezier(.4, 0, .2, 1);
   overflow: hidden;
 }
@@ -460,11 +475,11 @@ const onCommand = async (cmd) => {
   height: 40px; line-height: 40px; margin: 3px 10px; border-radius: 8px;
   transition: background .18s, color .18s;
 }
-.aside-menu :deep(.el-menu-item:hover) { background: rgba(255, 255, 255, .07) !important; color: #fff !important; }
+.aside-menu :deep(.el-menu-item:hover) { background: rgba(var(--c-primary-rgb, 37, 99, 235), .16) !important; color: #fff !important; }
 .aside-menu :deep(.el-menu-item.is-active) {
-  background: linear-gradient(90deg, #2563eb, #4f46e5) !important;
+  background: var(--c-primary-grad, linear-gradient(90deg, #2563eb, #4f46e5)) !important;
   color: #fff !important;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, .35);
+  box-shadow: 0 4px 12px rgba(var(--c-primary-rgb, 37, 99, 235), .35);
 }
 .aside.collapsed .aside-menu { width: 56px; }
 .aside.collapsed .aside-menu :deep(.el-menu-item) {
@@ -587,7 +602,7 @@ const onCommand = async (cmd) => {
 .notice-head { display: flex; align-items: center; gap: 10px; }
 .notice-badge {
   padding: 3px 10px; border-radius: var(--r-full); font-size: var(--fs-xs);
-  background: linear-gradient(135deg, #2563eb, #4f46e5); color: #fff; font-weight: 600;
+  background: var(--c-primary-grad, linear-gradient(135deg, #2563eb, #4f46e5)); color: #fff; font-weight: 600;
 }
 .notice-ver { font-size: var(--fs-lg); font-weight: 600; color: var(--c-text-1); }
 .notice-title { margin: 0 0 14px; font-size: var(--fs-md); color: var(--c-text-1); }

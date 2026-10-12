@@ -49,6 +49,18 @@ public class User {
     @Column(nullable = false, length = 100)
     private String email;
 
+    /** 昵称(展示名,可空;为空时前端回退显示 username) */
+    @Column(length = 50)
+    private String nickname;
+
+    /** 头像:图片 URL 或 emoji 字符(为空时前端显示首字母) */
+    @Column(length = 500)
+    private String avatar;
+
+    /** 个性签名 */
+    @Column(length = 200)
+    private String signature;
+
     @Column(nullable = false)
     private Integer age;
 
@@ -144,6 +156,15 @@ public class User {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getNickname() { return nickname; }
+    public void setNickname(String nickname) { this.nickname = nickname; }
+
+    public String getAvatar() { return avatar; }
+    public void setAvatar(String avatar) { this.avatar = avatar; }
+
+    public String getSignature() { return signature; }
+    public void setSignature(String signature) { this.signature = signature; }
 
     public Integer getAge() { return age; }
     public void setAge(Integer age) { this.age = age; }

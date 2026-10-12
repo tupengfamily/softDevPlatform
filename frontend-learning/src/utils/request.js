@@ -53,18 +53,18 @@ request.interceptors.response.use(
         const wasGuest = !userStore.token
         userStore.clear()
         if (wasGuest) {
-          // 游客访问了需要登录的功能: 温和引导登录,不做"过期"误导
+          // 游客访问了需要登录的功能: 温和提示即可,留在当前页继续浏览,不强制跳登录
           ElMessage.info('该功能需要登录后使用')
         } else {
           // 优先用后端返回的具体原因(如"Token 无效或已过期"),否则用默认提示
           ElMessage.error(message || '登录已过期,请重新登录')
-        }
-        // 仅在不是登录页时跳转,避免循环
-        if (router.currentRoute.value.path !== '/login') {
-          router.push({
-            path: '/login',
-            query: { redirect: router.currentRoute.value.fullPath }
-          })
+          // 仅在不是登录页时跳转,避免循环
+          if (router.currentRoute.value.path !== '/login') {
+            router.push({
+              path: '/login',
+              query: { redirect: router.currentRoute.value.fullPath }
+            })
+          }
         }
       } else if (status === 403) {
         ElMessage.error(message || '无权限访问')

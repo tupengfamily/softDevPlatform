@@ -18,6 +18,13 @@ export default defineConfig({
           ? `http://localhost:${process.env.BACKEND_PORT}`
           : 'http://localhost:8080',
         changeOrigin: true
+      },
+      // 用户上传文件(头像等)由后端提供静态访问
+      '/uploads': {
+        target: process.env.BACKEND_PORT
+          ? `http://localhost:${process.env.BACKEND_PORT}`
+          : 'http://localhost:8080',
+        changeOrigin: true
       }
     }
   },

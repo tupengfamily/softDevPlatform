@@ -108,6 +108,12 @@ const routes = [
         name: 'About',
         component: () => import('../views/About.vue'),
         meta: { title: '关于', icon: 'InfoFilled' }
+      },
+      {
+        path: 'profile',
+        name: 'ProfileSettings',
+        component: () => import('../views/ProfileSettings.vue'),
+        meta: { title: '个人信息设置', icon: 'User' }
       }
     ]
   },

@@ -53,6 +53,10 @@ public class LearningChapter {
     @Column(name = "estimated_hours")
     private Integer estimatedHours;
 
+    /** 归档(下架)标记:true 时不出现在课程树与统计中,内容与学习进度保留 */
+    @Column(nullable = false)
+    private Boolean archived = false;
+
     public LearningChapter() {}
 
     // ============== Getter / Setter ==============
@@ -83,6 +87,9 @@ public class LearningChapter {
 
     public Integer getEstimatedHours() { return estimatedHours; }
     public void setEstimatedHours(Integer estimatedHours) { this.estimatedHours = estimatedHours; }
+
+    public Boolean getArchived() { return archived; }
+    public void setArchived(Boolean archived) { this.archived = archived; }
 
     @Override
     public String toString() {

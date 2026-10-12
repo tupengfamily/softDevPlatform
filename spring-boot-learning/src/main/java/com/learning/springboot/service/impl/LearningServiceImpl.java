@@ -264,11 +264,12 @@ public class LearningServiceImpl implements LearningService {
             .forEach(p -> {
                 LearningLesson l = lessonMap.get(p.getLessonId());
                 if (l == null) return;
+                LearningChapter c = chapterMap.get(l.getChapterId());
+                if (c == null) return;   // 归档章节/其他科目不在时间线展示
                 LearningVO.RecentLearnedVO r = new LearningVO.RecentLearnedVO();
                 r.lessonId = l.getId();
                 r.lessonTitle = l.getTitle();
-                LearningChapter c = chapterMap.get(l.getChapterId());
-                r.chapterTitle = c == null ? "" : c.getTitle();
+                r.chapterTitle = c.getTitle();
                 r.learnedAt = p.getLearnedAt();
                 stats.recent.add(r);
             });
@@ -441,18 +442,21 @@ public class LearningServiceImpl implements LearningService {
         return ids;
     }
 
-    /** 科目筛选下的章节(subjectId 为空=全部) */
+    /** 科目筛选下的章节(subjectId 为空=全部);归档章节不进入课程树与统计 */
     private List<LearningChapter> chaptersOf(Long subjectId) {
-        return subjectId == null
+        List<LearningChapter> list = subjectId == null
             ? chapterRepository.findAllByOrderByChapterNoAsc()
             : chapterRepository.findBySubjectIdOrderByChapterNoAsc(subjectId);
+        return list.stream()
+            .filter(c -> !Boolean.TRUE.equals(c.getArchived()))
+            .collect(Collectors.toList());
     }
 
-    /** 科目 id -> 该科目全部课时 id */
+    /** 科目 id -> 该科目全部课时 id(不含归档章节) */
     private Map<Long, Set<Long>> lessonIdsBySubject() {
         Map<Long, Set<Long>> map = new HashMap<>();
         for (LearningChapter c : chapterRepository.findAll()) {
-            if (c.getSubjectId() == null) continue;
+            if (c.getSubjectId() == null || Boolean.TRUE.equals(c.getArchived())) continue;
             Set<Long> ids = map.computeIfAbsent(c.getSubjectId(), k -> new HashSet<>());
             for (LearningLesson l : lessonRepository.findByChapterIdOrderByLessonNoAsc(c.getId())) {
                 ids.add(l.getId());

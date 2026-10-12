@@ -600,38 +600,39 @@
       "stageNo": 5,
       "stageName": "数据库与 JDBC",
       "chapterNo": 18,
-      "title": "关系数据库与 SQL 基础(在线练习)",
-      "description": "理解关系型数据库的核心概念,掌握 SELECT / WHERE / ORDER BY 的基本查询。",
-      "codePath": "com.learning.jdbc.SqlBasic",
-      "estimatedHours": 2,
+      "title": "SQL 速成(JDBC 前置)",
+      "description": "在学 JDBC 之前,用 3 个课时快速掌握 SQL 的核心骨架:表与主键、CRUD 四件套、多表查询与聚合。",
+      "codePath": "com.learning.jdbc",
+      "estimatedHours": 1,
       "lessons": [
         {
           "lessonNo": 1,
           "title": "数据库与表:行、列、主键",
-          "summary": "理解关系数据库的核心概念与教学库结构(students/courses/scores)。",
+          "summary": "建立数据库的最小认知:库、表、行、列、主键,以及为什么需要关系数据库。",
           "difficulty": 1,
-          "durationMinutes": 20,
-          "content": "## 关系数据库的\"一张表\"\n- 一行 = 一条记录; 一列 = 一个字段; 整张表 = 一个集合\n- 主键 (PRIMARY KEY): 唯一标识一行, 不可重复且不能为 NULL\n- 外键 (FOREIGN KEY): 引用另一张表的主键, 建立表与表的关联\n\n## 教学库结构\n我们的沙箱库有三张表:\n- students (学生): id / name / class_id / gender / enrolled_at\n- courses (课程): id / name / teacher / credit\n- scores (成绩): id / student_id / course_id / score / exam_date\n\nscores 通过 student_id 和 course_id 与另两张表关联。\n\n## 动手做\n试试下面的 SQL: 查看教学库的所有学生, 只显示前 5 条。\n\n```sql\nSELECT id, name, class_id FROM students LIMIT 5;\n```",
-          "codeExample": null
+          "durationMinutes": 15,
+          "content": "## 核心概念 5 分钟速览\n- 数据库(Database)存放数据的仓库;表(Table)是二维表结构,一行一条记录,一列一个字段\n- 主键(Primary Key):唯一标识一行记录,常用自增 id;主键不能重复、不能为空\n- 关系数据库用 SQL 操作,主流代表:MySQL、PostgreSQL、SQLite、Oracle\n\n## 本平台教学库(4 表)\n- classes 班级(id, name, head_teacher)\n- students 学生(id, name, class_id, gender, enrolled_at)\n- courses 课程(id, name, teacher, credit)\n- scores 成绩(student_id, course_id, score, exam_date)\n\n## 动手练习\n- 运行示例查询 students 表全部数据,观察行与列\n\n\n> 系统学习 SQL 请在顶部「学习语言」选择框切换到 **SQL** 科目,那里有从入门到进阶的完整教程。",
+          "codeExample": "SELECT * FROM students;",
+          "codeType": "sql"
         },
         {
           "lessonNo": 2,
-          "title": "SELECT / WHERE / ORDER BY",
-          "summary": "三大基础查询:查询、过滤、排序。",
+          "title": "CRUD 速查:SELECT / INSERT / UPDATE / DELETE",
+          "summary": "掌握增删改查四个核心动词,记住 UPDATE / DELETE 不带 WHERE 的惨案。",
           "difficulty": 1,
-          "durationMinutes": 30,
-          "content": "## 场景\n新学期要打印 1 班男生花名册,并按学号排序——这就是最经典的「筛选 + 排序」需求。\n\n## 语法要点\n- `SELECT 列 FROM 表`:选列;`SELECT *` 仅在临时探索时用\n- `WHERE` 支持 `AND / OR / NOT`、`BETWEEN`、`IN`、`LIKE` 模糊匹配\n- `ORDER BY 列 [ASC|DESC]`:ASC 升序(默认),DESC 降序;可多列排序\n\n## 案例\n**案例 1 · 花名册筛选**(沙箱可直接运行右侧示例)\n\n**案例 2 · 模糊匹配与区间**:找名字含\"三\"的同学,以及 2024 年入学的:\n- `SELECT name, enrolled_at FROM students WHERE name LIKE '%三%';`\n- `SELECT name, enrolled_at FROM students WHERE enrolled_at BETWEEN '2024-01-01' AND '2024-12-31' ORDER BY enrolled_at;`\n\n**案例 3 · 多列排序**:先按班级升序,同班按姓名降序\n- `SELECT name, class_id FROM students ORDER BY class_id, name DESC;`\n\n## 动手练习\n1. 查出所有女生的姓名与班级,按学号倒序\n2. 查出 2 班且 2024 年入学的学生\n3. 用 `IN` 一次查出学号 1、3、5 的学生(提示:`WHERE id IN (1,3,5)`)\n",
-          "codeExample": "SELECT id, name, gender, class_id FROM students WHERE class_id = 1 AND gender = 'M' ORDER BY id;",
+          "durationMinutes": 15,
+          "content": "## CRUD 四件套\n- 查 SELECT 列 FROM 表 WHERE 条件\n- 增 INSERT INTO 表(列...) VALUES(值...)\n- 改 UPDATE 表 SET 列=值 WHERE 条件\n- 删 DELETE FROM 表 WHERE 条件\n\n## 铁律\n- UPDATE / DELETE 一定先写 WHERE,再检查,最后执行(不带 WHERE = 全表遭殃)\n- 查询先用 SELECT 验证影响范围,再改成 UPDATE/DELETE\n\n## 动手练习\n- 用 SELECT ... WHERE class_id=1 先圈出范围,体会'先查后改'的安全感\n\n\n> 系统学习 SQL 请在顶部「学习语言」选择框切换到 **SQL** 科目,那里有从入门到进阶的完整教程。",
+          "codeExample": "SELECT id, name, class_id FROM students WHERE class_id = 1;",
           "codeType": "sql"
         },
         {
           "lessonNo": 3,
-          "title": "聚合函数:COUNT / SUM / AVG / MIN / MAX",
-          "summary": "用聚合函数一行得到统计信息。",
-          "difficulty": 2,
-          "durationMinutes": 25,
-          "content": "## 场景\n期末出报表:全年级多少人考试?最高分、最低分、平均分是多少?聚合函数一行搞定。\n\n## 语法要点\n- `COUNT(*)` 计行数、`COUNT(列)` 计非空值\n- `SUM / AVG / MIN / MAX`:求和、平均、最小、最大\n- `ROUND(x, n)` 保留 n 位小数;`AS 起别名` 让结果列名可读\n\n## 案例\n**案例 1 · 全科成绩总览**(右侧示例一键运行)\n\n**案例 2 · 单科统计**:Java 基础(course_id=1)的考试情况\n- `SELECT COUNT(*) AS 人数, AVG(score) AS 均分 FROM scores WHERE course_id = 1;`\n\n**案例 3 · 去重计数**:统计有成绩记录的学生数(一人多科只算一次)\n- `SELECT COUNT(DISTINCT student_id) AS 有成绩的学生 FROM scores;`\n\n## 动手练习\n1. 统计成绩表共多少条记录\n2. 查 course_id=2 的最高分与最低分\n3. 统计 1 班学生人数(表 students)\n",
-          "codeExample": "SELECT COUNT(*) AS 总人数, MAX(score) AS 最高分, MIN(score) AS 最低分, ROUND(AVG(score),1) AS 平均分 FROM scores;",
+          "title": "多表查询与聚合速查",
+          "summary": "JOIN 连表 + GROUP BY 聚合,SQL 最常用的两大杀器各练一手。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "## JOIN 连表速查\n- INNER JOIN:两表都匹配才返回\n- LEFT JOIN:左表全保留,右表没匹配的补 NULL(找'没有成绩的学生'必备)\n\n## 聚合速查\n- COUNT 计数 / SUM 求和 / AVG 平均 / MAX 最大 / MIN 最小\n- GROUP BY 分组,HAVING 对分组结果再过滤\n\n## 动手练习\n- 统计每个班的学生数,再用 HAVING 只保留人数≥3 的班级\n\n\n> 系统学习 SQL 请在顶部「学习语言」选择框切换到 **SQL** 科目,那里有从入门到进阶的完整教程。",
+          "codeExample": "SELECT class_id, COUNT(*) AS cnt FROM students GROUP BY class_id;",
           "codeType": "sql"
         }
       ]
@@ -675,7 +676,8 @@
           "codeExample": "DELETE FROM students WHERE name = '测试同学';",
           "codeType": "sql"
         }
-      ]
+      ],
+      "archived": true
     },
     {
       "stageNo": 5,
@@ -716,7 +718,8 @@
           "codeExample": "SELECT s.name, sc.score FROM students s JOIN scores sc ON s.id = sc.student_id WHERE sc.score > (SELECT AVG(score) FROM scores) ORDER BY sc.score DESC;",
           "codeType": "sql"
         }
-      ]
+      ],
+      "archived": true
     },
     {
       "stageNo": 5,
@@ -747,7 +750,8 @@
           "codeExample": "EXPLAIN QUERY PLAN SELECT s.name, sc.score FROM students s JOIN scores sc ON s.id = sc.student_id WHERE s.class_id = 1;",
           "codeType": "sql"
         }
-      ]
+      ],
+      "archived": true
     },
     {
       "stageNo": 5,
@@ -778,7 +782,8 @@
           "codeExample": "SELECT student_id, COUNT(*) AS 次数, ROUND(AVG(score),1) AS 均分 FROM scores GROUP BY student_id ORDER BY 均分 DESC;",
           "codeType": "sql"
         }
-      ]
+      ],
+      "archived": true
     },
     {
       "stageNo": 5,
@@ -1485,6 +1490,384 @@
           "codeExample": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.AtomicInteger;\n\npublic class Main {\n\n    // ---------- 1. 迷你注册中心(对照 Nacos / Eureka) ----------\n    static class ServiceRegistry {\n        // 服务名 -> 实例地址列表\n        private final Map<String, List<String>> services = new ConcurrentHashMap<>();\n        private final Map<String, Long> heartbeats = new ConcurrentHashMap<>();\n\n        void register(String serviceName, String address) {\n            services.computeIfAbsent(serviceName, k -> new CopyOnWriteArrayList<>()).add(address);\n            heartbeats.put(address, System.currentTimeMillis());\n            System.out.println(\"  [注册中心] \" + serviceName + \" 注册实例: \" + address\n                    + \" (共 \" + services.get(serviceName).size() + \" 个实例)\");\n        }\n\n        /** 心跳续约: 超时未续约的实例会被摘除 */\n        void heartbeat(String address) { heartbeats.put(address, System.currentTimeMillis()); }\n\n        List<String> discover(String serviceName) {\n            List<String> list = services.getOrDefault(serviceName, List.of());\n            System.out.println(\"  [注册中心] \" + serviceName + \" 被查询,返回 \" + list.size() + \" 个可用实例\");\n            return list;\n        }\n\n        void healthCheck(long timeoutMs) {\n            long now = System.currentTimeMillis();\n            heartbeats.forEach((addr, last) -> {\n                if (now - last > timeoutMs) {\n                    services.values().forEach(l -> l.remove(addr));\n                    System.out.println(\"  [注册中心] 实例心跳超时,已摘除: \" + addr);\n                }\n            });\n        }\n    }\n\n    // ---------- 2. 客户端负载均衡(轮询,对照 Spring Cloud LoadBalancer) ----------\n    static class RoundRobinLoadBalancer {\n        private final AtomicInteger counter = new AtomicInteger();\n        private final ServiceRegistry registry;\n\n        RoundRobinLoadBalancer(ServiceRegistry registry) { this.registry = registry; }\n\n        String choose(String serviceName) {\n            List<String> instances = registry.discover(serviceName);\n            if (instances.isEmpty()) throw new IllegalStateException(\"没有可用实例: \" + serviceName);\n            String chosen = instances.get(Math.abs(counter.getAndIncrement()) % instances.size());\n            System.out.println(\"  [负载均衡] 轮询选中: \" + chosen);\n            return chosen;\n        }\n    }\n\n    // ---------- 3. 迷你网关(对照 Spring Cloud Gateway) ----------\n    static class Gateway {\n        private final Map<String, String> routeRules = new LinkedHashMap<>(); // 路径前缀 -> 服务名\n        private final RoundRobinLoadBalancer lb;\n        private final Map<String, String> tokens = Map.of(\"valid-token-123\", \"admin\");\n\n        Gateway(RoundRobinLoadBalancer lb) { this.lb = lb; }\n\n        void route(String pathPrefix, String serviceName) {\n            routeRules.put(pathPrefix, serviceName);\n            System.out.println(\"  [网关] 路由规则: \" + pathPrefix + \"** -> \" + serviceName);\n        }\n\n        String forward(String path, String token) {\n            System.out.println(\"\\n  [网关] 收到请求: \" + path);\n            // 步骤1: 统一鉴权(下游服务不再各自校验)\n            if (token == null || !tokens.containsKey(token)) {\n                System.out.println(\"  [网关] 鉴权失败 -> 返回 401\");\n                return \"401 Unauthorized\";\n            }\n            System.out.println(\"  [网关] 鉴权通过,用户: \" + tokens.get(token));\n            // 步骤2: 匹配路由\n            for (Map.Entry<String, String> e : routeRules.entrySet()) {\n                if (path.startsWith(e.getKey())) {\n                    System.out.println(\"  [网关] 匹配路由 \" + e.getKey() + \"** -> \" + e.getValue());\n                    // 步骤3: 负载均衡选实例 -> 转发\n                    String instance = lb.choose(e.getValue());\n                    return \"200 OK (来自 \" + instance + \" 的响应)\";\n                }\n            }\n            System.out.println(\"  [网关] 无匹配路由 -> 404\");\n            return \"404 Not Found\";\n        }\n    }\n\n    public static void main(String[] args) throws Exception {\n        ServiceRegistry registry = new ServiceRegistry();\n        RoundRobinLoadBalancer lb = new RoundRobinLoadBalancer(registry);\n        Gateway gateway = new Gateway(lb);\n\n        System.out.println(\"=== 1. 服务启动并注册 ===\");\n        registry.register(\"user-service\", \"10.0.0.1:8081\");\n        registry.register(\"user-service\", \"10.0.0.2:8081\");\n        registry.register(\"order-service\", \"10.0.0.3:8082\");\n\n        System.out.println(\"\\n=== 2. 网关配置路由 ===\");\n        gateway.route(\"/api/user\", \"user-service\");\n        gateway.route(\"/api/order\", \"order-service\");\n\n        System.out.println(\"\\n=== 3. 客户端请求(观察负载均衡轮询) ===\");\n        System.out.println(\"  -> \" + gateway.forward(\"/api/user/profile\", \"valid-token-123\"));\n        System.out.println(\"  -> \" + gateway.forward(\"/api/user/orders\", \"valid-token-123\"));\n        System.out.println(\"  -> \" + gateway.forward(\"/api/order/create\", \"valid-token-123\"));\n\n        System.out.println(\"\\n=== 4. 未携带令牌(网关统一拦截) ===\");\n        System.out.println(\"  -> \" + gateway.forward(\"/api/user/profile\", null));\n\n        System.out.println(\"\\n=== 5. 实例故障 -> 摘除 -> 流量自动转移 ===\");\n        System.out.println(\"  (模拟 10.0.0.1 心跳超时)\");\n        registry.heartbeat(\"10.0.0.2:8081\"); // 只有 0.2 续约\n        registry.healthCheck(50);\n        Thread.sleep(60);\n        registry.heartbeat(\"10.0.0.2:8081\");\n        System.out.println(\"  -> \" + gateway.forward(\"/api/user/profile\", \"valid-token-123\"));\n\n        System.out.println(\"\\n=== 组件对照表 ===\");\n        System.out.println(\"  迷你实现              生产方案\");\n        System.out.println(\"  ServiceRegistry       Nacos / Eureka\");\n        System.out.println(\"  RoundRobinLoadBalancer Spring Cloud LoadBalancer\");\n        System.out.println(\"  Gateway               Spring Cloud Gateway\");\n        System.out.println(\"  下一步可自行扩展: 熔断(Resilience4j)、配置中心、链路追踪\");\n    }\n}"
         }
       ]
+    },
+    {
+      "stageNo": 1,
+      "stageName": "SQL 入门",
+      "chapterNo": 1,
+      "title": "数据库与 SQL 基础",
+      "description": "从零认识关系数据库与 SQL:数据模型、表结构、主键外键,并熟悉在线教学库。",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "什么是 SQL:关系数据库概述",
+          "summary": "从文件存储之痛讲到数据库登场:三种数据模型、SQL 的 DDL/DML/DQL 分工、标准与方言,以及 NoSQL 与 SQL 的真实关系。",
+          "difficulty": 1,
+          "durationMinutes": 25,
+          "content": "你写的每一个 Web 应用、手机 App、游戏,几乎都要\"记住\"数据:用户账号、订单、成绩、道具。最原始的办法是写文件,但很快会撞上三堵墙:读写文件的解析代码到处重复;数据量一大,想查\"张三的成绩\"就得全文件扫描;多个程序之间无法安全地共享同一份数据。\n\n数据库就是为此而生的专职软件:应用只管用 SQL 发出\"要什么、改什么\",数据怎么落到磁盘、怎么建索引、怎么抗并发,全部由数据库自己负责。\n\n## 三种数据模型\n- 层次模型:数据像一棵树(上下级),表达\"班级→学生\"很自然,但表达\"学生↔课程\"这种网状关系就力不从心\n- 网状模型:节点互相连成路网,表达力强但结构复杂,使用门槛高\n- 关系模型:把数据看成二维表格(和 Excel 一样直观),行=记录、列=字段,任意一行都能用\"行+列\"唯一定位\n关系模型因为\"理解和使用最简单\",在市场竞争中完胜,今天说\"数据库\"基本默认指关系数据库。\n\n## SQL 是什么\nSQL(Structured Query Language,结构化查询语言)是访问和操作关系数据库的标准语言。学会它,换 MySQL、PostgreSQL、Oracle、SQLite 都能用。按用途分三类:\n- DDL(数据定义):CREATE / ALTER / DROP,定义表结构,通常由 DBA 执行\n- DML(数据操作):INSERT / UPDATE / DELETE,应用每天都在做的\"改数据\"\n- DQL(数据查询):SELECT,数据库日常 90% 以上的操作\n\n## 标准与方言\nSQL 有 ANSI 标准,但各厂商都在标准上做了扩展(Oracle 的 PL/SQL、SQL Server 的 T-SQL)。只用标准核心语法,所有数据库都能跑;用到方言就要注意移植性。本平台的 SQL 沙箱基于 SQLite,后续示例尽量采用可移植写法,遇到差异会特别标注。\n\n## SQL 没有过时\nNoSQL(MongoDB 等)不是取代者而是补充者,如今业界共识是\"SQL 为主、NoSQL 为辅\"。无论做 Java 后端还是全栈,SQL 都是绕不开的基本功——本项目 Java 阶段的 JDBC 章节,操作的就是你现在正在学的这些表。\n\n## 动手练习\n1. 用一句话说明\"数据库替应用承担了什么\"\n2. DDL、DML、DQL 各举一个关键字,并说明属于哪类操作",
+          "codeExample": "SELECT id, name, teacher, credit FROM courses ORDER BY id;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "关系模型:表、行、列与数据类型",
+          "summary": "掌握表/行/列/记录等核心概念,熟悉 INT、VARCHAR、DATE、DECIMAL 等数据类型的选型原则,读懂教学库四张表的建表语句。",
+          "difficulty": 1,
+          "durationMinutes": 25,
+          "content": "一张关系表由列(字段)和行(记录)组成。列定义\"存什么类型的数据\",行存放\"一个具体对象\"的信息。以教学库的 students 表为例:一行就是一个学生,一行里有 id、name、class_id、gender、enrolled_at 五列。\n\n## 常用数据类型\n- 整数:INT(约 ±21 亿)、BIGINT(约 ±922 亿亿),主键和计数优先考虑\n- 小数:DECIMAL(M,N) 高精度,适合金额、学分绩点;REAL/DOUBLE 是浮点,存测量值可以,存钱不行\n- 字符串:CHAR(N) 定长、VARCHAR(N) 变长,姓名、课程名用 VARCHAR 即可\n- 日期时间:DATE(2025-06-03)、TIME、DATETIME,入学时间、考试日期都属于这类\n- 布尔:BOOLEAN,存 True/False\n\n选型口诀:整数用 BIGINT、字符串用 VARCHAR(N),能覆盖九成场景;金额永远用 DECIMAL。\n\n## 教学库的建表语句(示例)\n```sql\nCREATE TABLE students (\n  id         INTEGER PRIMARY KEY,\n  name       VARCHAR(50) NOT NULL,\n  class_id   INT NOT NULL,\n  gender     CHAR(1),\n  enrolled_at DATE\n);\n```\n注意几个细节:NOT NULL 表示该列不允许为空;PRIMARY KEY 是主键;class_id 是指向 classes 表的外键(下一课讲)。SQLite 对类型比较\"宽容\",但 MySQL 等会严格校验,养成按类型书写的习惯不吃亏。\n\n## 平台对照\n本项目 SQL 沙箱教学库共四张表,行数分别是:classes 4 行、students 13 行、courses 5 行、scores 35 行。它们的关系是:班级 1—N 学生,学生 N—M 课程(用 scores 表记录考试成绩)。\n\n## 易错点\n- 把成绩/金额存成 DOUBLE,出现 0.1+0.2≠0.3 的精度问题\n- VARCHAR(10) 不是\"10 字节\",通常指 10 个字符\n- 日期不要存成字符串 '2025年6月3日',否则无法比较大小\n\n## 动手练习\n1. 说出 students 表每一列适合的数据类型\n2. 查询课程表全部信息,观察 name 列和 credit 列的类型差异",
+          "codeExample": "SELECT id, name, class_id, gender, enrolled_at FROM students ORDER BY id LIMIT 5;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 3,
+          "title": "主键、外键与表间关系",
+          "summary": "理解主键的唯一标识作用、外键如何建立一对多关系、联合主键与多对多的中间表设计,并读懂教学库的表间引用。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "数据分散在多张表里,靠什么串起来?答案是主键和外键。\n\n## 主键(Primary Key)\n主键是能唯一标识一行记录的列(或列组合)。它有两个硬要求:不重复、不允许为空。students 表的 id 就是主键——学号为 3 的学生全世界只有一个。如果没有主键,两个同名\"张三\"就永远分不清谁是谁。\n- 自然主键:业务自带的唯一值(身份证号、学号)\n- 代理主键:无业务含义的自增 id,更安全(业务字段可能变更),教学库用的就是这种\n- 联合主键:多列合起来唯一,例如 scores 表用 (student_id, course_id) 表示\"某个学生的某门课只有一条成绩\"\n\n## 外键(Foreign Key)\n外键是\"指向另一张表主键\"的列,用来表达表间关系。students.class_id 指向 classes.id,于是\"张三属于一班\"这条事实只存了一个小数字 3,不用把班级名重复存 13 遍——这正是关系模型的精髓:一处修改、处处生效。\n\n## 常见关系\n- 一对多:班级→学生(一个班多个学生),在\"多\"的一方放外键 class_id\n- 多对多:学生↔课程(一个学生选多门课,一门课多个学生修),必须引入中间表 scores,它通常把两个外键组合作为联合主键\n- 一对一:较少见,多用于拆分大表或扩展信息\n\n## 数据完整性\n外键约束让数据库拒绝\"脏数据\":往 students 里插入 class_id=99 的学生会失败,因为 classes 表没有 9 号班。项目里若关闭了外键约束(某些框架默认如此),完整性就要靠应用代码保证——这是后端开发常踩的坑。\n\n## 易错点\n- 把班级名直接冗余存进 students 表,改名时要改 N 行,漏一处就数据不一致\n- 用手机号/身份证做主键,一旦变更就牵动所有引用\n- 中间表忘记加联合主键,会出现同一个学生同一门课多条成绩\n\n## 动手练习\n1. 指出 scores 表的两个外键分别指向谁\n2. 如果要记录\"教师教哪些课程\",会多出一张什么表?",
+          "codeExample": "SELECT s.id, s.name AS student, c.name AS class_name FROM students s JOIN classes c ON s.class_id = c.id ORDER BY s.id LIMIT 6;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 4,
+          "title": "认识教学库:在线 SQL 沙箱入门",
+          "summary": "熟悉本平台 SQL 沙箱的四张教学表与数据分布,掌握沙箱执行规则(单语句、白名单、一键重置),用第一条统计查询热身。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "光看不练学不会 SQL。本平台内置了 SQL 在线沙箱,你在课时页右侧的「SQL 控制台」里输入语句点\"执行\",立即能看到结果表格,而且改乱了随时可以重置。\n\n## 沙箱里的四张表\n- classes(id, name, head_teacher):4 个班——一班/张老师、二班/李老师、三班/王老师、四班/赵老师\n- students(id, name, class_id, gender, enrolled_at):13 名学生,一班 4 人、二班 3 人、三班 4 人、四班 2 人;性别 M 8 人、F 5 人\n- courses(id, name, teacher, credit):5 门课——Java 基础(4学分)、数据库原理(3)、Web 开发(4)、操作系统(3)、算法与数据结构(4)\n- scores(id, student_id, course_id, score, exam_date):35 条成绩。1~10 号学生各考了 Java 基础/数据库原理/Web 开发(30 条),1~5 号学生另考了算法与数据结构(5 条),操作系统还没有人考;11~13 号学生暂无任何成绩\n\n这些\"留白\"是故意设计的:后面学外连接、分组统计时,它们正是绝佳的练习素材。\n\n## 沙箱执行规则\n- 一次只能执行一条语句(结尾分号可有可无)\n- 允许 SELECT / INSERT / UPDATE / DELETE / EXPLAIN,不允许 CREATE、DROP 等 DDL(防止破坏教学数据)\n- 数据被改乱了点「重置数据」即可恢复初始状态,放心大胆试\n- 本课所有示例都基于这套数据,你在沙箱里跑出的结果应该和课文中写的一致\n\n## 热身:第一条统计查询\n```sql\nSELECT COUNT(*) AS student_count FROM students;\n```\nCOUNT(*) 统计行数,AS 给结果列起别名,AS 是第 2 章的正式内容,这里先混个脸熟。\n\n## 动手练习\n1. 查询所有课程的名称和学分\n2. 统计 scores 表一共有多少条成绩(答案:35)",
+          "codeExample": "SELECT COUNT(*) AS student_count FROM students;",
+          "codeType": "sql"
+        }
+      ],
+      "subject": "sql"
+    },
+    {
+      "stageNo": 1,
+      "stageName": "SQL 入门",
+      "chapterNo": 2,
+      "title": "查询数据:从 SELECT 到分页",
+      "description": "查询是 SQL 的灵魂:基本查询、条件、投影、排序、分页,一次学透。",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "基本查询 SELECT / FROM",
+          "summary": "SELECT 语句的第一课:查询全部列、指定列、表达式列,理解查询结果永远是二维表,学会用 SELECT 1 检测连接。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "数据库最常用的操作就是查询,基本形态只有一句:\n```sql\nSELECT * FROM <表名>;\n```\nSELECT 表示\"要查询\",* 表示\"所有列\",FROM 指定从哪张表查。查询的结果仍然是一个二维表——有列名、有若干行,你可以把它理解为\"数据库帮你现场生成的 Excel 表\"。\n\n## 查询指定列\n表列多时不要用 *,明确写出要的列,既省流量又让语句自解释:\n```sql\nSELECT id, name, credit FROM courses;\n```\n\n## SELECT 也能做计算\nSELECT 后面可以跟表达式,数据库会逐行计算:\n```sql\nSELECT name, credit, credit * 2 AS double_credit FROM courses;\n```\n* 2 是表达式,double_credit 是给计算列起的别名。不过 SQL 的强项是查询而非计算,复杂业务计算交给 Java/Python 更合适。\n\n## 不带 FROM 的 SELECT\n```sql\nSELECT 1;\n```\n它直接返回 1,常用来检测\"到数据库的连接是否存活\"——几乎每个连接池、监控探针都这么干。你可以用它当沙箱的连通性测试。\n\n## 易错点\n- SELECT 写成 SELET、FROM 写成 FORM,拼写错误占新手报错的一半\n- 忘记逗号:SELECT name class_id FROM students 会被理解成给 name 起别名 class_id!\n- 生产环境慎用 SELECT *,表结构变更后可能拖出大字段拖慢接口\n\n## 动手练习\n1. 查询所有班级的名称和班主任\n2. 查询每门课程的名称,以及\"学分+1\"后的值(列名自定)",
+          "codeExample": "SELECT * FROM courses;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "条件查询 WHERE 与运算符",
+          "summary": "用 WHERE 精确圈定数据:比较运算、AND/OR/NOT、BETWEEN、IN、LIKE 模糊匹配、IS NULL,并理清运算符优先级。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "真实查询几乎都有条件:90 分以上的成绩、二班的学生、2025 年入学的新生。WHERE 子句负责过滤行,只有满足条件的行才会出现在结果里。\n\n## 比较运算符\n= 等于、<> 或 != 不等于、>、<、>=、<=。\n```sql\nSELECT student_id, course_id, score\nFROM scores\nWHERE score >= 90\nORDER BY score DESC;\n```\n教学库中 90 分以上的成绩共 6 条,从高到低:99(3号王五/Web)、99(3号王五/算法)、98(6号孙八/Java)、95(4号赵六/数据库)、93(10号冯二/Web)、91(5号钱七/Java)。动手跑一遍验证,顺便练 ORDER BY。\n\n## 范围与集合\n- BETWEEN 80 AND 89:闭区间,含两端\n- IN (1, 2, 3):等于集合中任意一个,等价于多个 OR\n- NOT IN 反之;注意集合里有 NULL 时 NOT IN 会\"全军覆没\"(第 2.6 课讲 NULL)\n\n## 模糊匹配 LIKE\n- % 匹配任意长度任意字符,_ 匹配单个字符\n- WHERE name LIKE '张%' 查所有姓张的学生(张三命中)\n- WHERE name LIKE '_三' 查名字是\"X三\"的学生(张三命中)\n\n## 逻辑运算与优先级\nAND 且、OR 或、NOT 非。优先级 NOT > AND > OR,拿不准就加括号:\n```sql\nSELECT * FROM scores WHERE course_id = 1 AND (score < 60 OR score >= 90);\n```\n不加括号会先算 AND,语义完全变了——这是最经典的隐性 Bug 之一。\n\n## 易错点\n- 字符串值用单引号:'张三',双引号在 SQL 里是标识符引号\n- NULL 不能用 = 比较:WHERE class_id = NULL 永远查不到,要用 IS NULL\n- LIKE '%张%' 两侧都带 % 会导致全表扫描,大数据量时很慢\n\n## 动手练习\n1. 查出二班(class_id=2)的所有学生姓名\n2. 查出学分为 4 的课程名\n3. 查出 2025-06-09 之后考试的成绩记录",
+          "codeExample": "SELECT student_id, course_id, score FROM scores WHERE score >= 90 ORDER BY score DESC;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 3,
+          "title": "投影、别名与 DISTINCT",
+          "summary": "精确控制结果有哪些列:列裁剪、AS 别名(中英文皆可)、计算列、DISTINCT 去重,理解投影就是「选列」。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "WHERE 决定\"取哪些行\",投影(Projection)决定\"取哪些列\"。SELECT 后面列出的列清单,就是这次查询的投影。\n\n## 列别名 AS\n给列起一个易读的名字,尤其聚合列和计算列必备:\n```sql\nSELECT name AS 姓名, enrolled_at AS 入学日期 FROM students;\n```\nAS 可省略(SELECT name 姓名),但写上更清晰。别名里有空格或特殊字符时用引号包起来。\n\n## 计算列\n```sql\nSELECT name, score, score * 0.3 AS 平时分折算 FROM scores;\n```\n列与常量、列与列之间都能运算。注意整数除法:5/2 在很多数据库里是 2 而不是 2.5,要精确除法先转小数(5/2.0)。\n\n## DISTINCT 去重\n成绩表里 course_id 大量重复,想知道\"一共考过哪几门课\":\n```sql\nSELECT DISTINCT course_id FROM scores;\n```\nDISTINCT 作用于后面所有列的组合:SELECT DISTINCT gender, class_id 会按\"两列组合\"去重,而不是分别去重。\n\n## 实战组合:去重 + 计数\n```sql\nSELECT COUNT(DISTINCT student_id) AS 考过试的人数 FROM scores;\n```\n答案是 10(11~13 号学生从没考过试)。\n\n## 易错点\n- SELECT DISTINCT name, class_id 以为只对 name 去重,实际按两列组合去重\n- 别名想用中文,却忘了有的数据库要求引号包住含特殊字符的别名\n- 把 DISTINCT 当\"分组\"用——求每门课平均分请用 GROUP BY(第 3 章)\n\n## 动手练习\n1. 查询所有出现过的性别值(去重)\n2. 查询所有不同的班主任姓名\n3. 统计教学库一共有多少个不同的考试日期",
+          "codeExample": "SELECT DISTINCT course_id FROM scores;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 4,
+          "title": "排序 ORDER BY",
+          "summary": "让结果有序:ASC/DESC、多列排序的先后语义、NULL 的排序位置、别名排序,掌握「先主后次」的排序口诀。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "不指定顺序时,数据库返回行的顺序是\"不确定的\"——今天按 id 排,明天换了执行计划就可能乱序。想要稳定可预期的结果,必须显式 ORDER BY。\n\n## 基本用法\n```sql\nSELECT student_id, course_id, score\nFROM scores\nORDER BY score DESC, student_id ASC;\n```\nDESC 降序、ASC 升序(默认可省略)。这条语句先按成绩从高到低;成绩相同时,再按学生 id 从小到大——多列排序就是\"先按第一列排,第一列相同才看第二列\"。\n\n## 实用姿势\n- 按别名排序:ORDER BY score DESC 里的 score 可以直接用 SELECT 里起的别名\n- 按位置排序:ORDER BY 3 表示按第 3 列排(不推荐,列顺序一改就错)\n- NULL 的位置:SQLite/MySQL 中 NULL 在升序时排最前、降序时排最后;PostgreSQL 相反。对 NULL 敏感时用 COALESCE 兜底(第 2.6 课)\n\n## 经典查询:成绩排行榜\n```sql\nSELECT student_id, score FROM scores\nWHERE course_id = 1\nORDER BY score DESC\nLIMIT 5;\n```\nJava 基础课前 5 名:98(6号孙八)、91(5号钱七)、84(4号赵六)、77(3号王五)、71(10号冯二)。\n\n## 易错点\n- 以为 SELECT 的列顺序决定结果顺序——没有 ORDER BY 就没有顺序保证\n- 在 ORDER BY 里调用函数(ORDER BY LOWER(name))会让索引失效,数据量大时变慢\n- 多列排序方向可以不同:ORDER BY class_id ASC, score DESC 表示\"班内成绩倒序\"\n\n## 动手练习\n1. 把所有学生按入学日期从新到旧排列\n2. 查询数据库原理课的成绩,按分数从低到高排(找出最需要补习的同学)\n3. 练习两列排序:先按 class_id 升序,再按 name 升序",
+          "codeExample": "SELECT student_id, course_id, score FROM scores ORDER BY score DESC, student_id ASC LIMIT 10;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 5,
+          "title": "分页查询 LIMIT / OFFSET",
+          "summary": "把大结果集切成页:LIMIT/OFFSET 的分页公式、页码计算、深分页问题,以及 MySQL 与标准写法的差异。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "查全部数据一次返回 10 万行?前端会卡死。分页查询只取\"当前页\"需要的若干行,是所有列表接口的标配。\n\n## 基本语法\n```sql\nSELECT id, name, class_id\nFROM students\nORDER BY id\nLIMIT 5 OFFSET 5;\n```\nLIMIT 5 最多取 5 行,OFFSET 5 跳过前 5 行。合起来就是\"第 2 页,每页 5 条\"(假设每页 5 条):第 6~10 名学生——孙八、周九、吴十、郑一、冯二。\n\n## 分页公式\n- 页码从 1 开始、每页 pageSize 条\n- OFFSET = (pageNo - 1) * pageSize\n- 第 3 页(每页 5 条)→ LIMIT 5 OFFSET 10,拿到 id 为 11、12、13 的三名学生\n注意最后一页可能不满页:13 人每页 5 条,共 3 页(5+5+3)。前端应根据返回行数 < pageSize 判断\"没有下一页\"。\n\n## 分页必须配 ORDER BY\n不排序就分页,数据库两次查询可能返回重复或遗漏的行!ORDER BY 的排序键最好是唯一列(如 id)或包含唯一列的组合,保证顺序稳定。\n\n## 深分页问题\nLIMIT 10 OFFSET 1000000 看似只要 10 行,数据库却要先扫描并丢弃前 100 万行,越翻越慢。优化思路:改用\"记住上一页最后一行的 id\"的游标分页(WHERE id > 上页末id ORDER BY id LIMIT 10),或业务上限制可翻页深度。\n\n## 方言差异\n- SQLite / PostgreSQL:LIMIT n OFFSET m\n- MySQL 同样支持,还支持简写 LIMIT m, n(跳 m 取 n,可读性差,不推荐)\n- SQL Server:OFFSET n ROWS FETCH NEXT m ROWS ONLY\n\n## 动手练习\n1. 每页 4 条,查出第 2 页的学生\n2. 查出成绩表按成绩降序的第 3~5 名\n3. 想一想:如果两次查询之间有人插入了新行,OFFSET 分页会出现什么问题?",
+          "codeExample": "SELECT id, name, class_id FROM students ORDER BY id LIMIT 5 OFFSET 5;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 6,
+          "title": "NULL 的陷阱与 CASE 条件表达式",
+          "summary": "吃透 NULL 的三值逻辑与 IS NULL 判断,学会 COALESCE 兜底默认值,用 CASE WHEN 在 SQL 里写 if-else,给成绩自动评级。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "NULL 表示\"未知/缺失\",它不是 0 也不是空字符串,是 SQL 里最容易写出隐性 Bug 的概念。\n\n## NULL 的比较陷阱\n- WHERE class_id = NULL 永远查不到任何行!NULL 参与比较的结果是\"未知\",不是\"真\"\n- 正确写法:WHERE class_id IS NULL / IS NOT NULL\n- NOT IN 遇上 NULL 会全军覆没:WHERE id NOT IN (1, NULL) 一行都查不出,因为任何值与 NULL 比较都非真。用 NOT EXISTS 或先过滤 NULL\n\n## COALESCE 兜底默认值\n```sql\nSELECT name, COALESCE(gender, '未知') AS gender FROM students;\n```\nCOALESCE 返回第一个非 NULL 的值,是跨数据库的标准函数(SQLite/MySQL/PG 都支持;MySQL 也常用 IFNULL)。给可能为 NULL 的列兜底,前端就不用到处判空。\n\n## CASE WHEN:SQL 里的 if-else\n```sql\nSELECT student_id, course_id, score,\n  CASE\n    WHEN score >= 90 THEN '优秀'\n    WHEN score >= 80 THEN '良好'\n    WHEN score >= 60 THEN '及格'\n    ELSE '不及格'\n  END AS grade\nFROM scores\nORDER BY score DESC;\n```\nCASE 自上而下匹配,命中即止,ELSE 兜底;省略 ELSE 时未命中返回 NULL。把它想成 Excel 的多重 IF 就对了。\n\n## 聚合里的条件表达式\n```sql\nSELECT course_id,\n  SUM(CASE WHEN score >= 90 THEN 1 ELSE 0 END) AS 优秀人数\nFROM scores\nGROUP BY course_id\nORDER BY course_id;\n```\n这种\"条件计数\"是报表统计的万能钥匙,第 8 章实用技巧还会深化。\n\n## 易错点\n- 用 = NULL / != NULL 判断,永远得不到结果\n- COUNT(col) 不统计 NULL,COUNT(*) 统计所有行——两者数字不同很正常\n- CASE 各分支的返回值类型尽量一致(都字符串或都数字),否则类型隐式转换难预料\n\n## 动手练习\n1. 查出所有没有成绩记录提示的学生(提示:下一章学 JOIN 后可以真正实现,先记住这个需求)\n2. 用 CASE 把课程按学分分级:4 学分为\"主课\",3 学分为\"辅课\"\n3. 解释:WHERE score != NULL 为什么查不到数据?",
+          "codeExample": "SELECT student_id, course_id, score, CASE WHEN score >= 90 THEN '优秀' WHEN score >= 80 THEN '良好' WHEN score >= 60 THEN '及格' ELSE '不及格' END AS grade FROM scores ORDER BY score DESC;",
+          "codeType": "sql"
+        }
+      ],
+      "subject": "sql"
+    },
+    {
+      "stageNo": 2,
+      "stageName": "查询进阶",
+      "chapterNo": 3,
+      "title": "聚合与分组统计",
+      "description": "COUNT / SUM / AVG 让 SQL 会算账,GROUP BY / HAVING 让统计分门别类。",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "聚合函数 COUNT / SUM / AVG / MAX / MIN",
+          "summary": "一行变一个统计值:COUNT 的两种写法差异、SUM/AVG 忽略 NULL 的特性、MIN/MAX 通用性,附教学库整体统计实战。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "前面的查询都是\"一行进一行出\"。聚合函数把多行\"压\"成一个统计值,是做报表、看板、数据大屏的基础。\n\n## 五大聚合函数\n- COUNT(*):统计行数;COUNT(col):统计该列非 NULL 的行数\n- SUM(col):求和;AVG(col):平均值(只对非 NULL 的行算,自动跳过 NULL)\n- MIN(col) / MAX(col):最小/最大值,不限于数字,日期、字符串也能比\n\n## 教学库整体统计\n```sql\nSELECT\n  COUNT(*)      AS 总条数,\n  ROUND(AVG(score), 2) AS 平均分,\n  MIN(score)    AS 最低分,\n  MAX(score)    AS 最高分,\n  SUM(score)    AS 总分\nFROM scores;\n```\n35 条成绩,总分 2625,平均正好 75.0,最低 47(钱七的数据库原理),最高 99。ROUND(x, 2) 保留两位小数,避免出现 74.999999 这种浮点尾巴。\n\n## COUNT 的两个坑\n```sql\nSELECT COUNT(*) AS a, COUNT(gender) AS b FROM students;\n```\na=13;若 gender 有 NULL,b 会小于 a。想统计\"不重复的值\"用 COUNT(DISTINCT col)——比如 COUNT(DISTINCT student_id) = 10,即实际考过试的人数。\n\n## 聚合与 NULL\nSUM/AVG/MIN/MAX/COUNT 全都忽略 NULL。一个全 NULL 的列,AVG 返回 NULL 而不是 0,需要时用 COALESCE(AVG(x), 0) 兜底。\n\n## 易错点\n- SELECT name, AVG(score) FROM scores 混用了普通列和聚合列,报错或结果无意义(配合 GROUP BY,见下一课)\n- AVG 是\"行平均\"不是\"去重后平均\":重复记录会拉偏结果\n- 金额求和别用 DOUBLE 列,精度会漂移\n\n## 动手练习\n1. 统计学生总数、最早和最晚入学日期\n2. 统计 Java 基础课(course_id=1)的平均分(答案:70.5)\n3. 统计有考试成绩的学生人数(答案:10)",
+          "codeExample": "SELECT COUNT(*) AS 总条数, ROUND(AVG(score),2) AS 平均分, MIN(score) AS 最低分, MAX(score) AS 最高分 FROM scores;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "GROUP BY 分组统计",
+          "summary": "把行按维度切组再聚合:按课程/班级/性别分组统计平均分与人数,理解「组内多行变一行」的执行逻辑与列约束。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "整体平均分只有一个,但\"每门课的平均分\"要按课程切组分别算——这就是 GROUP BY:先把行按指定列分成若干组,再对每组各算一次聚合。\n\n## 执行逻辑\n```sql\nSELECT course_id,\n       COUNT(*)        AS 人数,\n       ROUND(AVG(score), 1) AS 平均分\nFROM scores\nGROUP BY course_id\nORDER BY course_id;\n```\n把 35 条成绩按 course_id 切成 4 组:\n| course_id | 人数 | 平均分 |\n|---|---|---|\n| 1 | 10 | 70.5 |\n| 2 | 10 | 72.5 |\n| 3 | 10 | 78.0 |\n| 5 | 5 | 83.0 |\n注意 course_id=4(操作系统)没有出现在结果里——GROUP BY 只输出\"有数据的组\"。\n\n## SELECT 的列约束\n出现在 SELECT 里的普通列,必须出现在 GROUP BY 里(或是聚合结果)。SELECT name, AVG(score) ... GROUP BY course_id 是错的:name 不是分组依据,一组里有 10 个不同名字,数据库不知道该显示哪个。\n\n## 多列分组\nGROUP BY class_id, gender 表示\"先按班级、再按性别\"切组,组是两列的组合。统计各班男女平均分时非常实用。\n\n## 常见分组维度\n- 按课程:每门课的平均分、及格率\n- 按班级:各班总人数、总分\n- 按日期:每天的订单量(scores 按 exam_date 分组可统计每日考试量)\n\n## 易错点\n- 聚合后再过滤要用 HAVING(下一课),WHERE 里写 AVG(score) > 70 会报错\n- 分组列上有 NULL 会单独成一组\n- 想\"每组取第一条\"不能靠 GROUP BY,要用窗口函数或子查询(第 8 章技巧)\n\n## 动手练习\n1. 统计每个班的人数(答案:一班 4、二班 3、三班 4、四班 2)\n2. 统计每种性别的人数\n3. 统计每个学生的考试门数和平均分(提示:GROUP BY student_id)",
+          "codeExample": "SELECT course_id, COUNT(*) AS 人数, ROUND(AVG(score),1) AS 平均分 FROM scores GROUP BY course_id ORDER BY course_id;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 3,
+          "title": "HAVING 过滤分组结果",
+          "summary": "分组之后再筛选用 HAVING:与 WHERE 的分工差异、执行顺序,实战筛出平均分达标/人数偏少的课程。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "WHERE 在分组前过滤\"行\",HAVING 在分组后过滤\"组\"。想筛\"平均分 ≥ 75 的课程\",条件作用于聚合结果,只能用 HAVING。\n\n## 语法与实战\n```sql\nSELECT course_id,\n       ROUND(AVG(score), 1) AS 平均分\nFROM scores\nGROUP BY course_id\nHAVING AVG(score) >= 75\nORDER BY 平均分 DESC;\n```\n结果两行:算法与数据结构(83.0)、Web 开发(78.0)。执行顺序是 FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY,所以:\n- HAVING 里可以直接用聚合函数(AVG(score))\n- WHERE 里绝不能用聚合函数(那时还没分组)\n- HAVING 里也能引用 SELECT 的别名(SQLite/MySQL 支持),但写聚合函数最稳妥\n\n## WHERE 与 HAVING 分工\n```sql\nSELECT course_id, COUNT(*) AS cnt\nFROM scores\nWHERE score >= 60        -- 先丢弃不及格的行\nGROUP BY course_id\nHAVING COUNT(*) >= 8     -- 再筛出\"及格人次 >= 8\"的课程\nORDER BY course_id;\n```\n同一个条件放错位置,语义完全不同:WHERE score >= 60 是\"只统计及格的\",HAVING AVG(score) >= 60 是\"平均分达标的组\"。\n\n## 实战组合:找出需要关注的组\n```sql\nSELECT student_id, COUNT(*) AS 考试门数\nFROM scores\nGROUP BY student_id\nHAVING COUNT(*) < 3;\n```\n选出考试门数少于 3 的学生——正是\"教学预警\"报表的雏形。\n\n## 易错点\n- 把行过滤条件写进 HAVING:结果虽然可能一样,但先聚合再过滤白白浪费计算\n- HAVING 里写普通列:该列必须也在 GROUP BY 里\n- 忘记 HAVING 只能跟在 GROUP BY 后;不分组时整张表就是一组\n\n## 动手练习\n1. 找出平均分低于 72 的课程\n2. 找出人数超过 3 人的班级(提示:GROUP BY class_id HAVING ...)\n3. 统计每个学生的最高分,只保留最高分 ≥ 90 的学生",
+          "codeExample": "SELECT course_id, ROUND(AVG(score),1) AS 平均分 FROM scores GROUP BY course_id HAVING AVG(score) >= 75 ORDER BY 平均分 DESC;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 4,
+          "title": "标量函数:字符串、日期与数值处理",
+          "summary": "逐行处理的标量函数:LENGTH/SUBSTR/REPLACE 字符串操作、日期抽取与格式化(SQLite 与 MySQL 方言对照)、ROUND/CAST 数值转换。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "聚合函数把多行变一行;标量函数则对\"每一行的每一个值\"独立加工,返回同样一行。清洗数据、拼展示文案、抽年份统计,都靠它们。\n\n## 字符串函数\n```sql\nSELECT name,\n       LENGTH(name)        AS 字符数,\n       SUBSTR(name, 1, 1)  AS 姓,\n       REPLACE(name, '同学', '') AS 短名\nFROM students\nORDER BY id;\n```\n- LENGTH 长度;SUBSTR(str, 起始位置, 长度) 截取(位置从 1 开始!)\n- REPLACE 替换、UPPER/LOWER 大小写、TRIM 去空格\n- 拼接:SQLite/PG 用 ||(name || '-班长'),MySQL 用 CONCAT(...)\n\n## 日期函数\n```sql\nSELECT name, enrolled_at,\n       STRFTIME('%Y', enrolled_at) AS 入学年\nFROM students\nORDER BY enrolled_at;\n```\nSQLite 用 STRFTIME('%Y', date) 抽年份、DATE(date, '+1 day') 做偏移;MySQL 对应 DATE_FORMAT(date, '%Y')、DATE_ADD。教学库里 2024 年入学 6 人、2025 年 6 人、2026 年 1 人(测试同学)。跨库项目通常把格式化放在应用层(Java),SQL 只做范围比较:WHERE enrolled_at >= '2025-01-01'。\n\n## 数值与类型转换\n- ROUND(x, n) 四舍五入;ABS 绝对值;CEILING/FLOOR 上下取整\n- CAST(score AS INTEGER) 强制类型转换;比较字符串数字 '9' > '10' 是坑,转数字再比\n\n## 综合示例:按入学年份统计人数\n```sql\nSELECT STRFTIME('%Y', enrolled_at) AS 入学年, COUNT(*) AS 人数\nFROM students\nGROUP BY 入学年\nORDER BY 入学年;\n```\n\n## 易错点\n- SUBSTR 起始位置从 1 开始,不是 0\n- 对索引列套函数(SUBSTR(name, 1, 1) = '张')会让索引失效,大数据量时应改写为 name LIKE '张%'\n- SQLite 的日期函数名和 MySQL 不同,写迁移脚本时先查方言手册\n\n## 动手练习\n1. 查询所有名字是 2 个字的学生(提示:LENGTH)\n2. 查询 2025-06-10 及以后考试的成绩条数\n3. 把成绩四舍五入取整后显示(提示:ROUND(score, 0))",
+          "codeExample": "SELECT name, LENGTH(name) AS 字符数, SUBSTR(name,1,1) AS 姓, STRFTIME('%Y', enrolled_at) AS 入学年 FROM students ORDER BY id LIMIT 8;",
+          "codeType": "sql"
+        }
+      ],
+      "subject": "sql"
+    },
+    {
+      "stageNo": 2,
+      "stageName": "查询进阶",
+      "chapterNo": 4,
+      "title": "多表查询:JOIN 与子查询",
+      "description": "把分散在多张表的数据拼成一张结果表:笛卡尔积、内外连接、子查询与 UNION。",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "多表查询与笛卡尔积",
+          "summary": "从单表走向多表:隐式逗号连接的笛卡尔积现象、m×n 行数膨胀的原因,以及为什么必须加连接条件。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "数据分散在多张表里,想看\"张三属于哪个班\"就要同时查 students 和 classes。多表查询最原始的形态,是 FROM 后面用逗号列出多张表:\n```sql\nSELECT * FROM students, classes;\n```\n这叫笛卡尔积:students 的每一行,与 classes 的每一行两两组合。13 × 4 = 52 行,一行没\"过滤\",行数却爆炸了。\n\n## 为什么会膨胀\n组合规则是纯数学的:A 表 m 行、B 表 n 行,A×B 就是 m×n 行,与内容无关。三张表连查若都忘了条件,13×4×35 = 1820 行,服务器瞬间被打满——这正是\"多表查询慢\"的第一大元凶。\n\n## 隐式连接的老写法\n```sql\nSELECT s.name, c.name AS class_name\nFROM students s, classes c\nWHERE s.class_id = c.id;\n```\nWHERE 里写上\"关联条件\",笛卡尔积就收敛为有意义的组合:每个学生配上他真正的班级,13 行。s、c 是表别名,长表名必备。\n\n## 显式 JOIN 是主流\n现代 SQL 推荐把关联条件从 WHERE 挪到 ON,用显式 JOIN 书写:\n```sql\nSELECT s.name, c.name AS class_name\nFROM students s\nJOIN classes c ON s.class_id = c.id;\n```\n好处:连接逻辑和过滤逻辑分离,语句自解释,也方便改成 LEFT JOIN。下一课细讲。\n\n## 易错点\n- FROM 多表忘了写关联条件,数据量一大直接拖库\n- 两表有同名列(id)时必须写表前缀:SELECT s.id, c.id,否则报\"ambiguous\"\n- 连接条件写成 s.class_id = c.name(类型不匹配),要么报错要么全表扫\n\n## 动手练习\n1. 计算 students × courses 的笛卡尔积行数(答案:65)\n2. 用老式逗号写法查询成绩对应的课程名(scores, courses 两表)\n3. 思考:scores 连接三张表(students、courses、classes)各需要什么条件?",
+          "codeExample": "SELECT COUNT(*) AS 笛卡尔积行数 FROM students, classes;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "内连接 INNER JOIN",
+          "summary": "用 INNER JOIN 精准拼接多表:ON 条件、三表连查的成绩明细、表别名规范,实战「成绩条=学生+课程+分数」完整报表。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "INNER JOIN(可省略 INNER 写作 JOIN)把两张表中\"关联条件成立\"的行拼在一起,不成立的行双方都不保留——交集语义。\n\n## 三表连查:完整成绩明细\nscores 表只有冷冰冰的 id:student_id=1、course_id=1、score=63。真正给用户看的报表要把姓名、课程名都\"翻译\"出来:\n```sql\nSELECT s.name   AS 学生,\n       c.name   AS 课程,\n       sc.score AS 成绩,\n       sc.exam_date AS 考试日期\nFROM scores sc\nJOIN students s ON sc.student_id = s.id\nJOIN courses  c ON sc.course_id  = c.id\nORDER BY sc.score DESC\nLIMIT 5;\n```\n前 5 名:王五/Web 开发 99、王五/算法 99、孙八/Java 基础 98、赵六/数据库原理 95、冯二/Web 开发 93。JOIN 可以一直串下去,每多一张表就多一个 ON。\n\n## 阅读顺序口诀\nFROM 起点表(scores)→ JOIN 谁(students)→ ON 凭什么拼(student_id = id)→ WHERE 过滤什么 → SELECT 给用户看哪些列。写多表查询时先想清楚\"以谁为中心\"——从成绩出发找学生,还是从学生出发找成绩。\n\n## JOIN 的本质\n执行时数据库先按 ON 做匹配(类似求交集),再按 WHERE 过滤。ON 里写\"恒真\"条件(1=1)就会退化成笛卡尔积,所以 ON 必须是真实的列关联。\n\n## 实战:各班平均分\n```sql\nSELECT c.name AS 班级, ROUND(AVG(sc.score),1) AS 平均分\nFROM scores sc\nJOIN students s ON sc.student_id = s.id\nJOIN classes  c ON s.class_id = c.id\nGROUP BY c.id, c.name\nORDER BY 平均分 DESC;\n```\n班级维度来自 classes、成绩来自 scores,两表隔着 students 桥接——三表聚合是业务报表的日常。\n\n## 易错点\n- 同名列不写表前缀:ambiguous column name 'id'\n- 连接条件与过滤条件都塞进 ON(内连接时结果一样,但外连接时语义大变,见下课)\n- 聚合前忘记过滤脏数据,一条 NULL 成绩可能让整组统计出错\n\n## 动手练习\n1. 查询李四(name='李四')的所有课程成绩和课程名\n2. 查询\"数据库原理\"课的所有学生成绩,按分数降序\n3. 查询每个学生考过的课程门数(三表:成绩明细去重计数)",
+          "codeExample": "SELECT s.name AS 学生, c.name AS 课程, sc.score AS 成绩 FROM scores sc JOIN students s ON sc.student_id = s.id JOIN courses c ON sc.course_id = c.id ORDER BY sc.score DESC LIMIT 5;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 3,
+          "title": "外连接 LEFT JOIN / RIGHT JOIN",
+          "summary": "保留「没匹配上」的行:LEFT/RIGHT/FULL JOIN 差异、NULL 补位语义,实战找出从未参加考试的学生与无人选修的课程。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "内连接只保留两边都匹配的行。但\"没匹配上\"的信息往往更有价值:哪些学生从没考过试?哪些课程无人问津?这就需要外连接。\n\n## LEFT JOIN 语义\n```sql\nSELECT s.id, s.name\nFROM students s\nLEFT JOIN scores sc ON sc.student_id = s.id\nWHERE sc.id IS NULL\nORDER BY s.id;\n```\n以左表(students)为准,右表匹配不上的行\"补 NULL 保留\"。WHERE sc.id IS NULL 就是经典的\"孤儿行查找\"——答案是 11 陈三、12 褚四、13 测试同学,他们没有任何成绩记录。\n\n## 三张表 LEFT JOIN:全量成绩册\n```sql\nSELECT s.name AS 学生, c.name AS 课程, sc.score AS 成绩\nFROM students s\nJOIN scores sc ON sc.student_id = s.id\nRIGHT JOIN courses c ON sc.course_id = c.id;\n```\n更常用的写法是把驱动表放左边:\n```sql\nSELECT c.name AS 课程, COUNT(sc.id) AS 参考人次\nFROM courses c\nLEFT JOIN scores sc ON sc.course_id = c.id\nGROUP BY c.id, c.name\nORDER BY c.id;\n```\nCOUNT(sc.id) 只统计非 NULL(真正考过的人次),操作系统课显示 0——用 COUNT(*) 会错报成 1,这是外连接统计的最大坑。\n\n## 各类外连接对照\n- LEFT JOIN:左表全保留,右表补 NULL(最常用)\n- RIGHT JOIN:右表全保留;把两表交换写成 LEFT JOIN 习惯更统一\n- FULL JOIN:两边都保留(SQLite 3.39+ 支持,MySQL 用 UNION 模拟)\n\n## ON 与 WHERE 的位置差异\n外连接中,右表的过滤条件放 WHERE 会把补出来的 NULL 行全部\"误杀\",退化成内连接;要保留左表全量,右表条件必须写进 ON。\n\n## 动手练习\n1. 查出没有学生选考的课程(答案:操作系统)\n2. 查出每个学生的考试门数,没有考试的显示 0(提示:LEFT JOIN + COUNT(sc.id))\n3. 对比:把\"score >= 60\"分别放进 ON 和 WHERE,观察结果差异",
+          "codeExample": "SELECT s.id, s.name FROM students s LEFT JOIN scores sc ON sc.student_id = s.id WHERE sc.id IS NULL ORDER BY s.id;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 4,
+          "title": "子查询与 UNION",
+          "summary": "查询里嵌查询:标量子查询、IN 子查询、派生表,以及 UNION/UNION ALL 合并结果集的去重规则与列对齐要求。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "子查询就是\"把一条查询的结果当另一条查询的输入\",嵌套写在一个语句里。能用 JOIN 解决的,大多也能用子查询,反之亦然——选可读性高的那种。\n\n## 标量子查询:结果是一个值\n```sql\nSELECT name, (SELECT MAX(score) FROM scores) AS 全局最高分\nFROM students\nWHERE class_id = 1;\n```\n括号里的查询只返回一行一列,可以像普通值一样出现在 SELECT、WHERE 里。\"高于平均分的成绩\"是经典题:\n```sql\nSELECT student_id, score FROM scores\nWHERE score > (SELECT AVG(score) FROM scores);\n```\n\n## IN 子查询:结果是一列\n```sql\nSELECT id, name FROM students\nWHERE id IN (SELECT student_id FROM scores WHERE score >= 95)\nORDER BY id;\n```\n查出考过 95 分以上的学生:3 王五、4 赵六、6 孙八。NOT IN 遇到子查询结果含 NULL 会出问题,稳妥写法是 NOT EXISTS(... )。\n\n## 派生表:FROM 里的子查询\n```sql\nSELECT t.course_id, t.avg_score\nFROM (SELECT course_id, AVG(score) AS avg_score\n      FROM scores GROUP BY course_id) AS t\nWHERE t.avg_score >= 75;\n```\n先在子查询里分组算好平均分,外层再过滤——等价于上一章的 HAVING,复杂报表里\"先聚合再聚合\"必须这么写。\n\n## UNION 合并结果集\n```sql\nSELECT name AS label FROM students\nUNION\nSELECT name FROM courses;\n```\nUNION 自动去重,UNION ALL 保留全部(更快,能用则用);各分支列数必须相同、类型兼容,按位置对齐(列名以第一个分支为准)。\n\n## 子查询 vs JOIN\n- 求\"存在性\"(有没有考过试):EXISTS / IN 子查询,语义直白\n- 取\"明细+关联信息\":JOIN 更顺手\n- 性能差异不大,现代优化器会互相改写;可读性优先\n\n## 动手练习\n1. 查出高于\"Java 基础课平均分\"的成绩记录\n2. 用子查询找出选了\"算法与数据结构\"的学生姓名\n3. 把学生名和课程名合并成一列展示(UNION)",
+          "codeExample": "SELECT id, name FROM students WHERE id IN (SELECT student_id FROM scores WHERE score >= 95) ORDER BY id;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 5,
+          "title": "综合实战:一张完整的成绩报表",
+          "summary": "把 JOIN、聚合、条件表达式、排序分页串成真实需求:生成含班级、考试门数、平均分、最好成绩与评级的全班成绩报表。",
+          "difficulty": 3,
+          "durationMinutes": 35,
+          "content": "学完多表查询,我们来做一张\"能直接给教务看\"的成绩报表:每个学生一行,包含班级、考试门数、平均分、最高分,以及按平均分给出的评级。需求一步步拆,SQL 一步步拼。\n\n## 第一步:确定驱动表与连接链\n以学生为中心,用 LEFT JOIN 拉成绩(没考过试的也要显示):\n```sql\nFROM students s\nJOIN classes c ON s.class_id = c.id\nLEFT JOIN scores sc ON sc.student_id = s.id\n```\n\n## 第二步:聚合与评级\n```sql\nSELECT\n  s.name                     AS 学生,\n  c.name                     AS 班级,\n  COUNT(sc.id)               AS 考试门数,\n  ROUND(AVG(sc.score), 1)    AS 平均分,\n  MAX(sc.score)              AS 最高分,\n  CASE\n    WHEN AVG(sc.score) >= 85 THEN '优秀'\n    WHEN AVG(sc.score) >= 70 THEN '良好'\n    WHEN AVG(sc.score) IS NULL THEN '未参加考试'\n    ELSE '待提升'\n  END AS 评级\nFROM students s\nJOIN classes c ON s.class_id = c.id\nLEFT JOIN scores sc ON sc.student_id = s.id\nGROUP BY s.id, s.name, c.name\nORDER BY 平均分 DESC;\n```\nCOUNT(sc.id) 天然跳过补位 NULL,陈三/褚四/测试同学显示考试门数 0;AVG 为 NULL 时进 CASE 的\"未参加考试\"分支。CASE 写在聚合之后,直接引用 AVG 的结果——这正是 2.6 课与 3.x 课知识的合体。\n\n## 第三步:结果解读\n王五四门 77/88/99/99,平均 90.8 稳居\"优秀\";李四 82.3、冯二 82.0 紧随其后;张三平均 73.8 属\"良好\";钱七虽然 Java 考了 91,但被数据库原理 47 分拉低到 70.3。末尾三行是陈三、褚四、测试同学——门数 0、评级\"未参加考试\"。这就是报表的价值:一眼看出谁掉队了。\n\n## 举一反三:课程维度的报表\n```sql\nSELECT c.name AS 课程,\n       COUNT(sc.id) AS 参考人次,\n       ROUND(AVG(sc.score), 1) AS 平均分,\n       SUM(CASE WHEN sc.score >= 60 THEN 1 ELSE 0 END) AS 及格人次\nFROM courses c\nLEFT JOIN scores sc ON sc.course_id = c.id\nGROUP BY c.id, c.name\nORDER BY 平均分 DESC;\n```\n同一套骨架换驱动表,就从\"学生报表\"变成\"课程报表\"——多表聚合的套路就这么一招:定主体、串连接、套聚合、CASE 加工。\n\n## 动手练习\n1. 在学生报表上加一列\"最好成绩的课程名\"(挑战题,提示:子查询)\n2. 做一张\"各班总分与平均分\"报表\n3. 给课程报表加 HAVING,只显示平均分 ≥ 75 的课程",
+          "codeExample": "SELECT s.name AS 学生, c.name AS 班级, COUNT(sc.id) AS 考试门数, ROUND(AVG(sc.score),1) AS 平均分, CASE WHEN AVG(sc.score) IS NULL THEN '未参加考试' WHEN AVG(sc.score) >= 85 THEN '优秀' WHEN AVG(sc.score) >= 70 THEN '良好' ELSE '待提升' END AS 评级 FROM students s JOIN classes c ON s.class_id = c.id LEFT JOIN scores sc ON sc.student_id = s.id GROUP BY s.id, s.name, c.name ORDER BY 平均分 DESC;",
+          "codeType": "sql"
+        }
+      ],
+      "subject": "sql"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "修改数据",
+      "chapterNo": 5,
+      "title": "INSERT / UPDATE / DELETE",
+      "description": "动手改数据:插入、更新、删除,以及必须刻进 DNA 的安全习惯。",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "插入数据 INSERT",
+          "summary": "INSERT 单行/多行/INSERT...SELECT 三种写法、列清单与值的对应关系、NOT NULL 与主键冲突处理,沙箱实战新增学生记录。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "查询只是\"看\",真正让数据多起来靠 INSERT。基本语法:\n```sql\nINSERT INTO <表名> (<列1>, <列2>, ...)\nVALUES (<值1>, <值2>, ...);\n```\n\n## 写清列清单\n```sql\nINSERT INTO students (name, class_id, gender, enrolled_at)\nVALUES ('新同学', 1, 'F', '2026-03-01');\n```\n强烈建议永远显式写列清单:不写的话值必须按表结构顺序一一对应,表加一列你的旧 SQL 就全错位。id 是自增主键,不写它,数据库自动分配。\n\n## 一次插多行\n```sql\nINSERT INTO students (name, class_id, gender, enrolled_at)\nVALUES ('甲同学', 1, 'M', '2026-03-01'),\n       ('乙同学', 2, 'F', '2026-03-01');\n```\n一次语句插入多行比循环单插快得多,批量导入数据的标配。\n\n## INSERT ... SELECT:从查询结果插入\n```sql\nINSERT INTO archive_scores (student_id, course_id, score)\nSELECT student_id, course_id, score FROM scores WHERE exam_date < '2025-07-01';\n```\n把\"归档表\"当作历史备份,是数据仓库和分表场景的常见手法(沙箱没有 archive 表,理解语法即可)。\n\n## 约束冲突怎么办\n- 主键/唯一约束冲突:报错拒绝插入;想\"存在则更新\"用 INSERT ... ON CONFLICT(UPSERT,SQLite/PG 语法)\n- NOT NULL 列没给值:报错;有 DEFAULT 时用 DEFAULT 关键字取默认值\n- 外键不存在:插入 class_id=99 会失败,除非关闭外键检查\n\n## 沙箱实战\n本平台沙箱允许 INSERT,可以直接跑上面的\"新同学\"语句,然后 SELECT 确认多了一行;改乱了点「重置数据」即可还原。注意:沙箱一次只执行一条语句。\n\n## 易错点\n- 字符串值忘了单引号:VALUES (新同学) 会被当成列名\n- 列数和值数对不上:column count doesn't match value count\n- 批量插入忘了显式列清单,新版本表结构加列后旧脚本集体翻车\n\n## 动手练习\n1. 向 courses 插入一门新课'测试课程',学分 2\n2. 用 SELECT 确认插入成功(查 COUNT)\n3. 试着插入 class_id=99 的学生,观察外键约束的报错",
+          "codeExample": "INSERT INTO students (name, class_id, gender, enrolled_at) VALUES ('新同学', 1, 'F', '2026-03-01');",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "更新数据 UPDATE",
+          "summary": "UPDATE ... SET ... WHERE 精准改数据:先查后改的安全流程、多列更新、无 WHERE 全表覆盖的灾难,以及批量加减分实战。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "UPDATE 修改已存在的行:\n```sql\nUPDATE <表名> SET <列1>=<值1>, <列2>=<值2> WHERE <条件>;\n```\n\n## 安全流程:先查后改\n```sql\n-- 第一步:先用 SELECT 看清要改哪些行\nSELECT id, student_id, score FROM scores WHERE score < 60;\n\n-- 第二步:确认无误再改\nUPDATE scores SET score = score + 1\nWHERE course_id = 1 AND score < 60;\n```\n这条 UPDATE 会给 Java 基础课不及格的成绩加 1 分(50→51、57→58,共 2 行受影响)。生产环境的铁律:**写 UPDATE/DELETE 前先用同条件的 SELECT 预演**,受影响行数与预期不符立即回滚。\n\n## 多列更新\n```sql\nUPDATE students SET class_id = 2, gender = 'M' WHERE id = 13;\n```\n逗号分隔多组\"列=值\"。SQLite 还支持列间运算:SET score = score * 0.9。\n\n## 没有 WHERE 的 UPDATE\nUPDATE students SET gender = 'F';会让全表 13 行瞬间全部变 F——这是数据库事故榜首。生产库通常要求:UPDATE 必须带 WHERE,且先开事务。\n\n## 与子查询结合\n```sql\nUPDATE scores SET score = 60\nWHERE score < 60\n  AND student_id IN (SELECT id FROM students WHERE class_id = 1);\n```\n把一班学生的不及格成绩拉到 60——\"捞人\"操作的原型,当然现实中要走平时分流程:-)\n\n## 易错点\n- WHERE 条件写错行:UPDATE 影响行数一定要核对(执行结果里会显示)\n- SET 写成 SET score = '90'(字符串),SQLite 宽容但 MySQL 会做隐式转换,精度类列别这么干\n- 忘记 WHERE → 全表更新,靠事务/备份救命\n\n## 动手练习\n1. 把测试同学(class_id=3, name='测试同学')转到四班\n2. 给\"数据库原理\"课的所有成绩加 2 分(封顶 100 自己想)\n3. 把 2025 年入学的学生 gender 批量改为 'M' 前,先 SELECT 预演看影响多少行",
+          "codeExample": "UPDATE scores SET score = score + 1 WHERE course_id = 1 AND score < 60;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 3,
+          "title": "删除数据 DELETE 与 TRUNCATE",
+          "summary": "DELETE 带 WHERE 精准删除、TRUNCATE 清空整表的差异(速度/日志/自增)、软删除设计思想,沙箱实战删除低分记录。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "DELETE 从表中移除行:\n```sql\nDELETE FROM <表名> WHERE <条件>;\n```\n\n## 精准删除\n```sql\nDELETE FROM scores WHERE score < 50 AND course_id = 2;\n```\n删除数据库原理课低于 50 分的记录——教学库里只有一条(钱七 47 分)。同样遵守\"先 SELECT 后 DELETE\"的安全流程,执行后核对 affected rows。\n\n## 没有 WHERE 的 DELETE\nDELETE FROM scores;删除全表 35 行(表结构还在,自增计数不清零)。比 UPDATE 无 WHERE 更常见也更惨烈。\n\n## DELETE vs TRUNCATE\n| | DELETE | TRUNCATE |\n|---|---|---|\n| 删除范围 | 带 WHERE 删指定行 / 不带删全表 | 清空整表 |\n| 能否回滚 | 可以(事务内) | 多数库不可回滚 |\n| 自增计数 | 继续累加 | 归零 |\n| 速度 | 逐行删,记日志,慢 | 直接重置数据页,快 |\nMySQL 两者都有;SQLite 没有 TRUNCATE,清空用 DELETE FROM 表(或直接重置沙箱)。\n\n## 软删除:生产环境的主流做法\n物理删除会让审计断链、外键引用悬空。电商/教务系统通常加一列 deleted_at 或 is_deleted:\n```sql\nUPDATE students SET is_deleted = 1 WHERE id = 13;\n```\n查询时统一加 WHERE is_deleted = 0。数据可恢复、可追溯,代价是所有查询都要记得过滤——后端框架(如 MyBatis/JPA)常有全局软删除插件配合。\n\n## 外键牵连\n删除被引用的行(比如删 classes 里还有学生的班)会被外键拒绝;若定义了 ON DELETE CASCADE,删班级会连带删学生——威力大,建表时要三思。\n\n## 动手练习\n1. 删除 2026-01-01 入学的'测试同学'的全部成绩\n2. 对比:先 SELECT 同条件看有几行,再 DELETE,核对影响行数\n3. 用软删除思路设计一张订单表的删除方案",
+          "codeExample": "DELETE FROM scores WHERE score < 50 AND course_id = 2;",
+          "codeType": "sql"
+        }
+      ],
+      "subject": "sql"
+    },
+    {
+      "stageNo": 4,
+      "stageName": "事务与性能",
+      "chapterNo": 6,
+      "title": "事务与并发",
+      "description": "把多条语句捆成原子操作:ACID、脏读/不可重复读/幻读、隔离级别。",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "事务基础与 ACID",
+          "summary": "把多条语句捆成原子操作:BEGIN/COMMIT/ROLLBACK、转账案例、ACID 四大特性,以及自动提交与 Java JDBC 事务的衔接。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "\"转账 100 元\"其实是两步:A 账户 -100、B 账户 +100。如果第一步成功、第二步失败,钱就凭空消失了。事务(Transaction)就是把多条语句打包成\"要么全做、要么全不做\"的原子单元。\n\n## 事务控制\n```sql\nBEGIN;\nUPDATE accounts SET balance = balance - 100 WHERE id = 1;\nUPDATE accounts SET balance = balance + 100 WHERE id = 2;\nCOMMIT;   -- 两步都成功,一次性生效\n```\n中途出问题执行 ROLLBACK,数据库回到 BEGIN 之前的状态,仿佛什么都没发生。\n\n## ACID 四大特性\n- Atomicity 原子性:全成或全败,不允许\"做了一半\"\n- Consistency 一致性:事务前后,数据满足所有约束(总额不变)\n- Isolation 隔离性:并发事务互不干扰(细节见下一课)\n- Durability 持久性:COMMIT 之后即使断电,数据也不丢(靠日志实现)\n\n## 自动提交\n多数数据库和驱动默认\"自动提交\":每条独立语句自带 BEGIN+COMMIT。要手动控制,先关闭自动提交或显式 BEGIN。沙箱里每条语句就是独立事务,所以 INSERT 之后立刻可见,也正因如此,沙箱的\"重置数据\"能一键还原。\n\n## 与 Java 的衔接(重点)\n本项目 Java 阶段的 JDBC 章节会亲手写:\n```java\nconn.setAutoCommit(false);\ntry {\n    stmt.executeUpdate(\"UPDATE ...\");\n    stmt.executeUpdate(\"UPDATE ...\");\n    conn.commit();\n} catch (Exception e) {\n    conn.rollback();\n}\n```\nSpring 的 @Transactional 注解就是对这套逻辑的封装——回滚规则、传播行为,底层全是这里学的 BEGIN/COMMIT。SQL 学得越扎实,JDBC 那章越轻松。\n\n## 易错点\n- 忘记 COMMIT 就断开连接,事务被自动回滚,改动\"神秘消失\"\n- 事务里塞入远程调用(HTTP 请求),长事务拖垮数据库连接池\n- 大事务(一次更新百万行)持锁太久,阻塞其他请求——应分批提交\n\n## 动手练习\n1. 用一句话解释 ACID 各自防住什么事故\n2. 为什么\"转账\"必须用事务,而\"查询余额\"不需要?\n3. 预习:REPEATABLE READ 和 READ COMMITTED 有什么区别?下一课揭晓",
+          "codeExample": "SELECT student_id, course_id, score FROM scores WHERE score < 60 ORDER BY score;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "隔离级别与并发异常",
+          "summary": "并发事务的三大读异常(脏读/不可重复读/幻读)与四种隔离级别对照,MySQL 与 SQLite 的默认策略,乐观锁实战思路。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "两个事务同时改同一行数据,不加控制就会互相踩脚。隔离级别就是数据库提供给你的\"并发安全等级表\"。\n\n## 三种并发读异常\n- 脏读:事务 A 读到事务 B 还没 COMMIT 的数据;B 一旦回滚,A 读到的就是\"从未存在过\"的值\n- 不可重复读:A 内两次读同一行,B 期间 COMMIT 了修改,A 前后读到不同值(重点在\"改\")\n- 幻读:A 两次按同一条件查,B 期间 INSERT 了新行,A 第二次多出\"幻影\"行(重点在\"增删\")\n\n## 四种隔离级别(由松到紧)\n| 级别 | 脏读 | 不可重复读 | 幻读 |\n|---|---|---|---|\n| READ UNCOMMITTED | 可能 | 可能 | 可能 |\n| READ COMMITTED | 避免 | 可能 | 可能 |\n| REPEATABLE READ | 避免 | 避免 | 可能 |\n| SERIALIZABLE | 避免 | 避免 | 避免 |\n级别越高越安全、并发性能越低。MySQL 默认 REPEATABLE READ;PostgreSQL/Oracle/SQLite 常见 READ COMMITTED(严格串行)。设置方法:SET TRANSACTION ISOLATION LEVEL READ COMMITTED(沙箱只读演示,不实际执行)。\n\n## 业务侧的补刀:乐观锁\n即使数据库隔离级别足够,\"读-改-写\"的业务竞态仍要应用层解决。经典方案是加版本号:\n```sql\nUPDATE scores SET score = 90, version = version + 1\nWHERE id = 31 AND version = 3;\n```\n影响行数为 0 说明中途被人改过,重试或报冲突即可。本项目 Spring Boot 后端的 @Version(JPA)就是这个思路的自动化版本。\n\n## 长事务的危害\n隔离级别越高,锁的范围和时间越大。实践口诀:事务尽量短——只包住必须原子的那几条语句,网络调用、文件 IO、复杂计算都挪到事务外。\n\n## 动手练习\n1. \"读到别人未提交的数据\"属于哪种异常?哪个级别起能避免?\n2. 为什么 MySQL 默认 REPEATABLE READ 而不是最安全的 SERIALIZABLE?\n3. 给 students 表设计一个乐观锁版本号方案",
+          "codeExample": "SELECT id, student_id, course_id, score FROM scores WHERE id = 31;",
+          "codeType": "sql"
+        }
+      ],
+      "subject": "sql"
+    },
+    {
+      "stageNo": 4,
+      "stageName": "事务与性能",
+      "chapterNo": 7,
+      "title": "索引与查询优化",
+      "description": "让查询飞起来:索引原理、EXPLAIN 查询计划、慢查询优化思路。",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "索引原理与使用",
+          "summary": "索引就是书的目录:B+树原理、主键/外键/查询条件列的建索引策略、覆盖索引、写放大代价,EXPLAIN 查看索引是否生效。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "没有索引时,WHERE student_id = 3 要全表扫描 35 行;数据到 3500 万行时,全表扫描就是灾难。索引(Index)是数据库额外维护的\"排好序的查找结构\",主流实现是 B+ 树——类似书的目录:先翻目录定位页码,再直接翻到那一页。\n\n## 什么时候建索引\n- WHERE 高频出现的列:WHERE student_id = ?\n- JOIN 的连接条件:ON sc.student_id = s.id(外键几乎必建)\n- ORDER BY / GROUP BY 的列:排好序的索引能免去排序\n- 选择性高的列(不同值多)效果好;性别这种只有 M/F 的列,建了也白建\n\n## 创建与查看\n```sql\nCREATE INDEX idx_scores_student ON scores(student_id);\n-- 复合索引:列顺序 = 最左前缀\nCREATE INDEX idx_scores_stu_course ON scores(student_id, course_id);\n```\n沙箱不允许 CREATE(保护教学数据),把语法记住,项目里通过 DDL 脚本执行。用 EXPLAIN 查看是否生效:\n```sql\nEXPLAIN QUERY PLAN SELECT * FROM scores WHERE student_id = 3;\n```\n输出里出现 USING INDEX 说明走了索引;出现 SCAN scores(全表扫描)就要警惕。\n\n## 索引的代价\n- 写放大:INSERT/UPDATE/DELETE 都要同步维护索引,写多读少的表别乱建\n- 占空间:索引本身也是文件,大表的索引可能比数据还大\n- 不是越多越好:每个索引都拖慢写入,优化器选择变多还可能出错\n\n## 覆盖索引\n查询需要的列全在索引里,连回表都省了:\n```sql\nCREATE INDEX idx_cover ON scores(student_id, score);\nSELECT student_id, score FROM scores WHERE student_id = 3;\n```\n极致性能场景的技巧,理解概念即可。\n\n## 易错点\n- 对索引列套函数/运算:WHERE score + 1 > 80 无法走 score 索引,改写成 score > 79\n- 复合索引 (a, b) 支持 WHERE a=? 和 WHERE a=? AND b=?,但不支持 WHERE b=? 一个(最左前缀)\n- LIKE '%张%' 开头通配,索引失效\n\n## 动手练习\n1. 为 scores.course_id 设计一条 CREATE INDEX 语句并解释用途\n2. 用 EXPLAIN QUERY PLAN 对比有无 student_id 条件的执行计划\n3. 一个只有\"是/否\"两值的列,为什么不适合单独建索引?",
+          "codeExample": "EXPLAIN QUERY PLAN SELECT * FROM scores WHERE student_id = 3;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "EXPLAIN 查询计划与优化",
+          "summary": "读懂执行计划:SCAN 与 SEARCH 的区别、连接顺序、排序成本,结合真实慢查询做四个优化改写(列裁剪/函数剥离/LIMIT/索引)。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "\"感觉这条 SQL 很慢\"不能靠猜——EXPLAIN 会把数据库打算怎么执行的\"计划\"摊开给你看。本平台沙箱基于 SQLite,看 EXPLAIN QUERY PLAN;MySQL 直接 EXPLAIN。\n\n## 读懂计划输出\n```sql\nEXPLAIN QUERY PLAN\nSELECT s.name, sc.score\nFROM students s\nJOIN scores sc ON sc.student_id = s.id\nWHERE s.class_id = 2;\n```\n输出类似:SCAN students → SEARCH scores USING INDEX(若有 student_id 索引)。关键词:\n- SCAN 表:全表扫描,行数大的表出现 SCAN 就是慢查询第一嫌疑\n- SEARCH ... USING INDEX:走索引定位,理想状态\n- USE TEMP B-TREE FOR ORDER BY:排序没走索引,额外开销\n\n## 四个立竿见影的优化\n1. 列裁剪:SELECT * 改成只取需要的列——减少 IO 和网络传输\n2. 函数剥离:WHERE 条件列上不套函数,把函数挪到等号右边\n3. 提前 LIMIT:先取小集合再深加工;深分页改游标(WHERE id > ? ORDER BY id LIMIT 10)\n4. 补索引:对 SCAN 的高频大表,按 WHERE/JOIN/ORDER BY 列补复合索引\n\n## 实例:课程成绩聚合优化\n```sql\nEXPLAIN QUERY PLAN\nSELECT c.name, COUNT(*), AVG(sc.score)\nFROM courses c\nJOIN scores sc ON sc.course_id = c.id\nGROUP BY c.id;\n```\n为 scores(course_id) 建索引后,GROUP BY 可直接按索引序读取,省掉临时排序——5 门课感觉不出差别,500 万行时就是 10 秒与 0.1 秒的差距。\n\n## 优化的正确姿势\n- 先度量再优化:EXPLAIN + 慢查询日志定位,不凭感觉加索引\n- 数据库优化的优先级通常是:业务裁剪(少查)> 索引 > SQL 改写 > 升硬件\n- 过早优化是万恶之源:小表全扫可能比走索引还快,让优化器自己选\n\n## 动手练习\n1. EXPLAIN 对比 SELECT * 与 SELECT id 的执行计划差异\n2. 把 WHERE STRFTIME('%Y', enrolled_at) = '2025' 改写为索引友好的范围查询\n3. 思考:ORDER BY score DESC LIMIT 5 需要什么索引才能免排序?",
+          "codeExample": "EXPLAIN QUERY PLAN SELECT s.name, sc.score FROM students s JOIN scores sc ON sc.student_id = s.id WHERE s.class_id = 2;",
+          "codeType": "sql"
+        }
+      ],
+      "subject": "sql"
+    },
+    {
+      "stageNo": 5,
+      "stageName": "数据库管理",
+      "chapterNo": 8,
+      "title": "数据库管理实务",
+      "description": "上线前的必修课:用户与权限、日常实用 SQL,以及整套 SQL 学习路径总结。",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "用户、权限与安全管理",
+          "summary": "数据库账号体系与最小权限原则、GRANT/REVOKE 授权实务、SQL 注入原理与参数化防御(衔接项目后端实践)、敏感数据存储规范。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "生产数据库不是\"一个 root 走天下\"。合理的账号体系和权限收敛,是数据安全的第一道防线。\n\n## 账号与权限\n```sql\n-- MySQL 示例(沙箱只读,理解即可)\nCREATE USER 'app'@'%' IDENTIFIED BY '***';\nGRANT SELECT, INSERT, UPDATE ON school.scores TO 'app'@'%';\nREVOKE DROP ON school.* FROM 'app'@'%';\n```\n最小权限原则:应用账号只给业务必需的增删改查,DDL、账号管理只留给 DBA。这样即使应用被攻破,攻击者也删不了库。本项目后端连接 SQLite 用的是文件权限控制,但原理相通:服务账号 ≠ 超级用户。\n\n## SQL 注入:最经典的攻击\n假设代码直接拼字符串:\n```java\nString sql = \"SELECT * FROM users WHERE name = '\" + input + \"'\";\n```\n攻击者输入 ' OR '1'='1,拼出的语句变成永真条件,拖走全表;更狠的用 '; DROP TABLE ... 收尾。防御只有一招——参数化查询:\n```java\nPreparedStatement ps = conn.prepareStatement(\"SELECT * FROM students WHERE name = ?\");\nps.setString(1, name);\n```\n占位符 ? 让用户输入永远只是\"值\"而不是\"代码\"。本项目后端的 JPA/MyBatis 都默认参数绑定,前端再加校验,双保险。\n\n## 在 SQL 里自查注入风险\n```sql\nSELECT id, name FROM students WHERE name = '张三';\n```\n注意 '张三' 的单引号是数据边界;任何\"把输入拼进引号里\"的代码都是定时炸弹。ORM 也不是免死金牌:拼接式排序字段、表名、${} 插值仍需白名单校验。\n\n## 敏感数据存储\n- 密码永远不存明文:bcrypt/scrypt 加盐哈希(项目用户表就是这么做的)\n- 手机号/身份证按需加密或脱敏,日志里不要裸打\n- 备份文件同样要加密和限权——泄露的备份 = 全库泄露\n\n## 动手练习\n1. 解释 SQL 注入为什么参数化能防住\n2. 应用账号为什么不该有 DROP 权限?\n3. 检查你写过的代码:有没有把前端输入直接拼进 SQL 的地方?",
+          "codeExample": "SELECT id, name FROM students WHERE name = '张三';",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "实用 SQL 技巧",
+          "summary": "报表开发的六件利器:条件聚合、EXISTS、Top-N per group、去重保留最新、日期分桶、行转列思路,全部配教学库案例。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "最后送你一套\"入职即用\"的 SQL 技巧,全部基于教学库可跑。\n\n## 1. 条件聚合:一行出全报表\n```sql\nSELECT course_id,\n       COUNT(*) AS 总人次,\n       SUM(CASE WHEN score >= 60 THEN 1 ELSE 0 END) AS 及格人次,\n       SUM(CASE WHEN score >= 90 THEN 1 ELSE 0 END) AS 优秀人次\nFROM scores GROUP BY course_id ORDER BY course_id;\n```\nJava 基础 8/2、数据库原理 8/1、Web 开发 8/3、算法与数据结构 5/1(及格/优秀)。免去查三次再拼接。\n\n## 2. EXISTS:存在性判断\n```sql\nSELECT s.name FROM students s\nWHERE EXISTS (SELECT 1 FROM scores sc WHERE sc.student_id = s.id);\n```\n语义\"至少有一条关联记录\",比 IN 更好读、大表更稳。\n\n## 3. Top-N per group:每组前几名\n\"每个学生的最高分\"用聚合即可;但\"每个学生分数最高的那门课\"(带课程名)需要关联子查询:\n```sql\nSELECT s.name, c.name AS 课程, sc.score\nFROM scores sc\nJOIN students s ON sc.student_id = s.id\nJOIN courses c ON sc.course_id = c.id\nWHERE sc.score = (SELECT MAX(score) FROM scores WHERE student_id = sc.student_id)\nORDER BY s.id;\n```\n\n## 4. 去重保留最新\n同 id 多条记录取最新 exam_date,套路是 GROUP BY + MAX 或窗口函数 ROW_NUMBER()(SQLite 3.25+ 支持窗口函数)。\n\n## 5. 日期分桶\n```sql\nSELECT STRFTIME('%Y-%m', exam_date) AS 考试月份, COUNT(*)\nFROM scores GROUP BY 考试月份 ORDER BY 考试月份;\n```\n2025-06 有 30 场考试、2025-07 有 5 场——月报统计的原型。\n\n## 6. 行转列思路\n把\"每人每课一行\"转成\"每人一行、课程做列\",标准 SQL 用条件聚合逐列写 MAX(CASE WHEN course_id=1 THEN score END) AS java基础;行数固定的报表很实用。\n\n## 易错点\n- 条件聚合忘了 ELSE 0,CASE 返回 NULL,SUM 结果偏小\n- EXISTS 里写 SELECT * 没必要,习惯写 SELECT 1\n- 窗口函数必须跑在支持的版本上,SQLite 老版本会报语法错\n\n## 动手练习\n1. 用条件聚合统计各班男生/女生人数\n2. 用 EXISTS 查出一门课都没考过的学生\n3. 统计每个月的考试人次(按 exam_date 分桶)",
+          "codeExample": "SELECT course_id, COUNT(*) AS 总人次, SUM(CASE WHEN score >= 60 THEN 1 ELSE 0 END) AS 及格人次, SUM(CASE WHEN score >= 90 THEN 1 ELSE 0 END) AS 优秀人次 FROM scores GROUP BY course_id ORDER BY course_id;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 3,
+          "title": "SQL 学习路径与期末总结",
+          "summary": "复盘八章知识地图:从单表查询到多表聚合事务优化的完整路径,衔接 Java JDBC/JPA 后续课程,附综合自测题与持续精进建议。",
+          "difficulty": 1,
+          "durationMinutes": 25,
+          "content": "恭喜走到终点!我们用一套 4 表 57 行的教学库,完整走过了 SQL 的主干道。来把地图挂出来复盘一遍。\n\n## 八章知识地图\n1. 基础概念:关系模型、表/主键/外键、数据类型——知道数据\"怎么组织\"\n2. 单表查询:SELECT / WHERE / 投影 / ORDER BY / LIMIT——占日常 60% 的活\n3. 聚合统计:COUNT/AVG/GROUP BY/HAVING + 标量函数——报表的核心\n4. 多表查询:笛卡尔积、INNER/LEFT JOIN、子查询、UNION——占另外 30%\n5. 数据修改:INSERT/UPDATE/DELETE + 软删除——破坏力大,安全流程记心间\n6. 事务并发:ACID、隔离级别、乐观锁——正确性的底线\n7. 索引优化:索引原理、EXPLAIN、四个改写技巧——性能的杠杆\n8. 管理实务:权限、SQL 注入、实用技巧——从会写到写得好\n\n## 与本项目后续课程的衔接\n你手上的教学库就是 Java 课程第 18-23 章(JDBC)要用的同款四表:PreparedStatement 参数化(对应 8.1 的注入防御)、事务 API(对应 6.1 的 BEGIN/COMMIT)、ORM 映射(把 JOIN 结果映射成对象)。SQL 这里的每一分投入,到 JDBC 章节都会加倍返还。\n\n## 期末自测(答案都在课文中)\n1. 查询\"二班女生的所有成绩明细\"(学生+课程+分数)\n2. 找出\"至少两门课不及格\"的学生名单\n3. 生成课程报表:参考人次、平均分、最高分、不及格人次\n4. 解释:LEFT JOIN 后条件放 WHERE 和放 ON 有何区别?\n5. 一条 UPDATE 怎么写才安全?说出完整流程\n\n## 持续精进三步走\n- 每天一个真实查询:把工作里的\"取数需求\"翻译成 SQL,贴进沙箱练手\n- 读慢查询日志:遇到线上慢 SQL,用 EXPLAIN 自己做一次诊断\n- 进阶方向:窗口函数 → 执行计划调优 → 分库分表 → 数据库选型(什么时候上 NoSQL)\n\nSQL 是典型的\"入门一周、精通一生\"的技能。别停,下一条 SELECT 见!",
+          "codeExample": "SELECT c.name AS 课程, COUNT(sc.id) AS 参考人次, ROUND(AVG(sc.score),1) AS 平均分, MAX(sc.score) AS 最高分, SUM(CASE WHEN sc.score < 60 THEN 1 ELSE 0 END) AS 不及格人次 FROM courses c LEFT JOIN scores sc ON sc.course_id = c.id GROUP BY c.id, c.name ORDER BY 平均分 DESC;",
+          "codeType": "sql"
+        }
+      ],
+      "subject": "sql"
     }
   ]
 }

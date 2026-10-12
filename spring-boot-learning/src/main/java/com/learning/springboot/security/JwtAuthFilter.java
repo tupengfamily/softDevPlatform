@@ -53,6 +53,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         return path.equals("/api/auth/login")
             || path.equals("/api/auth/register")
             || path.startsWith("/api/hello")
+            || path.startsWith("/api/sandbox")   // 在线代码/SQL 沙箱: 纯教学功能(独立教学库),游客可直接试练
             || path.equals("/api/public/health");
     }
 

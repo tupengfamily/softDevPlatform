@@ -22,6 +22,12 @@ spring:
   application:
     name: spring-boot-learning
 
+  # 文件上传(头像等): 单文件最大 2MB
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 5MB
+
   # ============== 数据源(SQLite 文件) ==============
   datasource:
     url: jdbc:sqlite:${user.dir}/data/admin.db

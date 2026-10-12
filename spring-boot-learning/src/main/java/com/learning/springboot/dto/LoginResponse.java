@@ -14,6 +14,11 @@ public class LoginResponse {
     private Long userId;
     private String username;
     private String email;
+    private String nickname;
+    private String avatar;
+    private String signature;
+    private Integer age;
+    private String address;
     private Integer status;
     private Set<String> roles;
     private Set<String> permissions;
@@ -34,6 +39,21 @@ public class LoginResponse {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getNickname() { return nickname; }
+    public void setNickname(String nickname) { this.nickname = nickname; }
+
+    public String getAvatar() { return avatar; }
+    public void setAvatar(String avatar) { this.avatar = avatar; }
+
+    public String getSignature() { return signature; }
+    public void setSignature(String signature) { this.signature = signature; }
+
+    public Integer getAge() { return age; }
+    public void setAge(Integer age) { this.age = age; }
+
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
 
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
