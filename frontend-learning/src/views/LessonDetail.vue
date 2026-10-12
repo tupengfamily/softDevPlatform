@@ -5,7 +5,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCurriculum, getLesson, markLearned, unmarkLearned } from '../api/learning'
-import { runJava, runPython } from '../api/sandbox'
+import { runJava, runPython, runNode } from '../api/sandbox'
 import { lessonCrumbTitle } from '../store/crumb'
 import { useUserStore } from '../store/user'
 import { renderMarkdown } from '../utils/markdown'
@@ -72,6 +72,8 @@ const loadLesson = async () => {
     if (lesson.value.codeType === 'sql') sqlCode.value = lesson.value.codeExample || ''
     // Python 类型示例灌入 Python 编辑器
     if (lesson.value.codeType === 'python') pyCode.value = lesson.value.codeExample || ''
+    // Node.js 类型示例灌入 Node 编辑器
+    if (lesson.value.codeType === 'nodejs') nodeCode.value = lesson.value.codeExample || ''
     // 切换课时后内容区回到顶部(平滑滚动,不整页闪动)
     if (!firstLoad) centerRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (e) {} finally {
@@ -207,6 +209,36 @@ const resetPythonCode = () => {
   pyResult.value = null
 }
 
+// ============== Node.js 沙箱 ==============
+const nodeCode = ref("console.log('Hello, Node.js!')")
+const nodeMarkers = ref([])
+const nodeResult = ref(null)
+const nodeRunning = ref(false)
+
+const runNodeCode = async () => {
+  if (nodeRunning.value) return
+  nodeRunning.value = true
+  nodeResult.value = null
+  nodeMarkers.value = []
+  try {
+    const res = await runNode(nodeCode.value)
+    nodeResult.value = res.data
+    if (nodeResult.value.status === 'COMPILE_ERROR') {
+      nodeMarkers.value = (nodeResult.value.errors || []).map(e => ({
+        line: e.line, column: e.column, message: e.message, severity: 'error'
+      }))
+    }
+  } catch (e) { /* 已统一弹错 */ } finally {
+    nodeRunning.value = false
+  }
+}
+
+const resetNodeCode = () => {
+  nodeCode.value = lesson.value?.codeExample || nodeCode.value
+  nodeMarkers.value = []
+  nodeResult.value = null
+}
+
 watch(() => route.params.id, () => { if (route.name === 'LessonDetail') loadLesson() })
 
 onMounted(async () => {
@@ -316,6 +348,28 @@ onMounted(async () => {
             </div>
             <pre v-if="pyResult.stdout" class="stdout">{{ pyResult.stdout }}</pre>
             <pre v-if="pyResult.stderr" class="stderr">{{ pyResult.stderr }}</pre>
+          </div>
+        </div>
+
+        <!-- Node.js 练习卡: nodejs 类型示例的课时展示 -->
+        <div v-if="lesson?.codeType === 'nodejs'" class="practice">
+          <div class="phead">
+            <h3>动手做 · Node.js 沙箱 <small>单文件代码 · 5 秒超时</small></h3>
+            <div class="meta-mini">{{ nodeResult ? `${nodeResult.elapsedMs}ms` : '尚未运行' }}</div>
+          </div>
+          <div class="editor-area">
+            <CodeEditor v-model="nodeCode" language="javascript" :markers="nodeMarkers" @run="runNodeCode" @reset="resetNodeCode" />
+          </div>
+          <div v-if="nodeResult" class="result-area" :class="nodeResult.status.toLowerCase()">
+            <div class="r-head">
+              <span v-if="nodeResult.status === 'OK'" class="ok"><el-icon><CircleCheckFilled /></el-icon> 运行成功 · {{ nodeResult.exitCode }} · {{ nodeResult.elapsedMs }}ms</span>
+              <span v-else-if="nodeResult.status === 'COMPILE_ERROR'" class="ce"><el-icon><WarningFilled /></el-icon> 语法错误 · {{ nodeResult.errors?.length || 0 }} 处</span>
+              <span v-else-if="nodeResult.status === 'RUNTIME_ERROR'" class="re"><el-icon><WarningFilled /></el-icon> 运行时异常</span>
+              <span v-else-if="nodeResult.status === 'TIMEOUT'" class="to"><el-icon><Timer /></el-icon> 执行超时(&gt;5s)</span>
+              <span v-else>{{ nodeResult.status }}</span>
+            </div>
+            <pre v-if="nodeResult.stdout" class="stdout">{{ nodeResult.stdout }}</pre>
+            <pre v-if="nodeResult.stderr" class="stderr">{{ nodeResult.stderr }}</pre>
           </div>
         </div>
 

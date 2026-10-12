@@ -22,6 +22,15 @@ renderer.link = (...args) => {
   return `<a href="${tok.href}"${title} target="_blank" rel="noopener noreferrer">${tok.text}</a>`
 }
 
+/** 纯消毒(富文本 HTML 白名单过滤,防 XSS;任何 v-html 前都应先过这里) */
+export function sanitizeHtml(html) {
+  if (!html) return ''
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    ADD_ATTR: ['target', 'rel']
+  })
+}
+
 /** 渲染 Markdown 文本为安全 HTML */
 export function renderMarkdown(text) {
   if (!text) return ''
@@ -32,8 +41,9 @@ export function renderMarkdown(text) {
   })
 }
 
-// 统一渲染入口: richtext 直接返回(Quill HTML,发布端已过滤), markdown 走 marked
+// 统一渲染入口: 两种格式均经 DOMPurify 消毒后才可安全配合 v-html
+// (富文本虽发布端已有服务端消毒,渲染端仍兜底一道 — 防御纵深)
 export function renderContent(content, contentType) {
-  if (contentType === 'richtext') return content || ''
+  if (contentType === 'richtext') return sanitizeHtml(content)
   return renderMarkdown(content)
 }

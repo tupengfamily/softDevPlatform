@@ -32,13 +32,15 @@ public class ForumController {
 
     @Autowired private ForumService forumService;
 
-    /** 帖子分页列表 */
+    /** 帖子分页列表(sort: updated/created/hot/likes/favorites/replies/views) */
     @GetMapping("/posts")
     public ResponseEntity<?> posts(@RequestParam(required = false) Long subjectId,
                                    @RequestParam(required = false) String keyword,
+                                   @RequestParam(defaultValue = "updated") String sort,
                                    @RequestParam(defaultValue = "1") int page,
-                                   @RequestParam(defaultValue = "10") int size) {
-        PageResult<ForumVO.PostItemVO> data = forumService.pagePosts(subjectId, keyword, page, size);
+                                   @RequestParam(defaultValue = "10") int size,
+                                   @CurrentUser Long userId) {
+        PageResult<ForumVO.PostItemVO> data = forumService.pagePosts(subjectId, keyword, sort, page, size, userId);
         return Result.ok(data);
     }
 
@@ -105,6 +107,26 @@ public class ForumController {
                                          @CurrentUser("roles") Set<String> roles) {
         forumService.deleteReply(id, userId, isAdmin(roles));
         return Result.ok("回复已删除");
+    }
+
+    /** 点赞/取消点赞(切换) */
+    @PostMapping("/posts/{id}/like")
+    public ResponseEntity<?> toggleLike(@PathVariable Long id, @CurrentUser Long userId) {
+        if (userId == null) throw new com.learning.springboot.exception.BusinessException(401, "未登录");
+        return Result.ok(forumService.toggleLike(id, userId));
+    }
+
+    /** 收藏/取消收藏(切换) */
+    @PostMapping("/posts/{id}/favorite")
+    public ResponseEntity<?> toggleFavorite(@PathVariable Long id, @CurrentUser Long userId) {
+        if (userId == null) throw new com.learning.springboot.exception.BusinessException(401, "未登录");
+        return Result.ok(forumService.toggleFavorite(id, userId));
+    }
+
+    /** 转发(计数 +1;复制链接由前端完成,游客也可转发) */
+    @PostMapping("/posts/{id}/share")
+    public ResponseEntity<?> share(@PathVariable Long id, @CurrentUser Long userId) {
+        return Result.ok(forumService.sharePost(id, userId));
     }
 
     private boolean isAdmin(Set<String> roles) {

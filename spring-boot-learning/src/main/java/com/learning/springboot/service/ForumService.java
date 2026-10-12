@@ -10,8 +10,8 @@ import com.learning.springboot.dto.PageResult;
  */
 public interface ForumService {
 
-    /** 帖子分页列表(科目维度 + 关键字,置顶优先) */
-    PageResult<ForumVO.PostItemVO> pagePosts(Long subjectId, String keyword, int page, int size);
+    /** 帖子分页列表(科目维度 + 关键字,置顶优先;sort: updated/created/hot/likes/favorites/replies/views) */
+    PageResult<ForumVO.PostItemVO> pagePosts(Long subjectId, String keyword, String sort, int page, int size, Long currentUserId);
 
     /** 帖子详情(浏览数 +1) */
     ForumVO.PostDetailVO getPost(Long id, Long currentUserId, boolean admin);
@@ -33,4 +33,13 @@ public interface ForumService {
 
     /** 删除回复(作者或管理员) */
     void deleteReply(Long id, Long userId, boolean admin);
+
+    /** 点赞/取消点赞(切换),返回最新互动状态 */
+    ForumVO.InteractVO toggleLike(Long postId, Long userId);
+
+    /** 收藏/取消收藏(切换),返回最新互动状态 */
+    ForumVO.InteractVO toggleFavorite(Long postId, Long userId);
+
+    /** 转发(计数 +1),返回最新互动状态 */
+    ForumVO.InteractVO sharePost(Long postId, Long currentUserId);
 }

@@ -3,6 +3,7 @@ package com.learning.springboot.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learning.springboot.config.JwtProperties;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +17,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,10 @@ public class AdminSecurityConfig implements WebMvcConfigurer {
     @Autowired private CurrentUserResolver currentUserResolver;
     @Autowired private JwtProperties jwtProperties;
 
+    /** CORS 白名单(逗号分隔,来自 app.cors.allowed-origins 配置) */
+    @Value("${app.cors.allowed-origins}")
+    private String allowedOrigins;
+
     /** 密码编码器 */
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -51,13 +57,27 @@ public class AdminSecurityConfig implements WebMvcConfigurer {
         return reg;
     }
 
-    /** CORS: 让 Vite (5173) 可以跨域访问 8080 */
+    /** 注册安全响应头过滤器(作用于所有请求) */
+    @Bean
+    public FilterRegistrationBean<SecurityHeadersFilter> securityHeadersRegistration() {
+        FilterRegistrationBean<SecurityHeadersFilter> reg = new FilterRegistrationBean<>(new SecurityHeadersFilter());
+        reg.addUrlPatterns("/*");
+        reg.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        reg.setName("securityHeadersFilter");
+        return reg;
+    }
+
+    /** CORS: 只允许配置白名单内的前端源跨域(禁止 * 任意源) */
     @Bean
     public CorsFilter corsFilter() {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowCredentials(true);
-        config.addAllowedOriginPattern("*");
+        // 鉴权走 Authorization 头(非 Cookie),无需 allowCredentials;白名单精确匹配来源
+        config.setAllowCredentials(false);
+        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList());
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.addExposedHeader(jwtProperties.getHeader());

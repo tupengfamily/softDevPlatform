@@ -4,7 +4,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getPost, updatePost, deletePost, pageReplies, createReply, deleteReply } from '../api/forum'
+import { getPost, updatePost, deletePost, pageReplies, createReply, deleteReply, toggleLike, toggleFavorite, sharePost } from '../api/forum'
 import { getSubjects } from '../api/learning'
 import { renderContent } from '../utils/markdown'
 import { useUserStore } from '../store/user'
@@ -103,6 +103,51 @@ const removeReply = async (r) => {
   } catch (e) { /* 取消或已统一弹错 */ }
 }
 
+// ---------- 点赞 / 收藏 / 转发 ----------
+const requireLogin = () => {
+  if (userStore.isLogin) return true
+  ElMessageBox.confirm('登录后才能点赞/收藏,去登录?', '提示', {
+    type: 'info', confirmButtonText: '去登录', cancelButtonText: '取消'
+  }).then(() => router.push({ path: '/login', query: { redirect: `/forum/${route.params.id}` } })).catch(() => {})
+  return false
+}
+const doLike = async () => {
+  if (!requireLogin()) return
+  try {
+    const res = await toggleLike(post.value.id)
+    post.value.liked = res.data.liked
+    post.value.likeCount = res.data.likeCount
+  } catch (e) { /* 已统一弹错 */ }
+}
+const doFavorite = async () => {
+  if (!requireLogin()) return
+  try {
+    const res = await toggleFavorite(post.value.id)
+    post.value.favorited = res.data.favorited
+    post.value.favoriteCount = res.data.favoriteCount
+  } catch (e) { /* 已统一弹错 */ }
+}
+const doShare = async () => {
+  const url = `${location.origin}/forum/${post.value.id}`
+  try {
+    await navigator.clipboard.writeText(url)
+  } catch (_) {
+    const ta = document.createElement('textarea')
+    ta.value = url
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try { document.execCommand('copy') } catch (_) { /* ignore */ }
+    document.body.removeChild(ta)
+  }
+  try {
+    const res = await sharePost(post.value.id)
+    post.value.shareCount = res.data.shareCount
+    ElMessage.success('链接已复制,快去分享吧')
+  } catch (e) { /* 已统一弹错 */ }
+}
+
 onMounted(async () => {
   try {
     const res = await getSubjects()
@@ -139,6 +184,17 @@ onMounted(async () => {
           </div>
         </div>
         <div class="post-body rich-body" v-html="render(post.content, post.contentType)"></div>
+        <div class="post-actions">
+          <button class="act" :class="{ on: post.liked }" :aria-label="post.liked ? '取消点赞' : '点赞'" @click="doLike">
+            <el-icon><Pointer /></el-icon> 点赞 <b>{{ post.likeCount }}</b>
+          </button>
+          <button class="act" :class="{ on: post.favorited }" :aria-label="post.favorited ? '取消收藏' : '收藏'" @click="doFavorite">
+            <el-icon><component :is="post.favorited ? 'StarFilled' : 'Star'" /></el-icon> 收藏 <b>{{ post.favoriteCount }}</b>
+          </button>
+          <button class="act" aria-label="转发" @click="doShare">
+            <el-icon><Share /></el-icon> 转发 <b>{{ post.shareCount }}</b>
+          </button>
+        </div>
       </div>
 
       <!-- 回复列表 -->
@@ -205,9 +261,22 @@ onMounted(async () => {
 .back { margin-bottom: 12px; }
 .post-card { background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l); padding: 24px 28px; }
 .post-head h1 { margin: 0 0 10px; font-size: var(--fs-xl); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.post-meta { display: flex; align-items: center; gap: 6px; color: #94a3b8; font-size: var(--fs-xs); }
+.post-meta { display: flex; align-items: center; gap: 6px; color: #64748b; font-size: var(--fs-xs); }
 .post-meta .ops { margin-left: auto; }
 .post-body { margin-top: 16px; font-size: var(--fs-base); line-height: 1.8; color: var(--c-text-1); }
+.post-actions {
+  display: flex; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid #f1f3f8;
+}
+.act {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 6px 16px;
+  border: 1px solid var(--c-border); border-radius: var(--r-m);
+  background: #fff; color: var(--c-text-2); font-size: var(--fs-base); cursor: pointer;
+  transition: color .12s, border-color .12s, background .12s;
+}
+.act:hover { color: var(--c-primary); border-color: var(--c-primary); background: #eff6ff; }
+.act.on { color: var(--c-primary); border-color: var(--c-primary); background: #eff6ff; font-weight: 600; }
+.act b { font-weight: 600; }
 .post-body :deep(p) { margin: 8px 0; }
 .post-body :deep(pre), .reply-body :deep(pre) {
   background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: 13px;
@@ -221,14 +290,14 @@ onMounted(async () => {
 
 .reply-card { background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l); margin-top: 16px; padding: 18px 24px; }
 .reply-head { font-weight: 600; font-size: var(--fs-md); padding-bottom: 10px; border-bottom: 1px solid #f1f3f8; }
-.reply-head small { color: #94a3b8; font-weight: 400; }
+.reply-head small { color: #64748b; font-weight: 400; }
 .reply-item { padding: 14px 0; border-bottom: 1px solid #f4f6fa; }
 .reply-meta { display: flex; align-items: center; gap: 8px; }
 .avatar {
   width: 28px; height: 28px; border-radius: 50%; background: #2563eb; color: #fff;
   display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-xs); font-weight: 600;
 }
-.reply-meta .time { color: #94a3b8; font-size: var(--fs-xs); }
+.reply-meta .time { color: #64748b; font-size: var(--fs-xs); }
 .reply-meta .del { margin-left: auto; }
 .reply-body { margin: 8px 0 0 36px; font-size: var(--fs-base); color: var(--c-text-1); line-height: 1.7; }
 .reply-body :deep(p) { margin: 4px 0; }

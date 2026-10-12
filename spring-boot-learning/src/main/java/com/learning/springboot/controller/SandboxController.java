@@ -4,6 +4,7 @@ import com.learning.springboot.annotation.OperationLog;
 import com.learning.springboot.bootstrap.SandboxDataInitializer;
 import com.learning.springboot.common.Result;
 import com.learning.springboot.sandbox.JavaSandboxService;
+import com.learning.springboot.sandbox.NodeSandboxService;
 import com.learning.springboot.sandbox.PythonSandboxService;
 import com.learning.springboot.sandbox.SqlSandboxService;
 import com.learning.springboot.sandbox.SqlSandboxService.SqlResult;
@@ -41,6 +42,7 @@ public class SandboxController {
 
     @Autowired private JavaSandboxService javaSandbox;
     @Autowired private PythonSandboxService pythonSandbox;
+    @Autowired private NodeSandboxService nodeSandbox;
     @Autowired private SqlSandboxService sqlSandbox;
     @Autowired private SandboxDataInitializer dataInitializer;
     @Autowired @Qualifier("sandboxJdbcTemplate") private JdbcTemplate sandboxJdbc;
@@ -67,6 +69,19 @@ public class SandboxController {
         if (code.length() > 20_000) return Result.badRequest("代码长度不能超过 20000 字符");
 
         var result = pythonSandbox.run(code, userId);
+        // 运行结果全部 200 返回, 前端按 status 展示(更友好)
+        return Result.ok(result);
+    }
+
+    /** 解释执行 Node.js 代码 */
+    @PostMapping("/run-node")
+    @OperationLog(module = "代码沙箱", action = "运行 Node.js")
+    public ResponseEntity<?> runNode(@RequestBody Map<String, String> body, @CurrentUser Long userId) {
+        String code = body.getOrDefault("source", "");
+        if (code.isBlank()) return Result.badRequest("代码不能为空");
+        if (code.length() > 20_000) return Result.badRequest("代码长度不能超过 20000 字符");
+
+        var result = nodeSandbox.run(code, userId);
         // 运行结果全部 200 返回, 前端按 status 展示(更友好)
         return Result.ok(result);
     }

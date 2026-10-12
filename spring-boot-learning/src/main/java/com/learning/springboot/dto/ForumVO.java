@@ -18,6 +18,11 @@ public class ForumVO {
         public String username;
         public int viewCount;
         public int replyCount;
+        public int likeCount;
+        public int favoriteCount;
+        public int shareCount;
+        public boolean liked;             // 当前用户是否已点赞(未登录恒 false)
+        public boolean favorited;         // 当前用户是否已收藏
         public boolean pinned;
         public LocalDateTime createdAt;
         public LocalDateTime updatedAt;
@@ -35,10 +40,24 @@ public class ForumVO {
         public String username;
         public int viewCount;
         public int replyCount;
+        public int likeCount;
+        public int favoriteCount;
+        public int shareCount;
+        public boolean liked;
+        public boolean favorited;
         public boolean pinned;
         public LocalDateTime createdAt;
         public LocalDateTime updatedAt;
         public boolean editable;          // 作者或管理员
+    }
+
+    /** 点赞/收藏切换结果 */
+    public static class InteractVO {
+        public boolean liked;
+        public boolean favorited;
+        public int likeCount;
+        public int favoriteCount;
+        public int shareCount;
     }
 
     /** 回复条目 */

@@ -12,6 +12,7 @@ import com.learning.springboot.repository.PermissionRepository;
 import com.learning.springboot.repository.RoleRepository;
 import com.learning.springboot.repository.UserRepository;
 import com.learning.springboot.security.JwtUtil;
+import com.learning.springboot.security.LoginRateLimiter;
 import com.learning.springboot.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,20 +40,34 @@ public class AuthServiceImpl implements AuthService {
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtUtil jwtUtil;
     @Autowired private JwtProperties jwtProperties;
+    @Autowired private LoginRateLimiter loginRateLimiter;
 
     @Override
     @Transactional
     public LoginResponse login(LoginRequest req, String clientIp) {
-        User user = userRepository.findByUsernameWithRoles(req.getUsername())
-            .orElseThrow(() -> new BusinessException(401, "用户名或密码错误"));
+        // 限流检查: 锁定期内直接 429(防暴力破解)
+        loginRateLimiter.checkAllowed(req.getUsername(), clientIp);
 
-        if (user.getStatus() == null || user.getStatus() != 1) {
-            throw new BusinessException(403, "账号已被禁用");
-        }
+        User user;
+        try {
+            user = userRepository.findByUsernameWithRoles(req.getUsername())
+                .orElseThrow(() -> new BusinessException(401, "用户名或密码错误"));
 
-        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
-            throw new BusinessException(401, "用户名或密码错误");
+            if (user.getStatus() == null || user.getStatus() != 1) {
+                throw new BusinessException(403, "账号已被禁用");
+            }
+
+            if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
+                throw new BusinessException(401, "用户名或密码错误");
+            }
+        } catch (BusinessException e) {
+            // 凭证错误计入失败次数(禁用账号不计)
+            if (e.getCode() == 401) {
+                loginRateLimiter.recordFailure(req.getUsername(), clientIp);
+            }
+            throw e;
         }
+        loginRateLimiter.recordSuccess(req.getUsername(), clientIp);
 
         // 提取角色编码
         Set<String> roleCodes = new HashSet<>();
@@ -203,6 +218,15 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(400, "仅支持 jpg / jpeg / png / gif / webp 图片");
         }
 
+        // 校验文件内容魔数(防止改扩展名伪装,如 .png 实为 HTML)
+        try (java.io.InputStream in = file.getInputStream()) {
+            if (!matchesMagic(in.readNBytes(12), ext)) {
+                throw new BusinessException(400, "文件内容与图片格式不符");
+            }
+        } catch (IOException e) {
+            throw new BusinessException(400, "读取上传文件失败");
+        }
+
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new BusinessException(404, "用户不存在"));
 
@@ -221,6 +245,23 @@ public class AuthServiceImpl implements AuthService {
         } catch (IOException e) {
             throw new BusinessException(500, "头像保存失败: " + e.getMessage());
         }
+    }
+
+    /** 按魔数判断真实图片格式(与扩展名必须一致) */
+    private boolean matchesMagic(byte[] h, String ext) {
+        if (h == null || h.length < 4) return false;
+        boolean jpg = (h[0] & 0xFF) == 0xFF && (h[1] & 0xFF) == 0xD8 && (h[2] & 0xFF) == 0xFF;
+        boolean png = (h[0] & 0xFF) == 0x89 && h[1] == 'P' && h[2] == 'N' && h[3] == 'G';
+        boolean gif = h[0] == 'G' && h[1] == 'I' && h[2] == 'F' && h[3] == '8';
+        boolean webp = h.length >= 12 && h[0] == 'R' && h[1] == 'I' && h[2] == 'F' && h[3] == 'F'
+            && h[8] == 'W' && h[9] == 'E' && h[10] == 'B' && h[11] == 'P';
+        return switch (ext) {
+            case "jpg", "jpeg" -> jpg;
+            case "png" -> png;
+            case "gif" -> gif;
+            case "webp" -> webp;
+            default -> false;
+        };
     }
 
     private String getUsername(Long userId) {

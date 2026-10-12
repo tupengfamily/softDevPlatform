@@ -7,6 +7,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
 import { createRelease, deleteRelease, getReleases, updateRelease } from '../api/release'
+import { sanitizeHtml } from '../utils/markdown'
 import { useUserStore } from '../store/user'
 
 const userStore = useUserStore()
@@ -140,7 +141,7 @@ onMounted(loadData)
                 <el-button link type="danger" size="small" @click="remove(r)">删除</el-button>
               </span>
             </div>
-            <div class="rel-body rich-text" v-html="r.content"></div>
+            <div class="rel-body rich-text" v-html="sanitizeHtml(r.content)"></div>
           </div>
         </el-timeline-item>
       </el-timeline>

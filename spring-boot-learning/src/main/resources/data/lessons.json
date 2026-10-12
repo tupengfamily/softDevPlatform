@@ -2412,6 +2412,562 @@
           "codeType": "python"
         }
       ]
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Node.js 入门",
+      "chapterNo": 1,
+      "title": "Node.js 简介与运行环境",
+      "description": "认识 Node.js 的定位与原理:V8 引擎、事件驱动与非阻塞 IO,安装与第一个程序。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Node.js 是什么",
+          "summary": "认识 Node.js:基于 V8 的服务端 JavaScript 运行时、事件驱动与非阻塞 IO 模型、典型应用场景,以及与浏览器 JS、Java 后端的对比。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "Node.js 是基于 Chrome V8 引擎的 JavaScript 运行时,让 JavaScript 脱离浏览器、直接运行在服务端。它不是一门新语言,也不是一个框架,而是一个运行环境。\n\n## 核心特性\n- **事件驱动 + 非阻塞 IO**:单线程事件循环处理并发,IO 操作不阻塞主线程,适合高并发 IO 密集型场景\n- **前后端同语言**:前端写 JavaScript,后端也写 JavaScript,类型、工具链、思维方式都能复用\n- **npm 生态**:世界上最大的开源包仓库,几乎任何功能都有现成轮子\n\n## 典型应用场景\n- Web API 服务(REST/GraphQL)、BFF 聚合层\n- 实时应用:聊天、推送、协作编辑(WebSocket)\n- 工程化工具:Vite、Webpack、ESLint 都是 Node 写的\n- 微服务、Serverless 函数、爬虫与自动化脚本\n\n## 与你已学技术的对比\n- 对比浏览器 JS:没有 DOM/window,但多了 fs、http、process 等系统能力\n- 对比 Java:Node 单线程事件循环擅长 IO 密集;Java 多线程擅长 CPU 密集。两者常在微服务架构里搭配使用",
+          "codeExample": "console.log('Hello, Node.js!');\nconsole.log('运行时版本:', process.version);\nconsole.log('平台:', process.platform, process.arch);",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "安装与第一个程序",
+          "summary": "安装 Node.js、使用 node 命令运行脚本、REPL 交互式环境,以及 node 的常用命令行选项。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "Node.js 官网提供 LTS(长期支持)与 Current 两个版本线,生产环境选 LTS。安装后获得两个命令:`node`(运行时)和 `npm`(包管理器)。\n\n## 第一个程序\n- 保存 `hello.js`,内容 `console.log('Hello')`\n- 终端执行 `node hello.js` 即可运行\n- `node` 不带参数进入 REPL(读取-求值-输出循环),可以逐行试验代码\n\n## 常用命令\n- `node app.js` 运行脚本\n- `node --watch app.js` 文件变化自动重启(Node 18+),开发利器\n- `node --inspect app.js` 开启调试器,可对接 Chrome DevTools\n- `node -e \"代码\"` 直接执行一行代码\n\n## 小提示\n- 控制台输出用 `console.log/info/warn/error`,还支持 `console.table` 打印表格\n- 退出 REPL 按两次 Ctrl+C 或输入 `.exit`",
+          "codeExample": "// 在 REPL 中逐行试验, 或保存为 hello.js 用 node 运行\nconst learner = { name: '同学', goal: 'Node.js' };\nconsole.log('Hello, %s!', learner.name);\nconsole.table(learner);\nconsole.log('Node 版本:', process.version);",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "CommonJS 与 ESM 模块系统",
+          "summary": "掌握 Node 的两套模块体系:CommonJS 的 require/module.exports 与 ESM 的 import/export,以及 package.json 的 type 字段如何决定默认格式。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "模块化是 Node 的基石。Node 同时支持两套模块体系:CommonJS(CJS)和 ES Module(ESM)。\n\n## CommonJS(CJS)\n- 用 `require()` 导入、`module.exports` 导出,是 Node 的传统格式\n- 运行时同步加载,支持动态条件加载\n- 文件默认按 CJS 解析(`.js` 后缀)\n\n## ES Module(ESM)\n- 用 `import`/`export` 语法,与浏览器一致,是现代标准\n- 需要 `.mjs` 后缀,或在 package.json 中设置 `\"type\": \"module\"`\n- 静态结构利于 tree-shaking,但不能在条件语句里随意 import\n\n## 两者对比\n- CJS 导出的是**值的拷贝**,ESM 导出的是**值的引用**(live binding)\n- ESM 中用 `import.meta.url` 获取当前文件路径;CJS 中用 `__dirname`、`__filename`\n- 互相引用有限制:ESM 可以 import CJS 模块,反向较麻烦\n\n## 实践建议\n- 新项目直接上 ESM(主流趋势,与前端一致)\n- 读老项目/源码时要认识 CJS 写法",
+          "codeExample": "// ESM 写法(文件后缀 .mjs 或 package.json 声明 type=module)\nimport path from 'node:path';\nimport { fileURLToPath } from 'node:url';\n\nconst __filename = fileURLToPath(import.meta.url);\nconst greeting = 'ESM 模块化';\n\nconsole.log(greeting, '当前文件:', path.basename(__filename));\nexport { greeting };",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Node.js 入门",
+      "chapterNo": 2,
+      "title": "npm 与工程基础",
+      "description": "package.json 的结构与语义化版本、npm 常用命令与 npx,依赖管理的最佳实践。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "package.json 详解",
+          "summary": "理解项目清单 package.json:核心字段(name/version/scripts/dependencies)的作用,以及 npm init 快速生成。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "每个 Node 项目的根目录都有一个 `package.json`,它是项目的「身份证 + 说明书」。\n\n## 核心字段\n- `name` / `version`:包名与版本(语义化版本)\n- `type`:`commonjs`(默认)或 `module`,决定 .js 文件按哪套模块解析\n- `scripts`:自定义命令,`npm run <名字>` 执行,如 `npm run dev`\n- `dependencies`:运行时依赖(上线要带)\n- `devDependencies`:开发依赖(测试、构建工具,上线可不带)\n- `main` / `exports`:包的入口文件,别人 require/import 你时用\n\n## 常用命令\n- `npm init -y` 一键生成 package.json\n- `npm install <包名>` 安装依赖(简写 `npm i`),`--save-dev` 装开发依赖(简写 `-D`)\n- `npm install` 按 package.json 一键恢复全部依赖\n- `npm uninstall <包名>` 卸载\n\n## 最佳实践\n- package.json 与 package-lock.json 都要提交到 Git(锁版本,保证团队环境一致)\n- scripts 里定义 dev/build/start,团队成员无需记长命令",
+          "codeExample": "// 概念演示:读取并展示 package.json 的关键信息\nconst pkg = {\n  name: 'demo-app', version: '1.0.0', type: 'module',\n  scripts: { dev: 'node --watch app.js', start: 'node app.js' }\n};\nconsole.log(`${pkg.name}@${pkg.version}`);\nconsole.log('可用脚本:', Object.keys(pkg.scripts).join(', '));\nconsole.log('运行 npm run', Object.keys(pkg.scripts)[0], '启动开发模式');",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "语义化版本(SemVer)",
+          "summary": "掌握版本号 major.minor.patch 的含义、^ 与 ~ 版本范围符号,以及 package-lock.json 锁版本的意义。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "npm 包的版本号遵循 **语义化版本(SemVer)**:形如 `主版本.次版本.修订号`(1.2.3)。\n\n## 三段含义\n- **major(主版本)**:不兼容的 API 变更(破坏性升级),如 1.x → 2.0.0\n- **minor(次版本)**:向下兼容的新功能,如 1.2 → 1.3.0\n- **patch(修订号)**:向下兼容的 Bug 修复,如 1.2.3 → 1.2.4\n\n## 版本范围符号\n- `^1.2.3`:允许 1.x.x(不跨主版本),最常用\n- `~1.2.3`:只允许 1.2.x(不跨次版本),最保守\n- `*` / `latest`:最新版,生产环境慎用\n- `1.2.3`:精确锁定\n\n## package-lock.json\n- `npm install` 时生成,精确记录整棵依赖树的版本与下载地址\n- 保证团队成员与 CI 装出完全一致的依赖\n- **要提交到 Git**,不要随手删除\n\n## 升级策略\n- patch/minor 可以放心 `npm update`\n- major 升级先看 CHANGELOG,在测试分支验证再合入",
+          "codeExample": "// 概念演示:解析语义化版本并给出升级建议\nfunction parseSemver(v) {\n  const [major, minor, patch] = v.split('.').map(Number);\n  return { major, minor, patch };\n}\nfunction bump(v, type) {\n  const s = parseSemver(v);\n  if (type === 'major') return `${s.major + 1}.0.0`;\n  if (type === 'minor') return `${s.major}.${s.minor + 1}.0`;\n  return `${s.major}.${s.minor}.${s.patch + 1}`;\n}\nconsole.log('1.2.3 ->', bump('1.2.3', 'patch'), '(修复)');\nconsole.log('1.2.3 ->', bump('1.2.3', 'minor'), '(新功能)');\nconsole.log('1.2.3 ->', bump('1.2.3', 'major'), '(破坏性变更)');",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "npx 与依赖管理实践",
+          "summary": "学会用 npx 直接运行包而不全局安装,理解 node_modules 布局与依赖治理(去重、审计、镜像源)。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "`npx` 是 npm 自带的包执行器,解决「临时用一下某个工具」的场景。\n\n## npx 的用法\n- `npx create-vite my-app`:下载并立即执行 create-vite,用完即走,不污染全局\n- 对比 `npm install -g`:全局安装占空间、多项目版本冲突,npx 各项目独立\n- npx 优先使用项目本地 node_modules 里的版本,没有才临时下载\n\n## node_modules 目录\n- 所有依赖安装在此,目录巨大,**不要提交到 Git**(.gitignore 里排除)\n- 采用扁平化结构:依赖的依赖也会提升到顶层,可能出现版本提升错觉\n- 删除 node_modules 后 `npm install` 可完整重建\n\n## 依赖治理\n- `npm ls <包名>` 查看依赖来源(谁把它带进来的)\n- `npm audit` 检查已知安全漏洞,`npm audit fix` 自动修复\n- 国内网络慢可换镜像:`npm config set registry https://registry.npmmirror.com`\n- 定期清理不用的依赖,保持 package.json 干净\n\n## 练习建议\n- 用 `npx npm-check-updates` 查看可升级的依赖",
+          "codeExample": "// 概念演示:依赖树视角 - 查看某依赖被谁引入\nconst depTree = {\n  'my-app': { dependencies: ['express', 'axios'] },\n  express: { dependencies: ['body-parser', 'cookie'] },\n  axios: { dependencies: ['follow-redirects'] }\n};\nfor (const [pkg, info] of Object.entries(depTree)) {\n  console.log(`${pkg} ->`, info.dependencies.join(', '));\n}\nconsole.log('提示: 用 npm ls <包名> 查看真实依赖树');",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Node.js 入门",
+      "chapterNo": 3,
+      "title": "异步编程与事件循环",
+      "description": "回调、Promise、async/await 三大异步方案,以及 Node 事件循环的阶段与执行顺序。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "回调与错误优先约定",
+          "summary": "理解 Node 的非阻塞 IO 与回调风格,掌握错误优先回调(err, data)的约定,避免回调地狱。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "Node 的 IO 操作(读文件、网络请求)都是**非阻塞**的:发起任务后立即返回,完成后通过回调通知。\n\n## 错误优先回调(Error-First Callback)\n- Node 约定回调的第一个参数永远是错误对象 `err`,成功时为 `null`\n- 第二个参数开始才是结果数据\n- 这是 Node 社区的统一惯例,几乎所有异步 API 都遵循\n\n## 回调地狱\n- 多个有依赖的异步操作嵌套,代码向右缩进成「金字塔」\n- 错误处理要层层重复,可读性和可维护性差\n\n## 化解思路\n- 拆分成命名函数,平铺回调\n- 用 Promise / async/await(下一课重点)\n\n## 记忆点\n- 同步代码从上到下执行;异步代码先注册、后回调\n- 千万不要在回调里 return 值给外层——外层拿不到",
+          "codeExample": "import fs from 'node:fs';\n\n// 错误优先回调: 第一个参数是 err\nfs.readFile('/nonexistent.txt', 'utf8', (err, data) => {\n  if (err) {\n    console.log('读取失败(符合预期):', err.code);\n    return;\n  }\n  console.log('内容:', data);\n});\n\nconsole.log('这行先执行 - 异步回调稍后触发');",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Promise 与事件循环",
+          "summary": "用 Promise 表达异步结果,掌握 then/catch/finally 与 Promise.all/race 组合,理解事件循环的阶段顺序。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "Promise 是异步操作的「未来值」容器,解决回调地狱,是 async/await 的基础。\n\n## Promise 三态\n- **pending**:初始,等待中\n- **fulfilled**:成功,`then` 接收结果\n- **rejected**:失败,`catch` 接收错误\n\n## 常用组合\n- `Promise.all([a, b])`:全部成功才成功,任一失败即失败(并行提速)\n- `Promise.allSettled([...])`:等全部结束,逐个报告成败\n- `Promise.race([a, b])`:谁先完成用谁(适合超时控制)\n\n## 事件循环(Event Loop)\n- Node 单线程跑 JS,靠事件循环调度异步任务\n- 执行顺序:**同步代码 → 微任务(Promise.then/process.nextTick)→ 宏任务(setTimeout/IO 回调)**\n- 每轮循环处理一批宏任务,清空全部微任务,如此往复\n\n## 易错点\n- `setTimeout(fn, 0)` 也在宏任务队列,晚于全部微任务\n- `.then` 链上忘记 return 会导致下一环拿到 undefined",
+          "codeExample": "const sleep = (ms, v) => new Promise(r => setTimeout(() => r(v), ms));\n\nconsole.log('1 同步开始');\n\nPromise.all([sleep(50, 'A'), sleep(30, 'B')]).then(([a, b]) => {\n  console.log('4 并行完成:', a, b);\n});\n\nPromise.resolve('微任务').then(v => console.log('2', v));\n\nsetTimeout(() => console.log('5 宏任务 setTimeout'), 0);\nconsole.log('3 同步结束');\n// 输出顺序: 1 -> 2 -> 3 -> 5? 不, 3 在 2 后的微任务前...\n// 实际: 1 同步开始 -> 3 同步结束 -> 2 微任务 -> 5 宏任务 -> 4 并行完成",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "async/await 实战",
+          "summary": "用 async/await 以同步写法组织异步代码,掌握 try/catch 错误处理与并行 await 的正确姿势。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "`async/await` 是 Promise 的语法糖,让异步代码看起来像同步代码,是现代 Node 的主流写法。\n\n## 基本用法\n- `async` 函数永远返回 Promise\n- `await` 只能出现在 async 函数内,等待 Promise 完成并取出结果\n- 抛出异常等价于 reject,用 try/catch 捕获\n\n## 并行与串行\n- 串行:`await a(); await b();` 总耗时 = a + b\n- 并行:`const [ra, rb] = await Promise.all([a(), b()]);` 总耗时 = max(a, b)\n- 有先后依赖用串行,无依赖务必并行,性能差一倍以上\n\n## 最佳实践\n- try/catch 包住每个可能失败的 await\n- 循环里串行 await 要想清楚是否可改并行\n- 不要 `await` 一个非 Promise(语法允许但无意义)\n- 顶层 await 只在 ESM 模块可用(Node 14.8+)\n\n## 与 Java 对比\n- 类似 Java 的 CompletableFuture,但写法更接近同步思维",
+          "codeExample": "const sleep = (ms, v) => new Promise(r => setTimeout(() => r(v), ms));\n\nasync function main() {\n  try {\n    // 并行: 总耗时约 100ms\n    const [user, posts] = await Promise.all([\n      sleep(100, { name: '张三' }),\n      sleep(80, ['第一篇', '第二篇'])\n    ]);\n    console.log('用户:', user.name);\n    console.log('文章:', posts.join('、'));\n\n    // 串行: 先查用户再查权限\n    const role = await sleep(50, 'ADMIN');\n    console.log('角色:', role);\n  } catch (e) {\n    console.error('出错了:', e.message);\n  }\n}\nmain();",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 4,
+          "title": "定时器与执行顺序",
+          "summary": "区分 setTimeout/setInterval/setImmediate/process.nextTick 的触发时机,能预测混合代码的输出顺序。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "Node 提供多种调度工具,搞清它们在事件循环中的位置,是面试与调试的高频考点。\n\n## 四种调度\n- `setTimeout(fn, ms)`:宏任务,延迟至少 ms 后执行\n- `setInterval(fn, ms)`:周期触发,记得 `clearInterval` 防泄漏\n- `setImmediate(fn)`:宏任务,当前轮检查阶段立即执行(比 setTimeout 0 更早,在 IO 回调后)\n- `process.nextTick(fn)`:微任务,当前操作结束后立即执行,优先级高于 Promise.then\n\n## 执行顺序口诀\n- 同步 → nextTick → Promise 微任务 → 定时器/Immediate 宏任务\n- `process.nextTick` 优先于 `Promise.then`\n\n## 实用场景\n- `setTimeout`:延迟重试、防抖\n- `setImmediate`:IO 完成后尽快执行下一段逻辑\n- `process.nextTick`:确保 API 回调在对象状态就绪后触发\n\n## 注意\n- 定时器回调里的异常会中断进程,务必 try/catch\n- 服务端长期运行要清理不再需要的定时器",
+          "codeExample": "console.log('同步 1');\n\nsetTimeout(() => console.log('宏任务 setTimeout'), 0);\nsetImmediate(() => console.log('宏任务 setImmediate'));\nPromise.resolve().then(() => console.log('微任务 Promise.then'));\nprocess.nextTick(() => console.log('微任务 nextTick(最先)'));\n\nconsole.log('同步 2');\n// 顺序: 同步1 -> 同步2 -> nextTick -> Promise.then -> setTimeout/setImmediate",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 2,
+      "stageName": "核心模块",
+      "chapterNo": 4,
+      "title": "全局对象与工具模块",
+      "description": "process、path、os、util 等高频内置模块,处理路径、系统信息与格式化。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "process 与命令行交互",
+          "summary": "掌握 process 对象:argv 命令行参数、env 环境变量、exit 退出码,以及 cwd/platform 等常用属性。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "`process` 是 Node 的全局对象,代表当前进程,是脚本与操作系统交互的桥梁。\n\n## 常用属性\n- `process.argv`:命令行参数数组,`[node 路径, 脚本路径, ...自定义参数]`\n- `process.env`:环境变量对象,配置(数据库密码、端口)都从这里读\n- `process.cwd()`:当前工作目录(注意:是启动命令所在目录,不是脚本目录)\n- `process.platform` / `process.arch`:操作系统与 CPU 架构\n- `process.exit(code)`:退出进程,0 为成功\n\n## 环境变量实践\n- 开发环境用 `.env` 文件 + dotenv 包加载(生产环境由运维注入)\n- 敏感信息(密钥、密码)**绝不写死在代码里**,一律走环境变量\n\n## 命令行参数解析\n- 简单场景直接切片 `process.argv.slice(2)`\n- 复杂 CLI 用 commander / yargs 等库\n\n## 与 Java 对比\n- 类似 Java 的 `System.getProperty` / `System.getenv`,但更轻量直接",
+          "codeExample": "// node app.js --name=Node --port=3000\nconst args = process.argv.slice(2);\nconsole.log('自定义参数:', args);\n\n// 模拟环境变量(实际由部署环境注入)\nconst config = {\n  port: process.env.PORT || 3000,\n  env: process.env.NODE_ENV || 'development'\n};\nconsole.log('配置:', config);\nconsole.log('工作目录:', process.cwd());\nconsole.log('平台:', process.platform);",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "path 模块与跨平台路径",
+          "summary": "用 path 模块安全地拼接、解析路径,区分 join 与 resolve,理解 __dirname 在 ESM 中的替代方案。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "路径分隔符在 Windows 是 `\\\\`,在 Linux/Mac 是 `/`。硬编码斜杠会埋下跨平台隐患,`path` 模块就是解药。\n\n## 核心 API\n- `path.join(a, b)`:按平台规则拼接,消除多余分隔符\n- `path.resolve(a, b)`:从右到左解析为**绝对路径**(以当前工作目录为基准)\n- `path.basename(p)`:文件名(含扩展名)\n- `path.extname(p)`:扩展名,如 `.js`\n- `path.dirname(p)`:所在目录\n- `path.relative(from, to)`:两路径的相对表示\n\n## join vs resolve\n- `join` 只拼接,结果可能是相对路径\n- `resolve` 一定返回绝对路径,末尾解析到根为止\n\n## ESM 中获取当前目录\n- CJS 有现成的 `__dirname` / `__filename`\n- ESM 需要自己构造:`fileURLToPath(import.meta.url)` 得到文件路径,再 `path.dirname` 得目录\n\n## 记忆点\n- 读写文件一律用 path 拼接,不要手写 `/` 或 `\\\\`",
+          "codeExample": "import path from 'node:path';\nimport { fileURLToPath } from 'node:url';\n\nconst __filename = fileURLToPath(import.meta.url);\nconst __dirname = path.dirname(__filename);\n\nconst full = path.join(__dirname, 'data', 'users.json');\nconsole.log('拼接:', full);\nconsole.log('文件名:', path.basename(full));\nconsole.log('扩展名:', path.extname(full));\nconsole.log('所在目录:', path.dirname(full));\nconsole.log('绝对化:', path.resolve('src', 'app.js'));",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "os、util 与信息格式化",
+          "summary": "使用 os 模块获取系统信息,util.format/promisify/promisify.custom 等工具,提升代码表达力。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "`os` 提供操作系统信息,`util` 提供一批实用工具函数,都是「查文档 5 分钟、省代码 1 小时」的模块。\n\n## os 模块常用\n- `os.platform()`:系统类型(darwin/win32/linux)\n- `os.cpus()`:CPU 信息,结合核数决定 cluster 进程数\n- `os.totalmem()` / `os.freemem()`:内存信息\n- `os.homedir()` / `os.tmpdir()`:用户目录与临时目录\n- `os.uptime()`:系统运行时长\n\n## util 模块常用\n- `util.format(fmt, ...args)`:printf 风格格式化(console.log 底层就是它)\n- `util.promisify(fn)`:把错误优先回调 API 转成 Promise 版\n- `util.inspect(obj)`:对象转字符串,支持深度与颜色控制\n- `util.types.isPromise(v)`:类型判断\n\n## promisify 的价值\n- fs 的回调版 API 用 promisify 包一层,就能 await\n- Node 已内置 `fs/promises`,新代码直接用内置版",
+          "codeExample": "import os from 'node:os';\nimport util from 'node:util';\n\nconsole.log('平台:', os.platform(), '| CPU 核数:', os.cpus().length);\nconsole.log('总内存(GB):', (os.totalmem() / 1024 ** 3).toFixed(1));\nconsole.log('用户目录:', os.homedir());\n\n// util.format: printf 风格\nconsole.log(util.format('我是 %s, 今年 %d 岁', '小明', 18));\n\n// promisify 概念: 回调 API -> Promise API\nconst fakeCbApi = (v, cb) => cb(null, v * 2);\nconst promisified = util.promisify(fakeCbApi);\nconst doubled = await promisified(21);\nconsole.log('promisify 结果:', doubled);",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 2,
+      "stageName": "核心模块",
+      "chapterNo": 5,
+      "title": "文件系统 fs",
+      "description": "fs 的同步/异步/Promise 三套 API、目录操作,以及用 Stream 处理大文件。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "fs 读写文件三套 API",
+          "summary": "对比 readFileSync、回调版 readFile 与 fs/promises 的 readFile,掌握 utf8 编码与写文件的覆盖/追加模式。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "`fs`(file system)是 Node 使用频率最高的模块,提供读写文件与目录的全部能力。\n\n## 三套 API 风格\n- **同步版** `readFileSync`:阻塞主线程,只适合启动阶段读配置\n- **回调版** `readFile(path, enc, cb)`:错误优先回调,非阻塞\n- **Promise 版** `fs/promises` 的 `readFile`:配合 await,现代写法首选\n\n## 读文件\n- 不传编码返回 Buffer(二进制),传 `'utf8'` 返回字符串\n- 图片、压缩包等二进制文件用 Buffer 处理\n\n## 写文件\n- `writeFile(path, data)`:覆盖写(不存在则创建)\n- `appendFile(path, data)`:追加写,适合日志\n- `mkdir(path, { recursive: true })`:递归建目录\n\n## 注意事项\n- 路径一律用 `path.join` 拼接\n- 文件不存在时 readFile 抛 ENOENT,用 try/catch 或 `existsSync` 判断\n- 大文件别用 readFile 一次性读入内存,会爆内存(下一课 Stream 解决)",
+          "codeExample": "import fs from 'node:fs/promises';\nimport path from 'node:path';\n\nconst file = path.join(process.cwd(), 'demo.txt');\n\n// 写 -> 读 -> 追加 -> 再读\nawait fs.writeFile(file, '第一行内容\\n', 'utf8');\nconsole.log('写入完成');\n\nawait fs.appendFile(file, '第二行内容\\n', 'utf8');\nconst content = await fs.readFile(file, 'utf8');\nconsole.log('文件内容:\\n' + content);\n\nconst stat = await fs.stat(file);\nconsole.log('大小(字节):', stat.size, '| 是文件:', stat.isFile());\n\nawait fs.unlink(file);\nconsole.log('清理完成');",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "目录操作与文件信息",
+          "summary": "遍历目录、判断文件类型、复制与重命名,实现一个简单的目录扫描器。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "实际项目中经常需要扫描目录、整理文件,fs 的目录 API 足够应付大部分场景。\n\n## 常用 API\n- `readdir(path)`:列出目录下所有条目名\n- `stat(path)`:文件信息(大小、创建时间、类型)\n- `stat.isFile()` / `stat.isDirectory()`:判断是文件还是目录\n- `copyFile(src, dest)` / `rename(old, new)`:复制与移动\n- `rm(path, { recursive: true })`:递归删除(危险操作,先确认)\n\n## 递归遍历模式\n- 先 `readdir` 列出条目,对每个条目 `stat` 判断类型\n- 是目录则递归,是文件则处理\n- Node 18+ 可用 `fs.opendir` 或 `readdir({ withFileTypes: true })` 减少 stat 调用\n\n## 实战:目录扫描器\n- 统计某目录下文件数量与总大小\n- 按扩展名分类计数\n\n## 安全提醒\n- 删除、覆盖类操作先做存在性检查\n- 不要对用户输入的路径直接操作(路径穿越风险)",
+          "codeExample": "import fs from 'node:fs/promises';\n\nasync function scan(dir) {\n  const entries = await fs.readdir(dir, { withFileTypes: true });\n  const report = { files: 0, dirs: 0, byExt: {} };\n  for (const e of entries) {\n    if (e.isDirectory()) { report.dirs++; continue; }\n    report.files++;\n    const ext = e.name.includes('.') ? e.name.split('.').pop() : '(无扩展名)';\n    report.byExt[ext] = (report.byExt[ext] || 0) + 1;\n  }\n  return report;\n}\n\n// 扫描 Node 内置模块目录作为演示\nconst report = await scan(process.cwd());\nconsole.log('文件数:', report.files, '| 目录数:', report.dirs);\nconsole.log('按扩展名:', report.byExt);",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Stream 流式处理大文件",
+          "summary": "用 createReadStream/createWriteStream 与 pipe 流式复制大文件,理解背压与 chunk 的概念。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "处理几个 GB 的日志文件时,一次性读入内存会直接爆掉。**Stream(流)** 让数据像水一样分块流动,内存占用恒定。\n\n## 为什么需要 Stream\n- readFile:全量读入内存,文件多大内存就吃多大\n- Stream:每次只处理一个 chunk(默认 64KB),边读边写\n\n## 四种流\n- **Readable**:可读流,如 `createReadStream`\n- **Writable**:可写流,如 `createWriteStream`\n- **Duplex**:可读可写(如 TCP socket)\n- **Transform**:转换流(如压缩、加密)\n\n## 流式复制\n- `readable.pipe(writable)`:一行代码完成大文件复制\n- pipe 自动处理**背压**(背压:写入速度跟不上读取速度时,自动暂停读取)\n\n## 事件\n- `data`:收到一块数据\n- `end`:读取完毕\n- `error`:出错\n\n## 场景\n- 大文件复制、日志收集、CSV 逐行解析、视频转码",
+          "codeExample": "import fs from 'node:fs';\nimport { pipeline } from 'node:stream/promises';\n\nconst src = 'big-source.txt';\nconst dest = 'big-copy.txt';\n\n// 先造一个演示文件(3 行)\nfs.writeFileSync(src, '第一块数据\\n第二块数据\\n第三块数据\\n');\n\n// 流式复制: pipeline 自动处理背压与错误, 推荐代替 pipe\nawait pipeline(fs.createReadStream(src), fs.createWriteStream(dest));\nconsole.log('流式复制完成');\n\n// 流式读取: 逐 chunk 处理\nconst rs = fs.createReadStream(dest, { encoding: 'utf8' });\nfor await (const chunk of rs) {\n  console.log('收到 chunk:', JSON.stringify(chunk));\n}\n\nfs.unlinkSync(src);\nfs.unlinkSync(dest);",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 2,
+      "stageName": "核心模块",
+      "chapterNo": 6,
+      "title": "事件驱动与网络基础",
+      "description": "EventEmitter 发布订阅、Stream 深入,以及用 http 模块写出第一个 Web 服务器。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "EventEmitter 发布订阅",
+          "summary": "掌握 events 模块的 on/emit/once/removeListener,理解 Node 一切事件驱动的根基。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "Node 的核心设计哲学是**事件驱动**,`events` 模块的 `EventEmitter` 是全 Node 的基石——http 服务器、Stream 都是它的子类。\n\n## 核心 API\n- `on(event, fn)` / `addListener`:注册监听器(可多个)\n- `emit(event, ...args)`:触发事件,同步调用所有监听器\n- `once(event, fn)`:只触发一次\n- `off` / `removeListener`:移除监听器\n- `listenerCount(event)`:监听器数量\n\n## 手写发布订阅\n```js\nclass Emitter {\n  constructor() { this.handlers = {}; }\n  on(ev, fn) { (this.handlers[ev] ||= []).push(fn); }\n  emit(ev, ...args) { (this.handlers[ev] || []).forEach(fn => fn(...args)); }\n}\n```\n\n## 注意事项\n- 同名事件监听器有上限(默认 10 个),超出会警告,防内存泄漏\n- 移除监听器要用同一个函数引用,匿名函数删不掉\n- `emit` 是同步调用,监听器抛异常会中断后续监听器\n\n## 应用场景\n- 模块间解耦通信、任务完成通知、自定义状态机",
+          "codeExample": "import { EventEmitter } from 'node:events';\n\nconst emitter = new EventEmitter();\n\n// 监听普通事件\nemitter.on('order:created', (order) => {\n  console.log('新订单:', order.id, order.amount);\n});\nemitter.on('order:created', () => console.log('发送通知...'));\n\n// once: 只触发一次\nemitter.once('ready', () => console.log('初始化完成(仅一次)'));\n\nemitter.emit('order:created', { id: 1001, amount: 99.9 });\nemitter.emit('ready');\nemitter.emit('ready'); // 第二次不再触发\n\nconsole.log('order:created 监听器数:', emitter.listenerCount('order:created'));",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "http 模块与第一个 Web 服务器",
+          "summary": "用 http.createServer 创建服务器,理解 req/res 对象、状态码与响应头,不依赖框架跑通 HTTP 服务。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "不装任何框架,Node 内置 `http` 模块就能创建 Web 服务器——理解它,是学 Express 的基础。\n\n## 创建服务器\n- `http.createServer((req, res) => {...})`:每个请求进来都会调用回调\n- `server.listen(port)`:监听端口\n\n## req 请求对象\n- `req.url`:请求路径与查询串(如 `/api/users?page=2`)\n- `req.method`:GET/POST/PUT/DELETE\n- `req.headers`:请求头\n\n## res 响应对象\n- `res.writeHead(status, headers)`:设置状态码与响应头\n- `res.end(body)`:结束响应(必须调用,否则请求挂起)\n\n## 状态码速查\n- `200` 成功、`201` 已创建、`400` 请求有误、`401` 未认证、`404` 不存在、`500` 服务器错误\n\n## 与 Java 对比\n- 相当于 Servlet 的 service 方法,但一切手写\n- 实际开发会用 Express 封装,但核心概念与此一致",
+          "codeExample": "import http from 'node:http';\n\nconst server = http.createServer((req, res) => {\n  if (req.url === '/api/hello') {\n    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });\n    res.end(JSON.stringify({ message: 'Hello, Node.js!', path: req.url }));\n  } else if (req.url === '/api/time') {\n    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });\n    res.end(JSON.stringify({ now: new Date().toISOString() }));\n  } else {\n    res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });\n    res.end(JSON.stringify({ error: 'Not Found' }));\n  }\n});\n\n// 沙箱演示: 监听随机端口, 模拟一次请求后关闭\nserver.listen(0, async () => {\n  const { port } = server.address();\n  console.log('服务器已启动, 端口:', port);\n  const resp = await fetch(`http://127.0.0.1:${port}/api/hello`);\n  console.log('GET /api/hello ->', resp.status, await resp.text());\n  server.close();\n});",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "URL 解析与请求参数处理",
+          "summary": "用 URL 与 querystring 解析查询参数,处理 POST 请求体(表单与 JSON),完成一个简易 API 路由。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "真实 API 要从请求中取出参数:URL 查询串、路径参数、请求体。Node 提供了标准的 `URL` 类。\n\n## 解析查询参数\n- `new URL(req.url, 'http://localhost')`:标准解析\n- `url.searchParams.get('page')`:取单个参数\n- `url.searchParams.getAll('tag')`:取同名多值\n\n## 处理 POST 请求体\n- 请求体是**流**,要分片收集再拼接\n- 监听 `data` 事件收 chunk,`end` 事件时解析\n- JSON 用 `JSON.parse`,表单用 `querystring.parse` 或 `URLSearchParams`\n\n## 简易路由模式\n- 用 `req.method + url.pathname` 做 if/else 或 Map 匹配\n- 这就是 Express 路由的底层原理\n\n## 实践建议\n- 请求体要做大小限制,防恶意大包攻击\n- 解析 JSON 要 try/catch,格式错误返回 400\n- 框架(Express/Fastify)已内置这些处理,但原理必须懂",
+          "codeExample": "import http from 'node:http';\n\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://127.0.0.1`);\n  let body = '';\n  req.on('data', (chunk) => (body += chunk));\n  req.on('end', () => {\n    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });\n    if (req.method === 'GET') {\n      res.end(JSON.stringify({\n        path: url.pathname,\n        page: url.searchParams.get('page') || 1,\n        keyword: url.searchParams.get('keyword') || ''\n      }));\n    } else {\n      res.end(JSON.stringify({ received: body ? JSON.parse(body) : null }));\n    }\n  });\n});\n\nserver.listen(0, async () => {\n  const { port } = server.address();\n  const r1 = await fetch(`http://127.0.0.1:${port}/search?keyword=node&page=2`);\n  console.log('GET 解析:', await r1.text());\n  const r2 = await fetch(`http://127.0.0.1:${port}/users`, {\n    method: 'POST', headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ name: '小明', age: 18 })\n  });\n  console.log('POST 解析:', await r2.text());\n  server.close();\n});",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Web 开发",
+      "chapterNo": 7,
+      "title": "Express 框架入门",
+      "description": "Express 的路由与中间件机制、请求解析与响应、静态资源与错误处理。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Express 与中间件模型",
+          "summary": "理解 Express 的定位与中间件洋葱模型,掌握 app.use 注册中间件与 next() 的调用约定。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "Express 是 Node.js 最流行的 Web 框架:极简、路由清晰、中间件生态丰富。它对 http 模块做了优雅封装。\n\n## 起步\n```js\nimport express from 'express';\nconst app = express();\napp.get('/hello', (req, res) => res.send('Hello'));\napp.listen(3000);\n```\n\n## 中间件(Middleware)\n- 本质是 `(req, res, next)` 形式的函数,按注册顺序依次执行\n- 请求进入后像洋葱一样**层层穿过**中间件,`next()` 把控制权交给下一个\n- 不调用 `next()` 也不结束响应,请求会挂起——这是常见 Bug\n\n## 常见中间件\n- `express.json()`:解析 JSON 请求体\n- `express.static('public')`:托管静态文件\n- `morgan`:访问日志、`cors`:跨域、`helmet`:安全头\n\n## 中间件类型\n- 应用级:`app.use(fn)` 全局生效\n- 路由级:`router.use(fn)` 只作用于某组路由\n- 错误处理:`(err, req, res, next)` 四参数,Express 专门识别\n\n## 本课示例\n在线沙箱只支持内置模块,示例用纯函数手写了一个迷你中间件管道,帮你理解洋葱模型的执行顺序;真实项目直接 `npm install express`。",
+          "codeExample": "// 手写迷你中间件管道, 理解 Express 洋葱模型\nfunction createApp() {\n  const middlewares = [];\n  return {\n    use(fn) { middlewares.push(fn); },\n    handle(req) {\n      let i = 0;\n      const next = () => {\n        const fn = middlewares[i++];\n        if (!fn) return '响应结束';\n        return fn(req, next);\n      };\n      return next();\n    }\n  };\n}\n\nconst app = createApp();\napp.use((req, next) => {\n  console.log('1. 日志中间件: 收到', req.path);\n  const r = next();\n  console.log('4. 日志中间件: 处理完成');\n  return r;\n});\napp.use((req, next) => {\n  console.log('2. 认证中间件: 通过');\n  return next();\n});\napp.use((req) => {\n  console.log('3. 业务处理: 返回数据');\n  return { user: '张三' };\n});\n\napp.handle({ path: '/api/user' });",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "路由系统与模块化",
+          "summary": "掌握 REST 风格路由定义、路由参数与查询串,用 express.Router 拆分路由模块。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "路由是 Web 框架的骨架:根据「方法 + 路径」把请求分发给对应处理函数。\n\n## 定义路由\n```js\napp.get('/users', listUsers);        // 查询列表\napp.get('/users/:id', getUser);      // 查询单个\napp.post('/users', createUser);      // 创建\napp.put('/users/:id', updateUser);   // 全量更新\napp.delete('/users/:id', remove);    // 删除\n```\n\n## 路由参数\n- `:id` 是路径参数,`req.params.id` 取值(`/users/42` → `id='42'`)\n- `req.query` 是查询串(`/users?page=2` → `{ page: '2' }`)\n- `req.body` 是请求体(需要 `express.json()` 中间件先行解析)\n\n## 路由模块化\n```js\n// routes/users.js\nimport { Router } from 'express';\nconst router = Router();\nrouter.get('/', listUsers);\nexport default router;\n// app.js\napp.use('/users', usersRouter);\n```\n- 路由多了必须拆文件,按资源(业务对象)分组是主流做法\n\n## 匹配规则\n- 从上到下匹配,先命中先生效\n- 放在最后的 `app.use((req,res) => res.status(404))` 兜底未匹配路由",
+          "codeExample": "// 手写迷你路由器, 理解路由匹配与参数提取\nconst routes = [];\nfunction route(method, pattern, handler) {\n  const keys = [];\n  const regex = new RegExp('^' + pattern.replace(/:(\\w+)/g, (_, k) => {\n    keys.push(k); return '([^/]+)';\n  }) + '$');\n  routes.push({ method, regex, keys, handler });\n}\nfunction dispatch(method, path) {\n  for (const r of routes) {\n    if (r.method !== method) continue;\n    const m = path.match(r.regex);\n    if (m) {\n      const params = {};\n      r.keys.forEach((k, i) => (params[k] = m[i + 1]));\n      return r.handler({ params });\n    }\n  }\n  return '404 Not Found';\n}\n\nroute('GET', '/users', () => '[列表] 全部用户');\nroute('GET', '/users/:id', (req) => `[详情] 用户 ${req.params.id}`);\nroute('DELETE', '/users/:id', (req) => `[删除] 用户 ${req.params.id}`);\n\nconsole.log(dispatch('GET', '/users'));\nconsole.log(dispatch('GET', '/users/42'));\nconsole.log(dispatch('DELETE', '/users/42'));\nconsole.log(dispatch('GET', '/unknown'));",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "请求解析与统一响应",
+          "summary": "处理路径参数、查询串与三种请求体(JSON/表单/文件),封装统一的响应结构与错误处理中间件。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "真实项目的接口要处理各种输入,并以统一格式输出,前端才好对接。\n\n## 三种请求体\n- **JSON**:`express.json()` 解析,`Content-Type: application/json`,前后端主流\n- **表单**:`express.urlencoded({ extended: true })` 解析传统表单\n- **文件**:`multer` 中间件处理 multipart/form-data 上传\n\n## 统一响应封装\n```js\nconst ok = (res, data) => res.json({ code: 0, message: 'ok', data });\nconst fail = (res, code, message) => res.json({ code, message, data: null });\n```\n- 前端只需判断 `code === 0`,所有接口行为一致\n\n## 错误处理中间件\n```js\napp.use((err, req, res, next) => {\n  console.error(err);\n  res.status(500).json({ code: 500, message: err.message });\n});\n```\n- 业务代码里 `throw` 或 `next(err)`,统一在这里兜底\n- 生产环境不把堆栈返回给前端,只留错误码与提示\n\n## 输入校验\n- 参数校验库:joi、zod、express-validator\n- **永不信任用户输入**:类型、长度、范围都要验",
+          "codeExample": "// 统一响应封装 + 错误兜底(纯函数演示)\nconst ok = (data) => ({ code: 0, message: 'ok', data });\nconst fail = (code, message) => ({ code, message, data: null });\n\nfunction createUserHandler(body) {\n  // 输入校验\n  if (!body || !body.name) return fail(400, 'name 不能为空');\n  if (body.age !== undefined && (typeof body.age !== 'number' || body.age < 0)) {\n    return fail(400, 'age 必须是非负数字');\n  }\n  // 业务处理\n  const user = { id: 1, name: body.name, age: body.age ?? 0 };\n  return ok(user);\n}\n\nconsole.log(createUserHandler({ name: '张三', age: 18 }));\nconsole.log(createUserHandler({ age: -1 }));\nconsole.log(createUserHandler(null));",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Web 开发",
+      "chapterNo": 8,
+      "title": "RESTful API 设计",
+      "description": "REST 风格的资源设计、状态码规范、分页与版本管理,设计一套用户管理 API。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "REST 设计原则",
+          "summary": "理解资源、URI 与 HTTP 方法的对应关系,掌握 RESTful API 的命名规范与状态码语义。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "REST(表述性状态转移)是 Web API 的主流设计风格,核心是**用 URL 表示资源,用 HTTP 方法表示操作**。\n\n## URI 命名规范\n- 名词复数表示资源:`/users`、`/users/42/orders`\n- 不用动词:错误示范 `/getUser`、`/createUser`\n- 层级表示归属:`/users/42/orders`(用户 42 的订单)\n\n## 方法语义\n- `GET` 查询(安全幂等)、`POST` 创建、`PUT` 全量更新、`PATCH` 局部更新、`DELETE` 删除\n- 幂等性:GET/PUT/DELETE 多次调用结果一致,POST 不保证\n\n## 状态码速查\n- `200` 成功 / `201` 已创建(POST 成功)/ `204` 无内容(删除成功)\n- `400` 参数错误 / `401` 未登录 / `403` 无权限 / `404` 不存在\n- `409` 冲突(如用户名已存在)/ `500` 服务器错误\n\n## 响应结构建议\n- 列表:`{ code, message, data: { records: [], total, page, size } }`\n- 详情:`{ code, message, data: {...} }`\n- 错误:`{ code, message, data: null }`\n\n## 版本管理\n- URL 前缀式最常见:`/api/v1/users`\n- 兼容性变更走小版本,破坏性变更必须升主版本",
+          "codeExample": "// REST 设计原则速查演示\nconst apiDesign = [\n  { method: 'GET',    uri: '/api/v1/users',       meaning: '查询用户列表', status: 200 },\n  { method: 'GET',    uri: '/api/v1/users/:id',   meaning: '查询单个用户', status: 200 },\n  { method: 'POST',   uri: '/api/v1/users',       meaning: '创建用户',     status: 201 },\n  { method: 'PUT',    uri: '/api/v1/users/:id',   meaning: '全量更新',     status: 200 },\n  { method: 'PATCH',  uri: '/api/v1/users/:id',   meaning: '局部更新',     status: 200 },\n  { method: 'DELETE', uri: '/api/v1/users/:id',   meaning: '删除用户',     status: 204 },\n];\nfor (const r of apiDesign) {\n  console.log(r.method.padEnd(7), r.uri.padEnd(24), r.meaning, '->', r.status);\n}",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "实战:用户管理 CRUD API",
+          "summary": "综合运用路由与中间件,实现一套带分页、校验与错误处理的用户管理 REST API(内存版)。",
+          "difficulty": 3,
+          "durationMinutes": 35,
+          "content": "把前面所学串起来:用 Express 风格实现完整的用户管理 API。真实项目把内存数组换成数据库即可。\n\n## 接口清单\n- `GET /users?page=1&size=10&keyword=xx` 分页查询\n- `GET /users/:id` 详情(不存在返回 404)\n- `POST /users` 创建(校验必填与重名,冲突返回 409)\n- `PUT /users/:id` 更新\n- `DELETE /users/:id` 删除\n\n## 分页三件套\n- 入参:`page`(页码,从 1 开始)、`size`(每页条数)\n- 出参:`records`(当前页数据)、`total`(总条数)\n- 内存分页:`list.slice((page-1)*size, page*size)`\n\n## 业务分层建议\n- **路由层**:只做参数解析与响应\n- **服务层**:业务规则(校验、重名判断)\n- **数据层**:增删改查(内存数组 / 数据库)\n- 分层让代码可测试、可替换数据源\n\n## 本课示例\n沙箱里用内存数组实现完整 CRUD 与分页逻辑,路由匹配复用上一课的迷你路由器。",
+          "codeExample": "// 用户管理 CRUD API(内存版, 可运行)\nconst db = [\n  { id: 1, name: '张三', age: 18 },\n  { id: 2, name: '李四', age: 20 },\n  { id: 3, name: '王五', age: 22 },\n];\nlet nextId = 4;\n\n// GET /users?keyword=&page=&size=\nfunction listUsers({ keyword = '', page = 1, size = 10 } = {}) {\n  let rows = db.filter(u => u.name.includes(keyword));\n  const total = rows.length;\n  rows = rows.slice((page - 1) * size, page * size);\n  return { code: 0, data: { records: rows, total, page, size } };\n}\n// POST /users\nfunction createUser(body) {\n  if (!body?.name) return { code: 400, message: 'name 不能为空' };\n  if (db.some(u => u.name === body.name)) return { code: 409, message: '用户名已存在' };\n  const user = { id: nextId++, name: body.name, age: body.age ?? 0 };\n  db.push(user);\n  return { code: 0, data: user };\n}\n// DELETE /users/:id\nfunction removeUser(id) {\n  const idx = db.findIndex(u => u.id === id);\n  if (idx < 0) return { code: 404, message: '用户不存在' };\n  db.splice(idx, 1);\n  return { code: 0, message: '已删除' };\n}\n\nconsole.log('列表:', JSON.stringify(listUsers({ keyword: '王' })));\nconsole.log('创建:', JSON.stringify(createUser({ name: '赵六', age: 25 })));\nconsole.log('重名:', JSON.stringify(createUser({ name: '张三' })));\nconsole.log('删除:', JSON.stringify(removeUser(2)));\nconsole.log('总数:', db.length);",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "接口文档与联调规范",
+          "summary": "学会写接口文档(字段、示例、错误码),掌握前后端联调的约定与常见协作问题。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "API 是前后端的契约。文档清晰,联调效率翻倍。\n\n## 接口文档必备要素\n- **基本信息**:方法、路径、用途、是否需要登录\n- **请求参数**:名称、类型、必填、示例、说明(路径/查询/请求体分开列)\n- **响应结构**:成功示例 + 失败示例(含错误码表)\n- **备注**:幂等性、权限、限流规则\n\n## 文档工具\n- Swagger / OpenAPI:代码注解生成文档,可在线调试\n- Apifox / Postman:团队协作 + Mock 数据 + 自动化测试\n- README 手写:小项目够用\n\n## 联调约定\n- 约定统一响应壳:`{ code, message, data }`\n- 错误码分段:400 参数、401 未登录、403 无权限、404 不存在、500 服务端\n- 日期格式统一 ISO 8601 或时间戳,金额用整数(分)避免浮点误差\n\n## Mock 先行\n- 后端接口没好,前端先用 Mock 数据开发\n- 文档即 Mock:Apifox 等工具根据文档自动生成",
+          "codeExample": "// 用 JS 对象模拟一份接口文档, 明确前后端契约\nconst apiDoc = {\n  name: '创建用户',\n  method: 'POST',\n  path: '/api/v1/users',\n  auth: true,\n  body: [\n    { field: 'name', type: 'string', required: true, example: '张三', note: '用户名, 不可重复' },\n    { field: 'age',  type: 'number', required: false, example: 18, note: '年龄, 非负' },\n  ],\n  responses: {\n    201: { code: 0, message: 'ok', data: { id: 4, name: '张三', age: 18 } },\n    400: { code: 400, message: 'name 不能为空', data: null },\n    409: { code: 409, message: '用户名已存在', data: null },\n  }\n};\nconsole.log(`${apiDoc.method} ${apiDoc.path} - ${apiDoc.name}`);\nconsole.log('请求参数:');\napiDoc.body.forEach(p => console.log(`  ${p.field}(${p.type}${p.required ? ', 必填' : ''}): ${p.note}`));\nconsole.log('响应示例:', JSON.stringify(apiDoc.responses[201]));",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Web 开发",
+      "chapterNo": 9,
+      "title": "数据库访问",
+      "description": "关系型与文档型数据库的 Node 驱动、连接池与事务、ORM 思想与防止注入。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "关系型数据库与 SQL 驱动",
+          "summary": "用 mysql2/promise 连接 MySQL,掌握连接池配置、参数化查询与事务的基本用法。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "Node 连接关系型数据库(MySQL/PostgreSQL)的主流选择:mysql2、pg。它们都提供 Promise 版 API。\n\n## 连接与连接池\n```js\nimport mysql from 'mysql2/promise';\nconst pool = mysql.createPool({\n  host: 'localhost', user: 'root', password: process.env.DB_PWD,\n  database: 'demo', waitForConnections: true, connectionLimit: 10\n});\nconst [rows] = await pool.query('SELECT * FROM users WHERE age > ?', [18]);\n```\n- **连接池**复用数据库连接,避免每次请求都握手(高并发必备)\n- `connectionLimit` 按数据库承载能力设置(通常 10~20)\n\n## 参数化查询(防 SQL 注入)\n- 永远用 `?` 占位符,让驱动转义\n- 错误写法:`` `SELECT * FROM users WHERE name='${name}'` ``(直接拼接)\n- 参数化后,`name = \"' OR 1=1 --\"` 也只会被当作普通字符串\n\n## 事务\n```js\nconst conn = await pool.getConnection();\ntry {\n  await conn.beginTransaction();\n  await conn.query('UPDATE accounts SET balance = balance - ? WHERE id = ?', [100, 1]);\n  await conn.query('UPDATE accounts SET balance = balance + ? WHERE id = ?', [100, 2]);\n  await conn.commit();\n} catch (e) {\n  await conn.rollback();\n} finally {\n  conn.release();\n}\n```\n- 转账是经典事务场景:两条更新要么都成功,要么都回滚",
+          "codeExample": "// 参数化查询思想演示: 字符串拼接 vs 占位符\nfunction unsafeQuery(name) {\n  // 危险! 直接拼接会被注入: name = \"' OR 1=1 --\"\n  return `SELECT * FROM users WHERE name = '${name}'`;\n}\nfunction safeQuery(name) {\n  // 安全: 数据与 SQL 结构分离, 驱动负责转义\n  return {\n    sql: 'SELECT * FROM users WHERE name = ?',\n    params: [name]\n  };\n}\nconst evil = \"' OR 1=1 --\";\nconsole.log('拼接(危险):', unsafeQuery(evil));\nconsole.log('参数化(安全):', JSON.stringify(safeQuery(evil)));\n\n// 转账事务语义: 两步操作要么全做要么全不做\nfunction transfer(from, to, amount) {\n  const steps = [\n    `UPDATE accounts SET balance = balance - ${amount} WHERE id = ${from}`,\n    `UPDATE accounts SET balance = balance + ${amount} WHERE id = ${to}`\n  ];\n  return { sql: steps, atomic: true, onFail: 'ROLLBACK' };\n}\nconsole.log('事务:', JSON.stringify(transfer(1, 2, 100), null, 1));",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "MongoDB 与 Mongoose",
+          "summary": "理解文档型数据库的集合/文档模型,用 Mongoose 定义 Schema、模型与常用查询。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "MongoDB 是 Node 生态最流行的 NoSQL 数据库,存 JSON 风格的文档,Schema 灵活。\n\n## 核心概念对比\n- 库(database)→ 集合(collection)≈ 表 → 文档(document)≈ 行\n- 文档就是 JSON 对象,字段可以动态增减(但仍建议约定 Schema)\n\n## Mongoose 入门\n```js\nimport mongoose from 'mongoose';\nconst userSchema = new mongoose.Schema({\n  name: { type: String, required: true },\n  email: { type: String, unique: true },\n  age: { type: Number, min: 0 }\n}, { timestamps: true });\nconst User = mongoose.model('User', userSchema);\nawait User.create({ name: '张三', email: 'a@b.com' });\nconst list = await User.find({ age: { $gte: 18 } }).sort('-createdAt').limit(10);\n```\n\n## Schema 类型与校验\n- `required`、`unique`、`min/max`、`enum`、`default`\n- `timestamps: true` 自动维护 createdAt/updatedAt\n\n## 常用查询操作符\n- 等值:`{ age: 18 }`;比较:`$gte $gt $lte $lt $ne`\n- 包含:`$in $nin`;逻辑:`$or $and $not`\n- 分页:`.skip((page-1)*size).limit(size)`\n\n## 选型建议\n- 结构固定、强一致(交易、账务)→ MySQL/PostgreSQL\n- 结构灵活、快速迭代(内容、日志、配置)→ MongoDB",
+          "codeExample": "// 文档数据库查询语义演示(用内存数组模拟集合)\nconst users = [\n  { _id: 1, name: '张三', age: 18, tags: ['node', 'mongo'] },\n  { _id: 2, name: '李四', age: 25, tags: ['java'] },\n  { _id: 3, name: '王五', age: 30, tags: ['node', 'java'] },\n];\n// 模拟 find({ age: { $gte: 18 } }).sort('-age').limit(2)\nfunction find(collection, filter, { sort, limit } = {}) {\n  let rows = collection.filter(doc => {\n    if (filter.age?.$gte !== undefined && doc.age < filter.age.$gte) return false;\n    if (filter.name && doc.name !== filter.name) return false;\n    return true;\n  });\n  if (sort) {\n    const [field, dir] = [sort.replace('-', ''), sort.startsWith('-') ? -1 : 1];\n    rows = [...rows].sort((a, b) => dir * (a[field] - b[field]));\n  }\n  return rows.slice(0, limit ?? rows.length);\n}\n\nconsole.log('年龄>=18 按年龄降序:', JSON.stringify(find(users, { age: { $gte: 18 } }, { sort: '-age', limit: 2 })));\nconsole.log('按名字精确查:', JSON.stringify(find(users, { name: '李四' })));",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "ORM 思想与数据层设计",
+          "summary": "理解 ORM 的对象-关系映射,学会设计 Repository 数据层,掌握 N+1 查询与懒加载陷阱。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "ORM(Object-Relational Mapping)把数据库表映射成程序对象,主流选择:Sequelize、Prisma、TypeORM。\n\n## ORM 解决什么\n- 用 `User.findAll()` 代替手写 SQL,跨数据库迁移容易\n- 模型定义即校验与类型约束,减少低级错误\n- 内置连接池、事务、钩子、关联查询\n\n## Prisma 示例(现代主流)\n```prisma\nmodel User {\n  id    Int     @id @default(autoincrement())\n  name  String\n  posts Post[]\n}\n```\n```js\nconst user = await prisma.user.findMany({\n  where: { age: { gte: 18 } }, include: { posts: true }\n});\n```\n\n## Repository 模式\n- 数据访问收口到 Repository 层:`UserRepo.findPage()`\n- 业务代码只依赖接口,换 ORM/换库不动业务\n- 便于单元测试时用内存实现替身(mock)\n\n## N+1 查询陷阱\n- 查 1 个列表 + 每行再查 1 次关联 = N+1 条 SQL,性能灾难\n- 解决:一次性 `include` / `JOIN`,或分批 `IN` 查询\n\n## 迁移(Migration)\n- 表结构变更用迁移脚本管理(可版本化、可回滚)\n- 禁止手工改线上表结构",
+          "codeExample": "// Repository 模式 + N+1 陷阱演示(内存版)\nconst orders = [\n  { id: 1, userId: 1, amount: 99 },\n  { id: 2, userId: 2, amount: 199 },\n  { id: 3, userId: 1, amount: 299 },\n];\nconst userNames = { 1: '张三', 2: '李四' };\nlet queryCount = 0;\n\n// 差的写法: N+1(逐条查询)\nfunction badList() {\n  return orders.map(o => {\n    queryCount++; // 每单查一次用户名\n    return { ...o, userName: userNames[o.userId] };\n  });\n}\n// 好的写法: 批量取回后内存关联\ngoodCount = 0;\nfunction goodList() {\n  queryCount++; // 一次 IN 查询拿到全部用户\n  return orders.map(o => ({ ...o, userName: userNames[o.userId] }));\n}\n\nqueryCount = 0; badList();\nconsole.log('N+1 写法查询次数:', queryCount, '(1 +', orders.length, '次)');\nqueryCount = 0; goodList();\nconsole.log('批量写法查询次数:', queryCount, '(仅 1 次)');",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Web 开发",
+      "chapterNo": 10,
+      "title": "认证与安全",
+      "description": "密码哈希与会话、JWT 无状态认证,以及 SQL 注入、XSS、CSRF 等常见漏洞防护。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "密码存储与会话认证",
+          "summary": "理解为什么密码必须哈希加盐(bcrypt),掌握 Cookie/Session 有状态认证的流程与取舍。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "认证(你是谁)与授权(你能做什么)是 Web 安全的第一道防线。\n\n## 密码绝不能明文存\n- 数据库泄露=全部用户密码泄露,必须**单向哈希**\n- 不能只用 MD5/SHA:太快,暴力破解每秒百亿次\n- 用 **bcrypt / argon2**:自带加盐 + 故意慢,抗彩虹表与暴力破解\n```js\nimport bcrypt from 'bcrypt';\nconst hash = await bcrypt.hash('123456', 10);  // 10 是成本因子\nconst ok = await bcrypt.compare('123456', hash);\n```\n\n## Session 认证(有状态)\n- 浏览器首次登录 → 服务端存 Session → 下发 SessionID 到 Cookie\n- 后续请求携带 Cookie,服务端查 Session 得到用户\n- 优点:服务端可主动失效(踢下线);缺点:多机部署要共享 Session(Redis)\n\n## Cookie 安全属性\n- `HttpOnly`:JS 读不到,防 XSS 偷 Cookie\n- `Secure`:只走 HTTPS\n- `SameSite=Lax/Strict`:防 CSRF\n\n## 选型\n- 传统 Web(服务端渲染):Session 足够\n- 前后端分离 / 移动端:更常用 JWT(下一课)",
+          "codeExample": "// 密码哈希思想演示: 为什么需要加盐与慢哈希\n// (演示用简化模型, 真实项目用 bcrypt/argon2 库)\nfunction fakeHash(password, salt, rounds) {\n  let h = salt + ':' + password;\n  for (let i = 0; i < rounds; i++) {\n    // 模拟慢哈希: 迭代 rounds 轮\n    h = Buffer.from(h).toString('base64');\n  }\n  return salt + '$' + h.slice(0, 32);\n}\nfunction fakeCompare(password, stored) {\n  const salt = stored.split('$')[0];\n  return fakeHash(password, salt, 3) === stored;\n}\n\nconst salt = 'a1b2c3'; // 每个用户独立随机盐\nconst stored = fakeHash('my-secret-pw', salt, 3);\nconsole.log('存储的哈希:', stored);\nconsole.log('验证正确密码:', fakeCompare('my-secret-pw', stored));\nconsole.log('验证错误密码:', fakeCompare('wrong-pw', stored));\nconsole.log('要点: 1)加盐防彩虹表 2)慢哈希防暴力破解 3)绝不存明文');",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "JWT 无状态认证",
+          "summary": "掌握 JWT 的三段结构与签发验证流程,实现登录下发 Token 与中间件校验,了解刷新令牌机制。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "JWT(JSON Web Token)是前后端分离架构的主流认证方案:服务端不存会话,Token 自带用户信息。\n\n## JWT 结构\n- `Header.Payload.Signature` 三段 Base64URL\n- Header:算法与类型;Payload:用户 ID、角色、过期时间;Signature:防篡改签名\n\n## 认证流程\n1. 登录成功 → 服务端用密钥签发 JWT 返回\n2. 前端存 Token(建议内存 + HttpOnly Cookie,慎存 localStorage)\n3. 每次请求带 `Authorization: Bearer <token>`\n4. 中间件验签 + 检查过期,解析出 userId\n\n## 实现要点\n```js\nimport jwt from 'jsonwebtoken';\nconst token = jwt.sign({ uid: 1, role: 'admin' }, SECRET, { expiresIn: '2h' });\nconst payload = jwt.verify(token, SECRET);  // 篡改/过期会抛错\n```\n\n## 安全注意\n- 密钥(`SECRET`)必须放环境变量,绝不进代码库\n- Payload 只是 Base64 **不是加密**,别放敏感信息\n- 过期时间要短(1~2 小时),配合**刷新令牌**(Refresh Token)续期\n- Token 无法主动作废:重要操作(改密码、踢人)要额外黑名单机制\n\n## 本课示例\n用内置 crypto 模块的 HMAC 实现迷你 JWT,跑通签发与验签。",
+          "codeExample": "// 用 crypto 实现迷你 JWT(Header.Payload.Signature)\nimport crypto from 'node:crypto';\n\nconst SECRET = 'demo-secret';\nconst b64url = (s) => Buffer.from(s).toString('base64url');\nconst sign = (data, secret) =>\n  crypto.createHmac('sha256', secret).update(data).digest('base64url');\n\nfunction createToken(payload, secret, ttlSec = 3600) {\n  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));\n  const body = b64url(JSON.stringify({ ...payload, exp: Date.now() / 1000 + ttlSec }));\n  const sig = sign(`${header}.${body}`, secret);\n  return `${header}.${body}.${sig}`;\n}\nfunction verifyToken(token, secret) {\n  const [header, body, sig] = token.split('.');\n  if (sign(`${header}.${body}`, secret) !== sig) throw new Error('签名无效');\n  const payload = JSON.parse(Buffer.from(body, 'base64url'));\n  if (payload.exp < Date.now() / 1000) throw new Error('Token 已过期');\n  return payload;\n}\n\nconst token = createToken({ uid: 1, role: 'admin' }, SECRET);\nconsole.log('签发 Token:', token.slice(0, 40) + '...');\nconsole.log('验签结果:', JSON.stringify(verifyToken(token, SECRET)));\ntry {\n  verifyToken(token + 'x', SECRET); // 篡改\n} catch (e) {\n  console.log('篡改检测:', e.message);\n}",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "常见 Web 漏洞与防护",
+          "summary": "认识 SQL 注入、XSS、CSRF、CORS 配置不当与敏感信息泄露,掌握对应的防护清单。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "OWASP Top 10 是 Web 安全漏洞的权威清单,Node 后端开发必须对号入座。\n\n## SQL 注入\n- 成因:SQL 直接拼接用户输入\n- 防护:**参数化查询 / 预编译**,禁止字符串拼接 SQL\n\n## XSS(跨站脚本)\n- 成因:用户输入被当 HTML/JS 执行(如评论区嵌 `<script>`)\n- 防护:输出转义、CSP 响应头、富文本用白名单过滤(sanitize-html)\n- 前端框架(Vue/React)默认转义,但 `v-html` / `dangerouslySetInnerHTML` 要自己把关\n\n## CSRF(跨站请求伪造)\n- 成因:浏览器自动带 Cookie,恶意站点诱导发起请求\n- 防护:`SameSite` Cookie、CSRF Token、关键操作二次验证\n\n## CORS 配置\n- `Access-Control-Allow-Origin` 不要用 `*` + 携带 Cookie 的组合\n- 明确列出可信域名\n\n## 敏感信息\n- 密钥、密码一律环境变量管理;日志不打 Token/密码\n- 依赖漏洞:`npm audit` 定期检查\n\n## 防护清单\n- 参数化查询 / 输入校验 / 输出转义 / 最小权限 / HTTPS / 限流",
+          "codeExample": "// XSS 与 SQL 注入的输入处理演示\n// 1. XSS: 输出转义\nfunction escapeHtml(s) {\n  return String(s)\n    .replaceAll('&', '&amp;')\n    .replaceAll('<', '&lt;')\n    .replaceAll('>', '&gt;')\n    .replaceAll('\"', '&quot;')\n    .replaceAll(\"'\", '&#39;');\n}\nconst evil = '<script>alert(document.cookie)</script>';\nconsole.log('原始输入:', evil);\nconsole.log('转义输出:', escapeHtml(evil), '(浏览器只显示文本, 不会执行)');\n\n// 2. SQL 注入: 参数化\nfunction queryUsers(nameInput) {\n  // 无论输入什么都只是参数, SQL 结构不变\n  return { sql: 'SELECT * FROM users WHERE name = ?', params: [nameInput] };\n}\nconsole.log('注入尝试:', JSON.stringify(queryUsers(\"' OR 1=1 --\")));\n\n// 3. 安全响应头清单\nconst securityHeaders = {\n  'Content-Security-Policy': \"default-src 'self'\",\n  'X-Content-Type-Options': 'nosniff',\n  'X-Frame-Options': 'DENY',\n  'Strict-Transport-Security': 'max-age=31536000',\n};\nconsole.log('建议响应头:', JSON.stringify(securityHeaders, null, 1));",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 4,
+      "stageName": "工程化实战",
+      "chapterNo": 11,
+      "title": "调试、测试与日志",
+      "description": "Node 调试技巧、单元测试框架与断言、日志分级与结构化日志。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "调试技巧与错误定位",
+          "summary": "掌握 console 家族、node --inspect 调试器、错误堆栈阅读与 unhandledRejection 捕获。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "排查问题的能力决定开发效率。Node 提供了完整的调试工具链。\n\n## console 家族\n- `console.log/info/warn/error`:分级输出\n- `console.table`:表格打印数组/对象(看查询结果超好用)\n- `console.time/timeEnd`:粗测耗时\n- `console.trace`:打印当前调用栈\n\n## 调试器\n- `node --inspect app.js`:开启调试协议,Chrome 打开 `chrome://inspect` 连接\n- `node --inspect-brk app.js`:断在第一行(调试启动崩溃问题)\n- VS Code 直接 F5 断点调试,可看变量、单步、调用栈\n\n## 读懂错误堆栈\n- 第一行是错误类型与消息:`TypeError: Cannot read properties of undefined`\n- 后续 `at xxx (文件:行:列)` 是调用链,**从上往下是出错现场到调用源头**\n\n## 全局异常兜底\n```js\nprocess.on('uncaughtException', e => { console.error(e); process.exit(1); });\nprocess.on('unhandledRejection', e => { console.error(e); });\n```\n- 生产环境必须注册:未捕获异常/未处理 Promise 拒绝要记录并优雅退出\n\n## 二分定位法\n- 大段代码出问题:注释一半看是否复现,快速缩小范围",
+          "codeExample": "// 调试工具实战演示\nconst users = [\n  { name: '张三', scores: [90, 85] },\n  { name: '李四', scores: [78, 88] },\n];\n\n// console.table: 查看结构化数据\nconsole.table(users.map(u => ({ name: u.name, avg: (u.scores[0] + u.scores[1]) / 2 })));\n\n// console.time: 粗测性能\nconsole.time('求和');\nconst total = users.flatMap(u => u.scores).reduce((a, b) => a + b, 0);\nconsole.timeEnd('求和');\nconsole.log('总分:', total);\n\n// 错误堆栈阅读: 从上往下 现场 -> 调用源头\nfunction getUserName(id) {\n  const u = users[id];\n  return u.name; // id 越界时这里抛 TypeError\n}\nfunction handleRequest(id) {\n  return getUserName(id);\n}\ntry {\n  handleRequest(99);\n} catch (e) {\n  console.log('捕获错误:', e.name + ':', e.message);\n  console.log('堆栈首行(出错现场):', e.stack.split('\\n')[1].trim());\n}",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "单元测试与断言",
+          "summary": "用 Node:test 或 Jest 风格编写单元测试,掌握 describe/it/expect 三件套与测试组织方式。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "测试是重构的底气。Node 18+ 内置 `node:test` 测试框架,零依赖即可开箱。\n\n## 测试三部曲\n- **Arrange(准备)**:构造输入与依赖\n- **Act(执行)**:调用被测函数\n- **Assert(断言)**:验证结果符合预期\n\n## node:test 用法\n```js\nimport { test } from 'node:test';\nimport assert from 'node:assert';\ntest('加法', () => {\n  assert.strictEqual(1 + 1, 2);\n});\n```\n- `describe/it` 分组组织;`npm test` 运行(`node --test`)\n\n## Jest 风格(主流第三方)\n```js\ndescribe('用户服务', () => {\n  it('创建用户成功', () => {\n    expect(createUser({ name: '张三' })).toEqual({ id: 1, name: '张三' });\n  });\n});\n```\n\n## 测试什么\n- **单元测试**:纯函数、业务规则(优先,收益最高)\n- **集成测试**:接口 + 数据库联调\n- **E2E**:浏览器全流程(数量少而精)\n\n## 好测试的特征\n- 独立(互不依赖)、可重复、快、名字说明行为\n- 测行为不测实现:改内部结构测试不该挂",
+          "codeExample": "// 用 node:test + assert 写真实单元测试\nimport { test, describe } from 'node:test';\nimport assert from 'node:assert/strict';\n\n// 被测函数: 折扣计算器\nfunction calcPrice(price, vipLevel) {\n  if (price < 0) throw new Error('价格不能为负');\n  const discounts = { 0: 1, 1: 0.95, 2: 0.9 };\n  const rate = discounts[vipLevel] ?? 1;\n  return Math.round(price * rate * 100) / 100;\n}\n\ndescribe('calcPrice 折扣计算', () => {\n  test('普通用户无折扣', () => {\n    assert.equal(calcPrice(100, 0), 100);\n  });\n  test('VIP1 九五折', () => {\n    assert.equal(calcPrice(100, 1), 95);\n  });\n  test('VIP2 九折', () => {\n    assert.equal(calcPrice(200, 2), 180);\n  });\n  test('非法价格抛错', () => {\n    assert.throws(() => calcPrice(-1, 0), /价格不能为负/);\n  });\n});",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "日志规范与可观测性",
+          "summary": "设计日志分级(debug/info/warn/error)、结构化日志与请求追踪 ID,接入 pino/winston 的思路。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "日志是线上排障的眼睛。乱打 console.log 不是日志系统。\n\n## 日志分级\n- `error`:影响功能的错误(需要告警)\n- `warn`:潜在问题(如慢查询、重试)\n- `info`:关键业务事件(登录、下单)\n- `debug`:调试细节(生产环境关闭)\n\n## 结构化日志\n- 输出 JSON 而非纯文本,便于日志平台(ELK/Loki)采集检索\n```json\n{\"level\":\"info\",\"time\":\"2026-10-12T12:00:00Z\",\"reqId\":\"abc123\",\"msg\":\"用户登录成功\",\"uid\":42}\n```\n\n## 请求追踪\n- 每个请求生成 `reqId`(X-Request-Id),贯穿所有日志\n- 一次用户请求经过多个服务,靠 reqId 串起来\n\n## 主流库\n- **pino**:性能极高,JSON 原生,当前主流\n- **winston**:功能全,传输(文件/HTTP)丰富\n```js\nimport pino from 'pino';\nconst log = pino({ level: 'info' });\nlog.info({ uid: 42 }, '用户登录成功');\n```\n\n## 原则\n- 不打敏感信息(Token、密码、身份证)\n- 错误日志必须带堆栈;访问日志记录耗时、状态码\n- 日志要轮转清理(logrotate),避免磁盘写满",
+          "codeExample": "// 结构化日志 + 请求追踪演示\nconst LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };\nconst MIN_LEVEL = LEVELS.info; // 生产环境阈值\n\nfunction makeLogger(reqId) {\n  return {\n    log(level, msg, extra = {}) {\n      if (LEVELS[level] < MIN_LEVEL) return; // 低于阈值不输出\n      console.log(JSON.stringify({\n        level, time: new Date().toISOString(), reqId, msg, ...extra\n      }));\n    },\n    debug: (msg, extra) => makeLogger.log('debug', msg, extra),\n  };\n}\n\nconst reqId = 'req-' + Math.random().toString(36).slice(2, 8);\nconst log = {\n  info: (msg, extra) => console.log(JSON.stringify({ level: 'info', time: new Date().toISOString(), reqId, msg, ...extra })),\n  error: (msg, extra) => console.log(JSON.stringify({ level: 'error', time: new Date().toISOString(), reqId, msg, ...extra })),\n};\n\nlog.info('收到请求', { method: 'GET', path: '/api/users' });\nlog.info('用户登录成功', { uid: 42 });\nlog.error('数据库查询失败', { err: 'ETIMEDOUT', durationMs: 3000 });\nconsole.log('同一个 reqId 串联一次请求的全部日志 ->', reqId);",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 4,
+      "stageName": "工程化实战",
+      "chapterNo": 12,
+      "title": "项目结构与部署",
+      "description": "分层项目结构、环境变量管理、PM2 进程管理与 Docker 容器化部署。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "工程结构与环境配置",
+          "summary": "掌握按职责分层的项目目录结构,用 dotenv 管理多环境配置与敏感信息。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "项目变大后,结构决定可维护性。主流 Node 后端项目按**职责分层**。\n\n## 推荐目录结构\n```\nsrc/\n  controllers/   # 路由处理:解析请求、调 service、返回响应\n  services/      # 业务逻辑\n  repositories/  # 数据访问\n  middlewares/   # 中间件(认证、日志、错误处理)\n  routes/        # 路由定义\n  utils/         # 工具函数\n  config/        # 配置加载\napp.js           # 组装与启动\n```\n\n## 环境变量管理\n- `.env` 文件放本地配置(提交 `.env.example` 模板,真 `.env` 进 .gitignore)\n```env\nPORT=3000\nDB_HOST=localhost\nDB_PASSWORD=xxx\nJWT_SECRET=xxx\n```\n- 代码里用 `process.env` 读取,dotenv 启动时加载\n- **敏感信息永远不进代码库**;生产环境由部署平台注入\n\n## 分环境配置\n- `config/index.js` 统一出口,按 `NODE_ENV` 切换默认值\n- 配置启动时校验:缺关键变量直接报错退出,避免线上才发现\n\n## 分层原则\n- Controller 不写业务,Service 不碰 req/res,Repository 只管数据\n- 依赖单向:routes → controllers → services → repositories",
+          "codeExample": "// 分层结构与配置加载演示(内存版)\n// config: 启动时校验必需配置\nfunction loadConfig(env = process.env) {\n  const config = {\n    port: Number(env.PORT || 3000),\n    jwtSecret: env.JWT_SECRET,\n    dbHost: env.DB_HOST || 'localhost',\n    env: env.NODE_ENV || 'development',\n  };\n  const missing = ['jwtSecret'].filter(k => !config[k]);\n  if (missing.length) throw new Error(`缺少必需配置: ${missing.join(', ')}`);\n  return config;\n}\n\n// repository: 只管数据\nconst userRepo = {\n  findAll: () => [{ id: 1, name: '张三' }],\n};\n// service: 只管业务\nconst userService = {\n  list() {\n    const users = userRepo.findAll();\n    return users.map(u => ({ ...u, displayName: u.name + '(VIP)' }));\n  }\n};\n// controller: 只管请求/响应\nconst userController = {\n  list() {\n    return { code: 0, data: userService.list() };\n  }\n};\n\nconst config = loadConfig({ JWT_SECRET: 'demo', NODE_ENV: 'test' });\nconsole.log('配置加载:', config);\nconsole.log('分层调用:', JSON.stringify(userController.list()));",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "PM2 进程管理与集群",
+          "summary": "用 PM2 启动、守护与监控 Node 应用,理解 cluster 多进程模型与零停机重载。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "上线不是 `node app.js` 一把梭:进程崩溃要拉起、多核要利用、更新要不停机。PM2 是 Node 进程管理的事实标准。\n\n## PM2 常用命令\n- `pm2 start app.js --name api`:启动并命名\n- `pm2 start app.js -i max`:按 CPU 核数启动集群\n- `pm2 list` / `pm2 logs` / `pm2 monit`:状态、日志、监控\n- `pm2 reload api`:零停机重载(逐个替换进程)\n- `pm2 save && pm2 startup`:持久化,开机自启\n\n## 为什么需要 PM2\n- **守护**:进程崩溃自动拉起(自己写的 while 拉起不可靠)\n- **集群**:`-i max` 利用多核,Node 单线程也能吃满 CPU\n- **日志**:自动收集 stdout/stderr,按天轮转\n- **零停机**:`reload` 滚动替换,用户无感知\n\n## cluster 原理(面试高频)\n- 主进程 fork 多个 worker,共享端口,内核级负载均衡\n- PM2 就是 cluster 的管家\n\n## ecosystem.config.js\n```js\nmodule.exports = {\n  apps: [{\n    name: 'api', script: './app.js',\n    instances: 'max', env: { NODE_ENV: 'production' }\n  }]\n};\n```\n- 配置文件进版本库,环境差异用 `--env` 切换",
+          "codeExample": "// cluster 多进程模型演示(概念版)\n// 真实 cluster.fork() 需要主进程/worker 区分, 这里用纯数据演示调度\nconst os = require('node:os');\nconst cpuCount = os.cpus().length;\n\n// PM2 -i max 的效果: worker 数 = CPU 核数\nconst workers = Array.from({ length: Math.min(cpuCount, 4) }, (_, i) => ({\n  id: i + 1, pid: 10000 + i, status: 'online', handled: 0,\n}));\n\n// 内核级轮询分发请求\nfunction dispatch(requests) {\n  requests.forEach((req, i) => {\n    const worker = workers[i % workers.length];\n    worker.handled++;\n  });\n}\ndispatch(Array.from({ length: 10 }, (_, i) => ({ id: i })));\n\nconsole.log('CPU 核数:', cpuCount, '| 启动 worker 数:', workers.length);\nworkers.forEach(w => console.log(`worker#${w.id} pid=${w.pid} 处理请求数=${w.handled}`));\nconsole.log('PM2 reload: 逐个替换 worker, 请求无感知(零停机)');",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Docker 容器化部署",
+          "summary": "编写 Dockerfile 打包 Node 应用,理解镜像分层与多阶段构建,用 compose 编排应用与数据库。",
+          "difficulty": 2,
+          "durationMinutes": 30,
+          "content": "Docker 把应用与环境一起打包成镜像,解决「在我机器上能跑」的经典难题。\n\n## Dockerfile 基础\n```dockerfile\nFROM node:22-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci --omit=dev\nCOPY . .\nEXPOSE 3000\nCMD [\"node\", \"app.js\"]\n```\n\n## 镜像分层优化\n- 先 COPY `package*.json` 再 `npm ci`:依赖不变时命中缓存\n- `npm ci` 严格按 lock 文件安装,比 `npm install` 更适合 CI/镜像\n- `.dockerignore` 排除 node_modules、.git、日志\n- **alpine 基础镜像**体积小(100MB 级 vs 1GB 级)\n\n## 多阶段构建\n- 构建阶段装 devDependencies 跑 build\n- 运行阶段只拷贝产物,镜像更小更安全\n\n## docker compose 编排\n```yaml\nservices:\n  api:\n    build: .\n    ports: [\"3000:3000\"]\n    environment: [DB_HOST=db]\n  db:\n    image: mysql:8\n    volumes: [\"db-data:/var/lib/mysql\"]\n```\n- 应用 + 数据库一键起,服务名即主机名(`DB_HOST=db`)\n- 数据卷持久化,容器删了数据还在\n\n## 生产注意\n- 用非 root 用户运行;健康检查 `HEALTHCHECK`;日志走 stdout 交给平台收集",
+          "codeExample": "// Docker 镜像分层思想演示(纯文本模拟构建)\nconst layers = [\n  { step: 'FROM node:22-alpine', cached: false, note: '基础镜像' },\n  { step: 'COPY package*.json ./', cached: false, note: '先拷贝依赖清单(变更少)' },\n  { step: 'RUN npm ci --omit=dev', cached: true,  note: '依赖不变时命中缓存 <- 关键优化' },\n  { step: 'COPY . .',              cached: false, note: '最后拷贝源码(变更频繁)' },\n  { step: 'CMD [\"node\", \"app.js\"]', cached: true, note: '启动命令' },\n];\n\nlet total = 0;\nfor (const l of layers) {\n  total += l.cached ? 0 : 1;\n  console.log(`${l.cached ? '[缓存]' : '[构建]'} ${l.step.padEnd(30)} ${l.note}`);\n}\nconsole.log(`实际构建层数: ${total}/${layers.length} (依赖不变时只重建源码层)`);\n\n// docker compose 服务编排概念\nconst compose = {\n  services: {\n    api: { build: '.', ports: ['3000:3000'], dependsOn: ['db'] },\n    db:  { image: 'mysql:8', volumes: ['db-data:/var/lib/mysql'] },\n  }\n};\nconsole.log('compose 编排:', Object.keys(compose.services).join(' + '), '(服务名即主机名)');",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 4,
+      "stageName": "工程化实战",
+      "chapterNo": 13,
+      "title": "TypeScript 与综合实战",
+      "description": "TypeScript 在 Node 中的应用、完整项目开发流程,以及 Node 生态与进阶学习路径。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "TypeScript 与 Node",
+          "summary": "理解 TypeScript 给 Node 带来的类型安全,掌握 tsconfig、ts-node/tsx 开发流程与类型定义。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "TypeScript 是 JavaScript 的超集,给 JS 加上静态类型。中大型 Node 项目几乎标配 TS。\n\n## 为什么用 TS\n- 编译期发现错误(拼写、类型、必填字段),不用等运行\n- IDE 智能提示、重构安全\n- 类型即文档,接口约定一目了然\n\n## 开发流程\n- 源码 `.ts`,编译成 `.js` 运行:`tsc` 或直接 `tsx app.ts`(免编译运行)\n- `tsconfig.json` 配置编译选项(strict 模式建议开启)\n\n## 常用类型\n```ts\ninterface User {\n  id: number;\n  name: string;\n  age?: number;          // 可选\n}\nfunction createUser(data: User): User {\n  return { id: 1, ...data };\n}\n```\n- 基础类型、接口、泛型、联合类型、类型守卫\n\n## 与 Express 联合\n- `@types/express` 提供框架类型定义(req/res 都有提示)\n- 请求体用 interface 约束,入参校验仍有价值(类型不管运行时)\n\n## 注意\n- 类型只在编译期存在,运行前被擦除\n- 第三方库没有类型?自己写 `.d.ts` 声明或找 `@types/*`",
+          "codeExample": "// TypeScript 类型思想演示(JS 运行, 注释标注 TS 类型)\n// interface User { id: number; name: string; age?: number; }\n\nfunction createUser(data) {\n  // TS 编译期保证: data.name 必填、age 是数字\n  // 运行时仍需校验(用户输入不可信)\n  if (typeof data?.name !== 'string' || !data.name) {\n    throw new TypeError('name 必须是非空字符串');\n  }\n  return { id: 1, name: data.name, age: data.age ?? 0 };\n}\n\n// 模拟泛型容器: class Repository<T>\nfunction createRepository(table) {\n  const rows = [];\n  return {\n    save(row) { rows.push(row); return row; },\n    findAll() { return [...rows]; },\n    table,\n  };\n}\n\nconst userRepo = createRepository('users');\nuserRepo.save(createUser({ name: '张三', age: 18 }));\nconsole.log('类型安全的创建:', JSON.stringify(userRepo.findAll()));\ntry {\n  createUser({ age: 18 }); // 缺 name: TS 编译期报错, JS 运行时抛错\n} catch (e) {\n  console.log('运行时兜底:', e.message);\n}",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "综合实战:从零搭建 REST 服务",
+          "summary": "串起路由、校验、数据层、错误处理与日志,完整实现一个可运行的 REST 服务(内存版)。",
+          "difficulty": 3,
+          "durationMinutes": 40,
+          "content": "毕业设计:把 13 章所学串成一个完整服务。真实项目将内存数据层换成数据库、加上 PM2 与 Docker 即可上线。\n\n## 项目需求\n- 用户注册/登录(JWT)、用户列表(分页/搜索)、详情、更新、删除\n- 统一响应壳、参数校验、错误兜底、访问日志\n\n## 开发流程(工程化顺序)\n1. 初始化项目:`npm init -y`,配置 scripts 与目录结构\n2. 定义路由与接口文档(先约定契约)\n3. 实现数据层(Repository)→ 服务层(Service)→ 路由层(Controller)\n4. 中间件:日志 → 认证 → 错误处理\n5. 写测试(核心业务逻辑)→ 联调 → 部署\n\n## 关键实现点\n- 登录:bcrypt 校验密码 → jwt.sign 下发 Token\n- 认证中间件:解析 Bearer Token → 验签 → 挂载 `req.user`\n- 权限:管理员接口校验 `role === 'admin'`\n- 分页参数统一解析与默认值\n\n## 代码质量\n- ESLint + Prettier 统一风格\n- 核心逻辑测试覆盖(折扣、校验、权限判断)\n- 提交前 husky 钩子跑 lint 与测试\n\n## 本课示例\n沙箱里用纯函数实现完整业务链路:注册 → 登录 → 认证 → CRUD,每步打印结果。",
+          "codeExample": "// 综合实战: 完整 REST 服务业务链路(内存版, 可运行)\nimport crypto from 'node:crypto';\n\n// ---- 数据层 ----\nconst db = [];\nlet nextId = 1;\nconst hash = (pw) => crypto.createHash('sha256').update(pw + 'salt').digest('hex').slice(0, 16);\n\n// ---- 服务层 ----\nfunction register({ username, password }) {\n  if (!username || !password) return { code: 400, message: '用户名与密码必填' };\n  if (db.some(u => u.username === username)) return { code: 409, message: '用户名已存在' };\n  const user = { id: nextId++, username, passwordHash: hash(password), role: 'user' };\n  db.push(user);\n  return { code: 0, data: { id: user.id, username: user.username } };\n}\nfunction login({ username, password }) {\n  const user = db.find(u => u.username === username);\n  if (!user || user.passwordHash !== hash(password)) return { code: 401, message: '用户名或密码错误' };\n  // 真实项目: jwt.sign({ uid: user.id, role: user.role }, SECRET)\n  return { code: 0, data: { token: 'jwt-' + user.id + '-' + user.role, uid: user.id } };\n}\nfunction listUsers({ page = 1, size = 10, keyword = '' }) {\n  const rows = db.filter(u => u.username.includes(keyword))\n    .slice((page - 1) * size, page * size)\n    .map(({ passwordHash, ...safe }) => safe);\n  return { code: 0, data: { records: rows, total: db.length, page, size } };\n}\n\n// ---- 走一遍完整链路 ----\nconsole.log('1.注册:', JSON.stringify(register({ username: '张三', password: 'pw123' })));\nconsole.log('2.重名:', JSON.stringify(register({ username: '张三', password: 'pw123' })));\nconsole.log('3.登录:', JSON.stringify(login({ username: '张三', password: 'pw123' })));\nconsole.log('4.错pw:', JSON.stringify(login({ username: '张三', password: 'wrong' })));\nconsole.log('5.列表:', JSON.stringify(listUsers({ keyword: '张' })));",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Node 生态与进阶路径",
+          "summary": "纵览 Node 生态:Web 框架、实时通信、任务队列与微服务,规划系统化的进阶学习路径。",
+          "difficulty": 1,
+          "durationMinutes": 25,
+          "content": "课程到此打好了地基。Node 生态庞大,按方向深入可以走得更远。\n\n## Web 框架进阶\n- **Express**:最流行,生态最大,入门首选(已学)\n- **Fastify**:性能更强,TypeScript 友好,大厂新项目热门\n- **NestJS**:企业级框架,分层/依赖注入/装饰器,像后端 Spring\n\n## 实时通信\n- **Socket.IO**:WebSocket 封装,聊天/推送/实时协作标配\n- SSE(Server-Sent Events):单向推送的轻量方案\n\n## 任务与调度\n- **BullMQ**:Redis 任务队列(发邮件、报表等异步任务)\n- **node-cron**:定时任务调度\n\n## 微服务与云原生\n- gRPC / 消息队列(RabbitMQ/Kafka)通信\n- Docker + Kubernetes 容器编排\n- Serverless:Vercel / AWS Lambda,按需运行\n\n## 学习路径建议\n1. **巩固基础**:事件循环、Stream、异步(面试必考)\n2. **框架深耕**:Express/Fastify + 数据库 + 认证(已覆盖)\n3. **工程能力**:测试、日志、监控、CI/CD、Docker(已覆盖)\n4. **方向选择**:\n   - 全栈:Next.js(Node + React SSR)\n   - 服务端:NestJS + 微服务 + 高并发\n   - 工程化:构建工具、CLI、开发者工具\n\n## 保持更新\n- 关注 Node.js 官方发布日志(每半年一个大版本)\n- 读优秀开源项目源码(Express 源码很短,适合起步)",
+          "codeExample": "// 学习路径自检清单(运行查看你的进度)\nconst roadmap = [\n  { stage: '1. 基础', items: ['模块系统', '异步与事件循环', '内置模块(fs/http/流)'], done: true },\n  { stage: '2. Web 开发', items: ['Express 路由与中间件', 'REST API 设计', '数据库访问', '认证与安全'], done: true },\n  { stage: '3. 工程化', items: ['单元测试', '日志与可观测', 'PM2 部署', 'Docker 容器化'], done: true },\n  { stage: '4. 进阶方向', items: ['NestJS 企业级框架', 'Socket.IO 实时通信', '消息队列与微服务', '性能调优与源码'], done: false },\n];\n\nfor (const { stage, items, done } of roadmap) {\n  console.log(`${done ? '[x]' : '[ ]'} ${stage}`);\n  items.forEach(i => console.log(`    ${done ? '·' : '○'} ${i}`));\n}\nconsole.log('\\n恭喜完成 Node.js 核心课程! 下一步: 挑一个进阶方向, 做一个真实项目。');",
+          "codeType": "nodejs"
+        }
+      ]
     }
   ]
 }

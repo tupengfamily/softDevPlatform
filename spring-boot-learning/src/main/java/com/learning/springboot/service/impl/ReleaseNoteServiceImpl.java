@@ -6,6 +6,7 @@ import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.repository.ReleaseNoteRepository;
 import com.learning.springboot.service.NotificationService;
 import com.learning.springboot.service.ReleaseNoteService;
+import com.learning.springboot.security.HtmlSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -98,7 +99,7 @@ public class ReleaseNoteServiceImpl implements ReleaseNoteService {
     private void apply(ReleaseNote note, ReleaseNoteDTO dto) {
         note.setVersion(dto.getVersion().trim());
         note.setTitle(dto.getTitle().trim());
-        note.setContent(dto.getContent().trim());
+        note.setContent(HtmlSanitizer.sanitizeRichText(dto.getContent().trim()));
         note.setReleaseDate(dto.getReleaseDate() != null ? dto.getReleaseDate() : LocalDate.now());
     }
 }

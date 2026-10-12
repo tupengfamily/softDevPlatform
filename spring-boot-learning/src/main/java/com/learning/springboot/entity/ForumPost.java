@@ -57,6 +57,18 @@ public class ForumPost {
     @Column(name = "reply_count", nullable = false)
     private Integer replyCount = 0;
 
+    /** 点赞数(冗余计数,点赞/取消时维护;columnDefinition 带默认值以兼容 SQLite ALTER) */
+    @Column(name = "like_count", nullable = false, columnDefinition = "integer not null default 0")
+    private Integer likeCount = 0;
+
+    /** 收藏数(冗余计数,收藏/取消时维护) */
+    @Column(name = "favorite_count", nullable = false, columnDefinition = "integer not null default 0")
+    private Integer favoriteCount = 0;
+
+    /** 转发数(冗余计数,转发时维护) */
+    @Column(name = "share_count", nullable = false, columnDefinition = "integer not null default 0")
+    private Integer shareCount = 0;
+
     /** 是否置顶 */
     @Column(nullable = false)
     private Boolean pinned = false;
@@ -97,6 +109,15 @@ public class ForumPost {
 
     public Integer getReplyCount() { return replyCount; }
     public void setReplyCount(Integer replyCount) { this.replyCount = replyCount; }
+
+    public Integer getLikeCount() { return likeCount; }
+    public void setLikeCount(Integer likeCount) { this.likeCount = likeCount; }
+
+    public Integer getFavoriteCount() { return favoriteCount; }
+    public void setFavoriteCount(Integer favoriteCount) { this.favoriteCount = favoriteCount; }
+
+    public Integer getShareCount() { return shareCount; }
+    public void setShareCount(Integer shareCount) { this.shareCount = shareCount; }
 
     public Boolean getPinned() { return pinned; }
     public void setPinned(Boolean pinned) { this.pinned = pinned; }

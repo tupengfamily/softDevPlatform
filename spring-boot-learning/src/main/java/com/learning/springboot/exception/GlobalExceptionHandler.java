@@ -35,6 +35,7 @@ public class GlobalExceptionHandler {
             case 403 -> HttpStatusCode.valueOf(403);
             case 404 -> HttpStatusCode.valueOf(404);
             case 409 -> HttpStatusCode.valueOf(409);
+            case 429 -> HttpStatusCode.valueOf(429);
             default -> HttpStatusCode.valueOf(400);
         };
         log.warn("[Business] code={} msg={}", code, e.getMessage());
@@ -49,6 +50,13 @@ public class GlobalExceptionHandler {
             errors.put(fe.getField(), fe.getDefaultMessage());
         }
         return Result.badRequest("参数校验失败: " + errors);
+    }
+
+    /** 业务参数非法(统一 400,避免落入 500 兜底泄漏内部异常) */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<?> handleIllegalArgument(IllegalArgumentException e) {
+        log.warn("[IllegalArgument] {}", e.getMessage());
+        return Result.badRequest(e.getMessage());
     }
 
     /** JWT 异常 */

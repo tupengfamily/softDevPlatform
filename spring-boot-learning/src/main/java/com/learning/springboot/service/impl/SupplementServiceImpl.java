@@ -2,7 +2,9 @@ package com.learning.springboot.service.impl;
 
 import com.learning.springboot.dto.SupplementVO;
 import com.learning.springboot.entity.SupplementNode;
+import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.repository.SupplementNodeRepository;
+import com.learning.springboot.security.HtmlSanitizer;
 import com.learning.springboot.service.SupplementService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,8 +65,8 @@ public class SupplementServiceImpl implements SupplementService {
         node.setChapterId(req.chapterId);
         node.setParentNodeId(req.parentNodeId);
         node.setTitle(req.title.trim());
-        node.setContent(req.content);
         node.setContentType(normalizeType(req.contentType));
+        node.setContent(sanitizeContent(req.content, node.getContentType()));
         node.setUserId(userId);
         node.setUsername(username);
         node.setSortNo(req.sortNo == null ? 0 : req.sortNo);
@@ -81,8 +83,8 @@ public class SupplementServiceImpl implements SupplementService {
         validate(req);
         SupplementNode node = requireEditable(id, userId, admin);
         node.setTitle(req.title.trim());
-        node.setContent(req.content);
         node.setContentType(normalizeType(req.contentType));
+        node.setContent(sanitizeContent(req.content, node.getContentType()));
         if (req.sortNo != null) node.setSortNo(req.sortNo);
         node.setUpdatedAt(LocalDateTime.now());
         nodeRepository.save(node);
@@ -151,7 +153,7 @@ public class SupplementServiceImpl implements SupplementService {
         SupplementNode node = nodeRepository.findById(id)
             .orElseThrow(() -> new NoSuchElementException("补充节点不存在: " + id));
         if (!admin && !node.getUserId().equals(userId)) {
-            throw new IllegalArgumentException("只能编辑/删除自己的补充内容");
+            throw new BusinessException(403, "只能编辑/删除自己的补充内容");
         }
         return node;
     }
@@ -176,6 +178,13 @@ public class SupplementServiceImpl implements SupplementService {
         return SupplementNode.TYPE_RICHTEXT.equals(type)
             ? SupplementNode.TYPE_RICHTEXT
             : SupplementNode.TYPE_MARKDOWN;
+    }
+
+    /** 富文本入库前服务端消毒(防存储型 XSS) */
+    private String sanitizeContent(String content, String contentType) {
+        return SupplementNode.TYPE_RICHTEXT.equals(contentType)
+            ? HtmlSanitizer.sanitizeRichText(content)
+            : content;
     }
 
     private SupplementVO.NodeVO toVO(SupplementNode n, Long currentUserId, boolean admin) {

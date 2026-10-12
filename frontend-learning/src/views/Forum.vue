@@ -5,7 +5,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { pagePosts, createPost } from '../api/forum'
+import { pagePosts, createPost, toggleLike, toggleFavorite, sharePost } from '../api/forum'
 import { useUserStore } from '../store/user'
 import { useSubjectStore } from '../store/subject'
 import ContentEditor from '../components/ContentEditor.vue'
@@ -23,6 +23,17 @@ const size = ref(10)
 const keyword = ref('')
 const subjectFilter = ref(null)   // null=全部 0=综合讨论 其余=科目 id
 const subjects = ref([])
+const sort = ref('updated')       // updated/created/hot/likes/favorites/replies/views
+
+const sortOptions = [
+  { value: 'updated', label: '最近更新' },
+  { value: 'created', label: '最新发布' },
+  { value: 'hot', label: '最热门' },
+  { value: 'likes', label: '点赞最多' },
+  { value: 'favorites', label: '收藏最多' },
+  { value: 'replies', label: '回复最多' },
+  { value: 'views', label: '浏览最多' }
+]
 
 const load = async () => {
   loading.value = true
@@ -30,6 +41,7 @@ const load = async () => {
     const res = await pagePosts({
       subjectId: subjectFilter.value === '' ? null : subjectFilter.value,
       keyword: keyword.value.trim() || undefined,
+      sort: sort.value,
       page: page.value,
       size: size.value
     })
@@ -45,6 +57,57 @@ const onSizeChange = (s) => { size.value = s; page.value = 1; load() }
 const fmtTime = (t) => (t || '').replace('T', ' ').slice(0, 16)
 const subjectName = (row) => row.subjectName || '综合讨论'
 const openDetail = (row) => router.push(`/forum/${row.id}`)
+
+// ---------- 列表快捷互动: 点赞 / 收藏 / 转发 ----------
+const requireLogin = () => {
+  if (userStore.isLogin) return true
+  ElMessageBox.confirm('登录后才能点赞/收藏,去登录?', '提示', {
+    type: 'info', confirmButtonText: '去登录', cancelButtonText: '取消'
+  }).then(() => router.push({ path: '/login', query: { redirect: '/forum' } })).catch(() => {})
+  return false
+}
+const copyLink = async (id) => {
+  const url = `${location.origin}/forum/${id}`
+  try {
+    await navigator.clipboard.writeText(url)
+    return true
+  } catch (_) {
+    // 剪贴板不可用时退回 execCommand
+    const ta = document.createElement('textarea')
+    ta.value = url
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try { document.execCommand('copy') } catch (_) { /* ignore */ }
+    document.body.removeChild(ta)
+    return true
+  }
+}
+const quickLike = async (p) => {
+  if (!requireLogin()) return
+  try {
+    const res = await toggleLike(p.id)
+    p.liked = res.data.liked
+    p.likeCount = res.data.likeCount
+  } catch (e) { /* 已统一弹错 */ }
+}
+const quickFav = async (p) => {
+  if (!requireLogin()) return
+  try {
+    const res = await toggleFavorite(p.id)
+    p.favorited = res.data.favorited
+    p.favoriteCount = res.data.favoriteCount
+  } catch (e) { /* 已统一弹错 */ }
+}
+const quickShare = async (p) => {
+  await copyLink(p.id)
+  try {
+    const res = await sharePost(p.id)
+    p.shareCount = res.data.shareCount
+    ElMessage.success('链接已复制,快去分享吧')
+  } catch (e) { /* 已统一弹错 */ }
+}
 
 // ---------- 发帖 ----------
 const dialogVisible = ref(false)
@@ -151,6 +214,9 @@ onMounted(async () => {
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
       <el-button @click="search">搜索</el-button>
+      <el-radio-group v-model="sort" size="small" class="sort-group" @change="search">
+        <el-radio-button v-for="o in sortOptions" :key="o.value" :value="o.value">{{ o.label }}</el-radio-button>
+      </el-radio-group>
     </div>
 
     <div class="post-list">
@@ -167,7 +233,23 @@ onMounted(async () => {
             <span>· {{ fmtTime(p.updatedAt || p.createdAt) }}</span>
             <span>· {{ p.viewCount }} 浏览</span>
             <span>· {{ p.replyCount }} 回复</span>
+            <span>· {{ p.likeCount }} 赞</span>
+            <span>· {{ p.favoriteCount }} 收藏</span>
+            <span>· {{ p.shareCount }} 转发</span>
           </div>
+        </div>
+        <div class="quick">
+          <button class="qbtn" :class="{ on: p.liked }" :aria-label="p.liked ? '取消点赞' : '点赞'"
+                  @click.stop="quickLike(p)">
+            <el-icon><Pointer /></el-icon> {{ p.likeCount }}
+          </button>
+          <button class="qbtn" :class="{ on: p.favorited }" :aria-label="p.favorited ? '取消收藏' : '收藏'"
+                  @click.stop="quickFav(p)">
+            <el-icon><component :is="p.favorited ? 'StarFilled' : 'Star'" /></el-icon> {{ p.favoriteCount }}
+          </button>
+          <button class="qbtn" aria-label="转发" @click.stop="quickShare(p)">
+            <el-icon><Share /></el-icon> {{ p.shareCount }}
+          </button>
         </div>
         <el-icon class="arrow"><ArrowRight /></el-icon>
       </div>
@@ -224,7 +306,8 @@ onMounted(async () => {
 }
 .hero h1 { margin: 0 0 6px; font-size: var(--fs-xl); }
 .hero p { margin: 0; color: #6b7280; font-size: var(--fs-base); }
-.filters { display: flex; gap: 10px; margin-bottom: 14px; }
+.filters { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+.sort-group { flex: none; }
 .post-list { background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m); overflow: hidden; }
 .post-item {
   display: flex; align-items: center; gap: 12px; padding: 15px 20px;
@@ -234,7 +317,17 @@ onMounted(async () => {
 .post-title { display: flex; align-items: center; gap: 8px; font-size: var(--fs-base); color: var(--c-text-1); }
 .post-title b { font-weight: 600; }
 .pin { flex: none; }
-.post-meta { margin-top: 5px; color: #94a3b8; font-size: var(--fs-xs); display: flex; gap: 6px; }
+.post-meta { margin-top: 5px; color: #64748b; font-size: var(--fs-xs); display: flex; gap: 6px; }
+.quick { display: flex; gap: 6px; flex: none; }
+.qbtn {
+  display: inline-flex; align-items: center; gap: 4px;
+  min-width: 44px; min-height: 32px; padding: 4px 10px;
+  border: 1px solid var(--c-border); border-radius: var(--r-s);
+  background: #fff; color: var(--c-text-2); font-size: var(--fs-xs); cursor: pointer;
+  transition: color .12s, border-color .12s, background .12s;
+}
+.qbtn:hover { color: var(--c-primary); border-color: var(--c-primary); background: #eff6ff; }
+.qbtn.on { color: var(--c-primary); border-color: var(--c-primary); background: #eff6ff; font-weight: 600; }
 .arrow { margin-left: auto; color: #cbd5e1; }
 .pager { display: flex; justify-content: flex-end; margin-top: 14px; }
 

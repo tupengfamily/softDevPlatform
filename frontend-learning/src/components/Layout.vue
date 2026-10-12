@@ -10,6 +10,7 @@ import { useSubjectStore } from '../store/subject'
 import { useNotificationStore } from '../store/notification'
 import { lessonCrumbTitle } from '../store/crumb'
 import { getLatestRelease } from '../api/release'
+import { sanitizeHtml } from '../utils/markdown'
 import { recentNotifications, markRead, markAllRead } from '../api/notifications'
 
 const router = useRouter()
@@ -434,7 +435,7 @@ const onCommand = async (cmd) => {
         </div>
       </template>
       <h3 class="notice-title">{{ noticeRelease?.title }}</h3>
-      <div class="notice-body" v-html="noticeRelease?.content"></div>
+      <div class="notice-body" v-html="sanitizeHtml(noticeRelease?.content)"></div>
       <template #footer>
         <el-button @click="closeNotice">稍后再看</el-button>
         <el-button type="primary" @click="goReleases">查看全部更新日志</el-button>
