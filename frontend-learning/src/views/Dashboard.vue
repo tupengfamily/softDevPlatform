@@ -37,33 +37,33 @@ onMounted(async () => {
 <template>
   <div class="page-container">
     <div class="page-header">
-      <div class="page-title">仪表盘</div>
+      <div class="page-title">{{ $t('dashboard.title') }}</div>
       <div class="page-subtitle">Spring Boot 3 + Vue 3 + Element Plus + SQLite + JWT</div>
     </div>
 
     <!-- 顶部统计卡片 -->
     <el-row :gutter="16" v-loading="loading">
-      <el-col :span="6">
+      <el-col :span="6" :xs="12">
         <el-card shadow="hover" class="stat-card stat-blue">
-          <div class="stat-label">用户总数</div>
+          <div class="stat-label">{{ $t('dashboard.stat.totalUsers') }}</div>
           <div class="stat-num">{{ summary.totalUsers ?? 0 }}</div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="6" :xs="12">
         <el-card shadow="hover" class="stat-card stat-green">
-          <div class="stat-label">启用用户</div>
+          <div class="stat-label">{{ $t('dashboard.stat.activeUsers') }}</div>
           <div class="stat-num">{{ summary.activeUsers ?? 0 }}</div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="6" :xs="12">
         <el-card shadow="hover" class="stat-card stat-orange">
-          <div class="stat-label">角色 / 权限</div>
+          <div class="stat-label">{{ $t('dashboard.stat.rolesPermissions') }}</div>
           <div class="stat-num">{{ summary.totalRoles ?? 0 }} / {{ summary.totalPermissions ?? 0 }}</div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="6" :xs="12">
         <el-card shadow="hover" class="stat-card stat-purple">
-          <div class="stat-label">今日操作 / 总操作</div>
+          <div class="stat-label">{{ $t('dashboard.stat.ops') }}</div>
           <div class="stat-num">{{ summary.todayOps ?? 0 }} / {{ summary.totalOps ?? 0 }}</div>
         </el-card>
       </el-col>
@@ -71,10 +71,10 @@ onMounted(async () => {
 
     <!-- 7 日趋势 -->
     <el-row :gutter="16" style="margin-top:16px;">
-      <el-col :span="12">
+      <el-col :span="12" :xs="24">
         <el-card shadow="never">
           <template #header>
-            <strong>最近 7 天 - 新增用户</strong>
+            <strong>{{ $t('dashboard.chart.newUsers') }}</strong>
           </template>
           <div class="chart">
             <div v-for="item in registrations" :key="item.date" class="chart-col">
@@ -85,10 +85,10 @@ onMounted(async () => {
           </div>
         </el-card>
       </el-col>
-      <el-col :span="12">
+      <el-col :span="12" :xs="24">
         <el-card shadow="never">
           <template #header>
-            <strong>最近 7 天 - 操作次数</strong>
+            <strong>{{ $t('dashboard.chart.operations') }}</strong>
           </template>
           <div class="chart">
             <div v-for="item in operations" :key="item.date" class="chart-col">
@@ -104,17 +104,17 @@ onMounted(async () => {
     <!-- 用户状态分布 -->
     <el-card shadow="never" style="margin-top:16px;">
       <template #header>
-        <strong>用户状态分布</strong>
+        <strong>{{ $t('dashboard.statusDist.title') }}</strong>
       </template>
       <el-table :data="statusDist" stripe>
-        <el-table-column label="状态">
+        <el-table-column :label="$t('dashboard.statusDist.status')">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'">
-              {{ row.status === 1 ? '启用' : '禁用' }}
+              {{ row.status === 1 ? $t('dashboard.status.enabled') : $t('dashboard.status.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="count" label="人数" />
+        <el-table-column prop="count" :label="$t('dashboard.statusDist.count')" />
       </el-table>
     </el-card>
   </div>

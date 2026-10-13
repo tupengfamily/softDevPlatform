@@ -6,6 +6,7 @@
 // - 全屏编辑: 两种模式均支持,Esc 退出(不触发外层弹窗关闭)
 // - props.modelValue: 正文; contentType: 'markdown' | 'richtext'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
 import { renderMarkdown } from '../utils/markdown'
@@ -13,10 +14,14 @@ import { renderMarkdown } from '../utils/markdown'
 const props = defineProps({
   modelValue: { type: String, default: '' },
   contentType: { type: String, default: 'markdown' },   // markdown | richtext
-  placeholder: { type: String, default: '请输入内容…' },
+  placeholder: { type: String, default: '' },
   height: { type: Number, default: 220 }
 })
 const emit = defineEmits(['update:modelValue', 'update:contentType'])
+
+const { t } = useI18n()
+// 占位符: 外部传入原文/翻译 key 均可,缺省用组件内文案
+const placeholderText = computed(() => t(props.placeholder || 'contentEditor.placeholder'))
 
 const type = ref(props.contentType)
 const text = ref(props.modelValue)
@@ -66,8 +71,8 @@ watch(() => props.modelValue, (v) => {
 
 const previewHtml = computed(() => renderMarkdown(text.value))
 
-const editorOptions = {
-  placeholder: props.placeholder,
+const editorOptions = computed(() => ({
+  placeholder: placeholderText.value,
   modules: {
     toolbar: [
       [{ header: [1, 2, 3, false] }],
@@ -78,7 +83,7 @@ const editorOptions = {
       ['clean']
     ]
   }
-}
+}))
 
 const switchType = (t) => {
   if (t === type.value) return
@@ -109,19 +114,19 @@ const onTextInput = (e) => {
 
 // ============== Markdown 基础语法工具条 ==============
 // 在光标/选区处插入语法;若无选区则插入占位示例
-const toolbarItems = [
-  { key: 'h2',    label: 'H2',   title: '二级标题', before: '## ',     after: '',        sample: '标题' },
-  { key: 'h3',    label: 'H3',   title: '三级标题', before: '### ',    after: '',        sample: '标题' },
-  { key: 'bold',  label: 'B',    title: '粗体',     before: '**',      after: '**',      sample: '粗体文字', cls: 'b' },
-  { key: 'italic',label: 'I',    title: '斜体',     before: '*',       after: '*',       sample: '斜体文字', cls: 'i' },
-  { key: 'code',  label: '</>',  title: '行内代码', before: '`',       after: '`',       sample: 'code' },
-  { key: 'codeblk', label: '{ }', title: '代码块',  before: '```\n',   after: '\n```',   sample: '在这里粘贴代码' },
-  { key: 'ul',    label: '•—',   title: '无序列表', before: '- ',      after: '',        sample: '列表项' },
-  { key: 'ol',    label: '1.',   title: '有序列表', before: '1. ',     after: '',        sample: '列表项' },
-  { key: 'quote', label: '❝',    title: '引用',     before: '> ',      after: '',        sample: '引用内容' },
-  { key: 'link',  label: '🔗',   title: '链接',     before: '[',       after: '](https://)', sample: '链接文字' },
-  { key: 'hr',    label: '—',    title: '分割线',   before: '\n---\n', after: '',        sample: '' }
-]
+const toolbarItems = computed(() => [
+  { key: 'h2',    label: 'H2',   title: t('contentEditor.tool.h2'), before: '## ',     after: '',        sample: t('contentEditor.sample.heading') },
+  { key: 'h3',    label: 'H3',   title: t('contentEditor.tool.h3'), before: '### ',    after: '',        sample: t('contentEditor.sample.heading') },
+  { key: 'bold',  label: 'B',    title: t('contentEditor.tool.bold'), before: '**',    after: '**',      sample: t('contentEditor.sample.bold'), cls: 'b' },
+  { key: 'italic',label: 'I',    title: t('contentEditor.tool.italic'), before: '*',   after: '*',       sample: t('contentEditor.sample.italic'), cls: 'i' },
+  { key: 'code',  label: '</>',  title: t('contentEditor.tool.code'), before: '`',     after: '`',       sample: 'code' },
+  { key: 'codeblk', label: '{ }', title: t('contentEditor.tool.codeblk'), before: '```\n', after: '\n```', sample: t('contentEditor.sample.codeblk') },
+  { key: 'ul',    label: '•—',   title: t('contentEditor.tool.ul'), before: '- ',      after: '',        sample: t('contentEditor.sample.list') },
+  { key: 'ol',    label: '1.',   title: t('contentEditor.tool.ol'), before: '1. ',     after: '',        sample: t('contentEditor.sample.list') },
+  { key: 'quote', label: '❝',    title: t('contentEditor.tool.quote'), before: '> ',    after: '',        sample: t('contentEditor.sample.quote') },
+  { key: 'link',  label: '🔗',   title: t('contentEditor.tool.link'), before: '[',      after: '](https://)', sample: t('contentEditor.sample.link') },
+  { key: 'hr',    label: '—',    title: t('contentEditor.tool.hr'), before: '\n---\n', after: '',        sample: '' }
+])
 
 const applyMd = (item) => {
   const ta = textareaRef.value
@@ -158,9 +163,9 @@ defineExpose({
   <div class="content-editor" :class="{ fullscreen }">
     <div class="type-switch">
       <button type="button" :class="{ active: type === 'markdown' }" @click="switchType('markdown')">Markdown</button>
-      <button type="button" :class="{ active: type === 'richtext' }" @click="switchType('richtext')">富文本</button>
-      <button type="button" class="fs-btn" :title="fullscreen ? '退出全屏 (Esc)' : '全屏编辑'" @click="toggleFullscreen">
-        {{ fullscreen ? '✕ 退出全屏' : '⛶ 全屏' }}
+      <button type="button" :class="{ active: type === 'richtext' }" @click="switchType('richtext')">{{ $t('contentEditor.richtext') }}</button>
+      <button type="button" class="fs-btn" :title="fullscreen ? $t('contentEditor.exitFsTitle') : $t('contentEditor.enterFsTitle')" @click="toggleFullscreen">
+        {{ fullscreen ? $t('contentEditor.exitFs') : $t('contentEditor.enterFs') }}
       </button>
     </div>
 
@@ -177,8 +182,8 @@ defineExpose({
           @click="applyMd(item)"
         >{{ item.label }}</button>
         <span class="md-tabs">
-          <button type="button" :class="{ active: mdTab === 'edit' }" @click="mdTab = 'edit'">编辑</button>
-          <button type="button" :class="{ active: mdTab === 'preview' }" @click="mdTab = 'preview'">预览</button>
+          <button type="button" :class="{ active: mdTab === 'edit' }" @click="mdTab = 'edit'">{{ $t('contentEditor.edit') }}</button>
+          <button type="button" :class="{ active: mdTab === 'preview' }" @click="mdTab = 'preview'">{{ $t('contentEditor.preview') }}</button>
         </span>
       </div>
 
@@ -188,7 +193,7 @@ defineExpose({
         class="md-input"
         :style="{ minHeight: height + 'px' }"
         :value="text"
-        :placeholder="placeholder + ' (支持 Markdown 语法)'"
+        :placeholder="placeholderText + ' ' + $t('contentEditor.mdHint')"
         @input="onTextInput"
       ></textarea>
       <div

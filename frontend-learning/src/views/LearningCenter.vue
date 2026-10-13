@@ -116,35 +116,35 @@ onMounted(loadSubjects)
     <!-- 顶部欢迎 + KPI -->
     <div class="hero">
       <div>
-        <h1>{{ isGuest ? '欢迎来到学习中心' : '你好, 学习者' }}<template v-if="activeSubject"> · {{ activeSubject.name }}</template></h1>
-        <p v-if="isGuest">全部 {{ totalLessons }} 课时 · {{ totalChapters }} 章节 · 游客可自由浏览,登录后记录你的学习进度。</p>
-        <p v-else>已学 {{ learnedCount }} / {{ totalLessons }} 课时 · {{ totalChapters }} 章节 · 跟随阶段式课程一路前行。</p>
+        <h1>{{ isGuest ? $t('learningCenter.hero.guestTitle') : $t('learningCenter.hero.userTitle') }}<template v-if="activeSubject"> · {{ activeSubject.name }}</template></h1>
+        <p v-if="isGuest">{{ $t('learningCenter.hero.guestDesc', { lessons: totalLessons, chapters: totalChapters }) }}</p>
+        <p v-else>{{ $t('learningCenter.hero.userDesc', { learned: learnedCount, total: totalLessons, chapters: totalChapters }) }}</p>
       </div>
       <div class="btns">
-        <button v-if="isGuest" class="btn primary" @click="goLogin">登录后开始学习 <el-icon><ArrowRight /></el-icon></button>
-        <button v-else class="btn primary" @click="continueLearning">继续学习 <el-icon><ArrowRight /></el-icon></button>
+        <button v-if="isGuest" class="btn primary" @click="goLogin">{{ $t('learningCenter.hero.loginCta') }} <el-icon><ArrowRight /></el-icon></button>
+        <button v-else class="btn primary" @click="continueLearning">{{ $t('learningCenter.hero.continue') }} <el-icon><ArrowRight /></el-icon></button>
       </div>
     </div>
 
     <div class="stats">
       <div class="stat">
-        <div class="label">总进度</div>
+        <div class="label">{{ $t('learningCenter.kpi.overall') }}</div>
         <div class="num">{{ progress?.percent || 0 }}<small>%</small></div>
         <div class="bar"><i :style="{ width: (progress?.percent || 0) + '%' }"></i></div>
       </div>
       <div class="stat">
-        <div class="label">已学课时</div>
+        <div class="label">{{ $t('learningCenter.kpi.learned') }}</div>
         <div class="num">{{ learnedCount }}<small> / {{ totalLessons }}</small></div>
         <div class="bar"><i :style="{ width: (progress?.percent || 0) + '%' }"></i></div>
       </div>
       <div class="stat">
-        <div class="label">已完成章节</div>
+        <div class="label">{{ $t('learningCenter.kpi.chaptersDone') }}</div>
         <div class="num">{{ learnedChapters }}<small> / {{ totalChapters }}</small></div>
         <div class="bar"><i :style="{ width: (totalChapters ? learnedChapters / totalChapters * 100 : 0) + '%' }"></i></div>
       </div>
       <div class="stat">
-        <div class="label">剩余课时</div>
-        <div class="num">{{ remainLessons }}<small> 节</small></div>
+        <div class="label">{{ $t('learningCenter.kpi.remain') }}</div>
+        <div class="num">{{ remainLessons }}<small> {{ $t('learningCenter.kpi.unit') }}</small></div>
         <div class="bar"><i :style="{ width: (progress?.percent || 0) + '%' }"></i></div>
       </div>
     </div>
@@ -159,8 +159,7 @@ onMounted(loadSubjects)
           <div>
             <h2 class="stage-title">{{ stage.stageName }}</h2>
             <div class="stage-sub">
-              {{ stage.chapters.length }} 章 ·
-              {{ stage.chapters.reduce((n, c) => n + c.totalLessons, 0) }} 课时
+              {{ $t('learningCenter.stage.summary', { chapters: stage.chapters.length, lessons: stageTotal(stage) }) }}
             </div>
           </div>
           <div class="stage-meta">
@@ -181,19 +180,19 @@ onMounted(loadSubjects)
             role="button"
             tabindex="0"
             :class="{ done: ch.learnedLessons === ch.totalLessons && ch.totalLessons > 0 }"
-            :aria-label="`第${ch.chapterNo}章 ${ch.title}`"
+            :aria-label="$t('learningCenter.chapter.aria', { no: ch.chapterNo, title: ch.title })"
             @click="openLesson(chapterTarget(ch))"
             @keydown="onChapterKey($event, ch)"
           >
             <div class="ch-title">
-              <span class="ch-no">第{{ ch.chapterNo }}章</span>
+              <span class="ch-no">{{ $t('learningCenter.chapter.no', { no: ch.chapterNo }) }}</span>
               <span class="ch-name">{{ ch.title }}</span>
               <el-icon v-if="ch.learnedLessons === ch.totalLessons && ch.totalLessons > 0" color="#22c55e" class="ch-done"><CircleCheckFilled /></el-icon>
             </div>
             <div class="ch-meta">
-              <span>{{ ch.lessons.length }} 课时</span>
-              <span v-if="ch.estimatedHours">· 约 {{ ch.estimatedHours }} 小时</span>
-              <span>· {{ ch.learnedLessons }}/{{ ch.totalLessons }} 已学</span>
+              <span>{{ $t('learningCenter.chapter.lessons', { n: ch.lessons.length }) }}</span>
+              <span v-if="ch.estimatedHours">{{ $t('learningCenter.chapter.hours', { h: ch.estimatedHours }) }}</span>
+              <span>{{ $t('learningCenter.chapter.learned', { learned: ch.learnedLessons, total: ch.totalLessons }) }}</span>
             </div>
             <div v-if="ch.totalLessons > 0" class="ch-progress">
               <i :style="{ width: (ch.learnedLessons / ch.totalLessons * 100) + '%' }"></i>
@@ -208,14 +207,14 @@ onMounted(loadSubjects)
       v-if="activeSubjectId"
       class="sup-section"
       :subject-id="activeSubjectId"
-      title="社区补充章节"
-      root-label="添加补充章节"
+      :title="$t('learningCenter.supplement.title')"
+      :root-label="$t('learningCenter.supplement.rootLabel')"
     />
   </div>
 </template>
 
 <style scoped>
-.page { padding:24px 32px; max-width:1200px; margin:0 auto }
+.page { padding:24px 32px 40px }
 
 .sup-section { margin-top:22px }
 
@@ -257,4 +256,16 @@ onMounted(loadSubjects)
 .ch-meta { display:flex; gap:6px; font-size:var(--fs-xs); color:var(--c-text-3); margin-top:6px; flex-wrap:wrap }
 .ch-progress { margin-top:10px; height:5px; background:var(--c-border); border-radius:var(--r-full); overflow:hidden }
 .ch-progress i { display:block; height:100%; background:var(--c-success); border-radius:var(--r-full); transition:width .3s }
+
+/* ============ 移动端(<=768px) ============ */
+@media (max-width: 768px) {
+  .hero { flex-direction:column; align-items:flex-start; gap:12px; margin-bottom:18px }
+  .stats { grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:18px }
+  .stage-head { flex-wrap:wrap; padding:14px 16px; gap:10px }
+  .stage-meta { margin-left:0; width:100%; justify-content:space-between }
+  .chapters { grid-template-columns:1fr; padding:12px 14px; gap:10px }
+}
+@media (max-width: 400px) {
+  .stats { grid-template-columns:1fr 1fr }
+}
 </style>

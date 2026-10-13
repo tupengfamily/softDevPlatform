@@ -4,7 +4,10 @@
  */
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { pageLogs, cleanLogs } from '../api/log'
+
+const { t } = useI18n()
 
 const tableData = ref([])
 const total = ref(0)
@@ -47,10 +50,10 @@ onMounted(loadData)
 
 const onClean = async () => {
   try {
-    await ElMessageBox.confirm('清理 30 天前的日志,确认?', '清理确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('operationLog.msg.cleanConfirm'), t('operationLog.msg.cleanTitle'), { type: 'warning' })
     const before = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 19)
     const r = await cleanLogs(before)
-    ElMessage.success('已清理 ' + r.data + ' 条')
+    ElMessage.success(t('operationLog.msg.cleaned', { n: r.data }))
     loadData()
   } catch (_) {}
 }
@@ -64,62 +67,64 @@ const showDetail = (row) => { currentRow.value = row; detailVisible.value = true
 <template>
   <div class="page-container">
     <div class="page-header">
-      <div class="page-title">操作日志</div>
-      <div class="page-subtitle">AOP 自动记录每一次写操作</div>
+      <div class="page-title">{{ $t('operationLog.title') }}</div>
+      <div class="page-subtitle">{{ $t('operationLog.subtitle') }}</div>
     </div>
 
     <el-form :inline="true" :model="search" class="search-form">
-      <el-form-item label="模块">
-        <el-select v-model="search.module" clearable placeholder="全部" style="width:140px">
-          <el-option value="用户管理" />
-          <el-option value="角色管理" />
-          <el-option value="数据字典" />
-          <el-option value="认证" />
+      <el-form-item :label="$t('operationLog.field.module')">
+        <el-select v-model="search.module" clearable :placeholder="$t('common.all')" style="width:120px">
+          <el-option value="用户管理" :label="$t('operationLog.module.userManagement')" />
+          <el-option value="角色管理" :label="$t('operationLog.module.roleManagement')" />
+          <el-option value="数据字典" :label="$t('operationLog.module.dict')" />
+          <el-option value="认证" :label="$t('operationLog.module.auth')" />
         </el-select>
       </el-form-item>
-      <el-form-item label="用户名">
-        <el-input v-model="search.username" placeholder="模糊匹配" clearable style="width:160px" @keyup.enter="loadData" />
+      <el-form-item :label="$t('operationLog.field.username')">
+        <el-input v-model="search.username" :placeholder="$t('operationLog.search.usernamePlaceholder')" clearable style="width:130px" @keyup.enter="loadData" />
       </el-form-item>
-      <el-form-item label="时间范围">
+      <el-form-item :label="$t('operationLog.field.timeRange')">
         <el-date-picker
           v-model="search.timeRange"
           type="datetimerange"
-          range-separator="至"
-          start-placeholder="开始"
-          end-placeholder="结束"
-          style="width:380px"
+          :range-separator="$t('operationLog.search.rangeSeparator')"
+          :start-placeholder="$t('operationLog.search.start')"
+          :end-placeholder="$t('operationLog.search.end')"
+          style="width:330px"
         />
       </el-form-item>
-      <el-button type="primary" @click="loadData">查询</el-button>
-      <el-button @click="resetSearch">重置</el-button>
+      <el-form-item class="search-btns">
+        <el-button type="primary" @click="loadData">{{ $t('operationLog.action.query') }}</el-button>
+        <el-button @click="resetSearch">{{ $t('common.reset') }}</el-button>
+      </el-form-item>
     </el-form>
 
     <div class="toolbar">
-      <el-button type="danger" plain @click="onClean"><el-icon><Delete /></el-icon>清理 30 天前</el-button>
-      <span class="record-count">共 {{ total }} 条</span>
+      <el-button type="danger" plain @click="onClean"><el-icon><Delete /></el-icon>{{ $t('operationLog.action.clean') }}</el-button>
+      <span class="record-count">{{ $t('operationLog.total', { n: total }) }}</span>
     </div>
 
     <el-table :data="tableData" v-loading="loading" border stripe>
-      <el-table-column label="时间" width="170">
+      <el-table-column :label="$t('operationLog.field.time')" width="170">
         <template #default="{ row }">{{ row.createTime?.slice(0, 19) }}</template>
       </el-table-column>
-      <el-table-column prop="username" label="用户" width="100" />
-      <el-table-column prop="module" label="模块" width="100" />
-      <el-table-column prop="action" label="操作" width="80" />
-      <el-table-column prop="requestMethod" label="方法" width="80" />
+      <el-table-column prop="username" :label="$t('operationLog.field.user')" width="100" />
+      <el-table-column prop="module" :label="$t('operationLog.field.module')" width="100" />
+      <el-table-column prop="action" :label="$t('operationLog.field.action')" width="80" />
+      <el-table-column prop="requestMethod" :label="$t('operationLog.field.method')" width="80" />
       <el-table-column prop="requestUrl" label="URL" min-width="180" />
       <el-table-column prop="ip" label="IP" width="140" />
-      <el-table-column prop="costMs" label="耗时(ms)" width="90" />
-      <el-table-column label="状态" width="80">
+      <el-table-column prop="costMs" :label="$t('operationLog.field.costMs')" width="90" />
+      <el-table-column :label="$t('operationLog.field.status')" width="80">
         <template #default="{ row }">
           <el-tag :type="row.status === 1 ? 'success' : 'danger'">
-            {{ row.status === 1 ? '成功' : '失败' }}
+            {{ row.status === 1 ? $t('operationLog.status.success') : $t('operationLog.status.failed') }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="80">
+      <el-table-column :label="$t('common.actions')" width="80">
         <template #default="{ row }">
-          <el-button size="small" link @click="showDetail(row)">详情</el-button>
+          <el-button size="small" link @click="showDetail(row)">{{ $t('operationLog.action.detail') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -136,17 +141,17 @@ const showDetail = (row) => { currentRow.value = row; detailVisible.value = true
     />
 
     <!-- 详情抽屉 -->
-    <el-drawer v-model="detailVisible" title="日志详情" size="500px">
+    <el-drawer v-model="detailVisible" :title="$t('operationLog.detail.title')" size="500px">
       <div v-if="currentRow" class="detail">
-        <p><b>用户:</b> {{ currentRow.username }} (id={{ currentRow.userId }})</p>
-        <p><b>模块/操作:</b> {{ currentRow.module }} / {{ currentRow.action }}</p>
-        <p><b>请求方法:</b> {{ currentRow.requestMethod }} {{ currentRow.requestUrl }}</p>
+        <p><b>{{ $t('operationLog.field.user') }}:</b> {{ currentRow.username }} (id={{ currentRow.userId }})</p>
+        <p><b>{{ $t('operationLog.detail.moduleAction') }}:</b> {{ currentRow.module }} / {{ currentRow.action }}</p>
+        <p><b>{{ $t('operationLog.detail.requestMethod') }}:</b> {{ currentRow.requestMethod }} {{ currentRow.requestUrl }}</p>
         <p><b>IP:</b> {{ currentRow.ip }}</p>
-        <p><b>耗时:</b> {{ currentRow.costMs }} ms</p>
-        <p><b>时间:</b> {{ currentRow.createTime }}</p>
-        <p><b>请求参数:</b></p>
+        <p><b>{{ $t('operationLog.detail.cost') }}:</b> {{ currentRow.costMs }} ms</p>
+        <p><b>{{ $t('operationLog.field.time') }}:</b> {{ currentRow.createTime }}</p>
+        <p><b>{{ $t('operationLog.detail.requestParams') }}:</b></p>
         <pre class="json-block">{{ currentRow.requestParams }}</pre>
-        <p v-if="currentRow.status === 0"><b style="color:#f56c6c">错误信息:</b></p>
+        <p v-if="currentRow.status === 0"><b style="color:#f56c6c">{{ $t('operationLog.detail.errorMsg') }}:</b></p>
         <pre v-if="currentRow.status === 0" class="json-block err">{{ currentRow.errorMsg }}</pre>
       </div>
     </el-drawer>
@@ -154,7 +159,14 @@ const showDetail = (row) => { currentRow.value = row; detailVisible.value = true
 </template>
 
 <style scoped>
-.search-form { margin-bottom: 16px; padding: 16px; background: #f5f7fa; border-radius: var(--r-s); }
+/* 查询区: flex 布局保证表单控件与按钮水平居中对齐 */
+.search-form {
+  display:flex; flex-wrap:wrap; align-items:center;
+  margin-bottom:16px; padding:16px 16px 6px; background:#f5f7fa; border-radius:var(--r-s);
+}
+.search-form :deep(.el-form-item) { margin-bottom:10px; margin-right:12px; vertical-align:middle }
+.search-form :deep(.el-form-item__label) { align-items:center }
+.search-btns { margin-right:0 }
 .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
 .record-count { color: #6b7280; font-size: 13px; }
 .detail p { margin: 8px 0; color: #606266; line-height: 1.6; }

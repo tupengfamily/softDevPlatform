@@ -25,7 +25,7 @@ import java.util.Set;
 @Service
 public class FeedbackServiceImpl implements FeedbackService {
 
-    private static final Set<String> VALID_TYPES = Set.of(Feedback.TYPE_RATING, Feedback.TYPE_BUG);
+    private static final Set<String> VALID_TYPES = Set.of(Feedback.TYPE_RATING, Feedback.TYPE_BUG, Feedback.TYPE_SUGGESTION);
     private static final Set<String> VALID_STATUS = Set.of(Feedback.STATUS_OPEN, Feedback.STATUS_PROCESSING, Feedback.STATUS_DONE);
 
     @Autowired private FeedbackRepository feedbackRepository;
@@ -55,6 +55,10 @@ public class FeedbackServiceImpl implements FeedbackService {
         f.setTitle(dto.getTitle() != null ? dto.getTitle().trim() : null);
         f.setContent(dto.getContent().trim());
         f.setContact(dto.getContact() != null ? dto.getContact().trim() : null);
+        // 来源页面: 自动携带,超长截断(列长 300)
+        String source = dto.getSource() != null ? dto.getSource().trim() : null;
+        if (source != null && source.length() > 300) source = source.substring(0, 300);
+        f.setSource(source);
         return feedbackRepository.save(f);
     }
 

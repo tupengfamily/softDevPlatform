@@ -3,11 +3,14 @@
 // - 科目(语言)管理: Java / Python / JavaScript ... 增删改、排序、启停
 // - 课程结构管理: 章节/阶段增删改、调序(学习中心目录随之变化)
 import { onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   adminListSubjects, adminCreateSubject, adminUpdateSubject, adminDeleteSubject,
   adminListChapters, adminCreateChapter, adminUpdateChapter, adminDeleteChapter
 } from '../api/learning'
+
+const { t } = useI18n()
 
 const activeTab = ref('subjects')
 const loading = ref(false)
@@ -38,14 +41,14 @@ const openSubjectEdit = (row) => {
 }
 const saveSubject = async () => {
   if (!subjectForm.code.trim() || !subjectForm.name.trim()) {
-    ElMessage.warning('请填写科目编码与名称'); return
+    ElMessage.warning(t('learningConfig.warnSubjectRequired')); return
   }
   subjectSaving.value = true
   try {
     const payload = { ...subjectForm }
     if (subjectForm.id) await adminUpdateSubject(subjectForm.id, payload)
     else await adminCreateSubject(payload)
-    ElMessage.success('已保存')
+    ElMessage.success(t('learningConfig.saveSuccess'))
     subjectDialog.value = false
     await loadSubjects()
   } catch (e) { /* 已统一弹错 */ } finally {
@@ -54,9 +57,9 @@ const saveSubject = async () => {
 }
 const removeSubject = async (row) => {
   try {
-    await ElMessageBox.confirm(`确定删除科目「${row.name}」?`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('learningConfig.deleteSubjectConfirm', { name: row.name }), t('learningConfig.deleteConfirmTitle'), { type: 'warning' })
     await adminDeleteSubject(row.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('learningConfig.deleteSuccess'))
     await loadSubjects()
     await loadChapters()
   } catch (e) { /* 取消/报错已统一弹错 */ }
@@ -97,17 +100,17 @@ const openChapterEdit = (row) => {
 }
 const saveChapter = async () => {
   if (!chapterForm.title.trim() || !chapterForm.subjectId) {
-    ElMessage.warning('请填写章节标题并选择科目'); return
+    ElMessage.warning(t('learningConfig.warnChapterRequired')); return
   }
   if (!chapterForm.stageNo || !chapterForm.stageName.trim()) {
-    ElMessage.warning('请填写阶段编号与阶段名称'); return
+    ElMessage.warning(t('learningConfig.warnStageRequired')); return
   }
   chapterSaving.value = true
   try {
     const payload = { ...chapterForm }
     if (chapterForm.id) await adminUpdateChapter(chapterForm.id, payload)
     else await adminCreateChapter(payload)
-    ElMessage.success('已保存')
+    ElMessage.success(t('learningConfig.saveSuccess'))
     chapterDialog.value = false
     await loadChapters()
   } catch (e) { /* 已统一弹错 */ } finally {
@@ -116,9 +119,9 @@ const saveChapter = async () => {
 }
 const removeChapter = async (row) => {
   try {
-    await ElMessageBox.confirm(`删除「${row.title}」将同时删除其下 ${row.lessonCount} 个课时及学习进度,确定?`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('learningConfig.deleteChapterConfirm', { title: row.title, n: row.lessonCount }), t('learningConfig.deleteConfirmTitle'), { type: 'warning' })
     await adminDeleteChapter(row.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('learningConfig.deleteSuccess'))
     await loadChapters()
     await loadSubjects()
   } catch (e) { /* 取消/报错已统一弹错 */ }
@@ -136,29 +139,29 @@ onMounted(async () => {
   <div class="page" v-loading="loading">
     <div class="hero">
       <div>
-        <h1>学习配置</h1>
-        <p>管理学习平台的科目(语言)与课程结构,学习中心目录与看板维度随之变化。</p>
+        <h1>{{ $t('learningConfig.title') }}</h1>
+        <p>{{ $t('learningConfig.subtitle') }}</p>
       </div>
     </div>
 
     <el-tabs v-model="activeTab">
       <!-- ==================== 科目(语言) ==================== -->
-      <el-tab-pane label="科目(语言)" name="subjects">
+      <el-tab-pane :label="$t('learningConfig.tabSubjects')" name="subjects">
         <div class="panel">
           <div class="panel-head">
-            <span class="hint">平台支持多语言课程,可在此扩展 Python、JavaScript 等科目</span>
-            <el-button type="primary" @click="openSubjectCreate"><el-icon><Plus /></el-icon> 新增科目</el-button>
+            <span class="hint">{{ $t('learningConfig.subjectsHint') }}</span>
+            <el-button type="primary" @click="openSubjectCreate"><el-icon><Plus /></el-icon> {{ $t('learningConfig.newSubject') }}</el-button>
           </div>
           <table class="tbl">
             <thead>
               <tr>
-                <th style="width:60px">排序</th>
-                <th style="width:120px">编码</th>
-                <th style="width:140px">名称</th>
-                <th>简介</th>
-                <th style="width:90px">课时数</th>
-                <th style="width:90px">状态</th>
-                <th style="width:150px">操作</th>
+                <th style="width:60px">{{ $t('learningConfig.colSort') }}</th>
+                <th style="width:120px">{{ $t('learningConfig.colCode') }}</th>
+                <th style="width:140px">{{ $t('learningConfig.colName') }}</th>
+                <th>{{ $t('learningConfig.colDesc') }}</th>
+                <th style="width:90px">{{ $t('learningConfig.colLessonCount') }}</th>
+                <th style="width:90px">{{ $t('learningConfig.colStatus') }}</th>
+                <th style="width:150px">{{ $t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -167,46 +170,46 @@ onMounted(async () => {
                 <td class="mono">{{ s.code }}</td>
                 <td>
                   <b>{{ s.name }}</b>
-                  <el-tag v-if="s.builtin" size="small" effect="plain" type="info" style="margin-left:6px">内置</el-tag>
+                  <el-tag v-if="s.builtin" size="small" effect="plain" type="info" style="margin-left:6px">{{ $t('learningConfig.builtin') }}</el-tag>
                 </td>
                 <td class="muted">{{ s.description || '—' }}</td>
                 <td class="mono">{{ s.totalLessons }}</td>
                 <td>
-                  <el-tag size="small" :type="s.enabled ? 'success' : 'info'">{{ s.enabled ? '启用' : '停用' }}</el-tag>
+                  <el-tag size="small" :type="s.enabled ? 'success' : 'info'">{{ s.enabled ? $t('learningConfig.statusEnabled') : $t('learningConfig.statusDisabled') }}</el-tag>
                 </td>
                 <td>
-                  <el-button link type="primary" size="small" @click="openSubjectEdit(s)">编辑</el-button>
-                  <el-popconfirm v-if="!s.builtin" title="确定删除该科目?" @confirm="removeSubject(s)">
-                    <template #reference><el-button link type="danger" size="small">删除</el-button></template>
+                  <el-button link type="primary" size="small" @click="openSubjectEdit(s)">{{ $t('common.edit') }}</el-button>
+                  <el-popconfirm v-if="!s.builtin" :title="$t('learningConfig.deleteSubjectPopconfirm')" @confirm="removeSubject(s)">
+                    <template #reference><el-button link type="danger" size="small">{{ $t('common.delete') }}</el-button></template>
                   </el-popconfirm>
                 </td>
               </tr>
-              <tr v-if="!subjects.length"><td colspan="7" class="empty">暂无科目</td></tr>
+              <tr v-if="!subjects.length"><td colspan="7" class="empty">{{ $t('learningConfig.emptySubjects') }}</td></tr>
             </tbody>
           </table>
         </div>
       </el-tab-pane>
 
       <!-- ==================== 章节(课程结构) ==================== -->
-      <el-tab-pane label="章节(课程结构)" name="chapters">
+      <el-tab-pane :label="$t('learningConfig.tabChapters')" name="chapters">
         <div class="panel">
           <div class="panel-head">
-            <el-select v-model="chapterSubjectId" placeholder="全部科目" clearable style="width:180px" @change="loadChapters">
+            <el-select v-model="chapterSubjectId" :placeholder="$t('learningConfig.allSubjectsPlaceholder')" clearable style="width:180px" @change="loadChapters">
               <el-option v-for="s in subjects" :key="s.id" :label="s.name" :value="s.id" />
             </el-select>
-            <el-button type="primary" @click="openChapterCreate"><el-icon><Plus /></el-icon> 新增章节</el-button>
+            <el-button type="primary" @click="openChapterCreate"><el-icon><Plus /></el-icon> {{ $t('learningConfig.newChapter') }}</el-button>
           </div>
           <table class="tbl">
             <thead>
               <tr>
-                <th style="width:70px">科目</th>
-                <th style="width:60px">阶段</th>
-                <th style="width:120px">阶段名</th>
-                <th style="width:70px">章序</th>
-                <th>标题</th>
-                <th style="width:80px">课时</th>
-                <th style="width:90px">预计时长</th>
-                <th style="width:150px">操作</th>
+                <th style="width:70px">{{ $t('learningConfig.colSubject') }}</th>
+                <th style="width:60px">{{ $t('learningConfig.colStage') }}</th>
+                <th style="width:120px">{{ $t('learningConfig.colStageName') }}</th>
+                <th style="width:70px">{{ $t('learningConfig.colChapterNo') }}</th>
+                <th>{{ $t('learningConfig.colTitle') }}</th>
+                <th style="width:80px">{{ $t('learningConfig.colLesson') }}</th>
+                <th style="width:90px">{{ $t('learningConfig.colEstHours') }}</th>
+                <th style="width:150px">{{ $t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -219,13 +222,13 @@ onMounted(async () => {
                 <td class="mono">{{ c.lessonCount }}</td>
                 <td class="mono">{{ c.estimatedHours }}h</td>
                 <td>
-                  <el-button link type="primary" size="small" @click="openChapterEdit(c)">编辑</el-button>
-                  <el-popconfirm title="删除章节将级联删除课时与进度,确定?" @confirm="removeChapter(c)">
-                    <template #reference><el-button link type="danger" size="small">删除</el-button></template>
+                  <el-button link type="primary" size="small" @click="openChapterEdit(c)">{{ $t('common.edit') }}</el-button>
+                  <el-popconfirm :title="$t('learningConfig.deleteChapterPopconfirm')" @confirm="removeChapter(c)">
+                    <template #reference><el-button link type="danger" size="small">{{ $t('common.delete') }}</el-button></template>
                   </el-popconfirm>
                 </td>
               </tr>
-              <tr v-if="!chapters.length"><td colspan="8" class="empty">暂无章节</td></tr>
+              <tr v-if="!chapters.length"><td colspan="8" class="empty">{{ $t('learningConfig.emptyChapters') }}</td></tr>
             </tbody>
           </table>
         </div>
@@ -233,70 +236,70 @@ onMounted(async () => {
     </el-tabs>
 
     <!-- 科目对话框 -->
-    <el-dialog v-model="subjectDialog" :title="subjectForm.id ? '编辑科目' : '新增科目'" width="520px" destroy-on-close>
+    <el-dialog v-model="subjectDialog" :title="subjectForm.id ? $t('learningConfig.editSubjectTitle') : $t('learningConfig.newSubject')" width="520px" destroy-on-close>
       <el-form label-width="90px">
-        <el-form-item label="编码" required>
-          <el-input v-model="subjectForm.code" placeholder="如 python / javascript(唯一)" :disabled="!!subjectForm.builtin" />
+        <el-form-item :label="$t('learningConfig.colCode')" required>
+          <el-input v-model="subjectForm.code" :placeholder="$t('learningConfig.codePlaceholder')" :disabled="!!subjectForm.builtin" />
         </el-form-item>
-        <el-form-item label="名称" required>
-          <el-input v-model="subjectForm.name" placeholder="如 Python" />
+        <el-form-item :label="$t('learningConfig.colName')" required>
+          <el-input v-model="subjectForm.name" :placeholder="$t('learningConfig.namePlaceholder')" />
         </el-form-item>
-        <el-form-item label="简介">
+        <el-form-item :label="$t('learningConfig.colDesc')">
           <el-input v-model="subjectForm.description" type="textarea" :rows="2" maxlength="200" />
         </el-form-item>
-        <el-form-item label="排序号">
+        <el-form-item :label="$t('learningConfig.sortNoLabel')">
           <el-input-number v-model="subjectForm.sortNo" :min="0" :max="999" />
         </el-form-item>
-        <el-form-item label="启用">
+        <el-form-item :label="$t('learningConfig.enabledLabel')">
           <el-switch v-model="subjectForm.enabled" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="subjectDialog = false">取消</el-button>
-        <el-button type="primary" :loading="subjectSaving" @click="saveSubject">保存</el-button>
+        <el-button @click="subjectDialog = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="subjectSaving" @click="saveSubject">{{ $t('common.save') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 章节对话框 -->
-    <el-dialog v-model="chapterDialog" :title="chapterForm.id ? '编辑章节' : '新增章节'" width="560px" destroy-on-close>
+    <el-dialog v-model="chapterDialog" :title="chapterForm.id ? $t('learningConfig.editChapterTitle') : $t('learningConfig.newChapter')" width="560px" destroy-on-close>
       <el-form label-width="90px">
-        <el-form-item label="科目" required>
+        <el-form-item :label="$t('learningConfig.colSubject')" required>
           <el-select v-model="chapterForm.subjectId" style="width:100%">
             <el-option v-for="s in subjects" :key="s.id" :label="s.name" :value="s.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="阶段" required>
+        <el-form-item :label="$t('learningConfig.colStage')" required>
           <div style="display:flex; gap:8px; width:100%">
-            <el-input-number v-model="chapterForm.stageNo" :min="1" :max="99" placeholder="编号" />
-            <el-input v-model="chapterForm.stageName" placeholder="阶段名称,如 进阶特性" />
+            <el-input-number v-model="chapterForm.stageNo" :min="1" :max="99" :placeholder="$t('learningConfig.stageNoPlaceholder')" />
+            <el-input v-model="chapterForm.stageName" :placeholder="$t('learningConfig.stageNamePlaceholder')" />
           </div>
         </el-form-item>
-        <el-form-item label="章序" required>
+        <el-form-item :label="$t('learningConfig.colChapterNo')" required>
           <el-input-number v-model="chapterForm.chapterNo" :min="1" :max="999" />
         </el-form-item>
-        <el-form-item label="标题" required>
+        <el-form-item :label="$t('learningConfig.colTitle')" required>
           <el-input v-model="chapterForm.title" maxlength="100" />
         </el-form-item>
-        <el-form-item label="简介">
+        <el-form-item :label="$t('learningConfig.colDesc')">
           <el-input v-model="chapterForm.description" type="textarea" :rows="2" maxlength="500" />
         </el-form-item>
-        <el-form-item label="代码位置">
-          <el-input v-model="chapterForm.codePath" placeholder="如 oop/* (可选)" />
+        <el-form-item :label="$t('learningConfig.codePathLabel')">
+          <el-input v-model="chapterForm.codePath" :placeholder="$t('learningConfig.codePathPlaceholder')" />
         </el-form-item>
-        <el-form-item label="预计时长">
-          <el-input-number v-model="chapterForm.estimatedHours" :min="0" :max="999" />&nbsp;小时
+        <el-form-item :label="$t('learningConfig.colEstHours')">
+          <el-input-number v-model="chapterForm.estimatedHours" :min="0" :max="999" />&nbsp;{{ $t('learningConfig.hoursUnit') }}
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="chapterDialog = false">取消</el-button>
-        <el-button type="primary" :loading="chapterSaving" @click="saveChapter">保存</el-button>
+        <el-button @click="chapterDialog = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="chapterSaving" @click="saveChapter">{{ $t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.page { padding: 24px 26px 40px; max-width: 1240px; margin: 0 auto; }
+.page { padding: 24px 32px 40px; }
 .hero {
   background: linear-gradient(120deg, #eef4ff 0%, #f6f1ff 60%, #fff 100%);
   border: 1px solid #e8edf9; border-radius: var(--r-l); padding: 20px 26px; margin-bottom: 16px;

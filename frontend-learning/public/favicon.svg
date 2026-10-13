@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!--
+    通用学习平台 品牌图标(唯一来源):
+    蓝靛渐变圆角徽标 + 白色翻开的书 + 浅蓝书签
+    同时用于: 浏览器 favicon / 侧栏 logo / 登录注册 / 关于页
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e8edfb"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 徽标底 -->
+  <rect x="0" y="0" width="64" height="64" rx="15" fill="url(#bg)"/>
+
+  <!-- 翻开的书: 左右两页,中缝留空 -->
+  <path d="M11,22.5 C18,20 25.5,20.3 30.8,23 L30.8,44.8 C25.5,42.2 18,41.8 11,44.3 Z" fill="url(#page)"/>
+  <path d="M53,22.5 C46,20 38.5,20.3 33.2,23 L33.2,44.8 C38.5,42.2 46,41.8 53,44.3 Z" fill="url(#page)"/>
+
+  <!-- 书签 -->
+  <path d="M41.5,21 L41.5,33 L45,29.8 L48.5,33 L48.5,20.4 C46.2,19.7 43.6,20 41.5,21 Z" fill="#bfdbfe"/>
+</svg>

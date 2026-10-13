@@ -12,6 +12,8 @@ public class FeedbackDTO {
     private String title;
     private String content;
     private String contact;
+    /** 来源页面(自动携带,管理员可定位反馈出处) */
+    private String source;
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
@@ -27,4 +29,7 @@ public class FeedbackDTO {
 
     public String getContact() { return contact; }
     public void setContact(String contact) { this.contact = contact; }
+
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
 }

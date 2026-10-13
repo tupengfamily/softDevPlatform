@@ -6,14 +6,16 @@
  * - 调用 auth.js.login,Pinia store 保存 token
  * - 成功后跳到 redirect 或 /dashboard
  */
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '../store/user'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const { t } = useI18n()
 
 const formRef = ref(null)
 const loading = ref(false)
@@ -23,10 +25,10 @@ const form = reactive({
   password: 'admin123'
 })
 
-const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
-}
+const rules = computed(() => ({
+  username: [{ required: true, message: t('login.usernameRequired'), trigger: 'blur' }],
+  password: [{ required: true, message: t('login.passwordRequired'), trigger: 'blur' }]
+}))
 
 const onSubmit = async () => {
   if (!formRef.value) return
@@ -35,7 +37,7 @@ const onSubmit = async () => {
     loading.value = true
     try {
       await userStore.login({ username: form.username, password: form.password })
-      ElMessage.success('登录成功')
+      ElMessage.success(t('login.success'))
       // 有明确来源页就回来源页;否则交给根路由 "/" 按角色分流
       // (管理员 → 仪表盘, 普通用户 → 学习中心, 由 router 的 redirect 统一决定)
       const from = route.query.redirect
@@ -54,20 +56,20 @@ const onSubmit = async () => {
   <div class="auth-page">
     <el-card class="auth-card">
       <div class="auth-header">
-        <div class="brand-mark"><el-icon :size="26" color="#fff"><Promotion /></el-icon></div>
-        <h2>通用学习平台</h2>
-        <p>登录后同步你的学习进度与完成记录</p>
+        <img class="brand-mark" src="/favicon.svg" alt="" aria-hidden="true">
+        <h2>{{ $t('login.title') }}</h2>
+        <p>{{ $t('login.subtitle') }}</p>
       </div>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" size="large" @submit.prevent="onSubmit">
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
+        <el-form-item :label="$t('login.username')" prop="username">
+          <el-input v-model="form.username" :placeholder="$t('login.usernamePlaceholder')" prefix-icon="User" />
         </el-form-item>
-        <el-form-item label="密码" prop="password">
-          <el-input v-model="form.password" type="password" placeholder="请输入密码" prefix-icon="Lock" show-password />
+        <el-form-item :label="$t('login.password')" prop="password">
+          <el-input v-model="form.password" type="password" :placeholder="$t('login.passwordPlaceholder')" prefix-icon="Lock" show-password />
         </el-form-item>
-        <el-button type="primary" :loading="loading" style="width:100%" @click="onSubmit">登 录</el-button>
+        <el-button type="primary" :loading="loading" style="width:100%" @click="onSubmit">{{ $t('login.submit') }}</el-button>
         <div class="auth-tip">
-          还没有账号? <router-link to="/register">立即注册</router-link>
+          {{ $t('login.noAccount') }} <router-link to="/register">{{ $t('login.registerNow') }}</router-link>
         </div>
       </el-form>
     </el-card>
@@ -107,13 +109,18 @@ const onSubmit = async () => {
 .auth-header { text-align: center; margin-bottom: 24px; }
 .brand-mark {
   width: 52px; height: 52px; margin: 0 auto 14px;
-  display: flex; align-items: center; justify-content: center;
+  display: block;
   border-radius: 14px;
-  background: var(--c-primary-grad, linear-gradient(135deg, #2563eb, #4f46e5));
+  background: var(--c-primary-grad, linear-gradient(135deg, #2563eb, #4f46e5)); /* 图标加载失败的兜底 */
   box-shadow: 0 8px 20px rgba(37, 99, 235, .32);
 }
 .auth-header h2 { margin: 0 0 6px 0; color: #1f2937; font-size: 22px; letter-spacing: .3px; }
 .auth-header p { margin: 0; color: #6b7280; font-size: 13px; }
 .auth-tip { text-align: center; margin-top: 16px; font-size: 13px; }
 .auth-tip a { color: var(--c-primary, #2563eb); text-decoration: none; }
+
+/* 移动端: 卡片贴边全宽 */
+@media (max-width: 480px) {
+  .auth-card { width: calc(100vw - 32px); }
+}
 </style>

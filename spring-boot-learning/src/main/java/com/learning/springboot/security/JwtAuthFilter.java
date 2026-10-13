@@ -54,6 +54,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             || path.equals("/api/auth/register")
             || path.startsWith("/api/hello")
             || path.startsWith("/api/sandbox")   // 在线代码/SQL 沙箱: 纯教学功能(独立教学库),游客可直接试练
+            || path.startsWith("/api/public/wiki")   // Wiki 分享页: 凭令牌公开只读
             || path.equals("/api/public/health");
     }
 
@@ -103,7 +104,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         return path.equals("/api/learning/subjects")
             || path.equals("/api/learning/curriculum")
             || path.matches("/api/learning/lessons/\\d+")
-            || path.equals("/api/learning/supplements");
+            || path.equals("/api/learning/supplements")
+            || path.equals("/api/dicts/map");   // 数据字典标签映射(只读),业务页展示文案用
     }
 
     private void writeUnauthorized(HttpServletResponse resp, String message) throws IOException {

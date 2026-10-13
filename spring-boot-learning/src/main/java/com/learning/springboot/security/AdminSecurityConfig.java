@@ -36,6 +36,7 @@ public class AdminSecurityConfig implements WebMvcConfigurer {
     @Autowired private JwtAuthFilter jwtAuthFilter;
     @Autowired private CurrentUserResolver currentUserResolver;
     @Autowired private JwtProperties jwtProperties;
+    @Autowired private UserStatusInterceptor userStatusInterceptor;
 
     /** CORS 白名单(逗号分隔,来自 app.cors.allowed-origins 配置) */
     @Value("${app.cors.allowed-origins}")
@@ -92,10 +93,12 @@ public class AdminSecurityConfig implements WebMvcConfigurer {
         resolvers.add(currentUserResolver);
     }
 
-    /** 注册管理员权限拦截器(@RequireAdmin 标记的接口校验 ADMIN 角色) */
+    /** 注册管理员权限拦截器(@RequireAdmin 标记的接口校验 ADMIN 角色) + 用户状态拦截器(禁用/只读) */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(adminInterceptor())
+                .addPathPatterns("/api/**");
+        registry.addInterceptor(userStatusInterceptor)
                 .addPathPatterns("/api/**");
     }
 

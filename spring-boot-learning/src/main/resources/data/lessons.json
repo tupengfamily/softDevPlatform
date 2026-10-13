@@ -2968,6 +2968,1806 @@
           "codeType": "nodejs"
         }
       ]
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Git 入门",
+      "chapterNo": 1,
+      "title": "版本控制与 Git 基础",
+      "description": "理解版本控制的价值,Git 的设计理念,完成安装与初始配置,创建第一个仓库。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "subject": "git",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "版本控制是什么",
+          "summary": "理解版本控制解决的问题:历史记录、协作与回溯,以及集中式与分布式的核心差异。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "## 为什么需要版本控制\n- 手工备份(报告_v1.doc、报告_最终版.doc)很快失控:不知道谁改了什么、改坏了无法回退\n- 版本控制工具自动记录每次改动,可随时回到任意历史版本,并支持多人协作互不覆盖\n\n## 集中式 vs 分布式\n- 集中式(如 SVN):历史保存在中央服务器,离线无法提交,服务器宕机全员停工\n- 分布式(如 Git):每台电脑都是完整仓库,本地即可提交/回退/开分支,联网时再同步\n- Git 还支持离线查看全部历史、轻量级分支、按快照(而非差异)存储,性能优异\n\n## Git 的设计哲学\n- 快照模型:每次提交保存完整文件快照,未修改的文件只存一份引用\n- 几乎所有操作都在本地完成,速度极快且离线可用\n- 完整性保证:所有数据用 SHA-1 哈希寻址,历史几乎不可能被悄悄篡改",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 2,
+          "title": "安装与初始配置",
+          "summary": "完成 Git 安装,配置 user.name / user.email,理解三级配置文件与常用环境配置。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "## 安装\n- Windows: 官网下载安装包,安装后自带 Git Bash\n- macOS: `xcode-select --install` 或 `brew install git`\n- Linux: `sudo apt install git`(Debian/Ubuntu)或 `sudo yum install git`\n\n## 必须配置的用户信息\n- 提交记录需要署名,安装后第一件事就是配置:\n  - `git config --global user.name \"Your Name\"`\n  - `git config --global user.email \"you@example.com\"`\n- `--global` 表示对当前用户所有仓库生效;不加则只对当前仓库生效\n\n## 三级配置文件\n- `--system`: 系统级,对所有用户生效(一般不动)\n- `--global`: 用户级,~/.gitconfig,个人偏好配置放这里\n- 仓库级: 仓库根目录下的 .git/config,优先级最高\n- 查看配置: `git config --list --show-origin`(带来源列出全部配置)",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 3,
+          "title": "创建第一个仓库",
+          "summary": "理解工作区/暂存区/版本库三棵树,掌握 init / add / commit / status / log 的完整闭环。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 创建仓库\n- `git init`: 把当前目录变成 Git 仓库(生成隐藏的 .git 目录,存放全部版本历史)\n- `git clone <url>`: 拷贝一个已有远程仓库(后面章节详讲)\n\n## 工作区、暂存区、版本库\n- 工作区(Working Directory): 电脑上能看到的项目目录\n- 暂存区(Index/Stage): `git add` 后进入的区域,是一份待提交清单\n- 版本库(Repository): `git commit` 后快照永久存入 .git 历史\n- 记忆口诀:add 是「告诉 Git 我打算提交这些改动」,commit 才是「正式存档」\n\n## 第一次提交流程\n- `git status`: 查看哪些文件被修改/未跟踪\n- `git add README.md`(或 `git add .`): 加入暂存区\n- `git commit -m \"init commit\"`: 提交,附上清晰的说明\n- `git log --oneline --graph`: 查看简洁的提交历史",
+          "codeExample": "",
+          "codeType": "git"
+        }
+      ]
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Git 入门",
+      "chapterNo": 2,
+      "title": "修改、提交与回退",
+      "description": "掌握日常最高频的操作:查看改动、提交、回退版本,理解 HEAD 与 reset 的三种模式。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "git",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "查看改动: diff 与 status",
+          "summary": "用 status 定位改动范围,用 diff 看具体改了哪些行,弄清 diff 的三个视角。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## status: 谁改了什么\n- `git status` 的三种典型状态:\n  - `Changes not staged for commit`: 工作区改了但还没 add\n  - `Changes to be committed`: 已 add 进暂存区,等 commit\n  - `Untracked files`: 全新文件,Git 还没跟踪\n\n## diff: 改动的逐行对比\n- `git diff`: 工作区 vs 暂存区(还没 add 的改动)\n- `git diff --cached`(或 `git diff --staged`): 暂存区 vs 最新提交(已 add 的改动)\n- `git diff HEAD`: 工作区 vs 最新提交(所有未提交改动)\n- 输出里 `+` 开头是新增行,`-` 开头是删除行,`@@` 块标明行号位置\n\n## 好习惯\n- 提交前先 `git diff --cached` 过目一遍即将提交的内容\n- 一次提交只做一件事,提交说明写清楚「为什么改」",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 2,
+          "title": "版本回退: reset 与 reflog",
+          "summary": "理解 HEAD 指针与提交链,掌握 reset --hard/--soft/--mixed 的区别,会用 reflog 后悔药。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## HEAD 与提交链\n- 每次 commit 生成一个快照,并指向上一次提交,形成一条链\n- HEAD 指向当前分支的最新提交;回退的本质就是移动 HEAD 指针\n- `git log --oneline` 看历史,commit id(SHA-1)是版本的唯一标识,可缩写前 7 位\n\n## reset 的三种模式\n- `git reset --hard <commit>`: HEAD 移动,暂存区和工作区都丢弃,改动彻底消失(慎用!)\n- `git reset --soft <commit>`: 只移动 HEAD,改动保留在暂存区(适合重新组织提交)\n- `git reset --mixed <commit>`(默认): HEAD 移动,暂存区清空,改动留在工作区\n\n## 后悔药: reflog\n- `git reflog`: 记录 HEAD 的每一次移动(包括被 reset 掉的提交)\n- 误操作回退过头?找到旧的 commit id 再 `git reset --hard` 回去即可\n- reflog 只在本地保留一段时间,别把它当常规备份",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 3,
+          "title": "管理修改",
+          "summary": "理解「提交的是暂存区快照」,掌握一次改动分多次提交、遗漏 add 的补救方法。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 提交的是暂存区,不是工作区\n- Git 只会提交 `git add` 过的内容:add 之后继续改的行,不会进入本次 commit\n- 这是新手最常见的困惑:「我明明改了,怎么提交里没有?」\n\n## 分步提交\n- 一个功能包含多个文件/多处改动时,可以按逻辑拆成多次提交:\n  - `git add src/model/User.java` → `git commit -m \"新增用户模型\"`\n  - `git add src/service/UserService.java` → `git commit -m \"补全用户服务\"`\n- 小步提交让历史可读、回滚精准、Code Review 轻松\n\n## 补救技巧\n- 提交后发现漏了改动:补一个 `git add` + `git commit --amend`,合并进上一次提交\n- `--amend` 只适合还没推送出去的本地提交(改写历史会影响他人)",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 4,
+          "title": "撤销修改",
+          "summary": "分清工作区、暂存区、已提交三种场景的撤销方法,restore / checkout -- 的正确用法。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 场景一: 工作区改乱了,想丢弃\n- `git restore <file>`(新版)或 `git checkout -- <file>`(经典写法)\n- 文件回到暂存区(或最后一次提交)的状态,未 add 的改动全部消失\n\n## 场景二: 已经 add 了,想撤回暂存区\n- `git restore --staged <file>`(新版)或 `git reset HEAD <file>`\n- 改动退回工作区,内容不丢,只是不再进入下次提交\n\n## 场景三: 已经 commit 了,想撤销\n- 小改动:`git commit --amend` 修改提交说明或并入遗漏文件\n- 撤销这次提交:`git reset --soft HEAD~1` 改动回到暂存区,可重新提交\n- 彻底不要:`git reset --hard HEAD~1`(无法找回,先确认!)\n\n## 优先级建议\n- 能用 restore 语义明确的新命令就用新命令;改动越接近提交,撤销代价越大,勤用 status 确认状态",
+          "codeExample": "",
+          "codeType": "git"
+        }
+      ]
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Git 入门",
+      "chapterNo": 3,
+      "title": "文件删除、改名与暂存区进阶",
+      "description": "掌握文件删除/找回/改名的正确姿势,理解暂存区与版本库的差异对比。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "subject": "git",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "删除文件与误删找回",
+          "summary": "区分 rm 与 git rm,掌握误删文件的两种恢复路径。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 两种删除\n- `rm file.txt` 只删了工作区文件,Git 会提示「deleted: file.txt」,还需要 `git add`(或 `git rm`)记录这次删除\n- `git rm file.txt`: 直接删除文件并把删除操作加入暂存区,一步到位\n- 误删还没提交?两种找回:\n  - `git restore file.txt`(从暂存区恢复)\n  - 已被 add 过删除操作:`git restore --staged file.txt` 再 `git restore file.txt`\n\n## 已提交的删除想反悔\n- `git reset --hard HEAD~1` 回到删除前(会连带丢弃其他未提交改动)\n- 或 `git checkout <commit> -- file.txt` 只把某个文件从历史版本捞回来\n\n## 建议\n- 删除也是一次「改动」,应该被提交记录:删完文件记得 add + commit\n- 整个目录删除:`git rm -r dir/`",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 2,
+          "title": "文件改名与 diff --cached",
+          "summary": "用 git mv 完成改名追踪,用 diff --cached 检查暂存区与版本库的差异。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "## 改名的正确姿势\n- `git mv old.txt new.txt`: 改名并加入暂存区,Git 自动识别为 rename(保留历史)\n- 手工改名 + add 效果一样,Git 按内容相似度自动检测 rename\n- 为什么用 git mv:一次完成改名 + 暂存,状态清晰,不留 untracked/deleted 残留\n\n## 暂存区 vs 版本库\n- `git diff --cached`: 看「即将提交的内容」与最新提交的差异\n- 提交前自查清单:\n  - `git status` 确认文件清单符合预期\n  - `git diff --cached` 确认改动内容符合预期\n  - 写好提交说明再 commit\n\n## 小技巧\n- `git diff --stat`: 只看每个文件改了多少行,快速总览\n- `git diff --cached --stat`: 暂存区改动总览",
+          "codeExample": "",
+          "codeType": "git"
+        }
+      ]
+    },
+    {
+      "stageNo": 2,
+      "stageName": "分支与远程",
+      "chapterNo": 4,
+      "title": "分支管理",
+      "description": "理解分支是指针,掌握创建/合并/解决冲突,学会 --no-ff、stash 与 bug/feature 分支工作流。",
+      "codePath": null,
+      "estimatedHours": 4,
+      "subject": "git",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "分支的概念与创建合并",
+          "summary": "理解分支只是可移动的指针,掌握 branch / switch / merge 的日常操作。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 分支为什么快\n- Git 的分支本质上是指向某个提交的可移动指针,创建/切换只是改指针,瞬间完成\n- 主分支 master(或 main)在第一次提交时自动创建\n- 建议: 无论个人还是团队,都从主线拉分支开发,主线保持可发布状态\n\n## 常用操作\n- `git switch -c dev`(或经典 `git checkout -b dev`): 创建并切换到 dev 分支\n- `git switch dev`: 切换分支;`git branch`: 查看分支列表(`*` 标记当前分支)\n- `git merge dev`: 把 dev 的提交合并进当前分支\n- `git branch -d dev`: 删除已合并的分支(`-D` 强删未合并分支)\n\n## fast-forward 合并\n- 当前分支没有新提交时,合并只是把指针前移(快进),不产生新提交\n- 历史是一条直线,简洁但看不出「曾经有过分支」",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 2,
+          "title": "解决合并冲突",
+          "summary": "看懂 <<<<<<< 冲突标记,掌握手动解决冲突的标准流程。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 冲突是怎么产生的\n- 两个分支改了同一文件的同一区域,Git 无法自动决定保留哪个版本\n- 合并时 Git 会停下来,把冲突文件标记出来,等待人工处理\n\n## 冲突标记的含义\n- `<<<<<<< HEAD` 到 `=======`: 当前分支(被合并方之前)的版本\n- `=======` 到 `>>>>>>> dev`: 被合并分支(dev)的版本\n- 解决方式:手工编辑成最终内容,删除三组标记,然后 add + commit\n\n## 标准处理流程\n1. `git merge dev` 触发冲突,Git 提示冲突文件列表\n2. 打开文件,按业务逻辑保留/融合两段代码(不是简单二选一!)\n3. `git add <冲突文件>` 标记已解决 → `git commit` 完成合并\n4. `git merge --abort`: 后悔了,放弃这次合并回到合并前\n\n## 预防冲突\n- 小步提交、频繁同步主线、每人只改自己负责的模块",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 3,
+          "title": "分支管理策略: --no-ff 与分支模型",
+          "summary": "掌握保留分支历史的合并方式,了解主干/发布/功能分支的经典模型。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 为什么要 --no-ff\n- fast-forward 合并后分支历史被「压平」,看不出功能是在哪条分支上开发的\n- `git merge --no-ff dev`: 强制生成一个合并提交,保留分支拓扑\n- 团队约定: 功能分支合并回主干一律 `--no-ff`,历史一目了然\n\n## 常见分支模型\n- master/main: 始终可发布,只接受合并,不直接提交\n- develop(可选): 日常集成分支,功能分支从这里拉出\n- feature/*: 功能开发,完成后合并回 develop/master\n- release/*: 发布准备(版本号、文档、修复),完成后合并回 master 并打标签\n- hotfix/*: 线上紧急修复,从 master 拉出,修完合并回 master 与 develop\n\n## 简化建议\n- 小团队可以只用 master + feature/* + hotfix/* 三条规则,够用且不易乱\n- 分支命名语义化: feature/user-login、fix/null-pointer-in-order",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 4,
+          "title": "Bug 分支与 Feature 分支: stash",
+          "summary": "用 stash 保存半成品,掌握紧急修复穿插开发的完整流程。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 场景: 开发到一半,线上炸了\n- 工作区有未提交改动,不能直接切分支(会带过去或被拒绝)\n- `git stash`: 把当前工作区+暂存区的改动「存」起来,工作区变干净\n- `git stash list`: 查看 stash 栈;`git stash pop`: 恢复最近一次并从栈删除\n- `git stash apply`: 恢复但保留 stash 记录(可重复恢复)\n\n## Bug 修复标准流程\n1. `git stash` 暂存半成品\n2. `git switch -c fix/login-crash master` 从主线拉修复分支\n3. 修复、提交、`git switch master` + `git merge --no-ff fix/login-crash`\n4. `git switch dev` 回到开发分支,`git stash pop` 继续未完成的工作\n\n## Feature 分支\n- 新功能一律开 feature 分支开发,完成(含测试)后再合并\n- 半途而废的功能:`git branch -D feature/xxx` 直接丢弃,不影响主线\n- 长期分支定期 `git merge master` 或 `git rebase master` 同步主线,避免最后冲突爆炸",
+          "codeExample": "",
+          "codeType": "git"
+        }
+      ]
+    },
+    {
+      "stageNo": 2,
+      "stageName": "分支与远程",
+      "chapterNo": 5,
+      "title": "远程仓库",
+      "description": "掌握 SSH 密钥、remote、push / clone / fetch / pull,理解多人协作的同步与冲突处理。",
+      "codePath": null,
+      "estimatedHours": 4,
+      "subject": "git",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "SSH 密钥与远程关联",
+          "summary": "生成并配置 SSH 密钥,用 remote 管理多个远程仓库。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 为什么用 SSH\n- 推送/拉取远程仓库需要认证;HTTPS 每次输密码(可缓存),SSH 用密钥对免密更顺畅\n- `ssh-keygen -t rsa -C \"you@example.com\"` 生成密钥对(id_rsa 私钥 / id_rsa.pub 公钥)\n- 把公钥内容添加到 GitHub/Gitee 的 SSH Keys 设置里,`ssh -T git@github.com` 测试连通\n\n## 关联远程仓库\n- `git remote add origin git@github.com:user/repo.git`: 添加名为 origin 的远程\n- `git remote -v`: 查看远程地址(fetch/push 各一条)\n- `git remote show origin`: 查看远程详情(分支跟踪关系)\n- 一台仓库可以有多个远程: origin 主远程 + company 内网远程,分别推送\n\n## 建议\n- 私钥(id_rsa)绝不上传/分享;泄露立即在平台删除对应公钥重新生成",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 2,
+          "title": "推送与克隆: push / clone",
+          "summary": "掌握第一次推送的 -u 参数、推送规则,以及 clone 的目录与远程自动配置。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 首次推送\n- `git push -u origin master`: -u 把本地 master 与远程 master 建立跟踪关系\n- 之后只需 `git push`,Git 自动知道推到哪里\n- `git push origin dev`: 推送其他分支到远程同名分支(远程没有会自动创建)\n\n## 推送被拒绝?\n- 远程有你本地没有的提交(别人先推了),Git 拒绝推送避免覆盖他人工作\n- 处理: 先 `git pull` 同步(可能产生合并/冲突),解决后再 push\n- 千万不要 `git push --force` 覆盖共享分支,这是团队协作大忌\n\n## clone 的细节\n- `git clone git@github.com:user/repo.git`: 自动创建目录、检出 master、配置好 origin\n- 只想要某个分支: `git clone -b dev <url>`\n- clone 下来的仓库天然具备完整历史,本地就是一个独立仓库",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 3,
+          "title": "抓取与拉取: fetch vs pull",
+          "summary": "分清 fetch 与 pull 的差异,理解 pull = fetch + merge,以及何时用 rebase 同步。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## fetch: 只下载,不动工作区\n- `git fetch origin`: 把远程的新提交下载到本地的「远程跟踪分支」(origin/master)\n- 此时本地分支不受影响,可以先 `git log origin/master` 看看别人推了什么\n- 安全、可控,适合先了解再决定怎么合\n\n## pull = fetch + merge\n- `git pull`: 下载远程更新并立即合并进当前分支\n- 若远程与本地各自有提交,会产生一个合并提交(或冲突)\n- `git pull --rebase`: 把你的本地提交「搬到」远程提交之上,历史更线性\n\n## 选择建议\n- 想要线性历史、团队习惯 rebase: 配置 `git config --global pull.rebase true`\n- 想保留完整合并拓扑: 直接 pull(默认 merge)\n- 不确定远程改了什么时: 先 fetch 看清楚再 merge",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 4,
+          "title": "多人协作与冲突处理",
+          "summary": "掌握跟踪分支、协作推送规范,以及远端分支合并冲突的完整处理流程。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 协作基本姿势\n- 开工前 `git pull` 同步;完成一个逻辑单元就提交并推送,不要攒大招\n- 各自开 feature 分支,通过合并(而非直接推主线)集成\n- `git branch -vv`: 查看本地分支与远程分支的跟踪/领先落后关系\n\n## 跨人冲突的处理\n1. `git pull` 时提示冲突,打开文件手工融合两人改动\n2. 注意冲突可能是「逻辑冲突」: 两边没有文本冲突,合起来却跑不通,合并后必须测试\n3. add + commit 完成合并 → `git push`\n4. 如果本地还没推过,用 `git pull --rebase` 让历史更干净\n\n## 协作规范建议\n- 提交说明规范: 一行摘要 + 必要的正文说明(改了什么、为什么改)\n- 推送前本地跑通测试;重大改动先在分支上 Code Review\n- 不要提交 IDE 配置、日志、编译产物(交给 .gitignore)",
+          "codeExample": "",
+          "codeType": "git"
+        }
+      ]
+    },
+    {
+      "stageNo": 2,
+      "stageName": "分支与远程",
+      "chapterNo": 6,
+      "title": "标签管理",
+      "description": "用标签标记发布版本,掌握轻量/附注标签、推送与删除。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "subject": "git",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "创建标签: tag 的两种形态",
+          "summary": "理解标签指向提交的本质,掌握轻量标签与附注标签的创建、补打。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "## 标签是什么\n- 标签是某个提交的「书签」,通常用来标记发布版本(v1.0、v2.3.1)\n- 与分支的区别: 分支会随提交移动,标签永远固定指向创建时的那个提交\n\n## 两种标签\n- 轻量标签: `git tag v1.0`,只是个指针,适合临时标记\n- 附注标签: `git tag -a v1.0 -m \"release 1.0\"`,记录打标签人、时间、说明,发布版本推荐用它\n- `git tag`: 列出所有标签;`git show v1.0`: 查看标签详情(附注标签含说明)\n\n## 给历史提交补打\n- `git tag -a v0.9 -m \"beta\" <commit-id>`: 给之前的提交补打标签\n- 提交 id 可以用 `git log --oneline` 找,缩写 7 位即可",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 2,
+          "title": "推送与删除标签",
+          "summary": "掌握标签的推送(单个/全部)、删除(本地/远程),建立版本发布流程。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "## 推送标签\n- 标签只在本地,要共享必须推送:\n  - `git push origin v1.0`: 推送单个标签\n  - `git push origin --tags`: 推送全部本地标签\n- 推送后,GitHub/Gitee 的 Releases 页面可以基于标签发布正式版本\n\n## 删除标签\n- 本地: `git tag -d v1.0`\n- 远程: `git push origin :refs/tags/v1.0`(或 `git push origin --delete v1.0`)\n- 打错的标签在推送前删除最省事;已推送的删除要谨慎,可能有人已在使用\n\n## 版本发布小流程\n1. 确认主线代码通过测试\n2. `git tag -a v1.2.0 -m \"描述本次发布\"`\n3. `git push origin master --tags`\n4. 在代码平台基于标签创建 Release,写更新说明",
+          "codeExample": "",
+          "codeType": "git"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "进阶与团队协作",
+      "chapterNo": 7,
+      "title": "自定义 Git",
+      "description": "掌握 .gitignore 规则、别名配置、常用环境配置与实用技巧。",
+      "codePath": null,
+      "estimatedHours": 2,
+      "subject": "git",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": ".gitignore 忽略规则",
+          "summary": "编写忽略规则文件,处理「已跟踪文件想忽略」的特殊情况。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 基本规则\n- 在仓库根目录创建 .gitignore,每行一条规则(支持目录、通配符、取反 `!`)\n- 示例:\n  - `*.class` 忽略所有 class 文件\n  - `build/` 忽略 build 目录\n  - `!README.md` 取反,不忽略该文件\n- .gitignore 本身应提交进仓库,全组人共享同一套规则\n\n## 常见陷阱\n- 已被跟踪的文件,加进 .gitignore 不会生效!\n  - 处理: `git rm --cached <file>` 移出跟踪(不删本地文件)再提交\n- 规则写在子目录的 .gitignore 中,只对该目录及子目录生效\n- 全局忽略: `git config --global core.excludesfile ~/.gitignore_global`(个人 IDE 配置放这里)\n\n## 各语言模板\n- GitHub 提供 gitignore 模板仓库(github/gitignore),Java/Node/Python 开箱即用",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 2,
+          "title": "配置别名与 .gitconfig",
+          "summary": "用别名缩短高频命令,理解全局配置文件结构。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "## 常用别名\n- `git config --global alias.st status`\n- `git config --global alias.co checkout`\n- `git config --global alias.br branch`\n- `git config --global alias.ci commit`\n- `git config --global alias.lg \"log --oneline --graph --decorate --all\"`\n- 配置后 `git st` 等价于 `git status`,高频操作效率翻倍\n\n## 配置文件长什么样\n- `~/.gitconfig` 就是纯文本,`[alias]` 小节下一行一条,可以直接编辑\n- `git config --list --show-origin`: 查看所有配置及来源,排查配置问题利器\n\n## 值得配置的几项\n- `git config --global core.editor \"vim\"`: 指定默认编辑器\n- `git config --global color.ui true`: 彩色输出\n- `git config --global init.defaultBranch main`: 新仓库默认分支名",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 3,
+          "title": "实用技巧与疑难自救",
+          "summary": "掌握 amend/reflog/cherry-pick 等实用技巧,建立「误操作自救」思路。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 高频小技巧\n- `git commit --amend`: 并入遗漏文件/修改提交说明(仅限未推送)\n- `git cherry-pick <commit>`: 把某个提交「复制」到当前分支(修 bug 时把修复同步到多分支)\n- `git stash show -p`: 查看 stash 里具体存了什么\n- `git log -p -- <file>`: 查看某个文件的完整修改历史\n\n## 自救三板斧\n1. 改乱了工作区 → `git restore <file>` 丢弃改动\n2. 回退过头/误 reset → `git reflog` 找回 commit id 再 reset 回去\n3. 提交到了错误分支 → `git reset --soft HEAD~1` 撤回提交,切对分支后重新 commit\n\n## 原则\n- 没推送到远程的历史都可以安全改写;推送后的共享历史禁止 force push\n- 拿不准就先 `git status` + `git log --oneline --graph` 看清楚现状再动手",
+          "codeExample": "",
+          "codeType": "git"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "进阶与团队协作",
+      "chapterNo": 8,
+      "title": "GitHub / Gitee 与团队协作实战",
+      "description": "在代码托管平台完成 fork/PR/Code Review,梳理团队工作流与提交规范。",
+      "codePath": null,
+      "estimatedHours": 3,
+      "subject": "git",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "使用 GitHub: fork 与 Pull Request",
+          "summary": "掌握 fork + PR 的开源协作模式,理解 Code Review 流程。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 开源协作模式\n- fork: 把别人的仓库复制一份到自己账号下\n- clone 自己 fork 的仓库到本地,开分支修改,推送到自己的远程\n- 在 GitHub 上发起 Pull Request(PR),请求把你的分支合并进原仓库\n- 维护者 Code Review、提出修改意见,通过后合并,你就成了贡献者\n\n## 写好 PR\n- 一个 PR 只做一件事,标题说清目的,正文描述改了什么、为什么、如何测试\n- 提交干净(可读的 commit message),不要把调试代码、格式化噪音混进来\n- 及时响应评审意见,用追加提交或 rebase 整理后再推\n\n## 仓库协作\n- 直接在原仓库开发时,所有人有推送权限也要走分支 + PR\n- GitHub Actions 可以做 CI: PR 自动跑测试、检查代码风格",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 2,
+          "title": "使用 Gitee 与仓库迁移",
+          "summary": "在国内网络环境下使用 Gitee 协作,掌握多远程与仓库迁移方法。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "## Gitee(码云)\n- 国内托管平台,速度快、中文友好,支持私有仓库、PR、Gitee Go(类 CI)\n- 用法与 GitHub 基本一致: SSH 公钥、clone、push、PR\n- 适合国内团队内部协作、或作为 GitHub 的同步镜像\n\n## 一仓多远程\n- 本地仓库可以同时关联 GitHub 与 Gitee:\n  - `git remote add github git@github.com:user/repo.git`\n  - `git remote add gitee git@gitee.com:user/repo.git`\n- `git push github main` / `git push gitee main` 分别推送\n- 从零迁移: 在新平台「导入仓库」填旧仓库地址即可,历史完整保留\n\n## 权限管理\n- 团队仓库按角色分配权限(管理员/开发者/观察者)\n- 保护分支(master/main)禁止直接推送,只能通过 PR 合并",
+          "codeExample": "",
+          "codeType": "git"
+        },
+        {
+          "lessonNo": 3,
+          "title": "团队工作流与提交规范",
+          "summary": "了解 Git Flow 与主干开发的取舍,掌握 commit message 规范与上线回滚思路。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 两种主流工作流\n- Git Flow: master/develop/feature/release/hotfix 五类分支,流程完备,适合有固定发布周期的团队\n- 主干开发(Trunk-Based): 大家基于短命分支高频合并主干,配合 CI/CD 持续交付,适合发布频繁的团队\n- 小团队建议: master + 短命 feature 分支 + 必要 hotfix,简单可靠\n\n## Commit Message 规范(Conventional Commits)\n- 格式: `type(scope): 简短描述`,如 `feat(auth): 支持手机号登录`、`fix(order): 修复金额精度问题`\n- 常用 type: feat / fix / docs / style / refactor / test / chore\n- 好处: 历史可读、便于生成更新日志、便于自动化工具处理\n\n## 上线与回滚\n- 上线: 打标签 → CI 构建产物 → 部署\n- 出问题回滚: 优先 `git revert <bad-commit>`(生成反向提交,不改写历史,可安全推送)\n- 仅在未推送/个人分支上才用 reset 改写历史",
+          "codeExample": "",
+          "codeType": "git"
+        }
+      ]
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Web 前端基础",
+      "chapterNo": 1,
+      "title": "Web 与 HTML 入门",
+      "description": "理解 Web 的工作原理,掌握 HTML 文档骨架与常用语义化标签。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Web 是如何工作的",
+          "summary": "理解浏览器、服务器、HTTP 请求响应的关系,建立前端全局观。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "## 一次网页访问的完整链路\n- 浏览器输入 URL → DNS 解析域名得到 IP → 与服务器建立 TCP 连接\n- 发出 HTTP 请求(GET /index.html),服务器返回 HTML 源码\n- 浏览器解析 HTML 构建 DOM,遇到 CSS/JS/图片再发起二次请求\n- 渲染引擎绘制页面,JS 引擎执行交互逻辑\n\n## 前端三剑客的分工\n- HTML:页面结构与内容(骨架)\n- CSS:样式与布局(外观)\n- JavaScript:交互与行为(灵魂)\n\n## 需要掌握的周边概念\n- HTTP 方法:GET 获取、POST 提交、PUT/PATCH 更新、DELETE 删除\n- 状态码:200 成功、304 缓存、404 不存在、500 服务器错误\n- 开发者工具(F12):Network 看请求、Elements 看结构、Console 调试 JS",
+          "codeExample": "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>我的第一个页面</title>\n</head>\n<body>\n  <h1>Hello, Web!</h1>\n  <p>这是我的第一个网页。</p>\n</body>\n</html>",
+          "codeType": "html"
+        },
+        {
+          "lessonNo": 2,
+          "title": "HTML 文档结构详解",
+          "summary": "掌握 DOCTYPE、head、body 等骨架标签与常用元信息配置。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 文档骨架逐行解读\n- <!DOCTYPE html>:声明 HTML5 文档,让浏览器用标准模式渲染\n- <html lang=\"zh-CN\">:根元素,lang 声明语言有助无障碍与翻译\n- <head>:元信息区,不会直接显示在页面上\n- <body>:内容区,所有可见元素都放在这里\n\n## head 里的关键配置\n- <meta charset=\"UTF-8\">:字符编码,不写中文可能乱码\n- <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">:移动端适配必备\n- <title>:浏览器标签页标题,也影响 SEO\n- <link rel=\"stylesheet\" href=\"style.css\">:引入外部 CSS\n- <script src=\"app.js\" defer></script>:defer 让 JS 在 HTML 解析完后执行\n\n## 常用结构标签\n- 标题 h1~h6:层级递进,一页只用一个 h1\n- 段落 p、换行 br、分割线 hr\n- 容器 div(无语义)、span(行内容器)",
+          "codeExample": "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>文档结构演示</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n  <h1>页面主标题</h1>\n  <h2>二级标题</h2>\n  <p>正文段落,支持<strong>加粗</strong>和<em>斜体</em>。</p>\n</body>\n</html>",
+          "codeType": "html"
+        },
+        {
+          "lessonNo": 3,
+          "title": "语义化标签",
+          "summary": "用 header/nav/main/section/article 等标签替代无脑 div,提升可读性与 SEO。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 什么是语义化\n- 用有含义的标签描述内容角色,而不是用 div + class 硬凑\n- 好处:代码可读性强、SEO 友好、屏幕阅读器可正确朗读\n\n## 常用语义化标签\n- <header> 页头/区块头部,<footer> 页脚\n- <nav> 导航链接集合,<main> 页面主体(唯一)\n- <section> 独立主题分区,<article> 可独立分发的内容\n- <aside> 侧边/补充信息,<figure>+<figcaption> 图文组合\n- <time datetime=\"2024-01-01\"> 时间,<mark> 高亮\n\n## 列表与行内语义\n- 无序 ul>li、有序 ol>li、描述列表 dl>dt+dd\n- <strong> 重要(默认加粗)、<em> 强调(默认斜体)\n- <a href> 超链接:内部页面用相对路径,外站用完整 https 地址\n\n## 实践建议\n- 先搭语义骨架再写 CSS,不急着套 div\n- 无障碍细节:img 必须写 alt,a 不做按钮用(用 button)",
+          "codeExample": "<body>\n  <header>\n    <nav>\n      <a href=\"/\">首页</a>\n      <a href=\"/about\">关于</a>\n    </nav>\n  </header>\n  <main>\n    <article>\n      <h2>文章标题</h2>\n      <p>发表于 <time datetime=\"2024-06-01\">2024 年 6 月</time></p>\n      <p>正文内容……</p>\n    </article>\n  </main>\n  <footer>© 2024 My Site</footer>\n</body>",
+          "codeType": "html"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Web 前端基础",
+      "chapterNo": 2,
+      "title": "HTML 表单与多媒体",
+      "description": "掌握表单控件、校验与多媒体元素,完成用户输入采集。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "表单基础与常用控件",
+          "summary": "掌握 form 与 input/select/textarea 等控件的搭配使用。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## form 的三要素\n- action:数据提交地址;method:GET(拼 URL)或 POST(放请求体)\n- 每个控件的 name 是提交时的字段名,value 是值\n- label 的 for 关联控件 id,点击文字即可聚焦,提升可用性\n\n## 常用 input 类型\n- text 文本、password 密码、email 邮箱、number 数字\n- radio 单选(同 name 互斥)、checkbox 多选\n- date 日期、file 文件、submit 提交、button 普通按钮\n- select>option 下拉、textarea 多行文本\n\n## 分组与可读性\n- <fieldset> + <legend>:给控件分组加标题\n- 占位符 placeholder 提示格式,required 标记必填",
+          "codeExample": "<form action=\"/api/register\" method=\"post\">\n  <fieldset>\n    <legend>注册信息</legend>\n    <label for=\"name\">用户名</label>\n    <input id=\"name\" name=\"name\" type=\"text\" required placeholder=\"2-16 位\">\n    <label for=\"mail\">邮箱</label>\n    <input id=\"mail\" name=\"email\" type=\"email\" required>\n    <label for=\"bio\">简介</label>\n    <textarea id=\"bio\" name=\"bio\" rows=\"3\"></textarea>\n    <button type=\"submit\">提交</button>\n  </fieldset>\n</form>",
+          "codeType": "html"
+        },
+        {
+          "lessonNo": 2,
+          "title": "表单校验与用户体验",
+          "summary": "用 HTML5 内置校验快速兜底,配合提示属性提升填写体验。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## HTML5 内置校验属性\n- required:必填;minlength/maxlength:长度范围\n- min/max/step:数字与日期范围;pattern:正则约束\n- type=email/url/number:浏览器自动校验格式\n- novalidate 可关闭整体校验(交由 JS 自定义)\n\n## 提示与辅助\n- title 属性给 pattern 提示;placeholder 不要当 label 用\n- <input list=\"x\"> + <datalist id=\"x\">:可输入的下拉建议\n- autocomplete=\"off/on\" 控制记忆填写\n\n## 校验状态伪类\n- :valid 校验通过、:invalid 未通过\n- :required 必填、:optional 选填、:in-range 范围内\n\n## 最佳实践\n- 前端校验只为体验,数据安全必须服务端再校验一遍\n- 报错提示要具体:告诉用户\"格式不对\"不如\"请输入 11 位手机号\"",
+          "codeExample": "<form>\n  <label for=\"phone\">手机号</label>\n  <input id=\"phone\" name=\"phone\" type=\"tel\" required\n         pattern=\"1[3-9]\\d{9}\" title=\"请输入 11 位手机号\">\n  <label for=\"age\">年龄</label>\n  <input id=\"age\" name=\"age\" type=\"number\" min=\"1\" max=\"120\" step=\"1\">\n  <input type=\"submit\" value=\"提交\">\n</form>\n<style>\n  input:invalid { border-color: #e74c3c; }\n  input:valid { border-color: #2ecc71; }\n</style>",
+          "codeType": "css"
+        },
+        {
+          "lessonNo": 3,
+          "title": "多媒体:图片、音视频与 SVG",
+          "summary": "掌握 img/audio/video 的使用与性能细节,了解内联 SVG。",
+          "difficulty": 1,
+          "durationMinutes": 15,
+          "content": "## 图片 img\n- 属性:src 地址、alt 替代文本(必写)、width/height 预留尺寸防抖动\n- 响应式:srcset + sizes 按屏幕密度加载不同图,loading=\"lazy\" 懒加载\n- 常见格式:JPG(照片)、PNG(透明)、WebP/AVIF(高压缩)、SVG(矢量图标)\n\n## 音视频\n- <video src controls poster=\"封面.jpg\"> 播放器;autoplay 需配合 muted 才能生效\n- <audio src controls> 音频;支持 <source> 多格式兜底\n- preload=\"none\" 省流量;playsinline 移动端不强制全屏\n\n## SVG 内联图标\n- 直接把 <svg> 写进 HTML,可用 CSS 控制颜色、可随字号缩放\n- viewBox 定义坐标系,比位图图标更清晰、体积更小\n\n## 可访问性提醒\n- 装饰性图片写 alt=\"\" ;功能性图片描述\"做了什么\"\n- 视频提供字幕 track,音频提供文字稿",
+          "codeExample": "<img src=\"cover.webp\" alt=\"课程封面\"\n     width=\"800\" height=\"400\" loading=\"lazy\">\n\n<video controls poster=\"cover.jpg\" width=\"640\">\n  <source src=\"intro.mp4\" type=\"video/mp4\">\n  您的浏览器不支持 video 标签。\n</video>\n\n<svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"#409eff\">\n  <path d=\"M12 2L2 7l10 5 10-5-10-5z\"/>\n</svg>",
+          "codeType": "html"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Web 前端基础",
+      "chapterNo": 3,
+      "title": "CSS 基础与选择器",
+      "description": "掌握 CSS 引入方式、选择器体系与层叠优先级规则。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "CSS 引入方式与选择器",
+          "summary": "掌握三种样式引入方式与基础选择器的写法。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 三种引入方式\n- 行内 style=\"color:red\":优先级最高,难维护,尽量少用\n- 内部 <style> 块:适合单页小样式\n- 外部 <link rel=\"stylesheet\">:主流做法,可缓存、可复用\n\n## 基础选择器\n- 元素选择器 p、类选择器 .box、id 选择器 #app(唯一但权重高)\n- 通配 * 选中全部;分组选择器 h1, h2 共享声明\n\n## 关系选择器\n- 后代 .nav a(所有层级)、子代 .nav > a(仅一层)\n- 相邻兄弟 h1 + p、通用兄弟 h1 ~ p\n\n## 伪类与伪元素\n- 状态伪类 :hover :focus :active :visited\n- 结构伪类 :first-child :last-child :nth-child(n)\n- 伪元素 ::before ::after 生成装饰内容(配合 content)\n\n## 选择器建议\n- 优先类选择器,少用 id 和深层嵌套\n- 语义化命名:.card-title 比 .red-text 更耐用",
+          "codeExample": "/* 外部样式 style.css */\n.nav > a { text-decoration: none; }\n.nav a:hover { color: #409eff; }\n\n.card .title { font-size: 18px; }\n.card p::first-line { font-weight: 600; }\n\nli:nth-child(odd) { background: #f5f7fa; }\n\n.btn::after {\n  content: \" >\";\n  color: #909399;\n}",
+          "codeType": "css"
+        },
+        {
+          "lessonNo": 2,
+          "title": "层叠、继承与优先级",
+          "summary": "理解 CSS 优先级计算规则,会用 !important 与层叠层管理冲突。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 优先级计算(权重叠加)\n- 行内 style(1000)> id(100)> 类/伪类/属性(10)> 元素/伪元素(1)> *(0)\n- 比较顺序:先比来源(用户代理 < 作者 < !important),再比权重,后写的赢\n- 例:nav .item(11)< #menu a(101)\n\n## 继承\n- 文字属性大多继承:color、font-*、line-height、text-align\n- 盒模型属性不继承:width、margin、border、background\n- 强制继承用 inherit,强制初始值用 initial/ revert\n\n## 实用技巧\n- !important 是最后手段,滥用会让调试噩梦\n- 提升复用:变量 --main-color: #409eff; 用 var(--main-color) 引用\n- @layer 分层管理:reset 层 < 组件层 < 页面层,冲突可控\n- 调试优先级:DevTools 元素面板可看每条规则被划掉的原因",
+          "codeExample": "<style>\n  :root { --brand: #409eff; }\n  /* 基础层优先级低,页面可覆盖 */\n  @layer base, components;\n  @layer base {\n    a { color: inherit; text-decoration: none; }\n  }\n  @layer components {\n    .btn { background: var(--brand); color: #fff; }\n    .btn.ghost { background: transparent; color: var(--brand); }\n  }\n</style>",
+          "codeType": "css"
+        },
+        {
+          "lessonNo": 3,
+          "title": "颜色、字体与文本样式",
+          "summary": "掌握颜色表示法、字体栈与常用文本排版属性。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 颜色表示法\n- 关键字 red、十六进制 #ff6600、rgb(255,102,0)、hsl(色相,饱和,亮度)\n- 带透明度:rgba() / hsla() / 十六进制八位 #ff6600cc\n- 变量统一色板:--text: #303133; --muted: #909399;\n\n## 字体\n- font-family 字体栈从具体到通用:PingFang SC, Microsoft YaHei, sans-serif\n- font-size:px 固定 / rem 相对根 / em 相对父级 / % 比例\n- font-weight:400 正常、500 中、700 加粗;font-style italic 斜体\n- web 字体 @font-face 慎用(体积大),优先系统字体栈\n\n## 文本排版\n- line-height 行高(建议 1.5~1.8);letter-spacing 字距\n- text-align 对齐;text-overflow: ellipsis + overflow: hidden 单行省略\n- 文字溢出多行省略:-webkit-line-clamp: 3 + display: -webkit-box",
+          "codeExample": "<style>\n  body {\n    font-family: \"PingFang SC\", \"Microsoft YaHei\", sans-serif;\n    color: #303133;\n    line-height: 1.7;\n    font-size: 16px;\n  }\n  .muted { color: #909399; font-size: 14px; }\n  .ellipsis {\n    overflow: hidden;\n    white-space: nowrap;\n    text-overflow: ellipsis;\n    max-width: 240px;\n  }\n  .clamp-3 {\n    display: -webkit-box;\n    -webkit-line-clamp: 3;\n    -webkit-box-orient: vertical;\n    overflow: hidden;\n  }\n</style>",
+          "codeType": "css"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Web 前端基础",
+      "chapterNo": 4,
+      "title": "盒模型与定位",
+      "description": "吃透盒模型、BFC 与 position 定位体系,打好布局根基。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "盒模型详解",
+          "summary": "理解 content-box 与 border-box 的区别,掌握内外边距与折叠。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 盒模型的组成\n- 由内到外:content → padding → border → margin\n- 标准盒模型 width 只算内容区,加 padding/border 会撑大盒子\n- border-box:width 包含 padding+border,布局更好算(推荐全局开启)\n\n## 全局开启 border-box\n- * { box-sizing: border-box; } 是现代 CSS 的标配\n- 父级 width:100% + 内边距时不再溢出\n\n## margin 折叠\n- 相邻块级元素的上下 margin 取较大值,不是相加\n- 父子间 margin 会\"穿透\"(margin 塌陷),用 padding/border/BFC 化解\n- 行内元素只有水平 margin/padding 生效\n\n## 实践要点\n- 尺寸优先用百分比/max-width,少写死高度\n- outline 不占布局,做 focus 可见性提示好用",
+          "codeExample": "<style>\n  * { box-sizing: border-box; }\n  .box {\n    width: 320px;\n    padding: 16px;\n    border: 1px solid #dcdfe6;\n    margin-bottom: 20px; /* 相邻盒子 margin 会折叠 */\n  }\n  .inline {\n    display: inline-block; /* 让上下 padding/margin 生效 */\n    padding: 4px 12px;\n    border-radius: 4px;\n    background: #ecf5ff;\n  }\n</style>",
+          "codeType": "css"
+        },
+        {
+          "lessonNo": 2,
+          "title": "浮动、BFC 与清除浮动",
+          "summary": "了解 float 的历史用法,用 BFC 与现代布局替代浮动排版。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 浮动的本质\n- float:left/right 让元素靠边,文字环绕(最初为图文排版设计)\n- 浮动元素脱离文档流,父级高度塌陷,需要\"清除浮动\"\n\n## 清除浮动的写法\n- 父级 overflow: hidden(触发 BFC,副作用小场景可用)\n- 空元素 clear: both(过时,语义差)\n- 伪元素 clearfix:.parent::after { content:\"\"; display:block; clear:both; }\n\n## BFC(块级格式化上下文)\n- 一个独立渲染区域,内部布局不影响外部\n- 触发条件:overflow 非 visible、display:flow-root、float、position:absolute 等\n- 作用:包含浮动子元素、阻止 margin 折叠、阻止文字环绕\n\n## 现代建议\n- 页面整体布局交给 Flex/Grid,不要用 float 排版\n- float 只用于文字环绕图片等轻量场景\n- display:flow-root 是最干净的 BFC 触发方式",
+          "codeExample": "<style>\n  /* 清除浮动:通用 clearfix */\n  .clearfix::after {\n    content: \"\";\n    display: block;\n    clear: both;\n  }\n  .col { float: left; width: 50%; }\n  /* 现代替代:Flex 一行搞定 */\n  .row { display: flex; gap: 16px; }\n  .row > * { flex: 1; }\n</style>",
+          "codeType": "css"
+        },
+        {
+          "lessonNo": 3,
+          "title": "position 定位与层叠上下文",
+          "summary": "掌握 static/relative/absolute/fixed/sticky 五种定位与 z-index 规则。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 五种 position\n- static:默认,按文档流排布\n- relative:相对自身原位置偏移,仍占原空间(常作绝对定位父级)\n- absolute:相对最近的定位祖先定位,脱离文档流\n- fixed:相对视口固定,滚动不移动(悬浮按钮、弹窗)\n- sticky:在阈值内滚动吸附(粘性表头),需指定 top/bottom\n\n## 偏移属性\n- top/right/bottom/left:相对定位参照系的四边距离\n- absolute 元素用 left+right(或 top+bottom)可实现拉伸自适应\n\n## z-index 与层叠上下文\n- z-index 只对定位元素(及 flex 子项)生效\n- 根元素、position+z-index、opacity<1、transform 等会创建层叠上下文\n- 子元素 z-index 再高也跳不出父级层叠上下文——弹窗被遮住先查父级\n\n## 调试技巧\n- DevTools 的 z-index 检视器可可视化层级\n- 弹层统一管理:toast 1000、modal 2000 等约定层级值",
+          "codeExample": "<style>\n  .parent { position: relative; }\n  .badge {\n    position: absolute;\n    top: -8px; right: -8px;\n    background: #f56c6c;\n    color: #fff;\n    border-radius: 10px;\n    padding: 2px 8px;\n  }\n  .back-top {\n    position: fixed;\n    right: 24px; bottom: 24px;\n    z-index: 1000;\n  }\n  .sticky-head {\n    position: sticky;\n    top: 0;\n    background: #fff;\n    z-index: 100;\n  }\n</style>",
+          "codeType": "css"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Web 前端基础",
+      "chapterNo": 5,
+      "title": "Flexbox 弹性布局",
+      "description": "掌握一维弹性布局:主轴侧轴、对齐方式与伸缩分配。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Flex 容器与轴线",
+          "summary": "理解主轴侧轴概念,掌握容器级属性的含义。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 为什么用 Flex\n- 一维布局利器:水平或垂直方向排列、对齐、分配空间\n- 告别 float+margin 的脆弱写法,自适应能力强\n\n## 容器属性(display: flex)\n- flex-direction:row/column 决定主轴方向(可加 -reverse)\n- flex-wrap:nowrap/wrap 控制是否换行\n- justify-content:主轴对齐:flex-start/center/space-between/space-around/evenly\n- align-items:侧轴对齐:flex-start/center/stretch(默认拉伸)/baseline\n- gap:子项间距,替代 margin 更干净\n\n## 主轴与侧轴\n- 主轴方向随 flex-direction 变化,justify-content 永远管主轴\n- align-items 管侧轴;多行时 align-content 管行间距\n\n## 快速上手三件套\n- 父级 display: flex;子级按顺序排成一行\n- justify-content: center 水平居中\n- align-items: center 垂直居中(子级不设高时)",
+          "codeExample": "<style>\n  .row {\n    display: flex;\n    justify-content: space-between;\n    align-items: center;\n    gap: 16px;\n  }\n  .row img { width: 64px; height: 64px; border-radius: 8px; }\n</style>\n<div class=\"row\">\n  <img src=\"avatar.png\" alt=\"头像\">\n  <div>用户信息</div>\n  <button>关注</button>\n</div>",
+          "codeType": "css"
+        },
+        {
+          "lessonNo": 2,
+          "title": "子项伸缩与对齐",
+          "summary": "掌握 flex-grow/shrink/basis 与单个子项的对齐覆盖。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 子项属性\n- flex-grow:放大比例(0 不放大,1 平分剩余空间)\n- flex-shrink:缩小比例(默认 1,0 则不压缩)\n- flex-basis:分配前的基准尺寸(默认 auto)\n- 简写 flex: 1 = grow 1 / shrink 1 / basis 0%(平分宽度常用)\n- align-self:单独覆盖该子项的侧轴对齐\n- order:视觉排序(不改变 DOM 顺序,慎用于无障碍场景)\n\n## 常见布局套路\n- 定宽侧栏 + 自适应主区:aside { width: 240px; } main { flex: 1; }\n- 子项等分:都设 flex: 1\n- 元素贴底:margin-top: auto(卡片里按钮沉底)\n\n## 易错点\n- flex 子项默认 min-width: auto,内容会撑破容器——溢出时加 min-width: 0\n- 文字省略号失效也常是这个原因\n- 图片自适应:max-width: 100%; height: auto",
+          "codeExample": "<style>\n  .card-row { display: flex; gap: 16px; }\n  .side { width: 240px; flex-shrink: 0; }\n  .main { flex: 1; min-width: 0; } /* 防止内容撑破 */\n  .card {\n    display: flex; flex-direction: column;\n    border: 1px solid #ebeef5; border-radius: 8px; padding: 16px;\n  }\n  .card .actions { margin-top: auto; display: flex; gap: 8px; }\n</style>",
+          "codeType": "css"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Web 前端基础",
+      "chapterNo": 6,
+      "title": "Grid 网格布局",
+      "description": "掌握二维网格布局:模板定义、区域划分与响应式网格。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Grid 基础与模板",
+          "summary": "用 grid-template 定义行列,实现二维布局。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## Flex 与 Grid 的分工\n- Flex 管一维(一行或一列的排列与对齐)\n- Grid 管二维(行、列同时规划),整页/卡片墙首选\n\n## 容器核心属性\n- display: grid;grid-template-columns: 200px 1fr 1fr(列宽,fr 均分剩余)\n- grid-template-rows: 定义行高;repeat(3, 1fr) 简写重复\n- gap 行列间距;grid-auto-rows/auto-columns 定义隐式轨道尺寸\n\n## 子项定位\n- grid-column: 1 / 3:从第 1 条列线跨到第 3 条(占两列)\n- grid-row 同理;span 关键字:grid-column: span 2(跨两列)\n- 网格线从 1 开始数,-1 表示最后一条(贴边神器)\n\n## 尺寸单位\n- fr:剩余空间比例;minmax(200px, 1fr):带下限的弹性\n- auto:随内容;px/%:固定或百分比",
+          "codeExample": "<style>\n  .layout {\n    display: grid;\n    grid-template-columns: 240px 1fr;\n    grid-template-rows: 64px 1fr;\n    gap: 16px;\n    min-height: 100vh;\n  }\n  .header { grid-column: 1 / -1; }  /* 横跨整行 */\n  .sidebar { background: #f5f7fa; }\n  .content { background: #fff; }\n</style>",
+          "codeType": "css"
+        },
+        {
+          "lessonNo": 2,
+          "title": "网格区域与响应式实战",
+          "summary": "掌握 grid-template-areas 与自适应网格的实战写法。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## grid-template-areas 区域模板\n- 用\"名字\"画出布局草图,直观且好维护\n- 子项 grid-area: header 引用命名区域\n- 空格 . 表示留空;同一名称可跨格\n\n## 自适应卡片墙(高频手写题)\n- grid-template-columns: repeat(auto-fill, minmax(260px, 1fr))\n- 含义:自动填充尽量多的列,每列不小于 260px,剩余空间均分\n- 无需媒体查询即可响应式换列\n\n## 对齐控制\n- justify-items/align-items:单元格内对齐\n- justify-content/align-content:整个网格在容器里的对齐\n- place-items: center 是 align+justify 的简写\n\n## 场景选择\n- 整体页面骨架、图片瀑布/卡片墙 → Grid\n- 导航条、工具条、单行元素排布 → Flex",
+          "codeExample": "<style>\n  .page {\n    display: grid;\n    grid-template-areas:\n      \"header header\"\n      \"side   main\"\n      \"footer footer\";\n    grid-template-columns: 200px 1fr;\n    gap: 12px;\n  }\n  .page > header { grid-area: header; }\n  .page > aside   { grid-area: side; }\n  .page > main    { grid-area: main; }\n  .page > footer { grid-area: footer; }\n\n  .cards {\n    display: grid;\n    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));\n    gap: 16px;\n  }\n</style>",
+          "codeType": "css"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 1,
+      "stageName": "Web 前端基础",
+      "chapterNo": 7,
+      "title": "响应式设计与动画",
+      "description": "掌握移动优先的响应式方案与 transition/animation 动效。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "响应式与媒体查询",
+          "summary": "用移动优先策略与媒体查询适配多端屏幕。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 移动优先策略\n- 基础样式写移动端,再用 min-width 媒体查询逐级增强\n- 比\"桌面优先 + max-width 一路减\"更易维护、性能更好\n\n## 媒体查询\n- @media (min-width: 768px) { ... }:视口≥768px 时生效\n- 常用断点:576 手机 / 768 平板 / 992 小桌面 / 1200 桌面(Bootstrap 惯例)\n- 可组合条件:@media (min-width: 768px) and (max-width: 991px)\n\n## 响应式要素\n- 图片:max-width: 100%; height: auto\n- 弹性布局:百分比 + fr + max-width 限制过宽内容\n- 触控目标 ≥ 44px;移动端字号不小于 14px\n- 图标用 SVG 或字体图标,不同分辨率都清晰\n\n## 常见坑\n- 别忘了 <meta name=\"viewport\">,否则媒体查询按 980px 算\n- 媒体查询放在样式表靠后,避免被同权重规则覆盖\n- 桌面 hover 效果要考虑触屏无 hover 的情况",
+          "codeExample": "<style>\n  .toolbar { display: flex; flex-direction: column; gap: 8px; }\n  .col { width: 100%; }\n\n  /* 平板以上:一行排开 */\n  @media (min-width: 768px) {\n    .toolbar { flex-direction: row; align-items: center; }\n    .col { width: 50%; }\n  }\n  /* 桌面:三栏 */\n  @media (min-width: 1200px) {\n    .col { width: 33.33%; }\n  }\n  img { max-width: 100%; height: auto; }\n</style>",
+          "codeType": "css"
+        },
+        {
+          "lessonNo": 2,
+          "title": "过渡 transition",
+          "summary": "用 transition 让状态变化(颜色/尺寸/位移)平滑自然。",
+          "difficulty": 1,
+          "durationMinutes": 18,
+          "content": "## 基本用法\n- transition: 属性名 时长 缓动 延迟;例:transition: all .3s ease\n- 常过渡属性:color、background、transform、opacity、box-shadow\n- 指定多个:transition: color .2s, transform .3s\n\n## 缓动函数\n- ease(默认先快后慢)、linear 匀速、ease-in 加速、ease-out 减速\n- cubic-bezier(x1,y1,x2,y2) 自定义曲线\n- 时长建议:微交互 150~250ms,大面板 300~400ms\n\n## 使用建议\n- 优先过渡 transform/opacity(只触发合成层,不引起重排,流畅)\n- 避免过渡 width/height/top/left(触发重排,易卡顿)\n- 尊重用户设置:@media (prefers-reduced-motion: reduce) 关掉动画",
+          "codeExample": "<style>\n  .btn {\n    background: #409eff; color: #fff;\n    padding: 10px 24px; border-radius: 6px;\n    transition: background .2s ease, transform .15s ease;\n  }\n  .btn:hover { background: #66b1ff; transform: translateY(-2px); }\n  .btn:active { transform: translateY(0); }\n\n  @media (prefers-reduced-motion: reduce) {\n    .btn { transition: none; }\n  }\n</style>",
+          "codeType": "css"
+        },
+        {
+          "lessonNo": 3,
+          "title": "transform 与关键帧动画",
+          "summary": "用 transform 做位移旋转缩放,用 @keyframes 编排复杂动画。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## transform 变换\n- translate(x,y) 平移、rotate(45deg) 旋转、scale(1.2) 缩放、skew 倾斜\n- 3D 变换:rotateX/Y/Z、translateZ、perspective 透视距离\n- transform 不影响文档流,常做悬浮反馈与入场动画\n\n## @keyframes 关键帧\n- @keyframes 名称 { from {} to {} } 或百分比多段编排\n- animation: 名称 时长 缓动 次数 方向 填充模式\n- 常用参数:infinite 无限、alternate 往返、forwards 停在末帧\n- animation-play-state: paused 控制暂停\n\n## 常见动效案例\n- 淡入上移入场:opacity 0→1 + translateY(12px→0)\n- 加载点:三个点 scale + delay 波纹\n- 骨架屏:背景渐变位移的 shimmer\n\n## 性能守则\n- 只动 transform/opacity;动画元素加 will-change: transform 提示\n- 动画结束移除 will-change,避免长期占内存",
+          "codeExample": "<style>\n  @keyframes fadeUp {\n    from { opacity: 0; transform: translateY(12px); }\n    to   { opacity: 1; transform: translateY(0); }\n  }\n  .item {\n    animation: fadeUp .4s ease both;\n  }\n  .item:nth-child(2) { animation-delay: .1s; }\n  .item:nth-child(3) { animation-delay: .2s; }\n\n  .spinner {\n    width: 32px; height: 32px;\n    border: 3px solid #e4e7ed;\n    border-top-color: #409eff;\n    border-radius: 50%;\n    animation: spin .8s linear infinite;\n  }\n  @keyframes spin { to { transform: rotate(360deg); } }\n</style>",
+          "codeType": "css"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 2,
+      "stageName": "JavaScript 语言核心",
+      "chapterNo": 8,
+      "title": "JS 基础语法",
+      "description": "掌握变量、数据类型、运算符与流程控制,写出规范的 JS 代码。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "变量与数据类型",
+          "summary": "理解 let/const 与七种基本类型、引用类型的差别。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 变量声明\n- let 声明可变变量、const 声明常量(不可重新赋值)、var 是历史写法(有变量提升问题)\n- 优先 const,需要改再用 let,彻底不写 var\n- 命名:小驼峰 userName;常量可全大写 MAX_SIZE;布尔值以 is/has 开头\n\n## 基本类型(值类型)\n- string 字符串、number 数字、boolean 布尔\n- null 空值(刻意赋空)、undefined 未赋值、symbol 唯一标识、BigInt 大整数\n- typeof 判断类型:typeof null 会返回 \"object\"(历史遗留 bug)\n\n## 引用类型\n- object 对象、array 数组、function 函数——赋值与传参传的是引用\n- 比较:基本类型比值,引用类型比地址(两个 {} 永远不相等)\n\n## 模板字符串\n- 反引号 ` ` 包裹,${} 插值,支持多行:const msg = `你好,${name}`",
+          "codeExample": "const name = \"小明\";\nconst age = 18;\nlet score = 90;\nscore = 95;               // let 可改\nconst PI = 3.14159;\n\nconst msg = `${name} 今年 ${age} 岁,得分 ${score}`;\nconsole.log(msg);\n\nconst a = { x: 1 };\nconst b = a;              // b 与 a 指向同一对象\nb.x = 2;\nconsole.log(a.x);         // 2,改 b 影响 a\nconsole.log(typeof null); // \"object\" 经典坑",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "运算符与流程控制",
+          "summary": "掌握比较、逻辑运算与 if/switch/三元/循环的写法。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 运算符\n- 算术:+ - * / %(取余)、**(幂);+ 号遇字符串会拼接(\"1\"+1=\"11\")\n- 比较:== 会隐式转换(\"1\"==1 为 true),=== 严格比较(推荐只用 ===)\n- 逻辑:&& 与、|| 或、! 非;短路求值:a || b 用于默认值\n- 空值合并:a ?? b:仅当 a 为 null/undefined 时取 b(0、\"\" 不会误伤)\n- 可选链:a?.b?.():a 为 null/undefined 时整体返回 undefined,防空指针\n\n## 流程控制\n- if / else if / else;三元表达式:cond ? a : b\n- switch 适合离散值分支,记得 break 或 return\n- for 经典循环、for...of 遍历值(数组)、for...in 遍历键(对象)\n- while / do...while;break 跳出、continue 跳过本轮",
+          "codeExample": "const score = 85;\nconst level = score >= 90 ? \"A\" : score >= 60 ? \"PASS\" : \"FAIL\";\n\nconst config = { timeout: 0 };\nconst t = config.timeout ?? 3000;  // 0 不会被吞,结果为 0\nconsole.log(t);\n\nconst user = { profile: { city: \"Beijing\" } };\nconsole.log(user.profile?.city);   // \"Beijing\"\nconsole.log(user.contact?.email);  // undefined,不报错\n\nfor (const item of [\"a\", \"b\", \"c\"]) {\n  if (item === \"b\") continue;\n  console.log(item);               // a c\n}",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "类型转换与调试技巧",
+          "summary": "看懂隐式转换规则,会用 console 与断点定位问题。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 隐式转换规律\n- \"\"、0、NaN、null、undefined 为假值,其余为真\n- if (\"0\") 是 true!字符串只要非空就是真值(\"0\" 也真)\n- == 比较会转数字:\"1\" == 1 为 true;[] == false 为 true(反直觉)\n- 防御写法:一律用 ===;显式转换 Number()/String()/Boolean()\n\n## 常见陷阱\n- NaN 不等于任何值(包括自己),判断用 Number.isNaN(x)\n- 0.1 + 0.2 = 0.30000000000000004(浮点误差),金额用分做整数运算\n- Math.floor/round/ceil 取整;toFixed(2) 保留两位(返回字符串)\n\n## 调试技巧\n- console.log/warn/error;console.table 打印对象数组\n- console.time(\"x\") ... timeEnd 测量耗时\n- debugger 语句配合 DevTools 断点;Sources 面板可单步、看作用域\n- 报错先看第一行:错误类型 + 出错文件:行号",
+          "codeExample": "console.log(Number(\"12px\"));   // NaN\nconsole.log(parseInt(\"12px\")); // 12\nconsole.log(+\"42\");            // 42 一元加号转数字\n\nconst price = 0.1 + 0.2;\nconsole.log(price.toFixed(2)); // \"0.30\"\n\n// 金额安全运算:转成分(整数)\nconst total = (0.1 * 100 + 0.2 * 100) / 100;\nconsole.log(total);            // 0.3\n\nconsole.table([\n  { name: \"Tom\", age: 18 },\n  { name: \"Amy\", age: 20 },\n]);",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 2,
+      "stageName": "JavaScript 语言核心",
+      "chapterNo": 9,
+      "title": "函数与作用域",
+      "description": "掌握函数定义、闭包原理与 this 绑定规则。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "函数定义与参数",
+          "summary": "掌握声明/表达式/箭头函数与默认参数、剩余参数。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 三种定义方式\n- 函数声明:function add(a, b) { return a + b; }(有提升,可先调用后定义)\n- 函数表达式:const add = function(a, b) {...}\n- 箭头函数:const add = (a, b) => a + b(简洁,且不绑定自己的 this)\n\n## 参数技巧\n- 默认参数:function fn(a = 10) {...}(undefined 时生效)\n- 剩余参数:function fn(...args) {} 收集成数组(代替 arguments)\n- 参数解构:function fn({ name, age = 0 }) {...} 直接拆对象\n\n## 返回值与高阶函数\n- return 立即结束;不写 return 返回 undefined\n- 函数是一等公民:可赋值、传参、返回\n- 高阶函数:接收或返回函数(如数组的 map/filter 回调)\n\n## 箭头函数注意\n- 不能当构造函数,没有 arguments 对象\n- 简写:单参数可省括号 (x) => x * 2;单表达式可省 return",
+          "codeExample": "const add = (a, b) => a + b;\n\nconst greet = ({ name, greeting = \"Hi\" }) => `${greeting}, ${name}!`;\nconsole.log(greet({ name: \"Tom\" }));        // \"Hi, Tom!\"\n\nconst sum = (...nums) => nums.reduce((s, n) => s + n, 0);\nconsole.log(sum(1, 2, 3, 4));               // 10\n\n// 高阶函数:返回函数\nconst multiplier = (factor) => (x) => x * factor;\nconst double = multiplier(2);\nconsole.log(double(5));                     // 10",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "作用域与闭包",
+          "summary": "理解词法作用域、变量提升与闭包的形成及应用。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 作用域\n- 全局作用域、函数作用域、块级作用域(let/const 的 {} 内有效)\n- 词法作用域:函数在哪定义,就记住哪的作用域(与在哪调用无关)\n- 作用域链:内层向外层逐级查找变量,找到即停\n\n## 变量提升与暂时性死区\n- var 声明提升为 undefined(可先用后声明,值却是 undefined)\n- let/const 有暂时性死区:声明前访问直接报错(更安全)\n- 函数声明整体提升,推荐统一\"先声明后使用\"\n\n## 闭包\n- 函数捕获并记住定义时所在作用域的变量,即使在外部调用仍可访问\n- 经典应用:计数器、防抖节流、模块私有变量、函数工厂\n- 注意:闭包会延长变量生命周期,滥用可能占内存;循环里创建闭包注意取值时机",
+          "codeExample": "function makeCounter() {\n  let count = 0;              // 私有变量,外部无法直接访问\n  return {\n    inc: () => ++count,\n    get: () => count,\n  };\n}\nconst c = makeCounter();\nc.inc(); c.inc();\nconsole.log(c.get());         // 2\n\n// 闭包保存循环变量\nconst fns = [];\nfor (let i = 0; i < 3; i++) {  // let 每轮新变量\n  fns.push(() => i);\n}\nconsole.log(fns.map(f => f())); // [0, 1, 2]",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "this 指向与绑定",
+          "summary": "掌握四种 this 绑定规则与 call/apply/bind 显式绑定。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 四种绑定规则(优先级从低到高)\n- 默认绑定:独立调用 fn(),非严格模式 this 为 window,严格模式 undefined\n- 隐式绑定:obj.fn() 中 this 指向 obj(看调用点前有没有点)\n- 显式绑定:fn.call(obj, a) / apply(obj, [a]) / bind(obj) 强制指定\n- new 绑定:new Fn() 时 this 指向新建对象\n\n## 箭头函数的 this\n- 箭头函数没有自己的 this,沿用外层作用域的 this(词法继承)\n- 回调里要保留外层 this:用箭头函数或提前 const self = this\n\n## 常见坑\n- 把方法当回调传走就丢了 this:setTimeout(obj.fn) 里 this 不是 obj\n- 修复:obj.fn.bind(obj) 或箭头包装 () => obj.fn()\n- 判断 this:console.log(this) 看调用方式,背规则不如看调用点",
+          "codeExample": "const user = {\n  name: \"Tom\",\n  hello() { return `I am ${this.name}`; },\n  lazy: () => \"this 是外层,不是 user\",\n};\nconsole.log(user.hello());          // I am Tom\n\nconst fn = user.hello;\nconsole.log(fn());                  // this 丢失 → I am undefined\nconsole.log(fn.bind(user)());       // I am Tom\n\nconst counter = {\n  n: 0,\n  addLater() {\n    setTimeout(() => {              // 箭头函数继承外层 this\n      this.n++;\n      console.log(this.n);          // 1\n    }, 100);\n  },\n};\ncounter.addLater();",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 2,
+      "stageName": "JavaScript 语言核心",
+      "chapterNo": 10,
+      "title": "数组与对象操作",
+      "description": "熟练使用数组常用 API 与对象操作,写出声明式数据处理代码。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "对象创建与属性操作",
+          "summary": "掌握对象字面量、属性读写与 Object 常用方法。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 创建与访问\n- 字面量 const obj = { name: \"Tom\", \"my-key\": 1 }\n- 点号 obj.name;方括号 obj[\"my-key\"](动态键用变量)\n- 简写:变量同名可省略 { name } = { name: name };方法简写 { fn() {} }\n\n## 增删改查与遍历\n- 读 obj.a / obj[\"a\"];写 obj.a = 1;删 delete obj.a\n- in 判断键存在(\"a\" in obj);hasOwnProperty 判断自有属性\n- Object.keys/values/entries 取键/值/键值对数组\n- for...in 遍历键(含原型链),Object.keys(obj).forEach 更安全\n\n## 合并与复制\n- 浅合并:Object.assign({}, a, b) 或 { ...a, ...b }(后者覆盖同名键)\n- 深拷贝:structuredClone(obj)(现代浏览器原生支持)\n- 可选链 + 空值合并安全读取嵌套属性",
+          "codeExample": "const user = { name: \"Tom\", age: 18, tags: [\"vip\"] };\nconst patch = { age: 20, city: \"Beijing\" };\n\nconst merged = { ...user, ...patch };\nconsole.log(merged);            // age 变 20,新增 city\n\nconsole.log(Object.keys(user));        // [\"name\",\"age\",\"tags\"]\nconsole.log(\"age\" in user);            // true\n\nconst deep = structuredClone(user);\ndeep.tags.push(\"new\");\nconsole.log(user.tags);                 // [\"vip\"] 原对象不受影响\n\nconst key = \"name\";\nconsole.log(user[key]);                 // Tom",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "数组常用 API",
+          "summary": "掌握 map/filter/reduce 等声明式数组方法。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 不改变原数组(优先使用)\n- map(fn):逐项映射为新数组;filter(fn):筛选为真项\n- reduce((acc, item) => ..., init):归并为任意值(求和/分组/转对象)\n- find(fn) 找第一个匹配项;findIndex 找下标;some/every 判断部分/全部\n- flat(depth) 展平;flatmap 相当于 map + flat(1)\n- includes 是否包含;indexOf 下标(-1 表示无)\n\n## 会改变原数组(注意)\n- push/pop 尾部增删、unshift/shift 头部增删\n- splice(i, n, ...items):万能增删改\n- sort(fn) 排序(默认按字符串!数字排序必须给比较函数)、reverse 反转\n\n## 惯用法\n- 数字升序:arr.sort((a, b) => a - b)\n- 去重:[...new Set(arr)]\n- 数组转对象:arr.reduce((m, x) => (m[x.id] = x, m), {})",
+          "codeExample": "const nums = [3, 1, 4, 1, 5, 9];\nconst doubled = nums.map(n => n * 2);          // [6,2,8,2,10,18]\nconst big = nums.filter(n => n > 3);           // [4,5,9]\nconst sum = nums.reduce((s, n) => s + n, 0);   // 23\n\nconst sorted = [...nums].sort((a, b) => a - b); // 不改原数组\nconst uniq = [...new Set(nums)];\n\nconst users = [{ id: 1, name: \"Tom\" }, { id: 2, name: \"Amy\" }];\nconst byId = users.reduce((m, u) => (m[u.id] = u, m), {});\nconsole.log(byId[2].name);                      // Amy",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "解构、展开与不可变操作",
+          "summary": "用解构提取数据,用展开做不可变更新。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 解构赋值\n- 数组解构:const [a, b] = [1, 2];跳过用逗号;剩余 ...rest\n- 对象解构:const { name, age = 0 } = user;可重命名 { name: n }\n- 函数参数解构最常用:function render({ title, size = \"md\" }) {...}\n- 嵌套解构:const { profile: { city } } = user\n\n## 展开运算符 ...\n- 数组合并:[...a, ...b];插入:[...a, x, ...b]\n- 对象合并/覆盖:{ ...user, age: 20 }(后写的赢)\n- 复制:浅拷贝一层,嵌套对象仍共享引用\n\n## 不可变更新(框架开发必备)\n- 改属性:{ ...obj, key: newVal }\n- 改数组项:arr.map(x => x.id === id ? { ...x, done: true } : x)\n- 增删:filter 删、[...arr, item] 增\n- 深层更新用 immer 库的 produce,告别层层展开",
+          "codeExample": "const user = { name: \"Tom\", profile: { city: \"Beijing\", zip: \"100000\" } };\n\nconst { name, profile: { city } } = user;\nconsole.log(name, city);                    // Tom Beijing\n\nconst [first, , third] = [10, 20, 30];\nconsole.log(first, third);                  // 10 30\n\n// 不可变更新:改嵌套城市\nconst moved = {\n  ...user,\n  profile: { ...user.profile, city: \"Shanghai\" },\n};\nconsole.log(user.profile.city);             // Beijing 原对象不变\nconsole.log(moved.profile.city);            // Shanghai",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 2,
+      "stageName": "JavaScript 语言核心",
+      "chapterNo": 11,
+      "title": "DOM 操作与事件",
+      "description": "掌握 DOM 查询、增删改与事件机制、事件委托。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "DOM 查询与元素操作",
+          "summary": "用选择器获取元素,动态修改内容、属性与样式。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 获取元素\n- document.getElementById(\"app\") 按 id\n- querySelector(\".box\") 返回第一个匹配;querySelectorAll(\".item\") 返回 NodeList\n- 相对查找:el.closest(\".card\") 找祖先、el.parentElement、el.children\n\n## 修改内容与属性\n- textContent 纯文本(安全)、innerHTML 解析 HTML(有 XSS 风险,慎用)\n- setAttribute/getAttribute:data-xxx 自定义属性用 dataset.xxx 读写\n- classList.add/remove/toggle/contains 管理类名(别整串改 className)\n- style 改内联样式;批量样式改 class,避免逐条改 style\n\n## 创建与插入\n- document.createElement(\"div\") 创建\n- parent.append(el1, el2) 追加;prepend 开头;before/after 兄弟位\n- remove() 删除自己;replaceWith() 替换\n- DocumentFragment 批量插入减少重排",
+          "codeExample": "const app = document.querySelector(\"#app\");\n\nconst card = document.createElement(\"div\");\ncard.classList.add(\"card\");\ncard.dataset.id = \"101\";\ncard.innerHTML = \"<h3>标题</h3><p>内容</p>\";  // 自己拼的可信内容\n\napp.append(card);\nconsole.log(card.dataset.id);               // \"101\"\n\ncard.querySelector(\"h3\").textContent = \"新标题\";\ncard.querySelector(\"p\").style.color = \"#909399\";",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "事件机制与事件委托",
+          "summary": "理解事件流三阶段,用委托高效管理列表事件。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 事件流三阶段\n- 捕获(外→内)→ 目标阶段 → 冒泡(内→外)\n- addEventListener(\"click\", fn, options):第三个参数 false 冒泡(默认)/true 捕获\n- stopPropagation() 阻断传播;preventDefault() 阻止默认行为(如链接跳转)\n\n## 事件委托\n- 把监听器挂在父容器上,利用冒泡判断 e.target 处理子元素事件\n- 优势:动态添加的子元素自动生效,监听器数量少\n- e.target 是真正触发者;closest 匹配委托目标(点到内部元素也能命中)\n\n## 常用事件\n- 鼠标:click、dblclick、mouseenter/mouseleave(不冒泡)、mousemove\n- 键盘:keydown/keyup(e.key 取键名)\n- 表单:input(每次输入)、change(失焦/确认)、submit(e.preventDefault() 自己处理)\n- 元素:DOMContentLoaded(HTML 解析完)、load(资源加载完)",
+          "codeExample": "const list = document.querySelector(\"#list\");\n\n// 事件委托:一个监听器管所有 li\nlist.addEventListener(\"click\", (e) => {\n  const li = e.target.closest(\"li\");\n  if (!li || !list.contains(li)) return;\n  li.classList.toggle(\"done\");\n});\n\n// 表单提交拦截\ndocument.querySelector(\"#form\").addEventListener(\"submit\", (e) => {\n  e.preventDefault();\n  const data = Object.fromEntries(new FormData(e.target));\n  console.log(data);\n});",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "实战:动态列表与输入交互",
+          "summary": "综合 DOM 与事件,实现增删改查的待办列表。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 实现思路\n- 数据驱动:维护数组 state,任何变更后 render() 重绘列表\n- 单一数据源:界面状态永远从 state 推导,不在 DOM 上\"存状态\"\n- 事件用委托挂容器,渲染函数只拼 HTML 字符串\n\n## 关键细节\n- 用户输入插入 DOM 前要转义(< > &),或直接用 textContent 创建节点\n- 输入体验:回车提交、自动聚焦、空内容拦截\n- 性能:小列表整段重绘即可;大列表用 diff 或分页\n\n## 这个模式的意义\n- \"状态 → 视图\" 的单向数据流,是 Vue/React 的雏形\n- 框架只是帮你自动化了 render 与事件绑定\n- 理解原生实现,学框架时能看穿本质",
+          "codeExample": "const state = { items: [{ id: 1, text: \"学习 DOM\", done: false }] };\nconst ul = document.querySelector(\"#list\");\nconst input = document.querySelector(\"#input\");\n\nfunction render() {\n  ul.innerHTML = \"\";\n  for (const it of state.items) {\n    const li = document.createElement(\"li\");\n    li.textContent = it.text;\n    li.classList.toggle(\"done\", it.done);\n    li.dataset.id = it.id;\n    ul.append(li);\n  }\n}\n\nul.addEventListener(\"click\", (e) => {\n  const id = Number(e.target.dataset.id);\n  const it = state.items.find(x => x.id === id);\n  if (it) { it.done = !it.done; render(); }\n});\n\ninput.addEventListener(\"keydown\", (e) => {\n  if (e.key === \"Enter\" && input.value.trim()) {\n    state.items.push({ id: Date.now(), text: input.value.trim(), done: false });\n    input.value = \"\";\n    render();\n  }\n});\nrender();",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 2,
+      "stageName": "JavaScript 语言核心",
+      "chapterNo": 12,
+      "title": "ES6+ 语法精粹",
+      "description": "掌握 let/const、模块化、类与常用新 API,写出现代 JS。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "块级作用域与模板字符串",
+          "summary": "回顾 let/const 特性,善用模板字符串与标签模板。",
+          "difficulty": 1,
+          "durationMinutes": 18,
+          "content": "## let/const 要点\n- 块级作用域:{} 内有效,循环计数器用 let 避免闭包坑\n- 无变量提升(暂时性死区):先声明后使用\n- const 对象不能重新赋值,但对象内部属性可改(防的是\"改绑定\"不是\"改内容\")\n\n## 模板字符串\n- 反引号支持多行、${} 插值、可嵌套表达式\n- 标签模板:fn`Hi ${name}` 把字符串与变量分开传给函数(做转义/国际化)\n- HTML 拼接利器:const html = '<div>${title}</div>'\n\n## 新增字符串 API\n- includes/startsWith/endsWith 判断\n- padStart/padEnd 补齐(如时间补零)\n- trim/trimStart/trimEnd 去空白\n- repeat(n) 重复;at(-1) 取末位(负索引)",
+          "codeExample": "const name = \"World\";\nconst line = `Hello, ${name}!\n第二行也支持`;\nconsole.log(line.padStart(2));      // 不报错:补位\n\nconst price = 9.5;\nconsole.log(String(price).padStart(6, \"0\"));  // \"0009.5\"\n\n// 标签模板:自动转义 HTML\nfunction escapeHTML(strings, ...vals) {\n  return strings.reduce((s, str, i) =>\n    s + str + String(vals[i] ?? \"\").replace(/[&<>]/g, c =>\n      ({ \"&\": \"&amp;\", \"<\": \"&lt;\", \">\": \"&gt;\" }[c])), \"\");\n}\nconst user = \"<script>\";\nconsole.log(escapeHTML`<p>${user}</p>`);  // 已转义",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "模块化 import/export",
+          "summary": "掌握 ES Module 的导入导出与工程化组织方式。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 导出 export\n- 具名导出:export const add = ... / export function add() {}\n- 默认导出:export default 一个模块一个(导入名随意)\n- 统一导出:export { add, sub };重导出 export * from \"./other.js\"\n\n## 导入 import\n- 具名:import { add } from \"./math.js\";重命名 import { add as plus }\n- 默认:import add from \"./math.js\"\n- 全量:import * as math from \"./math.js\"\n- 仅执行副作用:import \"./polyfill.js\"\n- 动态导入:const m = await import(\"./heavy.js\")(代码分割常用)\n\n## 工程意义\n- 静态结构:导入导出在编译期确定,可做 tree-shaking 摇掉死代码\n- 作用域隔离:模块内变量不污染全局\n- 浏览器直接用:<script type=\"module\"> 支持 import",
+          "codeExample": "// math.js\nexport const PI = 3.14;\nexport function add(a, b) { return a + b; }\nexport default function sum(...n) { return n.reduce((s, x) => s + x, 0); }\n\n// app.js\nimport sum, { add, PI } from \"./math.js\";\nconsole.log(sum(1, 2, 3));       // 6\nconsole.log(add(PI, 1));         // 4.14\n\n// 按需加载大模块\nbutton.addEventListener(\"click\", async () => {\n  const { renderChart } = await import(\"./chart.js\");\n  renderChart();\n});",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "类与继承",
+          "summary": "掌握 class 语法、继承与静态成员,理解原型本质。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## class 基础\n- class 本质是原型继承的语法糖\n- constructor 构造函数;方法直接写在类体里(挂原型上)\n- 字段:new 语法支持直接声明 count = 0;# 私有字段外部不可访问\n- 静态成员:static create() 通过类名调用;getter/setter 计算属性\n\n## 继承\n- class Dog extends Animal:super() 调父构造(必须先调才能用 this)\n- 方法重写:同名方法覆盖,super.method() 调父类实现\n- instanceof 判断原型链归属\n\n## 使用建议\n- 面向对象建模(实体、组件)用 class;一般逻辑用函数更轻\n- 组合优于继承:能力用\"混入/组合对象\"扩展,少搞多层继承",
+          "codeExample": "class Animal {\n  #age = 0;                       // 私有字段\n  constructor(name) { this.name = name; }\n  get label() { return `${this.name}(${this.#age})`; }\n  speak() { return \"...\"; }\n  static create(name) { return new Animal(name); }\n}\n\nclass Dog extends Animal {\n  speak() { return `${this.name}: 汪汪`; }\n}\n\nconst d = new Dog(\"Buddy\");\nconsole.log(d.speak());            // Buddy: 汪汪\nconsole.log(d instanceof Animal);  // true\nconsole.log(Animal.create(\"X\").label);",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 2,
+      "stageName": "JavaScript 语言核心",
+      "chapterNo": 13,
+      "title": "异步编程",
+      "description": "理解事件循环,掌握 Promise 与 async/await 的异步控制。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "事件循环与回调",
+          "summary": "理解单线程 JS 的异步执行机制与回调地狱问题。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 单线程与事件循环\n- JS 主线程单线程,靠事件循环(Event Loop)实现异步\n- 调用栈清空后,依次处理微任务(Promise 回调)再取宏任务(setTimeout/IO)\n- 微任务优先于宏任务:Promise.then 比 setTimeout 先执行(即使后者延迟 0)\n\n## 宏任务与微任务\n- 宏任务:setTimeout/setInterval、UI 渲染、网络请求回调\n- 微任务:Promise.then/catch/finally、queueMicrotask、async 函数延续\n- await 后面的代码等价于微任务\n\n## 回调模式的问题\n- 层层嵌套形成\"回调地狱\",错误处理分散、阅读困难\n- 早期方案:命名函数拆解、事件发布订阅\n- 现代方案:Promise 链式 + async/await 同步写法",
+          "codeExample": "console.log(\"1 同步\");\nsetTimeout(() => console.log(\"4 宏任务\"), 0);\nPromise.resolve().then(() => console.log(\"3 微任务\"));\nconsole.log(\"2 同步\");\n// 输出顺序:1 → 2 → 3 → 4\n\n// 典型回调地狱(不要这样写)\nsetTimeout(() => {\n  loadUser(1, (user) => {\n    loadOrders(user.id, (orders) => {\n      loadDetail(orders[0], (d) => console.log(d));\n    });\n  });\n}, 100);",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Promise 与链式调用",
+          "summary": "用 Promise 表达异步结果,掌握链式与并发 API。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## Promise 基础\n- 三种状态:pending → fulfilled / rejected(一旦落定不可再变)\n- new Promise((resolve, reject) => {...});then(onOk) / catch(onErr) / finally\n- then 每次返回新 Promise,可链式;catch 后可继续 then\n\n## 常用组合 API\n- Promise.all([p1, p2]):全部成功才成功,一个失败即失败(强依赖)\n- Promise.allSettled:等待全部落定,返回各自状态(不互相当误)\n- Promise.race:取最先落定的;Promise.any:取最先成功的\n- Promise.resolve/reject:快速包装值/错误\n\n## 错误处理\n- 链上任何一环 reject,会跳到最近的 catch\n- 忘记 catch 会产生未处理拒绝警告;每个链尾补 .catch 或 try/catch",
+          "codeExample": "function fetchJSON(url) {\n  return fetch(url).then(r => {\n    if (!r.ok) throw new Error(\"HTTP \" + r.status);\n    return r.json();\n  });\n}\n\nfetchJSON(\"/api/user\")\n  .then(user => fetchJSON(`/api/orders/${user.id}`))\n  .then(orders => console.log(orders))\n  .catch(err => console.error(\"出错了:\", err.message))\n  .finally(() => console.log(\"请求结束\"));\n\n// 并发请求,互不依赖\nconst [a, b] = await Promise.all([\n  fetchJSON(\"/api/a\"),\n  fetchJSON(\"/api/b\"),\n]);",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "async/await 与并发控制",
+          "summary": "用同步写法组织异步逻辑,掌握并发与错误处理。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## async/await 基础\n- async 函数返回 Promise;await 等待 Promise 落定(只能在 async 内用)\n- 顺序执行:连续 await 会串行等待;无依赖的请求应 Promise.all 并发\n- await 会\"暂停\"当前 async 函数,不阻塞主线程\n\n## 错误处理\n- try/catch 包住 await,读起来与同步代码一致\n- 多个独立请求各自 catch,避免一个失败拖垮全部\n- 顶层 await 在 ES Module 中可用(无需包 async)\n\n## 实用模式\n- 并发限制:手写计数器或 p-limit 库,避免一次发 100 个请求\n- 重试:for 循环 + await + 指数退避\n- 超时:Promise.race([task, timeout(3000)])\n- 串行流水线:for...of + await 保证顺序",
+          "codeExample": "async function loadPage() {\n  try {\n    // 无依赖的请求并发发出\n    const [user, config] = await Promise.all([\n      fetchJSON(\"/api/user\"),\n      fetchJSON(\"/api/config\"),\n    ]);\n    const orders = await fetchJSON(`/api/orders/${user.id}`); // 依赖 user,串行\n    render(user, config, orders);\n  } catch (err) {\n    showError(err.message);\n  }\n}\n\n// 简单重试\nasync function withRetry(fn, times = 3) {\n  for (let i = 0; i < times; i++) {\n    try { return await fn(); }\n    catch (e) { if (i === times - 1) throw e; await new Promise(r => setTimeout(r, 1000 * (i + 1))); }\n  }\n}",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Node.js 与服务端开发",
+      "chapterNo": 14,
+      "title": "Node.js 入门",
+      "description": "理解 Node 运行时与事件循环,掌握 fs/path 等核心模块。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Node.js 是什么",
+          "summary": "理解 Node 的运行时构成与适用场景。",
+          "difficulty": 1,
+          "durationMinutes": 18,
+          "content": "## Node.js 简介\n- 基于 Chrome V8 引擎的 JavaScript 运行时,让 JS 跑在服务端/命令行\n- 单线程 + 事件循环 + 非阻塞 I/O:擅长高并发 I/O 密集型场景\n- 不擅长 CPU 密集计算(会阻塞主线程,需 worker_threads/子进程)\n\n## 能做什么\n- Web 服务端(Express/Koa/NestJS)、REST API、BFF 聚合层\n- 前端工程化:Vite/Webpack/ESLint 等工具链全部基于 Node\n- 脚本工具、爬虫、实时通信(Socket.IO)、桌面端(Electron)\n\n## 与浏览器 JS 的差异\n- 没有 DOM/window,多了文件系统、进程、网络等系统能力\n- 模块体系:CommonJS(require)与 ESM(import)并存\n- 全局对象是 global;每个文件是一个模块(自带模块作用域)\n\n## 版本管理\n- LTS 版本(如 20/22)用于生产;新特性看 release notes\n- nvm 可多版本切换:nvm install 22 && nvm use 22",
+          "codeExample": "// hello.js — 用 node 命令直接运行\nconsole.log(\"Node 版本:\", process.version);\nconsole.log(\"平台:\", process.platform, process.arch);\n\n// 定时器也是事件循环的一部分\nsetTimeout(() => console.log(\"异步任务完成\"), 100);\nconsole.log(\"同步代码先执行\");",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "核心模块:fs 与 path",
+          "summary": "用内置模块读写文件、拼接路径,处理文件系统任务。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## fs 文件系统\n- 异步优先:fs/promises 的 readFile/writeFile/mkdir/readdir(Promise 风格)\n- 同步版本 readFileSync 会阻塞,只适合脚本/启动阶段\n- appendFile 追加;copyFile 复制;rm 删除(recursive:true 删目录)\n- existsSync 判断存在(或用 try/catch stat)\n\n## path 路径处理\n- path.join 拼接(自动适配分隔符);path.resolve 转绝对路径\n- __dirname 所在目录(CommonJS);import.meta.url(ESM)\n- path.extname 取扩展名、basename 取文件名、dirname 取目录\n\n## 实践要点\n- 路径永远用 path.join,别手写 \"/\" 拼接(Windows 会翻车)\n- 大文件用 createReadStream/createWriteStream 流式处理\n- 读 JSON:JSON.parse(await fs.readFile(...));写回要格式化",
+          "codeExample": "const fs = require(\"fs/promises\");\nconst path = require(\"path\");\n\nasync function main() {\n  const dir = path.join(__dirname, \"data\");\n  await fs.mkdir(dir, { recursive: true });\n\n  const file = path.join(dir, \"config.json\");\n  await fs.writeFile(file, JSON.stringify({ port: 3000 }, null, 2));\n\n  const raw = await fs.readFile(file, \"utf8\");\n  console.log(JSON.parse(raw));            // { port: 3000 }\n  console.log(path.extname(file));         // .json\n}\nmain();",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "模块体系与包",
+          "summary": "分清 CommonJS 与 ESM,理解 node_modules 与包解析。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## CommonJS 与 ESM\n- CommonJS:require(\"x\") / module.exports,同步加载,Node 传统格式\n- ESM:import/export,需 package.json 声明 \"type\": \"module\" 或用 .mjs\n- 两者不混用:同一文件里别既 require 又 import\n\n## 模块解析规则\n- 内置模块优先:require(\"fs\") 不会找文件\n- 相对路径 ./x 找文件;裸名 x 去 node_modules 找包\n- 包入口看 package.json 的 main/exports 字段\n\n## 包与 npm 生态\n- npm init 生成 package.json;npm install 装依赖(写入 dependencies)\n- node_modules 通常不进 git(.gitignore),靠 package-lock.json 锁版本\n- 全局包(npm i -g)用于命令行工具;项目依赖一律本地装",
+          "codeExample": "// math.js (CommonJS)\nconst add = (a, b) => a + b;\nmodule.exports = { add };\n\n// app.js\nconst { add } = require(\"./math.js\");\nconsole.log(add(1, 2));\n\n// 若 package.json 声明 \"type\": \"module\",则用 ESM:\n// export const add = (a, b) => a + b;\n// import { add } from \"./math.js\";",
+          "codeType": "nodejs"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Node.js 与服务端开发",
+      "chapterNo": 15,
+      "title": "npm 与包管理",
+      "description": "掌握 package.json、依赖管理与常用命令,规范工程协作。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "package.json 详解",
+          "summary": "读懂 package.json 各字段,配置脚本与元信息。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 核心字段\n- name/version:包名与版本(语义化:主.次.修订)\n- type:\"commonjs\" 或 \"module\" 决定模块体系\n- main/exports:包的入口文件;bin:命令行工具入口\n- scripts:自定义命令,npm run dev 启动(可嵌套调用)\n\n## 依赖四类\n- dependencies:运行时依赖(框架、工具库)\n- devDependencies:开发期依赖(构建、测试、lint)\n- peerDependencies:宿主环境需自备的版本(如组件库对 Vue)\n- optionalDependencies:可选,装不上不阻塞安装\n\n## 常用 scripts 约定\n- dev:本地开发;build:构建产物;start:运行产物\n- test/lint/format:质量命令\n- pre/post 前缀钩子:prebuild 会在 build 前自动跑",
+          "codeExample": "{\n  \"name\": \"my-web-app\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite preview\",\n    \"lint\": \"eslint src --fix\",\n    \"test\": \"vitest run\"\n  },\n  \"dependencies\": {\n    \"vue\": \"^3.4.0\"\n  },\n  \"devDependencies\": {\n    \"vite\": \"^5.0.0\"\n  }\n}",
+          "codeType": "json"
+        },
+        {
+          "lessonNo": 2,
+          "title": "依赖管理与 npx",
+          "summary": "掌握安装/升级/锁定版本的姿势,会用 npx 执行工具。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 安装与卸载\n- npm install(装全部)/ npm i 包名(装到 dependencies)\n- npm i -D 包名 装开发依赖;npm uninstall 包名 卸载\n- npm outdated 看过期依赖;npm update 升级(遵守版本范围)\n\n## 版本号语义(^ ~ 精确)\n- ^1.2.3:允许次版本和修订升级(1.x.x),默认推荐\n- ~1.2.3:只允许修订升级(1.2.x);1.2.3:锁死\n- package-lock.json 锁定完整依赖树,保证团队与 CI 一致\n\n## npx 与脚本\n- npx 工具名:临时下载执行,不污染全局(如 npx create-vite)\n- npm ci:按 lock 文件干净安装(CI 环境专用,比 install 快且稳)\n- 镜像加速:npm config set registry https://registry.npmmirror.com\n- pnpm/yarn:更高效的替代包管理器,pnpm 用硬链接省磁盘",
+          "codeExample": "# 常用命令速查\nnpm init -y                 # 初始化 package.json\nnpm i express               # 装运行时依赖\nnpm i -D eslint             # 装开发依赖\nnpx create-vite@latest my-app   # 临时执行脚手架\nnpm ci                      # CI 按 lock 干净安装\nnpm outdated                # 查看过期依赖\nnpm run build               # 执行 scripts.build",
+          "codeType": "bash"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Node.js 与服务端开发",
+      "chapterNo": 16,
+      "title": "Express Web 开发",
+      "description": "用 Express 搭建 Web 服务:路由、中间件与分层架构。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "路由与中间件",
+          "summary": "掌握 Express 路由定义与中间件机制。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## 第一个 Express 服务\n- express() 创建应用;app.get/post/put/delete 定义路由\n- app.listen(3000) 启动;res.send/json 返回响应\n- 路由参数:/users/:id 用 req.params.id 取值\n- 查询参数:?page=2 用 req.query.page 取值\n\n## 中间件机制\n- 本质:function (req, res, next) {...};调用 next() 放行\n- 应用级:app.use(中间件) 对所有请求生效(日志、解析、鉴权)\n- 路由级:挂在具体路由前;错误级:(err, req, res, next) 四参数捕获异常\n- 内置:express.json() 解析请求体、express.static 托管静态文件\n\n## 执行顺序\n- 中间件按注册顺序执行,匹配路由后从上往下跑\n- 先注册解析/日志,再注册业务路由,最后错误处理",
+          "codeExample": "const express = require(\"express\");\nconst app = express();\n\napp.use(express.json());                 // 解析 JSON 请求体\napp.use((req, res, next) => {            // 应用级:请求日志\n  console.log(req.method, req.url);\n  next();\n});\n\napp.get(\"/users/:id\", (req, res) => {\n  res.json({ id: req.params.id, q: req.query.full });\n});\n\napp.post(\"/users\", (req, res) => {\n  res.status(201).json({ created: req.body });\n});\n\napp.listen(3000, () => console.log(\"listening on :3000\"));",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "静态资源与模板渲染",
+          "summary": "托管前端产物,了解服务端渲染模板的基本用法。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 托管静态文件\n- express.static(\"public\") 把 public 目录变成静态站点\n- 前端构建产物(dist)放进去即可上线:app.use(express.static(\"dist\"))\n- 路由优先级:静态中间件放业务路由前,命中文件就直接返回\n\n## 服务端渲染(模板引擎)\n- res.render(\"index\", { title }) 配合 ejs/pug 等模板引擎\n- 适合内容型站点、SEO 敏感页面;交互复杂的应用用前后端分离\n- 布局/局部模板可复用页头页脚\n\n## 实用中间件\n- cors:跨域放行(开发环境常用)\n- morgan:请求日志;helmet:安全响应头\n- multer:文件上传;cookie-parser:Cookie 解析",
+          "codeExample": "const express = require(\"express\");\nconst path = require(\"path\");\nconst app = express();\n\n// 托管前端构建产物,SPA 路由兜底\napp.use(express.static(path.join(__dirname, \"dist\")));\napp.get(\"*\", (req, res) => {\n  res.sendFile(path.join(__dirname, \"dist\", \"index.html\"));\n});\n\n// 常用三方中间件\n// const cors = require(\"cors\"); app.use(cors());\n// const helmet = require(\"helmet\"); app.use(helmet());\n\napp.listen(3000);",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "分层架构与错误处理",
+          "summary": "按 Router/Service/Controller 分层组织代码,统一错误响应。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 为什么分层\n- 路由、业务、数据访问混在一个文件会失控\n- 常见分层:router(路由/参数校验)→ service(业务逻辑)→ repository(数据存取)\n\n## express.Router 拆分路由\n- const router = express.Router();router.get(...);app.use(\"/api\", router)\n- 按资源拆文件:routes/user.js、routes/order.js\n\n## 统一错误处理\n- 业务抛错:new Error 或自定义错误类,交给错误中间件\n- 错误中间件(四参数)放最后:统一转成 { code, message } 响应\n- async 路由要包 try/catch(或 express-async-errors),否则错误会被吞\n- 参数校验放入口:校验失败直接 400,不进业务逻辑\n\n## 工程习惯\n- 配置(端口/密钥)走环境变量:process.env.PORT\n- 日志用 pino/winston,分级别(info/error)",
+          "codeExample": "// routes/user.js\nconst express = require(\"express\");\nconst router = express.Router();\nconst userService = require(\"../services/userService\");\n\nrouter.get(\"/:id\", async (req, res, next) => {\n  try {\n    const user = await userService.findById(req.params.id);\n    if (!user) return res.status(404).json({ code: 404, message: \"用户不存在\" });\n    res.json({ code: 0, data: user });\n  } catch (e) { next(e); }\n});\n\n// app.js 尾部:统一错误处理\napp.use((err, req, res, next) => {\n  console.error(err);\n  res.status(500).json({ code: 500, message: \"服务器内部错误\" });\n});",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Node.js 与服务端开发",
+      "chapterNo": 17,
+      "title": "REST API 与数据持久化",
+      "description": "设计 RESTful 接口,实现 CRUD 持久化与 JWT 认证。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "RESTful API 设计",
+          "summary": "掌握资源化 URL 与状态码语义,设计规范接口。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## REST 核心思想\n- 一切皆资源:URL 用名词表示资源集合 /users、/users/123\n- 用 HTTP 动词表达操作:GET 查、POST 建、PUT/PATCH 改、DELETE 删\n- 无状态:每个请求自带全部信息(如 Token),服务端不存会话上下文\n\n## 状态码约定\n- 200 成功、201 已创建(POST)、204 无内容(删除成功)\n- 400 参数错误、401 未登录、403 无权限、404 不存在\n- 409 资源冲突(重复创建)、422 业务校验失败、500 服务端错误\n\n## 响应体设计\n- 统一包裹:{ code: 0, message: \"ok\", data: {...} } 或 REST 纯资源\n- 分页:/users?page=2&size=20,返回 total/列表\n- 过滤排序:/users?role=admin&sort=createdAt,desc\n\n## 版本与兼容\n- 路径版本:/api/v1/users;破坏性变更升版本,增量字段可不升",
+          "codeExample": "GET    /api/v1/users?page=1&size=20   # 分页查询\nGET    /api/v1/users/123               # 详情\nPOST   /api/v1/users                   # 创建 → 201\nPUT    /api/v1/users/123               # 全量更新\nPATCH  /api/v1/users/123               # 部分更新\nDELETE /api/v1/users/123               # 删除 → 204\n\n// 统一响应包裹\n{\n  \"code\": 0,\n  \"message\": \"ok\",\n  \"data\": { \"id\": 123, \"name\": \"Tom\" }\n}",
+          "codeType": "json"
+        },
+        {
+          "lessonNo": 2,
+          "title": "CRUD 实战与 JSON 持久化",
+          "summary": "实现完整的增删改查,用 JSON 文件做轻量持久化。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## 实现清单\n- 列表(带分页)、详情、创建、更新、删除五个接口\n- 创建校验必填字段;更新用 PUT 全量/PATCH 局部\n- 删除返回 204;查询不到返回 404\n\n## JSON 文件持久化\n- 启动时读入内存数组,写操作后同步落盘(小数据量够用)\n- 写盘用临时文件 + rename,避免写一半崩溃丢数据\n- 并发写会互相覆盖:生产换数据库(MySQL/MongoDB/SQLite)\n\n## 代码组织\n- repository.js 封装读写:load()/save()/find/insert/update/remove\n- service.js 组合业务:校验、默认值、错误抛出\n- router.js 只做参数解析与响应,保持薄\n\n## 下一步\n- 数据量大/多人协作 → 上数据库(Sequelize/Prisma/Mongoose)\n- 查询复杂 → 分页、索引、缓存(Redis)",
+          "codeExample": "// repository.js\nconst fs = require(\"fs/promises\");\nconst path = require(\"path\");\nconst FILE = path.join(__dirname, \"users.json\");\n\nasync function load() {\n  try { return JSON.parse(await fs.readFile(FILE, \"utf8\")); }\n  catch { return []; }\n}\nasync function save(list) {\n  const tmp = FILE + \".tmp\";\n  await fs.writeFile(tmp, JSON.stringify(list, null, 2));\n  await fs.rename(tmp, FILE);            // 原子替换\n}\nasync function insert(user) {\n  const list = await load();\n  user.id = Date.now();\n  list.push(user);\n  await save(list);\n  return user;\n}\nmodule.exports = { load, save, insert };",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "JWT 认证与接口安全",
+          "summary": "实现登录签发 Token、鉴权中间件与常见安全防护。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## JWT 三段式\n- header(算法).payload(数据).签名,Base64URL 编码\n- 服务端用密钥签名,验证时重算比对——篡改即失效\n- payload 不要放敏感信息(仅编码未加密)\n\n## 认证流程\n- POST /login 验证账密 → 签发 Token(设过期时间)\n- 客户端存 Token,请求带 Authorization: Bearer <token>\n- 鉴权中间件解析验证 → 挂到 req.user → 无/过期返回 401\n- 刷新方案:短效 access + 长效 refresh 双 Token\n\n## 安全清单\n- 密码加盐哈希存储(bcrypt),绝不明文\n- HTTPS 传输;CORS 白名单放行指定域\n- 入参校验防注入;限流防暴力破解(express-rate-limit)\n- 敏感接口(改密/支付)二次验证;日志脱敏",
+          "codeExample": "const jwt = require(\"jsonwebtoken\");\nconst SECRET = process.env.JWT_SECRET;\n\nfunction sign(user) {\n  return jwt.sign({ id: user.id, role: user.role }, SECRET, { expiresIn: \"2h\" });\n}\n\n// 鉴权中间件\nfunction auth(req, res, next) {\n  const token = (req.headers.authorization || \"\").replace(\"Bearer \", \"\");\n  if (!token) return res.status(401).json({ code: 401, message: \"未登录\" });\n  try {\n    req.user = jwt.verify(token, SECRET);\n    next();\n  } catch {\n    res.status(401).json({ code: 401, message: \"登录已过期\" });\n  }\n}\n\napp.get(\"/api/profile\", auth, (req, res) => res.json({ code: 0, data: req.user }));",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 4,
+      "stageName": "Vue 3 实战",
+      "chapterNo": 18,
+      "title": "Vue3 快速上手",
+      "description": "掌握组合式 API、响应式数据与模板语法,写出第一个 Vue 应用。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "组合式 API 与响应式",
+          "summary": "理解 ref/reactive 与模板的数据绑定。",
+          "difficulty": 1,
+          "durationMinutes": 22,
+          "content": "## 为什么是组合式 API\n- Vue3 主推 <script setup> + 组合式 API:代码按功能组织而非选项分类\n- setup 里定义的变量/函数可直接在模板使用,无需 return\n\n## 响应式数据\n- ref(值):包裹基本类型,访问/修改用 .value(JS 内),模板自动解包\n- reactive(对象):对象代理,直接属性访问;但解构会丢响应性\n- 原则:基本类型用 ref,对象整体用 reactive;跨组件状态优先 ref(可整体替换)\n\n## 模板语法\n- 插值 {{ msg }};属性绑定 :src=\"url\"(v-bind 简写)\n- 条件 v-if / v-else-if / v-else;列表 v-for=\"(item, i) in list\" :key=\"item.id\"\n- v-show 切换显示(CSS 展示/隐藏,适合频繁切换);v-if 真正增删 DOM\n- 双向绑定 v-model(表单元素语法糖)",
+          "codeExample": "<script setup>\nimport { ref, reactive } from \"vue\";\n\nconst count = ref(0);\nconst user = reactive({ name: \"Tom\", age: 18 });\n\nfunction inc() {\n  count.value++;          // JS 中改 ref 要 .value\n  user.age++;\n}\n</script>\n\n<template>\n  <p>{{ count }} — {{ user.name }}: {{ user.age }} 岁</p>\n  <button @click=\"inc\">加一</button>\n  <ul>\n    <li v-for=\"n in 3\" :key=\"n\">第 {{ n }} 项</li>\n  </ul>\n</template>",
+          "codeType": "vue"
+        },
+        {
+          "lessonNo": 2,
+          "title": "computed 与 watch",
+          "summary": "用计算属性派生状态,用侦听器响应副作用。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## computed 计算属性\n- 基于依赖自动缓存:依赖不变不重算(比方法性能好)\n- 默认只读;需要 setter 用 { get, set } 对象形式\n- 适合:由其他状态派生的值(全名、过滤列表、总价)\n\n## watch / watchEffect\n- watch(源, 回调):显式指定监听源,可拿到新旧值,支持 deep/immediate\n- watchEffect:自动收集依赖,立即执行一次;适合同步副作用(埋点、DOM)\n- 监听 ref/reactive 属性:getter 写法 () => user.name 更精准\n\n## 使用取舍\n- 派生状态 → computed;异步/副作用(请求、定时器) → watch\n- 回调里要清理副作用:watch 提供 onCleanup(watchEffect 返回停止函数)\n- 避免在 watch 里改监听源本身,容易死循环",
+          "codeExample": "<script setup>\nimport { ref, computed, watch } from \"vue\";\n\nconst first = ref(\"三\");\nconst last = ref(\"张\");\nconst fullName = computed(() => last.value + first.value);\n\nconst keyword = ref(\"\");\nconst list = ref([{ id: 1, name: \"Vue\" }, { id: 2, name: \"React\" }]);\nconst filtered = computed(() =>\n  list.value.filter(x => x.name.includes(keyword.value)));\n\nwatch(keyword, (val, old) => {\n  console.log(\"搜索词:\", old, \"->\", val);\n});\n</script>",
+          "codeType": "vue"
+        },
+        {
+          "lessonNo": 3,
+          "title": "事件、表单与修饰符",
+          "summary": "掌握事件绑定、表单收集与常用修饰符。",
+          "difficulty": 1,
+          "durationMinutes": 22,
+          "content": "## 事件绑定\n- @click=\"fn\"(v-on 简写);传参 @click=\"fn(item, $event)\"\n- 行内语句 @click=\"count++\" 也合法\n- 修饰符:.stop 阻止冒泡、.prevent 阻止默认、.once 只触发一次\n- 按键修饰符:@keyup.enter、@keyup.esc\n\n## 表单与 v-model\n- 文本框 v-model.trim(去空白)/.number(转数字)/.lazy(失焦同步)\n- 多选绑定数组;单选/下拉绑定值\n- 自定义组件 v-model:defineModel()(Vue3.4+)或 modelValue + update:modelValue\n\n## 样式绑定\n- :class=\"{ active: isOn, 'text-danger': hasErr }\" 对象语法\n- :style=\"{ color: activeColor }\" 内联样式\n- <style scoped> 组件样式隔离,子组件根节点仍受父级 scoped 影响",
+          "codeExample": "<script setup>\nimport { ref } from \"vue\";\nconst form = ref({ name: \"\", age: 18, tags: [] });\nconst submitted = ref(false);\n\nfunction onSubmit() {\n  submitted.value = true;\n  console.log(form.value);\n}\n</script>\n\n<template>\n  <form @submit.prevent=\"onSubmit\">\n    <input v-model.trim=\"form.name\" placeholder=\"姓名\">\n    <input v-model.number=\"form.age\" type=\"number\">\n    <label><input v-model=\"form.tags\" value=\"vue\" type=\"checkbox\"> Vue</label>\n    <button @click.stop=\"submitted = false\">重置</button>\n    <button type=\"submit\">提交</button>\n  </form>\n</template>",
+          "codeType": "vue"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 4,
+      "stageName": "Vue 3 实战",
+      "chapterNo": 19,
+      "title": "组件与生命周期",
+      "description": "掌握组件定义、props/emit 通信与生命周期、组合式函数。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "组件定义与 Props",
+          "summary": "拆分组件、用 props 单向传数据,规范命名。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 组件拆分\n- 一个 .vue 文件 = template + script setup + style scoped\n- 按功能/复用拆分:UserCard、SearchBar、DataTable\n- 组件命名:文件名 PascalCase(UserCard.vue),模板里 <UserCard>\n\n## Props 单向数据流\n- 父传子:defineProps({ title: String, list: { type: Array, default: () => [] } })\n- 命名:props 用 camelCase,模板传参用 kebab-case\n- 单向:子组件不能直接改 props(改了控制台会警告)\n- 类型校验与默认值:必填 required、自定义 validator\n\n## 插槽\n- 默认插槽:<slot /> 放内容;具名插槽 <slot name=\"footer\">\n- 父级 <template #footer> 填充;作用域插槽把子组件数据回传给插槽内容",
+          "codeExample": "<!-- UserCard.vue -->\n<script setup>\ndefineProps({\n  user: { type: Object, required: true },\n  bordered: { type: Boolean, default: true },\n});\n</script>\n\n<template>\n  <div class=\"card\" :class=\"{ bordered }\">\n    <h3>{{ user.name }}</h3>\n    <slot name=\"footer\"><small>默认页脚</small></slot>\n  </div>\n</template>\n\n<!-- 父组件 -->\n<UserCard :user=\"me\" :bordered=\"false\">\n  <template #footer><button>关注</button></template>\n</UserCard>",
+          "codeType": "vue"
+        },
+        {
+          "lessonNo": 2,
+          "title": "组件通信与 provide/inject",
+          "summary": "掌握 emit、v-model 与跨层注入的通信方案。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 常用通信方式\n- 父 → 子:props(唯一正统)\n- 子 → 父:defineEmits([\"submit\"]) 后 this.$emit/emit(\"submit\", payload)\n- 父改子状态:子暴露 defineExpose({ reset }) 或用 v-model 双绑\n- 兄弟/全局:状态提升到共同父级,或用 Pinia\n\n## v-model 本质\n- :modelValue=\"x\" + @update:modelValue=\"x = $event\" 的语法糖\n- 自定义组件支持 v-model:defineModel() 一行搞定(Vue 3.4+)\n- 多个双向绑定:defineModel(\"title\") 命名模型\n\n## provide / inject 跨层传值\n- 祖先 provide(\"key\", value),后代 inject(\"key\") 取\n- 避免层层透传 props;配合 ref 可保持响应性\n- 慎用:数据流向不直观,优先 props/emit,深层 UI 配置(主题)才用注入",
+          "codeExample": "<!-- 子组件:可复用的搜索框 -->\n<script setup>\nconst model = defineModel();            // v-model 双向绑定\nconst emit = defineEmits([\"search\"]);\nfunction submit() { emit(\"search\", model.value); }\n</script>\n\n<template>\n  <input v-model=\"model\" @keyup.enter=\"submit\">\n</template>\n\n<!-- 祖先:跨层注入主题 -->\n<script setup>\nimport { ref, provide } from \"vue\";\nconst theme = ref(\"dark\");\nprovide(\"theme\", theme);\n</script>",
+          "codeType": "vue"
+        },
+        {
+          "lessonNo": 3,
+          "title": "生命周期与组合式函数",
+          "summary": "掌握生命周期钩子,抽取可复用逻辑为 composable。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 生命周期(组合式 API 写法)\n- onMounted:DOM 挂载后,发首屏请求、初始化图表\n- onUpdated:响应式更新后;onBeforeUnmount:清理定时器/监听器\n- onUnmounted:卸载后;父子顺序:父 setup → 子 setup → 子 mounted → 父 mounted\n\n## 组合式函数(useXxx)\n- 把有状态逻辑抽成 useXxx 函数:返回响应式状态与方法\n- 例子:useFetch(请求)、useMouse(鼠标位置)、useAuth(登录态)\n- 与 mixins 比:依赖关系清晰、命名不冲突、可 TS 类型推导\n\n## 编写规范\n- 文件名 useXxx.js;内部用 ref/computed 组合\n- 要负责清理副作用(监听、定时器)\n- 返回值:状态用 ref,方法用普通函数",
+          "codeExample": "// useCounter.js\nimport { ref, computed } from \"vue\";\n\nexport function useCounter(initial = 0) {\n  const count = ref(initial);\n  const doubled = computed(() => count.value * 2);\n  const inc = () => count.value++;\n  const dec = () => count.value--;\n  return { count, doubled, inc, dec };\n}\n\n// 组件中使用\n<script setup>\nimport { onMounted, onBeforeUnmount } from \"vue\";\nimport { useCounter } from \"./useCounter\";\nconst { count, doubled, inc } = useCounter(10);\n\nlet timer;\nonMounted(() => { timer = setInterval(inc, 1000); });\nonBeforeUnmount(() => clearInterval(timer));   // 必须清理\n</script>",
+          "codeType": "vue"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 4,
+      "stageName": "Vue 3 实战",
+      "chapterNo": 20,
+      "title": "Vue Router 路由",
+      "description": "掌握路由配置、动态路由、导航守卫与性能优化。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "路由基础与跳转",
+          "summary": "配置路由表,掌握声明式/编程式导航。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 路由表配置\n- createRouter({ history: createWebHistory(), routes }) 创建\n- 路由项:path/component/name/meta(自定义字段:标题、权限)\n- 根组件放 <RouterView />,导航用 <RouterLink to=\"/about\">\n- RouterLink 自动加激活类 router-link-active(可配 active-class)\n\n## 编程式导航\n- router.push(\"/about\") 跳转(可回退);router.replace 替换当前历史\n- router.go(-1) 后退;router.back() 等价\n- 传参:query ?id=1(路由.query.id)/ params 需配合动态路由\n\n## 嵌套路由\n- 父路由 children: [{ path: \"profile\", component: Profile }]\n- 父组件里再放 <RouterView /> 渲染子级(布局套路:Layout + 子页)",
+          "codeExample": "// router/index.js\nimport { createRouter, createWebHistory } from \"vue-router\";\n\nconst routes = [\n  { path: \"/\", name: \"home\", component: () => import(\"../views/Home.vue\") },\n  {\n    path: \"/user/:id\",\n    component: () => import(\"../views/UserLayout.vue\"),\n    children: [\n      { path: \"\", name: \"user\", component: () => import(\"../views/UserProfile.vue\") },\n      { path: \"orders\", component: () => import(\"../views/UserOrders.vue\") },\n    ],\n  },\n  { path: \"/:pathMatch(.*)*\", name: \"404\", component: () => import(\"../views/NotFound.vue\") },\n];\n\nexport default createRouter({ history: createWebHistory(), routes });",
+          "codeType": "vue"
+        },
+        {
+          "lessonNo": 2,
+          "title": "动态路由与导航守卫",
+          "summary": "用守卫做鉴权与标题管理,处理动态参数。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 动态路由与参数\n- path: \"/user/:id\" 用 route.params.id 取参\n- 同组件切换参数不会重建:watch(() => route.params) 里重新拉数据\n- 或给 <RouterView :key=\"route.fullPath\"> 强制重建\n\n## 导航守卫\n- 全局前置:router.beforeEach((to, from, next) => {...})\n- 常见用途:登录鉴权(to.meta.requiresAuth)、进度条、修改标题\n- 路由独享:beforeEnter;组件内:beforeRouteEnter/Leave\n\n## 鉴权模板\n- to.meta.requiresAuth 且无 token → next(\"/login?redirect=\" + to.fullPath)\n- 登录后回跳原地址;角色权限 to.meta.roles 判断\n- 守卫里必须调用 next() 或返回路径/布尔\n\n## 细节\n- 滚动行为 scrollBehavior:返回顶部或恢复位置\n- 路由懒加载 component: () => import(...) 按页分包",
+          "codeExample": "router.beforeEach((to, from, next) => {\n  const token = localStorage.getItem(\"token\");\n  document.title = to.meta.title || \"学习平台\";\n  if (to.meta.requiresAuth && !token) {\n    next({ path: \"/login\", query: { redirect: to.fullPath } });\n  } else {\n    next();\n  }\n});\n\n// 组件内:响应参数变化\nwatch(() => route.params.id, (id) => {\n  if (id) loadUser(id);      // /user/1 → /user/2 不重建组件\n}, { immediate: true });",
+          "codeType": "vue"
+        },
+        {
+          "lessonNo": 3,
+          "title": "路由懒加载与工程实践",
+          "summary": "用懒加载与布局嵌套优化大型应用的路由结构。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 懒加载的意义\n- component: () => import(\"./views/Home.vue\"):访问该页才下载对应 JS\n- 首屏包变小、打开更快;构建后按路由自动分包\n- 配合 <Suspense> 或加载态组件给过渡反馈\n\n## 布局嵌套路由实战\n- /admin 下挂 children,共用 AdminLayout(侧栏+顶栏)\n- meta 里存 titleKey/roles,守卫统一消费\n- 面包屑可从 route.matched 生成\n\n## 路由设计原则\n- URL 即资源:/users/123/orders 而不是 /page?action=orders\n- 层级不超过 3 层;路径小写、连字符分隔\n- 404 兜底放最后:/:pathMatch(.*)*\n\n## 常见坑\n- history 模式需服务端把未知路径回退到 index.html(SPA 兜底)\n- 跳转同一路径会报冗余导航:捕获或先判断 route.fullPath",
+          "codeExample": "// 懒加载 + 布局嵌套\nconst routes = [\n  {\n    path: \"/admin\",\n    component: () => import(\"../layout/AdminLayout.vue\"),\n    meta: { requiresAuth: true, roles: [\"ADMIN\"] },\n    children: [\n      { path: \"\", redirect: \"/admin/dashboard\" },\n      { path: \"dashboard\", component: () => import(\"../views/Dashboard.vue\"), meta: { title: \"仪表盘\" } },\n      { path: \"users\", component: () => import(\"../views/UserMgmt.vue\"), meta: { title: \"用户管理\" } },\n    ],\n  },\n];\n\nconst scrollBehavior = (to, from, saved) =>\n  saved || { top: 0 };",
+          "codeType": "vue"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 4,
+      "stageName": "Vue 3 实战",
+      "chapterNo": 21,
+      "title": "Pinia 状态管理",
+      "description": "用 Pinia 管理全局状态,掌握 Store 设计与持久化。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Store 定义与使用",
+          "summary": "掌握 setup/选项式两种 Store 定义与在组件中消费。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## 为什么需要 Pinia\n- 跨组件、跨页面共享的状态(用户登录态、主题、购物车)\n- 相比 Vuex:类型推导好、无 mutations、支持组合式写法\n\n## 定义 Store\n- defineStore(\"id\", {...}) 选项式:state/getters/actions\n- defineStore(\"id\", () => {...}) 组合式:直接返回 ref/computed/函数\n- state 是数据、getters 是派生(像 computed)、actions 是方法(可 async)\n\n## 在组件中使用\n- 组合式 API 里调用 useXxxStore() 得到实例,直接读写\n- storeToRefs(store) 解构出状态(保持响应性);方法直接解构\n- 与组件本地状态的边界:只放全局共享的,页面私有的留在组件里",
+          "codeExample": "// stores/counter.js\nimport { defineStore } from \"pinia\";\nimport { ref, computed } from \"vue\";\n\nexport const useCounterStore = defineStore(\"counter\", () => {\n  const count = ref(0);\n  const doubled = computed(() => count.value * 2);\n  function inc() { count.value++; }\n  async function fetchInit() { count.value = await api.get(\"/count\"); }\n  return { count, doubled, inc, fetchInit };\n});\n\n// 组件中\n<script setup>\nimport { storeToRefs } from \"pinia\";\nimport { useCounterStore } from \"@/stores/counter\";\nconst store = useCounterStore();\nconst { count, doubled } = storeToRefs(store);  // 状态用 storeToRefs\nconst { inc } = store;                          // 方法直接解构\n</script>",
+          "codeType": "vue"
+        },
+        {
+          "lessonNo": 2,
+          "title": "模块化与持久化最佳实践",
+          "summary": "按领域拆分 Store,实现登录态持久化与调试。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## Store 拆分策略\n- 按领域拆:useUserStore / useCartStore / useAppStore\n- Store 之间可互相引用(useCart 里调 useUser),但避免循环依赖\n- 大状态拆 getter 派生,别把 server 数据和 UI 状态混一个 store\n\n## 持久化\n- pinia-plugin-persistedstate:一行配置把 store 存 localStorage\n- 或手动:订阅 $subscribe 把变更写入 localStorage,启动时恢复\n- 敏感数据(Token)可存,但注意 XSS 风险;更安全放 HttpOnly Cookie\n\n## 异步与错误处理\n- actions 里 await 请求,失败抛错或写入 error 状态\n- 加载态 loading 与错误态 error 放 store,组件只读展示\n- 登出时 $reset() 或逐字段清空,防止串账号数据\n\n## 调试\n- Vue Devtools 可直接查看/编辑 Pinia 状态\n- 严格模式下直接改 state 以外的数据会报警",
+          "codeExample": "// stores/user.js — 登录态持久化\nimport { defineStore } from \"pinia\";\nimport { ref } from \"vue\";\n\nexport const useUserStore = defineStore(\"user\", () => {\n  const token = ref(localStorage.getItem(\"token\") || \"\");\n  const profile = ref(null);\n\n  async function login(form) {\n    const { data } = await api.post(\"/login\", form);\n    token.value = data.token;\n    localStorage.setItem(\"token\", data.token);\n  }\n  function logout() {\n    token.value = \"\"; profile.value = null;\n    localStorage.removeItem(\"token\");\n  }\n  return { token, profile, login, logout };\n}, { persist: true });   // pinia-plugin-persistedstate",
+          "codeType": "vue"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 4,
+      "stageName": "Vue 3 实战",
+      "chapterNo": 22,
+      "title": "Vue 工程化与实战要点",
+      "description": "掌握 Vite 工程结构、组件设计与常见性能优化手段。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Vite + Vue 工程结构",
+          "summary": "认识标准工程目录与配置、环境变量的使用。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 标准目录\n- src/views 页面级组件、src/components 通用组件\n- src/stores Pinia、src/router 路由、src/api 请求封装\n- src/assets 静态资源、src/utils 工具、src/i18n 国际化\n- public/ 原样拷贝;根目录 vite.config.js、.env 环境变量\n\n## 环境变量\n- .env / .env.development / .env.production 分环境\n- 只有 VITE_ 前缀变量会暴露给客户端,别放密钥\n- 代码里 import.meta.env.VITE_API_BASE 取值\n\n## 路径别名与配置\n- vite.config.js 配 resolve.alias: \"@\" 指向 src\n- 插件:@vitejs/plugin-vue、自动导入(unplugin-auto-import)\n- 配置代理:server.proxy 把 /api 转发到后端,解决开发跨域",
+          "codeExample": "// vite.config.js\nimport { defineConfig } from \"vite\";\nimport vue from \"@vitejs/plugin-vue\";\nimport { fileURLToPath } from \"node:url\";\n\nexport default defineConfig({\n  plugins: [vue()],\n  resolve: {\n    alias: { \"@\": fileURLToPath(new URL(\"./src\", import.meta.url)) },\n  },\n  server: {\n    proxy: { \"/api\": { target: \"http://localhost:8080\", changeOrigin: true } },\n  },\n  build: { chunkSizeWarningLimit: 1500 },\n});",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "组件设计与性能优化",
+          "summary": "遵循组件设计原则,掌握列表与渲染性能优化。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 组件设计原则\n- 单一职责:一个组件只做一件事;过大就拆\n- 明确边界:props 进、emit 出;不悄悄改外部状态\n- 通用组件无业务(TableView),业务组件放 views\n- 命名自解释:OrderDetailPanel 优于 Panel2\n\n## 性能优化清单\n- 长列表:分页/虚拟滚动(vue-virtual-scroller);v-for 永远配 :key\n- v-if 与 v-for 不要放同一元素(逐项渲染开销大)\n- 大组件用 defineAsyncComponent 异步加载;路由级懒加载\n- computed 缓存替代方法调用;避免深层 watch,精准监听\n- 稳定的大对象用 shallowRef/shallowReactive 减少代理开销\n\n## 体验优化\n- 加载骨架屏、按钮 loading、错误兜底页\n- 路由切换过渡 <Transition>;减少布局抖动(占位尺寸)",
+          "codeExample": "<script setup>\nimport { computed, defineAsyncComponent } from \"vue\";\n\n// 重型组件异步加载\nconst ChartPanel = defineAsyncComponent(() => import(\"./ChartPanel.vue\"));\n\nconst props = defineProps({ orders: { type: Array, default: () => [] } });\nconst paid = computed(() => props.orders.filter(o => o.status === \"paid\"));\n</script>\n\n<template>\n  <!-- 大列表只渲染可见部分:虚拟滚动 -->\n  <RecycleScroller :items=\"orders\" :item-size=\"56\" key-field=\"id\">\n    <template #default=\"{ item }\">\n      <OrderRow :order=\"item\" />\n    </template>\n  </RecycleScroller>\n</template>",
+          "codeType": "vue"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 5,
+      "stageName": "React 实战",
+      "chapterNo": 23,
+      "title": "React 入门",
+      "description": "掌握 JSX、组件与 props,写出第一个 React 应用。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "JSX 与组件",
+          "summary": "理解 JSX 语法与函数组件的写法。",
+          "difficulty": 1,
+          "durationMinutes": 22,
+          "content": "## React 的核心思想\n- UI = f(state):界面是状态的纯函数,状态变自动重渲染\n- 组件化:函数返回 JSX 即组件;组件名必须大写开头\n- 单向数据流:父级通过 props 向下传,子级通过回调向上通知\n\n## JSX 语法规则\n- 本质是 createElement 的语法糖,编译后变成 JS 对象(虚拟 DOM)\n- 标签必须闭合;最外层只能有一个根(或用 <> </> Fragment)\n- 表达式用 {} 包裹:不能写 if/for,但可写三元、map\n- 属性名驼峰:className、htmlFor、tabIndex(HTML 的 class/for)\n\n## 与 Vue 模板的差异\n- JSX 就是 JS:逻辑(条件/循环)用 JS 表达式而不是指令\n- 没有响应式代理:setState 后 React 重新调用组件函数\n- 样式/结构/逻辑可写在一起,自由度高,也更考验组织能力",
+          "codeExample": "function Greeting({ name }) {\n  return (\n    <div className=\"card\">\n      <h1>Hello, {name}!</h1>\n      {name === \"admin\" && <span className=\"badge\">管理员</span>}\n    </div>\n  );\n}\n\nexport default function App() {\n  return (\n    <>\n      <Greeting name=\"Tom\" />\n      <Greeting name=\"Amy\" />\n    </>\n  );\n}",
+          "codeType": "jsx"
+        },
+        {
+          "lessonNo": 2,
+          "title": "props 与事件",
+          "summary": "用 props 传参、回调上抛事件,掌握表单受控组件。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## props 要点\n- 函数组件第一个参数就是 props 对象,习惯直接解构\n- props 只读:不能改父级传来的值(单向数据流)\n- 默认值:解构默认 { size = \"md\" };类型校验用 PropTypes 或 TS\n- children:标签之间的内容,做容器组件(<Card>内容</Card>)\n\n## 事件处理\n- 属性驼峰:onClick、onChange;传函数而不是调用结果 onClick={fn}\n- 传参用箭头包装:onClick={() => fn(item.id)}\n- 合成事件:React 统一封装,行为跨浏览器一致\n\n## 受控表单\n- input 的值绑 state:value={text} + onChange={e => setText(e.target.value)}\n- 表单提交:onClick 或 onSubmit + e.preventDefault()\n- 多字段用一个 form state 对象 + 通用 handleChange(name)",
+          "codeExample": "function TodoInput({ onAdd }) {\n  const [text, setText] = React.useState(\"\");\n\n  const submit = (e) => {\n    e.preventDefault();\n    if (!text.trim()) return;\n    onAdd(text.trim());       // 子 → 父:回调上抛\n    setText(\"\");\n  };\n\n  return (\n    <form onSubmit={submit}>\n      <input value={text} onChange={(e) => setText(e.target.value)} />\n      <button type=\"submit\">添加</button>\n    </form>\n  );\n}",
+          "codeType": "jsx"
+        },
+        {
+          "lessonNo": 3,
+          "title": "列表渲染与条件渲染",
+          "summary": "用 map/三元实现列表与条件展示,理解 key 的作用。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 列表渲染\n- 数组.map(item => <li key={item.id}>{item.name}</li>)\n- key 帮 React 识别条目身份:优先稳定 id,别用数组下标(重排会错乱)\n- map 返回数组嵌在 JSX 里;可先 filter 再 map\n\n## 条件渲染\n- 三元:isLogin ? <User/> : <Login/>\n- && 短路:count > 0 && <Badge n={count}/>(注意 0 会直接显示!)\n- 多分支抽函数:renderStatus(item) 返回不同 JSX\n- 不要用 if 包住 Hooks(条件渲染组件,而不是条件调用 Hook)\n\n## 实战组合\n- 空状态:列表为空时显示占位图\n- 加载态:loading ? <Skeleton/> : <List/>\n- 错误态:error && <ErrorTip onRetry={reload}/>",
+          "codeExample": "function UserList({ users, loading }) {\n  if (loading) return <Skeleton />;\n  if (!users.length) return <p className=\"empty\">暂无数据</p>;\n\n  return (\n    <ul>\n      {users\n        .filter((u) => u.active)\n        .map((u) => (\n          <li key={u.id}>\n            {u.name}\n            {u.vip && <span className=\"vip\">VIP</span>}\n          </li>\n        ))}\n    </ul>\n  );\n}",
+          "codeType": "jsx"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 5,
+      "stageName": "React 实战",
+      "chapterNo": 24,
+      "title": "Hooks 深入",
+      "description": "掌握 useState/useEffect 与自定义 Hook,管理状态与副作用。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "useState 与状态更新",
+          "summary": "掌握状态声明、不可变更新与批量更新。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## useState 基础\n- const [state, setState] = useState(initial):初始值只在首次生效\n- 更新:setState(新值) 或 setState(prev => prev + 1)(依赖旧值必用函数式)\n- 引用类型更新必须换新地址:setItems([...items, item])(不可变思想)\n\n## 常见坑\n- setState 是异步批处理:连续多次 setState 用函数式累加\n- 相同值的更新会跳过重渲染(Object.is 比较)\n- 复杂状态拆多个 useState,或合并成一个 reducer\n\n## 状态设计\n- 派生数据不存 state:由现有 state 算出来(如 fullName)\n- 能从 props 算的不复制进 state\n- 表单/列表等复杂对象更新用展开复制:{ ...form, name: \"x\" }",
+          "codeExample": "function Counter() {\n  const [n, setN] = React.useState(0);\n\n  // 依赖旧值:函数式更新,连续调用也正确\n  const incTwice = () => {\n    setN((prev) => prev + 1);\n    setN((prev) => prev + 1);   // 结果 +2\n  };\n\n  const [items, setItems] = React.useState([]);\n  const add = (item) => setItems((prev) => [...prev, item]);  // 不可变\n\n  return <button onClick={incTwice}>{n}</button>;\n}",
+          "codeType": "jsx"
+        },
+        {
+          "lessonNo": 2,
+          "title": "useEffect 与副作用",
+          "summary": "掌握副作用的声明、依赖数组与清理函数。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## useEffect 基础\n- useEffect(() => {...}, [deps]):deps 变化后执行(渲染后)\n- 不传 deps:每次渲染都执行;传 []:仅挂载时执行一次\n- 典型副作用:请求数据、订阅事件、定时器、手动 DOM\n\n## 依赖数组\n- 用到的外部可变值都要放进 deps(否则闭包拿旧值)\n- 依赖是对象/数组每次渲染都变:用 useMemo 稳定或拆字段\n- 精准依赖 > 撒谎依赖(别用空数组骗 React)\n\n## 清理函数\n- return () => {...} 在下次执行前/卸载时调用\n- 必须清理:定时器、事件监听、WebSocket、AbortController 取消请求\n- React 18 开发模式会\"挂载→清理→再挂载\"一次,正好检验清理是否完整",
+          "codeExample": "function UserCard({ userId }) {\n  const [user, setUser] = React.useState(null);\n\n  React.useEffect(() => {\n    const ctrl = new AbortController();\n    fetch(`/api/users/${userId}`, { signal: ctrl.signal })\n      .then((r) => r.json())\n      .then(setUser)\n      .catch((e) => { if (e.name !== \"AbortError\") console.error(e); });\n\n    return () => ctrl.abort();     // 切换 userId 时取消旧请求\n  }, [userId]);\n\n  return <div>{user?.name ?? \"加载中...\"}</div>;\n}",
+          "codeType": "jsx"
+        },
+        {
+          "lessonNo": 3,
+          "title": "自定义 Hook 与其他 Hook",
+          "summary": "抽取可复用逻辑,掌握 useMemo/useCallback/useRef。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## 自定义 Hook\n- 以 use 开头的函数,内部组合其他 Hook,返回状态与方法\n- 例:useFetch(请求)、useDebounce(防抖)、useLocalStorage(持久化)\n- 每个组件调用各自独立的状态实例;不能在条件/循环里调用\n\n## useMemo / useCallback\n- useMemo(() => 计算值, [deps]):缓存昂贵计算结果\n- useCallback(fn, [deps]):缓存函数引用(传给 memo 子组件时必要)\n- 不要无脑包:本身有开销,只为\"重计算/引用稳定\"使用\n\n## useRef\n- useRef(initial):.current 可变容器,修改不触发渲染\n- 用途:DOM 引用(input.focus())、保存定时器 id、缓存上一次的值\n- 与 state 区别:改 ref 不重渲染",
+          "codeExample": "// 自定义 Hook:防抖值\nfunction useDebounce(value, delay = 300) {\n  const [debounced, setDebounced] = React.useState(value);\n  React.useEffect(() => {\n    const t = setTimeout(() => setDebounced(value), delay);\n    return () => clearTimeout(t);\n  }, [value, delay]);\n  return debounced;\n}\n\nfunction SearchBox() {\n  const [kw, setKw] = React.useState(\"\");\n  const debouncedKw = useDebounce(kw);\n  const inputRef = React.useRef(null);\n\n  React.useEffect(() => {\n    if (debouncedKw) fetch(`/api/search?q=${debouncedKw}`);\n  }, [debouncedKw]);\n\n  return <input ref={inputRef} value={kw} onChange={(e) => setKw(e.target.value)} />;\n}",
+          "codeType": "jsx"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 5,
+      "stageName": "React 实战",
+      "chapterNo": 25,
+      "title": "React 路由与状态管理",
+      "description": "掌握 React Router 与状态方案选型,优化渲染性能。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "React Router 路由",
+          "summary": "配置路由、传参与嵌套布局,实现鉴权路由。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## 路由配置(React Router v6+)\n- createBrowserRouter + RouterProvider:数据路由模式\n- <Outlet /> 渲染子路由;path: \"user/:id\" 动态段 useParams() 取值\n- 查询参数 useSearchParams();导航 useNavigate() 编程式跳转\n- <NavLink> 自动加激活类;<Link> 普通跳转\n\n## 嵌套布局\n- 父路由 element 布局 + children 子路由,通过 <Outlet/> 串联\n- 布局套路:AdminLayout(侧栏)包裹所有管理页\n\n## 鉴权与懒加载\n- 包装组件 RequireAuth:无登录态跳 /login(用 location 记录来源)\n- React.lazy(() => import(\"./Page\")) + <Suspense fallback> 按页分包\n- 404 通配:path: \"*\";loader 可在路由层预取数据",
+          "codeExample": "import { createBrowserRouter, Outlet, NavLink, useParams, useNavigate }\n  from \"react-router-dom\";\n\nfunction UserDetail() {\n  const { id } = useParams();\n  const nav = useNavigate();\n  return <button onClick={() => nav(\"/users\")}>返回 {id}</button>;\n}\n\nconst router = createBrowserRouter([\n  {\n    path: \"/\",\n    element: <Layout />,             // 内含 <Outlet />\n    children: [\n      { index: true, element: <Home /> },\n      { path: \"users/:id\", element: <UserDetail /> },\n      { path: \"*\", element: <NotFound /> },\n    ],\n  },\n]);",
+          "codeType": "jsx"
+        },
+        {
+          "lessonNo": 2,
+          "title": "状态管理方案选型",
+          "summary": "掌握 Context/useReducer/Redux/Zustand 的适用边界。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## 方案光谱(由轻到重)\n- useState:组件私有状态,优先从这里开始\n- 状态提升:兄弟共享提到共同父级\n- Context + useReducer:中小应用全局状态(主题、登录态)\n- Redux Toolkit / Zustand / Jotai:大应用、多组件共享、需中间件/持久化\n\n## Context 要点\n- createContext + Provider value 传递,useContext 消费\n- value 引用变化会导致所有消费者重渲染:配合 useMemo 稳定\n- 适合\"低频变化\"的全局数据;高频状态(输入框)别放 Context\n\n## Zustand 风格(现代轻量)\n- create((set) => ({ ...state, actions })) 一行创建\n- 组件里 useStore(selector) 精准订阅,性能好、无 Provider\n\n## 选型建议\n- 80% 场景 useState + Context 足够\n- 服务端数据优先 React Query/SWR(缓存/重取/失效),别硬塞全局 store",
+          "codeExample": "// Context + useReducer:全局主题/登录态\nconst AuthCtx = React.createContext(null);\n\nfunction authReducer(state, action) {\n  switch (action.type) {\n    case \"login\":  return { user: action.user, token: action.token };\n    case \"logout\": return { user: null, token: null };\n    default: return state;\n  }\n}\n\nfunction AuthProvider({ children }) {\n  const [state, dispatch] = React.useReducer(authReducer, { user: null, token: null });\n  const value = React.useMemo(() => ({ state, dispatch }), [state]);\n  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;\n}",
+          "codeType": "jsx"
+        },
+        {
+          "lessonNo": 3,
+          "title": "渲染性能与工程模式",
+          "summary": "识别无效渲染,掌握 memo 与常见工程模式。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## 渲染性能\n- React 以组件为粒度:state 变了,该组件及子组件重新执行\n- React.memo(Comp):props 浅比较不变则跳过重渲染(配合 useCallback)\n- 状态下沉:高频变化的状态放到使用它的最小组件,别放顶层\n- 列表 key 用稳定 id;避免内联对象/函数直传给 memo 组件\n\n## 常见工程模式\n- 容器/展示组件:数据逻辑与渲染分离(可选,Hook 时代弱化)\n- 复合组件:Context 隐式共享(Tabs + TabPanel)\n- 自定义 Hook 沉淀领域逻辑(useCart/useAuth),组件保持薄\n\n## 项目结构\n- features/ 按功能模块:每个模块 components/hooks/api\n- 全局:components(通用 UI)、hooks、utils、services(请求封装)\n- TypeScript 已是 React 社区默认,props/state 全面类型化",
+          "codeExample": "// React.memo + useCallback:避免子组件无效重渲染\nconst Row = React.memo(function Row({ item, onToggle }) {\n  console.log(\"render\", item.id);\n  return <li onClick={() => onToggle(item.id)}>{item.name}</li>;\n});\n\nfunction List({ items }) {\n  const [checked, setChecked] = React.useState({});\n  // 函数引用稳定:只有 checked 变化才换新函数\n  const onToggle = React.useCallback((id) => {\n    setChecked((prev) => ({ ...prev, [id]: !prev[id] }));\n  }, []);\n\n  return (\n    <ul>{items.map((it) => <Row key={it.id} item={it} onToggle={onToggle} />)}</ul>\n  );\n}",
+          "codeType": "jsx"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 6,
+      "stageName": "工程化与质量保障",
+      "chapterNo": 26,
+      "title": "Vite 构建工具",
+      "description": "理解 Vite 原理,掌握配置、插件与构建优化。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Vite 原理与开发体验",
+          "summary": "理解基于 ESM 的按需编译,对比 Webpack 的差异。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## Vite 为什么快\n- 开发阶段不打包:利用浏览器原生 ESM,请求哪个模块才编译哪个\n- 预构建依赖(esbuild 打包 node_modules),减少请求数\n- 冷启动秒级、HMR 按模块更新,与项目大小基本无关\n\n## 与 Webpack 对比\n- Webpack:全量打包后启动,项目越大越慢;生态最全\n- Vite:开发极快,构建用 Rollup 产物质量高;配置更简单\n- 新项目默认 Vite;大型存量 Webpack 项目按需迁移\n\n## 基本使用\n- npm create vite@latest 选模板(vue/react/vanilla)\n- npm run dev 开发;/npm run build 产物到 dist;/npm run preview 本地预览\n- index.html 是入口(在项目根),<script type=\"module\" src=\"/src/main.js\">",
+          "codeExample": "# 创建并启动项目\nnpm create vite@latest my-app -- --template vue\ncd my-app\nnpm install\nnpm run dev       # 开发服务器(默认 5173,秒级启动)\nnpm run build     # 产物输出 dist/\nnpm run preview   # 本地预览构建产物",
+          "codeType": "bash"
+        },
+        {
+          "lessonNo": 2,
+          "title": "配置、插件与环境变量",
+          "summary": "掌握 vite.config.js 常用配置与插件机制。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## 常用配置\n- plugins:插件数组(@vitejs/plugin-vue 必备)\n- resolve.alias:路径别名;\"@\" -> src 是社区惯例\n- server.proxy:开发代理,把 /api 转到后端,规避跨域\n- build.outDir / sourcemap / css 预处理器支持\n\n## 插件机制\n- Vite 插件 = Rollup 插件 + Vite 钩子,兼容 Rollup 生态\n- 常用:vue、vue-jsx、自动导入(unplugin-auto-import / unplugin-vue-components)\n- PWA:vite-plugin-pwa;压缩:vite-plugin-compression(gzip/brotli)\n\n## 环境变量\n- .env、.env.development、.env.production 按环境放置\n- 只暴露 VITE_ 前缀变量:import.meta.env.VITE_API_BASE\n- 敏感信息(密钥)绝不放前端环境变量,会打进产物",
+          "codeExample": "// vite.config.js\nimport { defineConfig, loadEnv } from \"vite\";\nimport vue from \"@vitejs/plugin-vue\";\nimport { fileURLToPath, URL } from \"node:url\";\n\nexport default defineConfig(({ mode }) => {\n  const env = loadEnv(mode, process.cwd());\n  return {\n    plugins: [vue()],\n    resolve: {\n      alias: { \"@\": fileURLToPath(new URL(\"./src\", import.meta.url)) },\n    },\n    server: {\n      proxy: { \"/api\": { target: env.VITE_API_BASE, changeOrigin: true } },\n    },\n  };\n});",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "构建优化与产物分析",
+          "summary": "用代码分割、压缩与分析工具优化构建产物。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## 产物体积优化\n- 路由懒加载:() => import(\"./views/Xxx.vue\") 自动分包\n- manualChunks:把 vue/pinia/element-plus 拆成稳定 vendor 包(长期缓存)\n- 按需引入组件库(unplugin-vue-components),别整包 import\n- 压缩:terser 去 console/debugger;开启 brotli/gzip 预压缩\n\n## 缓存友好\n- 产物文件名带 hash:内容变才变文件名,配合长缓存\n- index.html 不缓存(入口每次校验),静态资源缓存一年\n- 分包策略:第三方大库独立 chunk,业务代码变更不影响 vendor 缓存\n\n## 产物分析\n- rollup-plugin-visualizer 生成体积图,揪出大依赖\n- build.chunkSizeWarningLimit 调整警告阈值\n- 关注指标:首屏 JS 体积 < 200KB(gzip)为宜",
+          "codeExample": "// vite.config.js 构建优化片段\nbuild: {\n  sourcemap: false,\n  minify: \"terser\",\n  terserOptions: { compress: { drop_console: true, drop_debugger: true } },\n  rollupOptions: {\n    output: {\n      manualChunks: {\n        vue: [\"vue\", \"vue-router\", \"pinia\"],\n        element: [\"element-plus\"],\n      },\n    },\n  },\n},",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 6,
+      "stageName": "工程化与质量保障",
+      "chapterNo": 27,
+      "title": "Webpack 核心",
+      "description": "理解 Webpack 核心概念与配置,掌握分包与性能优化。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "核心概念与配置",
+          "summary": "理解入口、出口、loader 与插件四大核心概念。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## 四大核心概念\n- entry 入口:依赖图起点;output 出口:产物位置与命名\n- loader:让 Webpack 能处理非 JS 文件(css-loader、babel-loader)\n- plugin:扩展能力(压缩、生成 HTML、环境变量注入)\n\n## 常用配置骨架\n- module.rules 匹配后缀用对应 loader;exclude 排除 node_modules\n- mode: development/production(自动启用对应优化)\n- devServer:开发服务器与代理;devtool: source-map 选择\n\n## Babel\n- 把新语法(ES2022/JSX)编译到目标浏览器(@babel/preset-env)\n- core-js 按需垫 polyfill;targets 声明最低浏览器版本\n- tree-shaking 需 ESM 语法配合(babel 不要转成 CommonJS)\n\n## 何时深入 Webpack\n- 维护存量项目、需要精细控制构建管线时\n- 新项目优先 Vite;概念(分包、缓存、loader/插件)是通用的",
+          "codeExample": "// webpack.config.js\nconst path = require(\"path\");\nconst HtmlWebpackPlugin = require(\"html-webpack-plugin\");\n\nmodule.exports = {\n  mode: \"production\",\n  entry: \"./src/index.js\",\n  output: {\n    path: path.resolve(__dirname, \"dist\"),\n    filename: \"[name].[contenthash:8].js\",   // 内容 hash,利于缓存\n    clean: true,\n  },\n  module: {\n    rules: [\n      { test: /\\.js$/, exclude: /node_modules/, use: \"babel-loader\" },\n      { test: /\\.css$/, use: [\"style-loader\", \"css-loader\"] },\n    ],\n  },\n  plugins: [new HtmlWebpackPlugin({ template: \"./public/index.html\" })],\n};",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "分包、缓存与性能优化",
+          "summary": "用 splitChunks 与缓存策略优化大型构建。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## 代码分割 splitChunks\n- cacheGroup 把第三方库拆成独立 vendor(chunk 变更不影响业务包缓存)\n- chunks: \"all\":同步+异步都参与分割;minSize 太小的不拆\n- 动态 import() 路由级分割:页面按需加载\n\n## 持久化缓存\n- contenthash 文件名 + runtimeChunk 抽离运行时,最大化命中缓存\n- cache: { type: \"filesystem\" }:二次构建大幅加速\n\n## 构建速度\n- 多进程:thread-loader(对 babel/ts);缩小 loader 的 include 范围\n- DllPlugin 预编译稳定库(历史方案,esbuild/vite 时代少用)\n- 分析工具:speed-measure-webpack-plugin、webpack-bundle-analyzer\n\n## 面试要点\n- 为什么快/为什么慢:依赖图全量构建 vs 按需编译\n- 长缓存三件套:hash 文件名 + vendor 分包 + runtime 抽离",
+          "codeExample": "// 产物分析\nconst { BundleAnalyzerPlugin } = require(\"webpack-bundle-analyzer\");\n\nmodule.exports = {\n  optimization: {\n    runtimeChunk: \"single\",\n    splitChunks: {\n      chunks: \"all\",\n      cacheGroups: {\n        vendor: {\n          test: /[\\/]node_modules[\\/]/,\n          name: \"vendor\",\n          chunks: \"all\",\n        },\n      },\n    },\n  },\n  plugins: [new BundleAnalyzerPlugin()],\n};",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 6,
+      "stageName": "工程化与质量保障",
+      "chapterNo": 28,
+      "title": "TypeScript 前端实践",
+      "description": "掌握 TS 类型系统,在 Vue/React 项目中落地类型安全。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "类型基础",
+          "summary": "掌握基础类型、类型别名与函数类型标注。",
+          "difficulty": 1,
+          "durationMinutes": 22,
+          "content": "## 为什么用 TS\n- 编译期发现拼写错误、参数错配、空值问题,重构更安心\n- 类型即文档;IDE 补全与跳转体验大幅提升\n- 前端主流事实标准(Vue3/React/Node 全面支持)\n\n## 基础类型\n- string / number / boolean / null / undefined\n- 数组:number[] 或 Array<number>;元组 [string, number]\n- any 任意(放弃检查,慎用)、unknown 未知(用前必须收窄)、void 无返回、never 不可达\n- 联合:\"a\" | \"b\" | \"c\";字面量类型精确约束值\n\n## 类型别名与断言\n- type 别名:type Status = \"open\" | \"closed\"\n- 断言 as / 非空 !:确定类型时手动收窄(断言错误要负责)\n- typeof / instanceof 运行时收窄,配合联合类型最常用",
+          "codeExample": "// 类型标注\nconst name: string = \"Tom\";\nconst scores: number[] = [90, 85];\nlet status: \"open\" | \"closed\" = \"open\";\n\ntype User = { id: number; name: string; tags?: string[] };\nconst u: User = { id: 1, name: \"Tom\" };\n\n// 函数参数与返回值\nfunction add(a: number, b: number): number {\n  return a + b;\n}\n\n// unknown 使用前必须收窄\nfunction printId(id: unknown) {\n  if (typeof id === \"string\") console.log(id.toUpperCase());\n}",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "接口、泛型与类型进阶",
+          "summary": "掌握 interface、泛型工具类型与常见类型体操。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## interface 与 type\n- interface 可声明合并(扩展方便),对象结构优先 interface\n- type 能表达联合/元组/映射等任意类型;两者多数场景可互换\n- extends 继承接口;implements 类实现接口\n\n## 泛型\n- 参数化类型:function first<T>(arr: T[]): T | undefined\n- 接口泛型:ApiResponse<T> = { code: number; data: T }\n- 约束:T extends { id: number } 限定形状\n\n## 常用工具类型\n- Partial<T> 全可选;Required<T> 全必填;Readonly<T> 只读\n- Pick<T, K> 挑字段;Omit<T, K> 去字段;Record<K, V> 键值映射\n- ReturnType / Parameters 提取函数类型信息\n\n## 实战习惯\n- API 响应统一包装类型,数据层全类型化\n- 用 satisfies 检查对象符合类型但保留更精确推导",
+          "codeExample": "interface ApiResponse<T> {\n  code: number;\n  message: string;\n  data: T;\n}\ntype User = { id: number; name: string; age: number };\n\n// 工具类型组合\ntype UserInput = Omit<User, \"id\">;                 // 创建入参\ntype UserPatch = Partial<Pick<User, \"name\" | \"age\">>; // 更新入参\n\n// 泛型约束\nfunction findById<T extends { id: number }>(list: T[], id: number): T | undefined {\n  return list.find((x) => x.id === id);\n}\n\n// 函数类型推导\nconst fn = (a: string, b: number) => a.length + b;\ntype FnReturn = ReturnType<typeof fn>;   // number",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "TS + Vue/React 工程实践",
+          "summary": "在框架项目中落地类型:props、事件与状态。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## Vue3 + TS\n- <script setup lang=\"ts\"> 开启 TS\n- defineProps<{ user: User; size?: \"sm\" | \"md\" }>() 泛型写法标注 props\n- defineEmits<{ (e: \"submit\", payload: Form): void }>() 标注事件\n- ref<T>() / reactive<T>() 显式标注;Pinia store 全类型化\n\n## React + TS\n- 组件 props 用 interface + React.FC 或直接函数参数标注\n- useState<T>(initial) 显式泛型;useRef<HTMLInputElement>(null)\n- 事件类型:React.ChangeEvent<HTMLInputElement>\n\n## 工程配置\n- tsconfig.json:strict 开启全量检查(建议新项目直接开)\n- 路径别名 baseUrl/paths 与构建工具保持一致\n- 混合迁移:allowJs 让 JS/TS 共存,逐步替换\n\n## 底线原则\n- 少用 any(用 unknown + 收窄替代);不用 @ts-ignore 当常规武器",
+          "codeExample": "// Vue3 + TS\n<script setup lang=\"ts\">\nimport { ref } from \"vue\";\ninterface Props { user: User; size?: \"sm\" | \"md\" }\nconst props = withDefaults(defineProps<Props>(), { size: \"md\" });\nconst emit = defineEmits<{ (e: \"submit\", payload: User): void }>();\nconst form = ref<User>({ id: 0, name: \"\" });\n</script>\n\n// React + TS\ninterface Props { title: string; onSave: (v: string) => void }\nexport function Editor({ title, onSave }: Props) {\n  const [text, setText] = React.useState<string>(\"\");\n  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => setText(e.target.value);\n  return <input value={text} onChange={onChange} />;\n}",
+          "codeType": "typescript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 6,
+      "stageName": "工程化与质量保障",
+      "chapterNo": 29,
+      "title": "代码规范与测试",
+      "description": "用 ESLint/Prettier 统一风格,用 Vitest 编写单元测试。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "ESLint 与 Prettier",
+          "summary": "配置 lint 与格式化工具,接入 git hooks 卡住质量门。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 职责分工\n- ESLint:代码质量(未使用变量、潜在 bug、坏味道)\n- Prettier:纯格式(缩进、引号、换行),与 lint 解耦\n- 冲突处理:eslint-config-prettier 关掉 ESLint 的格式规则\n\n## 常用配置\n- .eslintrc / eslint.config.js:extends 推荐集 + 自定义规则\n- 项目插件:plugin:vue/vue3-recommended、@typescript-eslint\n- scripts 加 \"lint\": \"eslint src --fix\"\n\n## 提交卡点\n- husky + lint-staged:提交前只检查暂存区的文件,快且不打扰\n- CI 里跑 lint + test,不过不合入\n- 编辑器保存自动格式化(editor.formatOnSave + 默认格式化器)\n\n## 团队共识\n- 规则越少越容易执行;争议规则开会定,别个人偏好打架\n- 禁用规则要写注释说明原因",
+          "codeExample": "// eslint.config.js(新扁平配置)\nimport js from \"@eslint/js\";\nimport vue from \"eslint-plugin-vue\";\nimport tseslint from \"typescript-eslint\";\n\nexport default [\n  js.configs.recommended,\n  ...tseslint.configs.recommended,\n  ...vue.configs[\"flat/recommended\"],\n  {\n    rules: {\n      \"no-console\": \"warn\",\n      \"vue/multi-word-component-names\": \"off\",\n    },\n  },\n];\n\n# package.json\n# \"lint\": \"eslint src --fix\",\n# \"format\": \"prettier --write src\"",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "单元测试与 Vitest",
+          "summary": "编写组件与工具函数的单元测试,理解断言与隔离。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## 测试金字塔\n- 底层大量单元测试(函数/组件),中层集成测试,顶层少量 E2E\n- 前端重点:工具函数纯逻辑、关键组件交互、状态管理\n\n## Vitest 基础\n- 与 Vite 同配置体系,速度快;describe/it/expect API\n- expect(x).toBe / toEqual(深比较)/ toHaveBeenCalled\n- beforeEach 初始化;vi.fn() mock 函数;vi.mock 模块 mock\n\n## 组件测试\n- @vue/test-utils 或 @testing-library/react 渲染组件\n- 模拟点击/输入 → 断言 DOM 变化(测行为不测实现)\n- 异步:await flushPromises / waitFor 等待更新\n\n## 原则\n- 测试稳定可重复(不依赖网络/时间;mock 外部依赖)\n- 覆盖率是参考不是目标;优先测核心业务与易错边界",
+          "codeExample": "// utils/math.ts\nexport const sum = (a: number, b: number) => a + b;\n\n// utils/math.test.ts\nimport { describe, it, expect, vi } from \"vitest\";\nimport { sum } from \"./math\";\n\ndescribe(\"sum\", () => {\n  it(\"两数相加\", () => {\n    expect(sum(1, 2)).toBe(3);\n    expect(sum(-1, 1)).toBe(0);\n  });\n});\n\n// mock 示例\nconst fetchMock = vi.fn().mockResolvedValue({ ok: true });\nvi.stubGlobal(\"fetch\", fetchMock);",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "E2E 测试与质量策略",
+          "summary": "用 Playwright 编写端到端测试,制定测试策略。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## E2E 测试\n- 模拟真实用户操作:打开页面、点击、填表、断言结果\n- Playwright:多浏览器、自动等待、录制生成代码;Cypress 同类选择\n- 跑在 CI:无头模式 + 截图/录像留证,失败易排查\n\n## 测什么(投入产出比)\n- 核心链路:注册登录、下单支付、关键表单提交\n- 回归高风险区:修过的 bug 补测试防复发\n- 不测:样式细节、第三方库内部实现\n\n## 质量体系组合\n- 提交前:lint-staged + 单元测试(秒级反馈)\n- 合并前:CI 全量单测 + 构建 + E2E 冒烟\n- 上线后:错误监控(Sentry)、性能上报、灰度发布\n\n## 测试写法\n- AAA 结构:Arrange 准备 → Act 行为 → Assert 断言\n- 一个测试断言一件事;测试名描述行为而非方法名",
+          "codeExample": "// e2e/login.spec.ts (Playwright)\nimport { test, expect } from \"@playwright/test\";\n\ntest(\"用户可以登录并看到仪表盘\", async ({ page }) => {\n  await page.goto(\"/login\");\n  await page.fill('input[name=\"username\"]', \"admin\");\n  await page.fill('input[name=\"password\"]', \"admin123\");\n  await page.click('button[type=\"submit\"]');\n\n  await expect(page).toHaveURL(/dashboard/);\n  await expect(page.getByText(\"欢迎回来\")).toBeVisible();\n});",
+          "codeType": "typescript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 6,
+      "stageName": "工程化与质量保障",
+      "chapterNo": 30,
+      "title": "前端性能优化",
+      "description": "从加载、渲染到运行时,系统掌握性能优化手段。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "加载性能与首屏优化",
+          "summary": "减少资源体积与请求数,让首屏更快呈现。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## 指标认知\n- FCP 首次绘制、LCP 最大内容绘制(核心)、TTI 可交互\n- CLS 累计布局偏移(视觉稳定)、INP 交互响应(新版核心指标)\n\n## 加载优化手段\n- 代码分割:路由懒加载、组件异步加载;首屏只发必需 JS\n- 资源压缩:gzip/brotli、图片 WebP/AVIF、SVG 图标\n- 请求优化:HTTP/2 多路复用、CDN 就近访问、域名收敛/分域\n- 预加载:preload 当前页关键资源、prefetch 预取下一页、dns-prefetch\n\n## 渲染路径\n- CSS 放头、JS 加 defer/async 避免阻塞解析\n- 骨架屏/SSR/SSG 让用户先看到内容\n- 长任务拆分(requestIdleCallback),避免主线程卡顿",
+          "codeExample": "<!-- 资源提示示例 -->\n<head>\n  <link rel=\"preload\" href=\"/fonts/main.woff2\" as=\"font\" crossorigin>\n  <link rel=\"prefetch\" href=\"/js/about.chunk.js\">\n  <link rel=\"dns-prefetch\" href=\"//cdn.example.com\">\n  <script src=\"/js/app.js\" defer></script>\n</head>\n\n// 路由懒加载\nconst routes = [\n  { path: \"/about\", component: () => import(\"./views/About.vue\") },\n];",
+          "codeType": "html"
+        },
+        {
+          "lessonNo": 2,
+          "title": "资源与图片优化",
+          "summary": "掌握图片、字体与第三方资源的体积治理。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 图片优化(通常是最大头)\n- 选对格式:照片 JPG/WebP、透明图 PNG/WebP、图标 SVG\n- 响应式:srcset + sizes 按屏加载;缩略图列表别用原图\n- 懒加载:loading=\"lazy\";视口外不下载\n- 压缩工具:squoosh、sharp;构建期自动压缩插件\n\n## 字体优化\n- 优先系统字体栈;必须用 web 字体时子集化(只留用到的字)\n- font-display: swap 避免文字不可见(FOIT)\n- 预加载关键字体文件\n\n## 第三方资源治理\n- 统计/客服/广告脚本常是性能杀手,评估必要性\n- 异步加载第三方脚本;iframe 懒加载\n- 定期审计:DevTools Network 按体积排序,揪出大文件\n\n## 体积预算\n- 团队约定上限(如首屏 JS<200KB、图片<500KB/页)\n- CI 里监控体积变化,PR 超预算报警",
+          "codeExample": "<img\n  src=\"cover-800.webp\"\n  srcset=\"cover-400.webp 400w,\n          cover-800.webp 800w,\n          cover-1600.webp 1600w\"\n  sizes=\"(max-width: 600px) 100vw, 800px\"\n  alt=\"课程封面\"\n  loading=\"lazy\"\n  width=\"800\" height=\"400\">\n\n<style>\n  body { font-family: system-ui, \"PingFang SC\", sans-serif; }\n</style>",
+          "codeType": "html"
+        },
+        {
+          "lessonNo": 3,
+          "title": "运行时性能与监控",
+          "summary": "优化渲染与交互性能,建立性能监控体系。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## 渲染性能\n- 减少重排:批量读写分离;优先改 transform/opacity\n- 虚拟列表:大数据量只渲染可视区\n- 防抖节流:输入、滚动、resize 高频事件治理\n- 长任务:把大计算切片或挪到 Web Worker\n\n## 框架层优化\n- Vue:精准依赖、shallowRef、v-memo;避免深层 watch\n- React:状态下沉、memo/useMemo/useCallback、并发特性\n- 通用:缓存计算结果、合理分页、懒初始化大对象\n\n## 性能监控(APM)\n- Performance API / web-vitals 上报真实用户数据(RUM)\n- 错误监控 Sentry 捕获异常与堆栈\n- 慢接口/白屏/长任务告警;灰度验证优化效果\n\n## 方法论\n- 先测量再优化:量化前后差异,拒绝拍脑袋\n- 80/20:先解决最大瓶颈(通常是资源体积与请求)",
+          "codeExample": "// 采集核心指标上报\nimport { onLCP, onFID, onCLS } from \"web-vitals\";\n\nfunction report({ name, value, id }) {\n  navigator.sendBeacon(\"/rum\", JSON.stringify({ name, value, id }));\n}\nonLCP(report); onFID(report); onCLS(report);\n\n// 防抖:输入停止 300ms 后才触发搜索\nfunction debounce(fn, wait = 300) {\n  let timer;\n  return (...args) => {\n    clearTimeout(timer);\n    timer = setTimeout(() => fn(...args), wait);\n  };\n}",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 7,
+      "stageName": "项目实战",
+      "chapterNo": 31,
+      "title": "需求分析与架构设计",
+      "description": "从需求文档到技术方案,完成项目拆分与架构设计。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "需求分析与任务拆分",
+          "summary": "把模糊需求变成可执行的开发任务清单。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 需求澄清\n- 明确用户、场景、核心价值:给谁用、解决什么问题\n- 区分\"必须有/最好有/以后再说\"(MoSCoW 法),砍掉伪需求\n- 画页面流转图:从入口到完成目标经过哪些页面\n\n## 任务拆分\n- 按功能模块拆:登录注册、列表、详情、个人中心……\n- 每个任务小到 0.5~2 天可完成,有明确验收标准\n- 识别依赖:先做数据模型与 API 契约,再并行做前后端\n\n## 排期与风险\n- 预留缓冲(联调、改 bug、意外);先做风险最高的部分\n- MVP 思路:先跑通主链路,再加锦上添花的功能\n- 用看板/清单跟踪进度,每天对齐阻塞点",
+          "codeExample": "## 任务拆分示例(在线待办应用)\n\n- [ ] 数据模型设计:Todo { id, title, status, priority, dueDate }\n- [ ] API 契约:GET/POST/PUT/DELETE /api/todos\n- [ ] 登录注册(前端表单 + 后端 JWT)\n- [ ] 列表页:筛选/排序/分页\n- [ ] 新增/编辑弹窗:表单校验\n- [ ] 完成/删除交互与乐观更新\n- [ ] 移动端适配\n- [ ] 联调 + 测试 + 部署\n\n验收标准示例:\n\"用户可在列表页按状态筛选,切换后 200ms 内看到结果\"",
+          "codeType": "bash"
+        },
+        {
+          "lessonNo": 2,
+          "title": "技术选型与架构设计",
+          "summary": "选对技术栈,设计前后端分离的项目架构。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 技术选型原则\n- 团队熟悉度 > 流行度;生态与维护状态比\"新\"更重要\n- 前端:Vue/React + Vite + TS;UI 库按设计要求选(Element/AntD/无头)\n- 后端:Node(Express/Nest)、Java(Spring)、Go 按团队与场景定\n- 数据:MySQL/PostgreSQL(关系)、MongoDB(文档)、SQLite(轻量)\n\n## 架构设计\n- 前后端分离:前端 SPA + REST/GraphQL API + 数据库\n- BFF 聚合层:多端(小程序/App)时统一编排接口\n- 目录按领域组织:features/xxx/{api,components,hooks}\n\n## API 契约先行\n- 先定接口文档(Swagger/OpenAPI),前后端并行开发\n- 统一响应结构、错误码、分页格式、鉴权方式\n- mock 数据先行(本地 mock / Apifox),不等后端完工",
+          "codeExample": "// API 请求封装:统一处理鉴权与错误\nconst request = async (url, options = {}) => {\n  const token = localStorage.getItem(\"token\");\n  const res = await fetch(`/api${url}`, {\n    ...options,\n    headers: {\n      \"Content-Type\": \"application/json\",\n      ...(token ? { Authorization: `Bearer ${token}` } : {}),\n      ...options.headers,\n    },\n  });\n  if (res.status === 401) { location.href = \"/login\"; return; }\n  const body = await res.json();\n  if (body.code !== 0) throw new Error(body.message);\n  return body.data;\n};",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 7,
+      "stageName": "项目实战",
+      "chapterNo": 32,
+      "title": "全栈项目实战",
+      "description": "以待办应用为例,完成前端骨架、接口联调与关键交互。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "项目骨架与路由布局",
+          "summary": "搭建工程骨架:布局、路由与请求层。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## 搭建步骤\n- Vite 创建工程 → 装路由/Pinia/UI 库 → 配别名与代理\n- 布局组件:侧栏 + 顶栏 + <RouterView>(登录页独立布局)\n- 路由规划:/login、/(主布局)/todos、/profile;守卫做鉴权\n\n## 请求层设计\n- 封装 fetch/axios:baseURL、鉴权头、统一错误提示、401 跳登录\n- 按资源建 API 模块:api/todos.js 导出 getTodos/createTodo……\n- 开发期用 vite proxy 把 /api 转后端,规避跨域\n\n## 状态规划\n- 登录态放 Pinia(持久化);列表等页面数据放组件本地\n- loading/error 状态显式管理,界面给足反馈",
+          "codeExample": "// router/index.js\nconst routes = [\n  { path: \"/login\", component: () => import(\"@/views/Login.vue\") },\n  {\n    path: \"/\",\n    component: () => import(\"@/layout/MainLayout.vue\"),\n    meta: { requiresAuth: true },\n    children: [\n      { path: \"\", redirect: \"/todos\" },\n      { path: \"todos\", component: () => import(\"@/views/TodoList.vue\") },\n      { path: \"profile\", component: () => import(\"@/views/Profile.vue\") },\n    ],\n  },\n];\n\n// api/todos.js\nimport { request } from \"@/utils/request\";\nexport const getTodos = (status) => request(`/todos?status=${status ?? \"\"}`);\nexport const createTodo = (data) => request(\"/todos\", { method: \"POST\", body: JSON.stringify(data) });",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "列表、表单与接口联调",
+          "summary": "实现核心 CRUD 界面并完成前后端联调。",
+          "difficulty": 2,
+          "durationMinutes": 26,
+          "content": "## 列表页要点\n- 筛选(状态/优先级)、排序、分页/加载更多;查询条件进 URL(可分享)\n- 行内快捷操作:勾选完成、删除(二次确认);操作后局部更新列表\n- 空态/加载态/错误态三态齐全\n\n## 表单要点\n- 新增/编辑共用一个弹窗组件,传入初始值区分模式\n- 前端校验(必填/长度/日期) + 服务端校验兜底\n- 提交时按钮 loading 防重复;成功后关闭并刷新列表\n\n## 联调排错顺序\n- Network 看请求:URL/方法/载荷/状态码/响应\n- 后端日志确认收到什么;前后端字段命名不一致是高频坑\n- 跨域、鉴权头缺失、Content-Type 错误是三大常见问题",
+          "codeExample": "<script setup>\nimport { ref, onMounted } from \"vue\";\nimport { getTodos, createTodo, updateTodo } from \"@/api/todos\";\n\nconst list = ref([]);\nconst loading = ref(false);\nconst filter = ref({ status: \"\" });\n\nasync function load() {\n  loading.value = true;\n  try { list.value = await getTodos(filter.value.status); }\n  finally { loading.value = false; }\n}\n\nasync function toggle(item) {\n  // 乐观更新:先改界面,失败回滚\n  const prev = item.done;\n  item.done = !item.done;\n  try { await updateTodo(item.id, { done: item.done }); }\n  catch { item.done = prev; }\n}\n\nonMounted(load);\n</script>",
+          "codeType": "vue"
+        },
+        {
+          "lessonNo": 3,
+          "title": "鉴权流程与工程收尾",
+          "summary": "打通登录鉴权全链路,完成异常处理与代码整理。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## 登录鉴权全链路\n- 登录页提交 → 后端校验签发 JWT → 存 Token(内存/localStorage)\n- 请求拦截器统一带 Authorization;401 统一跳登录并记录来源\n- 路由守卫:未登录访问受限页 → /login?redirect=原地址,登录后回跳\n- 登出:清 Token 与用户状态,跳登录页\n\n## 异常处理兜底\n- 请求失败统一 Toast;网络断开给重试入口\n- 全局错误边界(React ErrorBoundary / Vue errorHandler)防白屏\n- 404/500 页面友好化\n\n## 代码收尾\n- 删除死代码与 console;统一代码风格(lint --fix)\n- 环境变量整理(开发/生产 API 地址);README 写清启动步骤\n- 关键流程补测试;准备演示数据",
+          "codeExample": "// 响应拦截:401 统一处理\nasync function request(url, options = {}) {\n  const res = await fetch(`/api${url}`, withAuth(options));\n  if (res.status === 401) {\n    localStorage.removeItem(\"token\");\n    location.href = `/login?redirect=${encodeURIComponent(location.pathname)}`;\n    throw new Error(\"登录已过期\");\n  }\n  return res.json();\n}\n\n// 登录后回跳\nconst redirect = new URLSearchParams(location.search).get(\"redirect\") || \"/\";\nawait login(form);\nlocation.href = redirect;",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 7,
+      "stageName": "项目实战",
+      "chapterNo": 33,
+      "title": "测试、调试与项目复盘",
+      "description": "为项目补齐测试,掌握调试技巧并完成复盘沉淀。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "项目测试实践",
+          "summary": "为核心链路补单元测试与 E2E 冒烟。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 测试优先级\n- 核心业务逻辑(计算、状态流转)优先单测\n- 关键链路(登录→增删改查)补 E2E 冒烟\n- UI 样式不测;第三方库不测\n\n## 前端单测落地\n- 工具函数纯函数最好测;组件测行为(点击后出现什么)\n- mock 网络请求与时间,保证测试稳定\n- CI 集成:npm test 失败阻止合并\n\n## 联调后回归\n- 改完 bug 补一条测试防复发\n- 清单式回归:核心流程手测一遍(移动端/桌面端)\n- 边界数据:空列表、超长文本、并发点击、弱网重试",
+          "codeExample": "// 单测:待办筛选逻辑\nimport { describe, it, expect } from \"vitest\";\nimport { filterTodos } from \"./todoUtils\";\n\nconst todos = [\n  { id: 1, done: false, priority: 2 },\n  { id: 2, done: true, priority: 0 },\n];\n\ndescribe(\"filterTodos\", () => {\n  it(\"按状态筛选\", () => {\n    expect(filterTodos(todos, \"active\").map(t => t.id)).toEqual([1]);\n    expect(filterTodos(todos, \"done\").map(t => t.id)).toEqual([2]);\n  });\n  it(\"按优先级降序\", () => {\n    expect(filterTodos(todos, \"\", \"priority\")[0].id).toBe(1);\n  });\n});",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "调试技巧与项目复盘",
+          "summary": "高效定位问题,复盘沉淀为团队资产。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 调试工具箱\n- DevTools:断点(Sources)、网络分析(Network)、性能火焰图(Performance)\n- Vue Devtools / React DevTools 看组件树与状态\n- 二分法定位:注释一半代码看问题在哪半;git bisect 定位引入提交\n\n## 常见前端 Bug 模式\n- 异步竞态:旧请求覆盖新数据(AbortController/请求序号)\n- 状态不同步:多处修改同一状态,收敛到单一数据源\n- 闭包旧值:回调里拿到旧 state(函数式更新/依赖数组)\n- 内存泄漏:定时器/监听器未清理\n\n## 项目复盘\n- 做得好的保持,踩过的坑写进文档(排错记录)\n- 沉淀:组件库、请求封装、错误码表、部署手册\n- 技术债列清单:还债时间进排期,不靠\"以后再说\"",
+          "codeExample": "// 竞态防护:切换筛选时取消旧请求\nconst ctrlRef = { current: null };\n\nasync function search(kw) {\n  ctrlRef.current?.abort();                 // 取消上一个\n  const ctrl = new AbortController();\n  ctrlRef.current = ctrl;\n  try {\n    const res = await fetch(`/api/search?q=${kw}`, { signal: ctrl.signal });\n    render(await res.json());\n  } catch (e) {\n    if (e.name !== \"AbortError\") throw e;   // 被取消的忽略\n  }\n}",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 8,
+      "stageName": "部署上线与前沿热点",
+      "chapterNo": 34,
+      "title": "静态部署与 Nginx",
+      "description": "把构建产物发布上线,配置 Nginx 与 HTTPS。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "静态站点部署",
+          "summary": "掌握构建产物发布方式与 CDN 加速。",
+          "difficulty": 1,
+          "durationMinutes": 20,
+          "content": "## 部署形态\n- 纯静态:构建 dist 上传到对象存储/静态托管(适合无后端站点)\n- SPA:同上 + 服务端把未知路径回退到 index.html\n- 前后端分离:静态托管 + API 独立域名(或同域反代)\n\n## 发布步骤\n- npm run build 生成 dist(hash 文件名可长缓存)\n- 上传对象存储(OSS/COS)或服务器 /var/www 目录\n- 开启 CDN 加速与 gzip/brotli;缓存策略:HTML 不缓存、静态资源长缓存\n\n## 常见托管平台\n- Vercel / Netlify:Git 推送自动部署,预览环境\n- GitHub Pages / Gitee Pages:免费静态托管\n- 国内对象存储 + CDN:速度可控,需备案域名\n\n## 上线检查\n- 环境变量正确(API 地址);HTTPS;404 兜底;移动端真机过一遍",
+          "codeExample": "# 构建与发布\nnpm run build\n# 产物目录 dist/ 上传到服务器\nscp -r dist/* user@server:/var/www/myapp/\n\n# 对象存储 + CDN(示例:CLI 同步)\nossutil cp -r dist/ oss://my-bucket/myapp/ --update\n\n# 缓存策略建议\n# index.html        Cache-Control: no-cache\n# dist/assets/*     Cache-Control: max-age=31536000, immutable",
+          "codeType": "bash"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Nginx 配置与 HTTPS",
+          "summary": "配置反向代理、SPA 兜底与证书续期。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## Nginx 常用配置\n- root 指向静态目录;index 指定入口\n- SPA 兜底:try_files $uri $uri/ /index.html\n- 反向代理:location /api/ { proxy_pass http://backend:8080/; }\n- gzip on:压缩文本类资源;静态资源长缓存 + HTML 不缓存\n\n## HTTPS\n- Let's Encrypt 免费证书 + certbot 自动续期\n- 强制跳转 HTTP→HTTPS;开启 HSTS(谨慎,先观察)\n- HTTP/2:listen 443 ssl http2,多路复用提升加载\n\n## 运维细节\n- nginx -t 检查配置,nginx -s reload 平滑重载\n- 访问/错误日志路径;限流 limit_req 防刷\n- 常见 403:目录权限/SELinux;502:后端没起/端口错",
+          "codeExample": "server {\n  listen 443 ssl http2;\n  server_name example.com;\n  ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;\n  ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;\n\n  root /var/www/myapp;\n  gzip on;\n  gzip_types text/css application/javascript application/json;\n\n  location /assets/ {\n    expires 1y;\n    add_header Cache-Control \"public, immutable\";\n  }\n  location / {\n    try_files $uri $uri/ /index.html;   # SPA 兜底\n  }\n  location /api/ {\n    proxy_pass http://127.0.0.1:8080/;\n  }\n}",
+          "codeType": "bash"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 8,
+      "stageName": "部署上线与前沿热点",
+      "chapterNo": 35,
+      "title": "Docker 与 CI/CD",
+      "description": "容器化前端应用,搭建自动化构建发布流水线。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Docker 容器化部署",
+          "summary": "编写前端 Dockerfile,用 compose 编排前后端。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## Docker 基础\n- 镜像:只读模板;容器:镜像的运行实例;Dockerfile 构建脚本\n- 优势:环境一致、秒级扩缩、回滚方便\n\n## 前端镜像两种做法\n- 多阶段构建:node 阶段 build → nginx 阶段只带产物(镜像小)\n- 本地构建后仅打包 nginx 镜像(CI 里常用)\n\n## 常用命令\n- docker build -t myapp:1.0 .;docker run -p 80:80 myapp:1.0\n- docker compose up -d 一键起前后端 + 数据库\n- .dockerignore 排除 node_modules/dist,减小构建上下文\n\n## 注意\n- 镜像内配置用环境变量注入,别把密钥写进镜像层\n- 选基础镜像优先 alpine/slim,体积小、攻击面小",
+          "codeExample": "# Dockerfile(多阶段构建)\nFROM node:22-alpine AS builder\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci\nCOPY . .\nRUN npm run build\n\nFROM nginx:alpine\nCOPY --from=builder /app/dist /usr/share/nginx/html\nCOPY nginx.conf /etc/nginx/conf.d/default.conf\nEXPOSE 80\nCMD [\"nginx\", \"-g\", \"daemon off;\"]",
+          "codeType": "docker"
+        },
+        {
+          "lessonNo": 2,
+          "title": "CI/CD 流水线",
+          "summary": "配置自动化测试、构建与发布流程。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## CI/CD 是什么\n- CI 持续集成:每次提交自动 lint + 测试 + 构建,快速反馈\n- CD 持续交付/部署:构建产物自动发布到预发/生产\n\n## 流水线典型阶段\n- 拉取代码 → 安装依赖(缓存) → lint → 测试 → 构建 → 制作镜像 → 部署 → 冒烟\n- 失败即停并通知;主干保护:状态检查不过不允许合并\n\n## 工具选型\n- GitHub Actions / GitLab CI / Jenkins;配置即代码进仓库\n- 密钥放平台 Secrets,绝不进仓库\n- 制品管理:镜像 tag 用 commit/版本号,可追溯可回滚\n\n## 发布策略\n- 蓝绿部署:新旧两套环境切流量\n- 灰度发布:按用户比例放量,观察指标再全量\n- 回滚:保留上一版本镜像,一键切回",
+          "codeExample": "# .github/workflows/ci.yml\nname: CI\non: [push, pull_request]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with: { node-version: 22, cache: npm }\n      - run: npm ci\n      - run: npm run lint\n      - run: npm test\n      - run: npm run build\n      - name: Build & push image\n        run: |\n          docker build -t registry.example.com/myapp:${{ github.sha }} .\n          docker push registry.example.com/myapp:${{ github.sha }}",
+          "codeType": "yaml"
+        },
+        {
+          "lessonNo": 3,
+          "title": "监控、日志与运维基础",
+          "summary": "上线后建立监控告警与日志排查能力。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 可观测性三支柱\n- 指标(Metrics):QPS、错误率、响应时间、资源占用\n- 日志(Logs):结构化输出,按 traceId 串联请求\n- 链路(Traces):分布式调用链定位慢在哪一跳\n\n## 前端监控\n- 错误监控(Sentry):异常堆栈、用户路径、版本回溯\n- 性能监控:web-vitals 上报真实用户数据\n- 告警:错误率突增、白屏率、接口超时\n\n## 日常运维\n- 日志轮转防磁盘打满;关键操作审计\n- 健康检查接口 /health;就绪/存活探针\n- 值班与应急预案:出问题先止血(回滚/降级/限流)再定位\n\n## 安全基线\n- 依赖漏洞扫描(npm audit);镜像扫描\n- 最小权限:数据库账号、云凭证按需分配",
+          "codeExample": "// 前端错误监控接入示例\nimport * as Sentry from \"@sentry/browser\";\n\nSentry.init({\n  dsn: \"https://key@sentry.io/project\",\n  tracesSampleRate: 0.1,\n  beforeSend(event) {\n    if (event.request?.url?.includes(\"/api/\")) {\n      // 过滤健康检查噪音\n      return null;\n    }\n    return event;\n  },\n});\n\n// 后端健康检查\napp.get(\"/health\", (req, res) => res.json({ status: \"ok\", uptime: process.uptime() }));",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 8,
+      "stageName": "部署上线与前沿热点",
+      "chapterNo": 36,
+      "title": "SSR 与元框架",
+      "description": "理解 SSR/SSG/ISR 渲染模式,认识 Next.js 与 Nuxt。",
+      "codePath": "",
+      "estimatedHours": 2,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "渲染模式:SSR/SSG/ISR",
+          "summary": "分清各种渲染模式的原理与适用场景。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## 渲染模式对比\n- CSR:浏览器拉 JS 后渲染;实现简单,首屏慢、SEO 弱\n- SSR:服务端每次请求渲染 HTML;首屏快、SEO 好,服务端有压力\n- SSG:构建期生成静态 HTML;速度最快,适合内容不常变的页面\n- ISR:静态生成 + 后台按需增量重新生成,兼顾速度与新鲜度\n\n## 如何选择\n- 后台管理系统:CSR 足够\n- 内容/营销/电商详情页:SSG + ISR\n- 强个性化/实时数据页:SSR 或 CSR + 流式渲染\n- RSC(React Server Components):服务端组件直接取数,减少客户端 JS\n\n## 代价与注意\n- SSR 需要 Node 服务,运维成本上升\n- 服务端渲染要处理\"注水\"、跨端一致、缓存策略\n- SEO 需求不强时,别为了\"高级\"上 SSR",
+          "codeExample": "// Next.js App Router 页面示例\n// app/posts/[id]/page.jsx — 默认服务端组件(SSR/SSG)\nexport default async function PostPage({ params }) {\n  const post = await fetch(`https://api.example.com/posts/${params.id}`, {\n    next: { revalidate: 60 },   // ISR:60 秒后重新生成\n  }).then((r) => r.json());\n\n  return <article><h1>{post.title}</h1><p>{post.content}</p></article>;\n}\n\n// \"use client\" 声明客户端组件(交互部分才下放到浏览器)",
+          "codeType": "jsx"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Next.js / Nuxt 元框架实战",
+          "summary": "认识元框架的核心能力与项目组织方式。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## Next.js 核心能力\n- 基于 React:App Router、服务端组件、流式渲染\n- 文件系统路由:app/ 目录即路由;layout/page/loading/error 约定\n- 数据获取:服务端组件直接 await;Server Actions 处理表单\n- 内置图片/字体优化、中间件(鉴权/重定向/AB)\n\n## Nuxt 核心能力(Vue 阵营)\n- 文件路由 pages/、自动导入、useFetch 组合式取数\n- 渲染模式可配:ssr/sr/静态;nitro 服务端引擎\n- SEO 友好:useHead 管理元信息\n\n## 何时用元框架\n- 官网、博客、电商等 SEO/首屏敏感项目\n- 团队愿意接受服务端运维(或用 Vercel/Netlify 托管)\n- 纯后台系统用 Vite SPA 更简单直接",
+          "codeExample": "// Nuxt 3 页面示例\n// pages/posts/[id].vue\n<script setup>\nconst route = useRoute();\nconst { data: post } = await useFetch(`/api/posts/${route.params.id}`);\n\nuseHead({ title: post.value?.title });\n</script>\n\n<template>\n  <article>\n    <h1>{{ post.title }}</h1>\n    <p>{{ post.content }}</p>\n  </article>\n</template>",
+          "codeType": "vue"
+        }
+      ],
+      "subject": "web"
+    },
+    {
+      "stageNo": 8,
+      "stageName": "部署上线与前沿热点",
+      "chapterNo": 37,
+      "title": "前沿热点与趋势",
+      "description": "了解 AI 辅助开发、微前端、WebAssembly 与边缘计算等趋势。",
+      "codePath": "",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "AI 辅助开发与智能编程",
+          "summary": "认识 AI 编程助手的工作方式与最佳实践。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## AI 辅助开发现状\n- 代码补全/生成:GitHub Copilot、Cursor、通义灵码等\n- 对话式开发:描述需求生成代码、解释报错、写测试、重构\n- Agent 化:能读工程、改多文件、跑测试闭环\n\n## 高效使用姿势\n- 提示词给足上下文:技术栈、约束、输入输出示例\n- 小步提交:生成后立刻 review + 测试,不整包盲信\n- 善用\"解释这段代码/找潜在 bug/补测试\"等专项指令\n\n## 风险与边界\n- 生成代码可能过时(库版本)、有安全漏洞,必须审查\n- 敏感代码/数据注意隐私策略;核心逻辑要自己能讲清楚\n- AI 提效的瓶颈往往是需求清晰度与验证能力,基本功仍是护城河",
+          "codeExample": "// 与 AI 协作的典型流程\n// 1. 用注释描述意图,让 AI 生成实现\n// 2. 本地运行 + 单测验证\n// 3. 让 AI 解释/优化/补测试\n\n/**\n * 需求:实现防抖函数\n * - 等待 wait 毫秒无新调用后执行最后一次\n * - 支持取消与立即执行\n */\nfunction debounce(fn, wait = 300, immediate = false) {\n  let timer = null;\n  const debounced = (...args) => {\n    if (timer) clearTimeout(timer);\n    if (immediate && !timer) fn(...args);\n    timer = setTimeout(() => {\n      timer = null;\n      if (!immediate) fn(...args);\n    }, wait);\n  };\n  debounced.cancel = () => { clearTimeout(timer); timer = null; };\n  return debounced;\n}",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "微前端与 WebAssembly",
+          "summary": "了解微前端架构适用场景与 WebAssembly 能力。",
+          "difficulty": 2,
+          "durationMinutes": 24,
+          "content": "## 微前端\n- 把大型前端应用拆成多个独立开发部署的子应用,运行时集成\n- 价值:团队自治、技术栈共存、按模块独立发布\n- 方案:qiankun(乾坤)、Module Federation、iframe 方案\n- 代价:通信复杂、样式隔离、调试链路长\n- 适用:多团队共建的大型平台;小项目是过度设计\n\n## WebAssembly(Wasm)\n- 二进制格式,接近原生性能;C/C++/Rust/Go 可编译到浏览器\n- 场景:音视频编辑、游戏引擎、CAD、加密计算、OCR\n- 与 JS 协作:JS 负责 DOM 与胶水,Wasm 负责重计算\n- WASI 让 Wasm 走出浏览器做服务端运行时\n\n## 前端能力边界\n- 浏览器越来越\"操作系统化\":文件系统、蓝牙、GPU(WebGPU)、多线程\n- 客户端重计算成为可能,体验对标原生应用",
+          "codeExample": "// WebAssembly 加载与调用示例\nconst importObject = {\n  env: { memory: new WebAssembly.Memory({ initial: 256 }) },\n};\n\nasync function run() {\n  const { instance } = await WebAssembly.instantiateStreaming(\n    fetch(\"/module.wasm\"), importObject\n  );\n  // 调用 Rust/C 编译出的导出函数\n  const result = instance.exports.add(2, 3);\n  console.log(result);   // 5\n}\nrun();",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "边缘计算与前端新趋势",
+          "summary": "了解边缘渲染、跨端与低代码等方向。",
+          "difficulty": 2,
+          "durationMinutes": 22,
+          "content": "## 边缘计算与边缘渲染\n- 代码跑在离用户最近的节点(Edge Function),延迟大幅下降\n- Next.js on Vercel Edge、Cloudflare Workers/Pages\n- 场景:鉴权、AB 实验、地理重定向、个性化 SSR\n\n## 跨端与多端复用\n- 一套代码多端运行:Taro/uni-app(小程序+H5)、React Native、Flutter\n- Web 技术延伸:Electron/Tauri(桌面)、PWA(离线可安装)\n- 大前端:前端工程师的战场从浏览器扩展到全端\n\n## 低代码与智能化\n- 低代码平台:拖拽生成页面,适合中后台/表单类场景\n- 设计即开发:Figma to Code、Design Token 体系\n- AI + 低代码:自然语言生成应用原型\n\n## 保持前沿的方法\n- 跟随官方文档与 RFC;动手跑 demo 比读文章有效\n- 警惕炒作:新技术先看解决什么问题、社区与维护状态\n- 打牢基础(浏览器原理、网络、算法)才是穿越周期的底气",
+          "codeExample": "// 边缘函数示例(Cloudflare Workers 风格)\nexport default {\n  async fetch(request, env) {\n    const country = request.headers.get(\"cf-ipcountry\") || \"US\";\n    const url = new URL(request.url);\n\n    // 就近个性化:按地区路由到不同服务区域\n    if (country === \"CN\") {\n      url.hostname = \"cn.example.com\";\n      return fetch(url);\n    }\n    // 边缘鉴权:静态资源也先验 Cookie\n    const token = getCookie(request, \"token\");\n    if (!token) return Response.redirect(\"/login\", 302);\n    return fetch(request);\n  },\n};",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "web"
     }
   ]
 }

@@ -14,18 +14,21 @@ import java.time.LocalDateTime;
 /**
  * 用户反馈实体
  * <p>
- * 两类反馈:
- * - RATING: 系统评分(1~5 星 + 评价内容)
- * - BUG:    问题反馈(标题 + 复现描述,可留联系方式)
+ * 三类反馈:
+ * - RATING:    系统评分(1~5 星 + 评价内容)
+ * - BUG:       问题反馈(标题 + 复现描述,可留联系方式)
+ * - SUGGESTION: 功能建议(标题 + 建议内容)
+ * 每条反馈可携带 source(来源页面),便于管理员定位反馈出处。
  * 状态流转: OPEN(待处理) -> PROCESSING(处理中) -> DONE(已处理)
  */
 @Entity
 @Table(name = "t_feedback")
 public class Feedback {
 
-    /** 反馈类型: RATING=评分, BUG=问题反馈 */
+    /** 反馈类型: RATING=评分, BUG=问题反馈, SUGGESTION=功能建议 */
     public static final String TYPE_RATING = "RATING";
     public static final String TYPE_BUG = "BUG";
+    public static final String TYPE_SUGGESTION = "SUGGESTION";
 
     public static final String STATUS_OPEN = "OPEN";
     public static final String STATUS_PROCESSING = "PROCESSING";
@@ -56,6 +59,10 @@ public class Feedback {
     /** 联系方式(可选,便于回复 bug) */
     @Column(length = 100)
     private String contact;
+
+    /** 来源页面(自动携带: 页面名称 | 上下文 | 路由路径),便于管理员定位反馈出处 */
+    @Column(name = "source", length = 300)
+    private String source;
 
     @Column(length = 10, nullable = false)
     private String status = STATUS_OPEN;
@@ -107,6 +114,9 @@ public class Feedback {
 
     public String getContact() { return contact; }
     public void setContact(String contact) { this.contact = contact; }
+
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

@@ -5,11 +5,13 @@
 // - 语言维度完全跟随头部"学习语言"选择框,页内不再提供语言选择(节省显示空间)
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getBoard } from '../api/learning'
 import { useSubjectStore } from '../store/subject'
 
 const router = useRouter()
 const subjectStore = useSubjectStore()
+const { t } = useI18n()
 
 const loading = ref(false)
 const board = ref(null)
@@ -22,8 +24,8 @@ const subjectStats = computed(() => board.value?.subjects || [])
 const preferenceStats = computed(() =>
   (board.value?.preferenceStats || []).filter(p => p.userCount > 0))
 const subjectName = computed(() => {
-  if (subjectId.value == null) return '全部科目'
-  return subjectStats.value.find(s => s.subjectId === subjectId.value)?.subjectName || '全部科目'
+  if (subjectId.value == null) return t('learningBoard.subject.all')
+  return subjectStats.value.find(s => s.subjectId === subjectId.value)?.subjectName || t('learningBoard.subject.all')
 })
 
 // 搜索过滤(仅管理员视图使用)
@@ -56,8 +58,8 @@ const barColor = (p) => (p >= 80 ? '#16a34a' : p >= 40 ? '#2563eb' : '#f59e0b')
 const rankClass = (i) => (i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '')
 const displayRole = (roles) => {
   const r = (roles || '').split(',').filter(Boolean)
-  if (r.includes('ADMIN')) return '管理员'
-  return '普通用户'
+  if (r.includes('ADMIN')) return t('learningBoard.role.admin')
+  return t('learningBoard.role.user')
 }
 
 onMounted(async () => {
@@ -75,12 +77,12 @@ onMounted(async () => {
     <template v-if="isAdmin">
       <div class="hero admin">
         <div>
-          <h1>学习看板 <small>管理员视角 · 全员进度 · {{ subjectName }}</small></h1>
-          <p>查看每位学员的完成度与最近学习时间,可按语言维度对比,帮助落后的学员。</p>
+          <h1>{{ $t('learningBoard.hero.title') }} <small>{{ $t('learningBoard.hero.adminSub', { subject: subjectName }) }}</small></h1>
+          <p>{{ $t('learningBoard.hero.adminDesc') }}</p>
         </div>
         <el-input
           v-model="keyword"
-          placeholder="搜索用户名 / 邮箱"
+          :placeholder="$t('learningBoard.search.placeholder')"
           clearable
           class="search"
         >
@@ -90,21 +92,21 @@ onMounted(async () => {
 
       <div class="stats">
         <div class="stat">
-          <div class="label">学员总数</div>
-          <div class="num">{{ board?.totalUsers || 0 }}<small>人</small></div>
+          <div class="label">{{ $t('learningBoard.kpi.totalUsers') }}</div>
+          <div class="num">{{ board?.totalUsers || 0 }}<small>{{ $t('learningBoard.kpi.unitPeople') }}</small></div>
         </div>
         <div class="stat">
-          <div class="label">已开始学习</div>
-          <div class="num">{{ board?.activeUsers || 0 }}<small>人</small></div>
+          <div class="label">{{ $t('learningBoard.kpi.activeUsers') }}</div>
+          <div class="num">{{ board?.activeUsers || 0 }}<small>{{ $t('learningBoard.kpi.unitPeople') }}</small></div>
         </div>
         <div class="stat">
-          <div class="label">平均完成度</div>
+          <div class="label">{{ $t('learningBoard.kpi.avgPercent') }}</div>
           <div class="num">{{ board?.avgPercent || 0 }}<small>%</small></div>
           <div class="bar"><i :style="{ width: (board?.avgPercent || 0) + '%', background: barColor(board?.avgPercent || 0) }"></i></div>
         </div>
         <div class="stat">
-          <div class="label">课程总课时</div>
-          <div class="num">{{ board?.totalLessons || 0 }}<small>节</small></div>
+          <div class="label">{{ $t('learningBoard.kpi.totalLessons') }}</div>
+          <div class="num">{{ board?.totalLessons || 0 }}<small>{{ $t('learningBoard.kpi.unitLesson') }}</small></div>
         </div>
       </div>
 
@@ -119,13 +121,13 @@ onMounted(async () => {
           <div class="sub-name">{{ s.subjectName }}</div>
           <div class="sub-pct">{{ s.avgPercent }}<small>%</small></div>
           <div class="bar"><i :style="{ width: s.avgPercent + '%', background: barColor(s.avgPercent) }"></i></div>
-          <div class="sub-meta">全员平均完成度 · {{ s.totalLessons }} 课时</div>
+          <div class="sub-meta">{{ $t('learningBoard.subject.meta', { n: s.totalLessons }) }}</div>
         </div>
       </div>
 
       <!-- 学习偏好分布:学员们正在学习的语言 -->
       <div class="pref-bar" v-if="preferenceStats.length">
-        <span class="pref-title">学习偏好分布</span>
+        <span class="pref-title">{{ $t('learningBoard.pref.title') }}</span>
         <el-tag
           v-for="p in preferenceStats"
           :key="p.subjectId"
@@ -134,26 +136,26 @@ onMounted(async () => {
           round
           class="pref-tag"
         >
-          {{ p.subjectName }} · {{ p.userCount }} 人
+          {{ $t('learningBoard.pref.item', { subject: p.subjectName, n: p.userCount }) }}
         </el-tag>
-        <span class="pref-hint">来自头像旁"学习语言"选择框的用户偏好</span>
+        <span class="pref-hint">{{ $t('learningBoard.pref.hint') }}</span>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <h3>学员进度明细 <small class="hint-inline">{{ subjectName }}</small></h3>
-          <span class="hint">共 {{ rows.length }} 条 · 最高完成度 {{ board?.maxPercent || 0 }}%</span>
+          <h3>{{ $t('learningBoard.table.title') }} <small class="hint-inline">{{ subjectName }}</small></h3>
+          <span class="hint">{{ $t('learningBoard.table.hint', { n: rows.length, p: board?.maxPercent || 0 }) }}</span>
         </div>
         <table class="board-table">
           <thead>
             <tr>
-              <th style="width:56px">排名</th>
-              <th>学员</th>
-              <th style="width:110px">角色</th>
-              <th style="width:110px">学习偏好</th>
-              <th style="width:230px">学习进度</th>
-              <th style="width:110px">已学课时</th>
-              <th style="width:150px">最近学习</th>
+              <th style="width:56px">{{ $t('learningBoard.table.rank') }}</th>
+              <th>{{ $t('learningBoard.table.student') }}</th>
+              <th style="width:110px">{{ $t('learningBoard.table.role') }}</th>
+              <th style="width:110px">{{ $t('learningBoard.table.preference') }}</th>
+              <th style="width:230px">{{ $t('learningBoard.table.progress') }}</th>
+              <th style="width:110px">{{ $t('learningBoard.table.learned') }}</th>
+              <th style="width:150px">{{ $t('learningBoard.table.lastLearned') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -167,7 +169,7 @@ onMounted(async () => {
                     {{ (r.username || '?').charAt(0).toUpperCase() }}
                   </span>
                   <div class="who-info">
-                    <b>{{ r.username }}<em v-if="r.self">我</em></b>
+                    <b>{{ r.username }}<em v-if="r.self">{{ $t('learningBoard.table.me') }}</em></b>
                     <small>{{ r.email || '—' }}</small>
                   </div>
                 </div>
@@ -179,7 +181,7 @@ onMounted(async () => {
               </td>
               <td class="muted">
                 <el-tag v-if="r.preferredSubject" size="small" effect="plain" round>{{ r.preferredSubject }}</el-tag>
-                <template v-else>未设置</template>
+                <template v-else>{{ $t('learningBoard.table.notSet') }}</template>
               </td>
               <td>
                 <div class="progress-cell">
@@ -188,10 +190,10 @@ onMounted(async () => {
                 </div>
               </td>
               <td class="mono">{{ r.learnedLessons }} / {{ r.totalLessons }}</td>
-              <td class="muted">{{ r.lastLearnedAt || '尚未开始' }}</td>
+              <td class="muted">{{ r.lastLearnedAt || $t('learningBoard.notStarted') }}</td>
             </tr>
             <tr v-if="!rows.length">
-              <td colspan="7" class="empty">没有匹配的学员</td>
+              <td colspan="7" class="empty">{{ $t('learningBoard.table.noMatch') }}</td>
             </tr>
           </tbody>
         </table>
@@ -202,10 +204,10 @@ onMounted(async () => {
     <template v-else>
       <div class="hero">
         <div>
-          <h1>我的学习进度 <small>{{ subjectName }}</small></h1>
-          <p>这里展示你在「{{ subjectName }}」上的学习进度,专注当下这一课。</p>
+          <h1>{{ $t('learningBoard.self.title') }} <small>{{ subjectName }}</small></h1>
+          <p>{{ $t('learningBoard.self.desc', { subject: subjectName }) }}</p>
         </div>
-        <el-button type="primary" @click="router.push('/learning')">去学习 <el-icon><ArrowRight /></el-icon></el-button>
+        <el-button type="primary" @click="router.push('/learning')">{{ $t('learningBoard.self.goLearn') }} <el-icon><ArrowRight /></el-icon></el-button>
       </div>
 
       <div class="self-cards">
@@ -213,26 +215,26 @@ onMounted(async () => {
           <div class="ring" :style="{ '--p': (myRow?.percent || 0) + '%', '--c': barColor(myRow?.percent || 0) }">
             <div class="ring-inner">
               <b>{{ myRow?.percent || 0 }}<small>%</small></b>
-              <span>完成度</span>
+              <span>{{ $t('learningBoard.self.percent') }}</span>
             </div>
           </div>
           <div class="self-meta">
-            <div class="row"><span>当前语言</span><b>{{ subjectName }}</b></div>
-            <div class="row"><span>已学课时</span><b>{{ myRow?.learnedLessons || 0 }} / {{ myRow?.totalLessons || 0 }}</b></div>
-            <div class="row"><span>最近学习</span><b>{{ myRow?.lastLearnedAt || '尚未开始' }}</b></div>
+            <div class="row"><span>{{ $t('learningBoard.self.currentLang') }}</span><b>{{ subjectName }}</b></div>
+            <div class="row"><span>{{ $t('learningBoard.self.learned') }}</span><b>{{ myRow?.learnedLessons || 0 }} / {{ myRow?.totalLessons || 0 }}</b></div>
+            <div class="row"><span>{{ $t('learningBoard.self.lastLearned') }}</span><b>{{ myRow?.lastLearnedAt || $t('learningBoard.notStarted') }}</b></div>
             <el-button type="primary" plain style="margin-top:14px" @click="router.push('/learning')">
-              继续学习
+              {{ $t('learningBoard.self.continue') }}
             </el-button>
           </div>
         </div>
 
         <div class="tip-card">
-          <h4>学习建议</h4>
+          <h4>{{ $t('learningBoard.tips.title') }}</h4>
           <ul>
-            <li v-if="!myRow?.learnedLessons">从「学习中心」的第一课开始,每完成一课记得点「标记为已学」。</li>
-            <li v-else-if="(myRow?.percent || 0) < 30">保持节奏:每天 1-2 课,配合页面里的代码沙箱动手练。</li>
-            <li v-else-if="(myRow?.percent || 0) < 70">已过三分之一,建议把并发与数据库章节的练习都跑一遍。</li>
-            <li v-else>进度很棒!试着挑战综合实战章节,自己动手完成完整项目。</li>
+            <li v-if="!myRow?.learnedLessons">{{ $t('learningBoard.tips.start') }}</li>
+            <li v-else-if="(myRow?.percent || 0) < 30">{{ $t('learningBoard.tips.pace') }}</li>
+            <li v-else-if="(myRow?.percent || 0) < 70">{{ $t('learningBoard.tips.practice') }}</li>
+            <li v-else>{{ $t('learningBoard.tips.challenge') }}</li>
           </ul>
         </div>
       </div>
@@ -241,7 +243,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.page { padding: 24px 26px 40px; max-width: 1240px; margin: 0 auto; }
+.page { padding: 24px 32px 40px; }
 
 /* 各科目平均完成度卡片(纯展示,当前语言高亮) */
 .subject-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -349,4 +351,23 @@ onMounted(async () => {
 .tip-card { background: linear-gradient(135deg, #f0f6ff, #faf5ff); border: 1px solid #e8edf9; border-radius: var(--r-l); padding: 22px 24px; }
 .tip-card h4 { margin: 0 0 12px; font-size: var(--fs-md); }
 .tip-card ul { margin: 0; padding-left: 18px; color: #4b5563; font-size: var(--fs-base); line-height: 2; }
+
+/* ============ 移动端(<=768px) ============ */
+@media (max-width: 768px) {
+  .hero { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px; }
+  .search { width: 100%; }
+  .subject-stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .self-cards { grid-template-columns: 1fr; }
+  .self-main { flex-direction: column; text-align: center; padding: 18px; gap: 16px; }
+  .self-meta .row { font-size: var(--fs-sm); }
+  /* 排行榜表格横向滚动 */
+  .card { overflow-x: auto; }
+  .board-table { min-width: 620px; }
+}
+@media (max-width: 400px) {
+  .subject-stats { grid-template-columns: 1fr 1fr; }
+  .ring { width: 124px; height: 124px; }
+  .ring-inner { width: 96px; height: 96px; }
+}
 </style>

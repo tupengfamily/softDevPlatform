@@ -4,6 +4,7 @@ import com.learning.springboot.config.JwtProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.io.File;
 
@@ -19,6 +20,7 @@ import java.io.File;
  */
 @SpringBootApplication
 @EnableConfigurationProperties(JwtProperties.class)
+@EnableScheduling   // 启用定时任务(操作日志超期清理等)
 public class SpringBootLearningApplication {
 
     public static void main(String[] args) {

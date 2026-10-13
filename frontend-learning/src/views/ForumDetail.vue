@@ -3,16 +3,22 @@
 // 作者/管理员可编辑、删除帖子与回复
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPost, updatePost, deletePost, pageReplies, createReply, deleteReply, toggleLike, toggleFavorite, sharePost } from '../api/forum'
 import { getSubjects } from '../api/learning'
 import { renderContent } from '../utils/markdown'
 import { useUserStore } from '../store/user'
+import { useDictStore } from '../store/dict'
 import ContentEditor from '../components/ContentEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const userStore = useUserStore()
+const dictStore = useDictStore()
+// 版块文案来自数据字典 forum_board
+const boardLabel = computed(() => dictStore.label('forum_board', 0, '综合讨论'))
 const isAdmin = computed(() => userStore.roles.includes('ADMIN'))
 
 const loading = ref(false)
@@ -58,11 +64,11 @@ const openEdit = () => {
   editDialog.value = true
 }
 const saveEdit = async () => {
-  if (!editForm.title.trim() || !editForm.content.trim()) { ElMessage.warning('标题与内容不能为空'); return }
+  if (!editForm.title.trim() || !editForm.content.trim()) { ElMessage.warning(t('forumDetail.emptyTitleContent')); return }
   editSaving.value = true
   try {
     await updatePost(post.value.id, { ...editForm, subjectId: editForm.subjectId || null })
-    ElMessage.success('已更新')
+    ElMessage.success(t('forumDetail.updated'))
     editDialog.value = false
     await loadPost()
   } catch (e) { /* 已统一弹错 */ } finally {
@@ -71,23 +77,42 @@ const saveEdit = async () => {
 }
 const removePost = async () => {
   try {
-    await ElMessageBox.confirm('删除帖子将同时删除全部回复,确定?', '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('forumDetail.deletePostConfirm'), t('forumDetail.deleteConfirmTitle'), { type: 'warning' })
     await deletePost(post.value.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('forumDetail.deleted'))
     router.push('/forum')
   } catch (e) { /* 取消或已统一弹错 */ }
 }
 
-// ---------- 回复 ----------
-const replyForm = reactive({ content: '', contentType: 'markdown' })
+// ---------- 回复(支持楼中楼: 回复某条回复) ----------
+const replyForm = reactive({ content: '', contentType: 'markdown', parentReplyId: null, replyToUsername: '' })
 const replySaving = ref(false)
+const editorRef = ref(null)
+
+// 点击某条回复的「回复」: 带上父回复 ID,编辑区显示"回复 @xxx"
+const replyTo = (r) => {
+  if (!requireLogin()) return
+  replyForm.parentReplyId = r.id
+  replyForm.replyToUsername = r.username || t('forumDetail.anonymous')
+  const el = editorRef.value
+  if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+const cancelReplyTo = () => {
+  replyForm.parentReplyId = null
+  replyForm.replyToUsername = ''
+}
 const submitReply = async () => {
-  if (!replyForm.content.trim()) { ElMessage.warning('请输入回复内容'); return }
+  if (!replyForm.content.trim()) { ElMessage.warning(t('forumDetail.needReply')); return }
   replySaving.value = true
   try {
-    await createReply(post.value.id, { ...replyForm })
-    ElMessage.success('回复成功')
+    await createReply(post.value.id, {
+      content: replyForm.content,
+      contentType: replyForm.contentType,
+      parentReplyId: replyForm.parentReplyId
+    })
+    ElMessage.success(replyForm.parentReplyId ? t('forumDetail.repliedTo', { name: replyForm.replyToUsername }) : t('forumDetail.replySuccess'))
     replyForm.content = ''
+    cancelReplyTo()
     replyPage.value = 1
     await Promise.all([loadReplies(), loadPost()])
   } catch (e) { /* 已统一弹错 */ } finally {
@@ -96,9 +121,12 @@ const submitReply = async () => {
 }
 const removeReply = async (r) => {
   try {
-    await ElMessageBox.confirm('确定删除该回复?', '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      r.parentReplyId ? t('forumDetail.deleteReplyConfirm') : t('forumDetail.deleteReplyNestedConfirm'),
+      t('forumDetail.deleteConfirmTitle'), { type: 'warning' }
+    )
     await deleteReply(r.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('forumDetail.deleted'))
     await Promise.all([loadReplies(), loadPost()])
   } catch (e) { /* 取消或已统一弹错 */ }
 }
@@ -106,8 +134,8 @@ const removeReply = async (r) => {
 // ---------- 点赞 / 收藏 / 转发 ----------
 const requireLogin = () => {
   if (userStore.isLogin) return true
-  ElMessageBox.confirm('登录后才能点赞/收藏,去登录?', '提示', {
-    type: 'info', confirmButtonText: '去登录', cancelButtonText: '取消'
+  ElMessageBox.confirm(t('forumDetail.loginRequired'), t('forumDetail.tip'), {
+    type: 'info', confirmButtonText: t('forumDetail.goLogin'), cancelButtonText: t('common.cancel')
   }).then(() => router.push({ path: '/login', query: { redirect: `/forum/${route.params.id}` } })).catch(() => {})
   return false
 }
@@ -144,7 +172,7 @@ const doShare = async () => {
   try {
     const res = await sharePost(post.value.id)
     post.value.shareCount = res.data.shareCount
-    ElMessage.success('链接已复制,快去分享吧')
+    ElMessage.success(t('forumDetail.linkCopied'))
   } catch (e) { /* 已统一弹错 */ }
 }
 
@@ -160,7 +188,7 @@ onMounted(async () => {
 <template>
   <div class="page" v-loading="loading">
     <div class="back">
-      <el-button link @click="router.push('/forum')"><el-icon><ArrowLeft /></el-icon> 返回论坛</el-button>
+      <el-button link @click="router.push('/forum')"><el-icon><ArrowLeft /></el-icon> {{ $t('forumDetail.backToForum') }}</el-button>
     </div>
 
     <template v-if="post">
@@ -168,48 +196,50 @@ onMounted(async () => {
       <div class="post-card">
         <div class="post-head">
           <h1>
-            <el-tag v-if="post.pinned" size="small" type="danger" effect="dark">置顶</el-tag>
+            <el-tag v-if="post.pinned" size="small" type="danger" effect="dark">{{ $t('forumDetail.pinned') }}</el-tag>
             <el-tag size="small" effect="plain" :type="post.subjectId ? 'primary' : 'info'">{{ post.subjectName }}</el-tag>
             {{ post.title }}
           </h1>
           <div class="post-meta">
-            <span>{{ post.username || '匿名' }}</span>
+            <span>{{ post.username || $t('forumDetail.anonymous') }}</span>
             <span>· {{ fmtTime(post.createdAt) }}</span>
-            <span>· {{ post.viewCount }} 浏览</span>
-            <span>· {{ post.replyCount }} 回复</span>
+            <span>· {{ $t('forumDetail.views', { n: post.viewCount }) }}</span>
+            <span>· {{ $t('forumDetail.replies', { n: post.replyCount }) }}</span>
             <span class="ops" v-if="post.editable">
-              <el-button link type="primary" size="small" @click="openEdit">编辑</el-button>
-              <el-button link type="danger" size="small" @click="removePost">删除</el-button>
+              <el-button link type="primary" size="small" @click="openEdit">{{ $t('common.edit') }}</el-button>
+              <el-button link type="danger" size="small" @click="removePost">{{ $t('common.delete') }}</el-button>
             </span>
           </div>
         </div>
         <div class="post-body rich-body" v-html="render(post.content, post.contentType)"></div>
         <div class="post-actions">
-          <button class="act" :class="{ on: post.liked }" :aria-label="post.liked ? '取消点赞' : '点赞'" @click="doLike">
-            <el-icon><Pointer /></el-icon> 点赞 <b>{{ post.likeCount }}</b>
+          <button class="act" :class="{ on: post.liked }" :aria-label="post.liked ? $t('forumDetail.unlike') : $t('forumDetail.like')" @click="doLike">
+            <el-icon><Pointer /></el-icon> {{ $t('forumDetail.like') }} <b>{{ post.likeCount }}</b>
           </button>
-          <button class="act" :class="{ on: post.favorited }" :aria-label="post.favorited ? '取消收藏' : '收藏'" @click="doFavorite">
-            <el-icon><component :is="post.favorited ? 'StarFilled' : 'Star'" /></el-icon> 收藏 <b>{{ post.favoriteCount }}</b>
+          <button class="act" :class="{ on: post.favorited }" :aria-label="post.favorited ? $t('forumDetail.unfavorite') : $t('forumDetail.favorite')" @click="doFavorite">
+            <el-icon><component :is="post.favorited ? 'StarFilled' : 'Star'" /></el-icon> {{ $t('forumDetail.favorite') }} <b>{{ post.favoriteCount }}</b>
           </button>
-          <button class="act" aria-label="转发" @click="doShare">
-            <el-icon><Share /></el-icon> 转发 <b>{{ post.shareCount }}</b>
+          <button class="act" :aria-label="$t('forumDetail.share')" @click="doShare">
+            <el-icon><Share /></el-icon> {{ $t('forumDetail.share') }} <b>{{ post.shareCount }}</b>
           </button>
         </div>
       </div>
 
       <!-- 回复列表 -->
       <div class="reply-card">
-        <div class="reply-head">全部回复 <small>({{ replyTotal }})</small></div>
-        <div v-for="(r, i) in replies" :key="r.id" class="reply-item">
+        <div class="reply-head">{{ $t('forumDetail.allReplies') }} <small>({{ replyTotal }})</small></div>
+        <div v-for="(r, i) in replies" :key="r.id" class="reply-item" :class="{ nested: r.parentReplyId }">
           <div class="reply-meta">
             <span class="avatar">{{ (r.username || '?').charAt(0).toUpperCase() }}</span>
-            <b>{{ r.username || '匿名' }}</b>
+            <b>{{ r.username || $t('forumDetail.anonymous') }}</b>
+            <span v-if="r.replyToUsername" class="reply-to">{{ $t('forumDetail.replyWord') }} <b>@{{ r.replyToUsername }}</b></span>
             <span class="time">#{{ i + 1 }} · {{ fmtTime(r.createdAt) }}</span>
-            <el-button v-if="r.editable" link type="danger" size="small" class="del" @click="removeReply(r)">删除</el-button>
+            <el-button link type="primary" size="small" class="r-reply" @click="replyTo(r)">{{ $t('forumDetail.reply') }}</el-button>
+            <el-button v-if="r.editable" link type="danger" size="small" class="del" @click="removeReply(r)">{{ $t('common.delete') }}</el-button>
           </div>
           <div class="reply-body rich-body" v-html="render(r.content, r.contentType)"></div>
         </div>
-        <el-empty v-if="!replies.length" description="还没有回复,来抢沙发" :image-size="60" />
+        <el-empty v-if="!replies.length" :description="$t('forumDetail.noReplies')" :image-size="60" />
 
         <div class="pager" v-if="replyTotal > replySize">
           <el-pagination
@@ -220,36 +250,43 @@ onMounted(async () => {
       </div>
 
       <!-- 回复框 -->
-      <div class="reply-editor">
-        <h3>写回复</h3>
-        <ContentEditor v-model="replyForm.content" v-model:content-type="replyForm.contentType" :height="160" placeholder="写下你的想法…" />
+      <div class="reply-editor" ref="editorRef">
+        <h3>{{ replyForm.parentReplyId ? $t('forumDetail.replyTo', { name: replyForm.replyToUsername }) : $t('forumDetail.writeReply') }}</h3>
+        <div v-if="replyForm.parentReplyId" class="reply-to-chip">
+          {{ $t('forumDetail.replyingTo') }} <b>@{{ replyForm.replyToUsername }}</b>
+          <el-button link size="small" @click="cancelReplyTo">{{ $t('common.cancel') }}</el-button>
+        </div>
+        <ContentEditor v-model="replyForm.content" v-model:content-type="replyForm.contentType" :height="160" :placeholder="$t('forumDetail.replyPlaceholder')" />
         <div class="reply-actions">
-          <el-button type="primary" :loading="replySaving" @click="submitReply">发表回复</el-button>
+          <el-button @click="cancelReplyTo" v-if="replyForm.parentReplyId">{{ $t('forumDetail.cancelReply') }}</el-button>
+          <el-button type="primary" :loading="replySaving" @click="submitReply">
+            {{ replyForm.parentReplyId ? $t('forumDetail.replyTo', { name: replyForm.replyToUsername }) : $t('forumDetail.submitReply') }}
+          </el-button>
         </div>
       </div>
     </template>
 
     <!-- 编辑帖子 -->
-    <el-dialog v-model="editDialog" title="编辑帖子" width="760px" destroy-on-close>
+    <el-dialog v-model="editDialog" :title="$t('forumDetail.editTitle')" width="760px" destroy-on-close>
       <el-form label-position="top">
-        <el-form-item label="标题" required>
+        <el-form-item :label="$t('forumDetail.titleLabel')" required>
           <el-input v-model="editForm.title" maxlength="200" />
         </el-form-item>
-        <el-form-item label="版块">
-          <el-select v-model="editForm.subjectId" placeholder="综合讨论" clearable style="width:200px">
-            <el-option label="综合讨论" value="" />
+        <el-form-item :label="$t('forumDetail.board')">
+          <el-select v-model="editForm.subjectId" :placeholder="boardLabel" clearable style="width:200px">
+            <el-option :label="boardLabel" value="" />
             <el-option v-for="s in subjects" :key="s.id" :label="s.name" :value="s.id" />
           </el-select>
-          <el-checkbox v-if="isAdmin" v-model="editForm.pinned" style="margin-left:16px">置顶</el-checkbox>
+          <el-checkbox v-if="isAdmin" v-model="editForm.pinned" style="margin-left:16px">{{ $t('forumDetail.pinned') }}</el-checkbox>
         </el-form-item>
-        <el-form-item label="内容">
+        <el-form-item :label="$t('forumDetail.contentLabel')">
           <ContentEditor v-model="editForm.content" v-model:content-type="editForm.contentType" :height="240" />
         </el-form-item>
       </el-form>
       <template #footer>
         <div class="dialog-actions">
-          <el-button @click="editDialog = false">取消</el-button>
-          <el-button type="primary" :loading="editSaving" @click="saveEdit">保存</el-button>
+          <el-button @click="editDialog = false">{{ $t('common.cancel') }}</el-button>
+          <el-button type="primary" :loading="editSaving" @click="saveEdit">{{ $t('common.save') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -257,7 +294,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.page { padding: 20px 26px 40px; max-width: 900px; margin: 0 auto; }
+.page { padding: 24px 32px 40px; }
 .back { margin-bottom: 12px; }
 .post-card { background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l); padding: 24px 28px; }
 .post-head h1 { margin: 0 0 10px; font-size: var(--fs-xl); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -298,12 +335,21 @@ onMounted(async () => {
   display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-xs); font-weight: 600;
 }
 .reply-meta .time { color: #64748b; font-size: var(--fs-xs); }
+.reply-meta .reply-to { color: var(--c-text-3); font-size: var(--fs-xs); }
+.reply-meta .reply-to b { color: var(--c-primary); font-weight: 500; }
 .reply-meta .del { margin-left: auto; }
+/* 楼中楼: 视觉上轻微缩进,标识层级 */
+.reply-item.nested { padding-left: 22px; border-left: 2px solid var(--c-primary-bg); margin-left: 8px; }
 .reply-body { margin: 8px 0 0 36px; font-size: var(--fs-base); color: var(--c-text-1); line-height: 1.7; }
 .reply-body :deep(p) { margin: 4px 0; }
 
 .reply-editor { background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l); margin-top: 16px; padding: 18px 24px; }
 .reply-editor h3 { margin: 0 0 12px; font-size: var(--fs-md); }
+.reply-to-chip {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 6px 12px;
+  background: var(--c-primary-bg); border-radius: var(--r-s); font-size: var(--fs-sm); color: var(--c-text-2);
+}
+.reply-to-chip b { color: var(--c-primary); }
 .reply-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
 .pager { display: flex; justify-content: center; margin-top: 12px; }
 

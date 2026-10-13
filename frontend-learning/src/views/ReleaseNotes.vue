@@ -4,6 +4,7 @@
 // 发布后老用户会收到新版本公告弹窗
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
 import { createRelease, deleteRelease, getReleases, updateRelease } from '../api/release'
@@ -11,6 +12,7 @@ import { sanitizeHtml } from '../utils/markdown'
 import { useUserStore } from '../store/user'
 
 const userStore = useUserStore()
+const { t } = useI18n()
 const isAdmin = computed(() => userStore.roles.includes('ADMIN'))
 
 const loading = ref(false)
@@ -27,8 +29,8 @@ const loadData = async () => {
 }
 
 // 富文本工具栏(常用项,不含图片上传)
-const editorOptions = {
-  placeholder: '写下本次版本的更新内容...',
+const editorOptions = computed(() => ({
+  placeholder: t('releaseNotes.editorPlaceholder'),
   modules: {
     toolbar: [
       [{ header: [1, 2, 3, false] }],
@@ -39,17 +41,19 @@ const editorOptions = {
       ['clean']
     ]
   }
-}
+}))
 
 // 去掉 HTML 标签后判断内容是否为空
 const stripHtml = (html) => (html || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
 
 // ============== 管理员: 发布 / 编辑 / 删除 ==============
 const dialogVisible = ref(false)
-const dialogTitle = ref('发布新版本')
 const editingId = ref(null)
 const form = ref({ version: '', title: '', content: '', releaseDate: '' })
 const saving = ref(false)
+const dialogTitle = computed(() => (editingId.value
+  ? t('releaseNotes.editTitle', { v: form.value.version })
+  : t('releaseNotes.createTitle')))
 
 // 已到发布日期的公告锁定(不允许编辑/删除);未来的预发公告可调整
 const todayStr = () => new Date().toISOString().slice(0, 10)
@@ -57,14 +61,12 @@ const canManage = (r) => (r.releaseDate || '') > todayStr()
 
 const openCreate = () => {
   editingId.value = null
-  dialogTitle.value = '发布新版本'
   form.value = { version: '', title: '', content: '', releaseDate: new Date().toISOString().slice(0, 10) }
   dialogVisible.value = true
 }
 
 const openEdit = (r) => {
   editingId.value = r.id
-  dialogTitle.value = `编辑 ${r.version} 公告`
   form.value = {
     version: r.version,
     title: r.title,
@@ -76,7 +78,7 @@ const openEdit = (r) => {
 
 const save = async () => {
   if (!form.value.version?.trim() || !form.value.title?.trim() || !stripHtml(form.value.content)) {
-    ElMessage.warning('请填写版本号、标题和更新内容')
+    ElMessage.warning(t('releaseNotes.fillRequired'))
     return
   }
   saving.value = true
@@ -85,7 +87,7 @@ const save = async () => {
     const isEdit = !!editingId.value
     if (isEdit) await updateRelease(editingId.value, payload)
     else await createRelease(payload)
-    ElMessage.success(isEdit ? '已保存' : '已发布')
+    ElMessage.success(isEdit ? t('releaseNotes.saved') : t('releaseNotes.published'))
     dialogVisible.value = false
     loadData()
   } catch (e) { /* 已统一弹错 */ } finally {
@@ -95,11 +97,11 @@ const save = async () => {
 
 const remove = async (r) => {
   try {
-    await ElMessageBox.confirm(`确定删除 ${r.version} 的公告吗?`, '提示', {
-      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning'
+    await ElMessageBox.confirm(t('releaseNotes.removeTip', { v: r.version }), t('releaseNotes.tipTitle'), {
+      confirmButtonText: t('common.delete'), cancelButtonText: t('common.cancel'), type: 'warning'
     })
     await deleteRelease(r.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('releaseNotes.deleted'))
     loadData()
   } catch (e) { /* 取消或已弹错 */ }
 }
@@ -111,11 +113,11 @@ onMounted(loadData)
   <div class="page" v-loading="loading">
     <div class="hero">
       <div>
-        <h1>更新日志</h1>
-        <p>每一次版本发布都有迹可循,了解系统带来了哪些新变化。</p>
+        <h1>{{ $t('releaseNotes.title') }}</h1>
+        <p>{{ $t('releaseNotes.subtitle') }}</p>
       </div>
       <button v-if="isAdmin" class="btn primary" @click="openCreate">
-        <el-icon><Plus /></el-icon> 发布新版本
+        <el-icon><Plus /></el-icon> {{ $t('releaseNotes.create') }}
       </button>
     </div>
 
@@ -135,10 +137,10 @@ onMounted(loadData)
                 v{{ r.version }}
               </el-tag>
               <span class="rel-title">{{ r.title }}</span>
-              <span v-if="r === releases[0]" class="rel-latest">最新版本</span>
+              <span v-if="r === releases[0]" class="rel-latest">{{ $t('releaseNotes.latest') }}</span>
               <span v-if="isAdmin && canManage(r)" class="rel-ops">
-                <el-button link type="primary" size="small" @click="openEdit(r)">编辑</el-button>
-                <el-button link type="danger" size="small" @click="remove(r)">删除</el-button>
+                <el-button link type="primary" size="small" @click="openEdit(r)">{{ $t('common.edit') }}</el-button>
+                <el-button link type="danger" size="small" @click="remove(r)">{{ $t('common.delete') }}</el-button>
               </span>
             </div>
             <div class="rel-body rich-text" v-html="sanitizeHtml(r.content)"></div>
@@ -146,21 +148,21 @@ onMounted(loadData)
         </el-timeline-item>
       </el-timeline>
     </div>
-    <el-empty v-else description="暂无更新日志" />
+    <el-empty v-else :description="$t('releaseNotes.empty')" />
 
     <!-- 发布 / 编辑公告 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px" destroy-on-close>
       <el-form label-width="80px">
-        <el-form-item label="版本号" required>
-          <el-input v-model="form.version" placeholder="如 2.2.0" style="width:180px" />
+        <el-form-item :label="$t('releaseNotes.version')" required>
+          <el-input v-model="form.version" :placeholder="$t('releaseNotes.versionPlaceholder')" style="width:180px" />
         </el-form-item>
-        <el-form-item label="标题" required>
-          <el-input v-model="form.title" placeholder="一句话概括本次更新" maxlength="100" />
+        <el-form-item :label="$t('releaseNotes.fieldTitle')" required>
+          <el-input v-model="form.title" :placeholder="$t('releaseNotes.titlePlaceholder')" maxlength="100" />
         </el-form-item>
-        <el-form-item label="发布日期">
-          <el-date-picker v-model="form.releaseDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" />
+        <el-form-item :label="$t('releaseNotes.releaseDate')">
+          <el-date-picker v-model="form.releaseDate" type="date" value-format="YYYY-MM-DD" :placeholder="$t('releaseNotes.datePlaceholder')" />
         </el-form-item>
-        <el-form-item label="更新内容" required>
+        <el-form-item :label="$t('releaseNotes.contentLabel')" required>
           <QuillEditor
             v-model:content="form.content"
             content-type="html"
@@ -171,19 +173,19 @@ onMounted(loadData)
         </el-form-item>
         <div class="lock-tip">
           <el-icon><Lock /></el-icon>
-          公告到达发布日期后即锁定,不允许再编辑或删除,请确认无误后再发布。
+          {{ $t('releaseNotes.lockTip') }}
         </div>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="save">{{ $t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.page { padding:24px 32px; max-width:920px; margin:0 auto }
+.page { padding:24px 32px; }
 
 .hero { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px }
 .hero h1 { margin:0 0 4px; font-size:var(--fs-xl); font-weight:600; color:var(--c-text-1) }

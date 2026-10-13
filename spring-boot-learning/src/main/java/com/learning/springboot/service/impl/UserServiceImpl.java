@@ -131,8 +131,8 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(Long userId, Integer status) {
-        if (status != 0 && status != 1) {
-            throw new BusinessException(400, "status 只能为 0 或 1");
+        if (status == null || (status != User.STATUS_DISABLED && status != User.STATUS_ENABLED && status != User.STATUS_READONLY)) {
+            throw new BusinessException(400, "status 只能为 0(禁用)、1(启用) 或 2(只读)");
         }
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new BusinessException(404, "用户不存在"));

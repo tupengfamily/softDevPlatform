@@ -143,6 +143,9 @@ public class LearningDataSeedService {
         ensureSubject("python", "Python", "Python 语言开发:基础语法 → 数据结构 → 函数式 → 面向对象 → 并发网络", 2);
         ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3);
         ensureSubject("nodejs", "Node.js", "Node.js 服务端开发:入门 → 核心模块 → Web 开发 → 工程化实战", 5);
+        ensureSubject("git", "Git", "Git 版本控制:基础 → 分支与远程 → 团队协作实战", 6);
+        ensureSubject("web", "Web 开发",
+            "Web 全栈开发:HTML/CSS → JavaScript → Vue/React → Node 服务端 → 工程化构建 → 项目实战 → 部署上线 → 前沿热点", 7);
         return java.getId();
     }
 
@@ -169,6 +172,9 @@ public class LearningDataSeedService {
             case "python" -> ensureSubject("python", "Python", "Python 语言开发:基础语法 → 数据结构 → 函数式 → 面向对象 → 并发网络", 2);
             case "javascript" -> ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3);
             case "nodejs" -> ensureSubject("nodejs", "Node.js", "Node.js 服务端开发:入门 → 核心模块 → Web 开发 → 工程化实战", 5);
+            case "git" -> ensureSubject("git", "Git", "Git 版本控制:基础 → 分支与远程 → 团队协作实战", 6);
+            case "web" -> ensureSubject("web", "Web 开发",
+                "Web 全栈开发:HTML/CSS → JavaScript → Vue/React → Node 服务端 → 工程化构建 → 项目实战 → 部署上线 → 前沿热点", 7);
             default -> ensureSubject("java", "Java", "Java 全栈开发:基础语法 → 进阶 → 并发 → 数据库 → 框架生态", 1);
         };
     }

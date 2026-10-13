@@ -203,3 +203,39 @@ code, pre, kbd, samp {
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================
+   移动端适配(<=768px 手机 / 561~768 小平板)
+   基线规则集中在此;页面特有布局在各视图 scoped 样式内补媒体查询
+   (ID 选择器 #app 前缀保证覆盖视图 scoped 规则)
+   ============================================ */
+@media (max-width: 768px) {
+  /* 页面留白收紧 */
+  #app .page { padding: 16px 14px 32px; }
+  .page-container { margin: 8px; padding: 14px 12px; min-height: auto; }
+
+  /* 标题行(hero)允许换行:标题/按钮各占一行 */
+  #app .hero { flex-wrap: wrap; gap: 10px; }
+  #app .toolbar { flex-wrap: wrap; gap: 8px; }
+
+  /* KPI 统计卡片 4 列 -> 2 列 */
+  #app .stats { grid-template-columns: repeat(2, 1fr); }
+
+  /* 弹窗贴屏(覆盖 width="520px" 等内联宽度) */
+  .el-dialog { width: calc(100vw - 28px) !important; margin-top: 6vh !important; }
+  .el-message-box { width: calc(100vw - 28px) !important; }
+
+  /* 内联搜索表单允许换行 */
+  .el-form--inline { display: flex; flex-wrap: wrap; }
+  .el-form--inline .el-form-item { margin-right: 10px; margin-bottom: 8px; }
+
+  /* 富文本/图片不溢出 */
+  img, video { max-width: 100%; }
+  .el-table { font-size: var(--fs-sm); }
+}
+
+/* 超小屏(<=400px)再收紧一档 */
+@media (max-width: 400px) {
+  #app .page { padding: 12px 10px 28px; }
+  #app .stats { gap: 10px; }
+}

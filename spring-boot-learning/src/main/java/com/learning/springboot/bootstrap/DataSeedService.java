@@ -47,10 +47,22 @@ public class DataSeedService {
     );
 
     private static final List<String[]> DICT_SEEDS = List.of(
-        // typeCode, typeName, description, [items...]
-        new String[]{"user_status", "用户状态", "启用/禁用", "1", "启用", "0", "禁用"},
-        new String[]{"gender",      "性别",     "用户性别", "M", "男",   "F", "女"}
+        // typeCode, typeName, description, [itemCode, itemValue, itemValueEn...]
+        // 用户状态: 编码参与权限逻辑(拦截器),字典仅维护展示文案(中/英)
+        new String[]{"user_status", "用户状态", "启用/禁用/只读", "1", "启用", "Enabled", "0", "禁用", "Disabled", "2", "只读", "Read-only"},
+        // 反馈类型/状态: 文案可由管理员在数据字典维护
+        new String[]{"feedback_type", "反馈类型", "意见反馈的类型", "RATING", "评分", "Rating", "BUG", "问题反馈", "Bug Report", "SUGGESTION", "功能建议", "Suggestion"},
+        new String[]{"feedback_status", "反馈状态", "意见反馈的处理状态", "OPEN", "待处理", "Open", "PROCESSING", "处理中", "In Progress", "DONE", "已处理", "Resolved"},
+        // 课时难度
+        new String[]{"lesson_difficulty", "课时难度", "课程难度等级", "1", "简单", "Easy", "2", "中等", "Medium", "3", "较难", "Hard"},
+        // 消息类型
+        new String[]{"notification_type", "消息类型", "站内消息分类", "SYSTEM", "系统通知", "System Notice", "REPLY", "回复通知", "Reply", "TASK", "任务通知", "Task"},
+        // 论坛版块
+        new String[]{"forum_board", "论坛版块", "论坛分区", "0", "综合讨论", "General Discussion"}
     );
+
+    /** 已废弃的历史字典(业务无对应字段),启动时清理 */
+    private static final List<String> OBSOLETE_DICT_TYPES = List.of("gender");
 
     @Transactional(rollbackFor = Exception.class)
     public void seedPermissions() {
@@ -95,20 +107,40 @@ public class DataSeedService {
 
     @Transactional(rollbackFor = Exception.class)
     public void seedDictTypes() {
+        // 清理废弃字典(如 gender: User 实体无性别字段)
+        for (String obsolete : OBSOLETE_DICT_TYPES) {
+            jdbc.update("DELETE FROM t_dict_item WHERE type_code = ?", obsolete);
+            jdbc.update("DELETE FROM t_dict_type WHERE type_code = ?", obsolete);
+        }
         for (String[] ds : DICT_SEEDS) {
             String typeCode = ds[0];
+            Long typeId;
             if (!existsDictType(typeCode)) {
                 jdbc.update(
                     "INSERT INTO t_dict_type (type_code, type_name, description, status, create_time, update_time) VALUES (?, ?, ?, 1, datetime('now', 'localtime'), datetime('now', 'localtime'))",
                     ds[0], ds[1], ds[2]);
-                Long typeId = jdbc.queryForObject("SELECT last_insert_rowid()", Long.class);
-                // items: ds[3..]
-                int sort = 1;
-                for (int i = 3; i < ds.length; i += 2) {
+                typeId = jdbc.queryForObject("SELECT last_insert_rowid()", Long.class);
+            } else {
+                typeId = jdbc.queryForObject(
+                    "SELECT id FROM t_dict_type WHERE type_code = ?", Long.class, typeCode);
+            }
+            // 幂等补插缺失项: 已有类型也能追加新项(如 user_status 后加的"只读");
+            // 存量项回填英文值(仅当 item_value_en 为空,不覆盖管理员改过的值)
+            int sort = 1;
+            for (int i = 3; i < ds.length; i += 3) {
+                Integer exists = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM t_dict_item WHERE type_code = ? AND item_code = ?",
+                    Integer.class, typeCode, ds[i]);
+                if (exists == null || exists == 0) {
                     jdbc.update(
-                        "INSERT INTO t_dict_item (type_id, type_code, item_code, item_value, sort, status, create_time, update_time) VALUES (?, ?, ?, ?, ?, 1, datetime('now', 'localtime'), datetime('now', 'localtime'))",
-                        typeId, ds[0], ds[i], ds[i + 1], sort++);
+                        "INSERT INTO t_dict_item (type_id, type_code, item_code, item_value, item_value_en, sort, status, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now', 'localtime'), datetime('now', 'localtime'))",
+                        typeId, ds[0], ds[i], ds[i + 1], ds[i + 2], sort);
+                } else {
+                    jdbc.update(
+                        "UPDATE t_dict_item SET item_value_en = ? WHERE type_code = ? AND item_code = ? AND (item_value_en IS NULL OR item_value_en = '')",
+                        ds[i + 2], typeCode, ds[i]);
                 }
+                sort++;
             }
         }
     }

@@ -44,4 +44,10 @@ public interface LearningService {
 
     /** 保存学习偏好(subjectId 可空=清除);科目必须存在且启用 */
     void savePreferredSubject(Long userId, Long subjectId);
+
+    /** 界面语言偏好(zh-CN/en-US),未设置返回 null */
+    String getPreferredLocale(Long userId);
+
+    /** 保存界面语言偏好(locale 可空=清除;仅接受 zh-CN/en-US) */
+    void savePreferredLocale(Long userId, String locale);
 }

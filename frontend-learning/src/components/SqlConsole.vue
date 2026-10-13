@@ -1,8 +1,11 @@
 <script setup>
 // SQL 控制台: 编辑器 + 运行结果表
 import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getSqlInfo, resetSql, runSql } from '../api/sandbox'
+
+const { t } = useI18n()
 
 const props = defineProps({
   modelValue: { type: String, default: '' }
@@ -24,6 +27,7 @@ const tablesText = computed(() => {
 })
 
 // 把后端返回的技术异常翻译成学习者能看懂的中文提示(原始信息收进"技术细节")
+// 提示文案走 i18n(sqlConsole.err.*),原始信息保留不动
 const friendlyError = computed(() => {
   const raw = error.value
   if (!raw) return { title: '', hint: '', detail: '' }
@@ -31,46 +35,46 @@ const friendlyError = computed(() => {
 
   const col = grab(/no such column:\s*([\w.]+)/i)
   if (col) return {
-    title: `列「${col}」不存在`,
-    hint: '请检查字段名拼写;可先执行 SELECT * FROM 表名 LIMIT 3 查看全部字段。',
+    title: t('sqlConsole.err.colMissing', { col }),
+    hint: t('sqlConsole.err.colMissingHint'),
     detail: raw
   }
 
   const tbl = grab(/no such table:\s*([\w.]+)/i)
   if (tbl) return {
-    title: `表「${tbl}」不存在`,
-    hint: '教学库包含 classes / students / courses / scores 四张表,请检查表名。',
+    title: t('sqlConsole.err.tableMissing', { tbl }),
+    hint: t('sqlConsole.err.tableMissingHint'),
     detail: raw
   }
 
   if (/syntax error|near "/i.test(raw)) {
     const near = grab(/near "([^"]+)"/i)
     return {
-      title: 'SQL 语法错误',
-      hint: near ? `错误位置附近是「${near}」,请检查关键字拼写、逗号与引号是否配对。` : '请检查关键字拼写、逗号与引号是否配对。',
+      title: t('sqlConsole.err.syntax'),
+      hint: near ? t('sqlConsole.err.syntaxHintNear', { near }) : t('sqlConsole.err.syntaxHint'),
       detail: raw
     }
   }
 
   const nn = grab(/NOT NULL constraint failed:\s*([\w.]+)/i)
-  if (nn) return { title: `字段「${nn}」不能为空`, hint: '插入或更新时必须为该字段提供值。', detail: raw }
+  if (nn) return { title: t('sqlConsole.err.notNull', { field: nn }), hint: t('sqlConsole.err.notNullHint'), detail: raw }
 
   const uq = grab(/UNIQUE constraint failed:\s*([\w.]+)/i)
-  if (uq) return { title: `字段「${uq}」的值重复`, hint: '违反唯一约束,请换一个值(例如 id 已存在)。', detail: raw }
+  if (uq) return { title: t('sqlConsole.err.unique', { field: uq }), hint: t('sqlConsole.err.uniqueHint'), detail: raw }
 
   if (/FOREIGN KEY constraint failed/i.test(raw)) return {
-    title: '外键约束失败',
-    hint: '引用的记录不存在——例如给不存在的 student_id 写入成绩。',
+    title: t('sqlConsole.err.foreignKey'),
+    hint: t('sqlConsole.err.foreignKeyHint'),
     detail: raw
   }
 
   if (/只允许|仅支持|不允许|not allowed|readonly|unsupported/i.test(raw)) return {
-    title: '语句类型不受支持',
-    hint: '教学沙箱只允许 SELECT / INSERT / UPDATE / DELETE;建表等 DDL 请用右上角「重置」恢复初始结构。',
+    title: t('sqlConsole.err.unsupported'),
+    hint: t('sqlConsole.err.unsupportedHint'),
     detail: raw
   }
 
-  return { title: '执行失败', hint: '请检查 SQL 语句,下方为数据库返回的原始信息。', detail: raw }
+  return { title: t('sqlConsole.err.generic'), hint: t('sqlConsole.err.genericHint'), detail: raw }
 })
 
 const loadInfo = async () => {
@@ -81,7 +85,7 @@ const loadInfo = async () => {
 }
 
 const runQuery = async () => {
-  if (!sql.value.trim()) { ElMessage.warning('请输入 SQL'); return }
+  if (!sql.value.trim()) { ElMessage.warning(t('sqlConsole.enterSql')); return }
   running.value = true
   error.value = ''
   result.value = null
@@ -98,12 +102,12 @@ const runQuery = async () => {
 
 const onReset = async () => {
   try {
-    await ElMessageBox.confirm('将删除并重建 classes/students/courses/scores 四张表, 当前所有修改会丢失, 继续?', '重置教学库', {
-      type: 'warning', confirmButtonText: '确认重置', cancelButtonText: '取消'
+    await ElMessageBox.confirm(t('sqlConsole.reset.message'), t('sqlConsole.reset.title'), {
+      type: 'warning', confirmButtonText: t('sqlConsole.reset.confirm'), cancelButtonText: t('common.cancel')
     })
   } catch (_) { return }
   await resetSql()
-  ElMessage.success('教学库已重置')
+  ElMessage.success(t('sqlConsole.reset.done'))
   result.value = null
   error.value = ''
   loadInfo()
@@ -117,13 +121,13 @@ onMounted(loadInfo)
     <div class="sql-head">
       <div class="head-left">
         <el-icon class="ic"><Coin /></el-icon>
-        <b>SQL 控制台</b>
-        <span class="hint">教学库 sandbox.db · {{ tablesText }}</span>
+        <b>{{ $t('sqlConsole.title') }}</b>
+        <span class="hint">{{ $t('sqlConsole.dbHint', { tables: tablesText }) }}</span>
       </div>
       <div class="head-right">
-        <button class="reset" @click="onReset"><el-icon><RefreshLeft /></el-icon> 重置</button>
+        <button class="reset" @click="onReset"><el-icon><RefreshLeft /></el-icon> {{ $t('common.reset') }}</button>
         <button class="run" :disabled="running" @click="runQuery">
-          {{ running ? '执行中...' : '' }}<el-icon><VideoPlay /></el-icon> {{ running ? '' : '执行' }}
+          {{ running ? $t('sqlConsole.running') : '' }}<el-icon><VideoPlay /></el-icon> {{ running ? '' : $t('sqlConsole.run') }}
         </button>
       </div>
     </div>
@@ -132,7 +136,7 @@ onMounted(loadInfo)
       class="editor"
       v-model="sql"
       spellcheck="false"
-      :placeholder="`-- 在此输入 SQL, 例如\nSELECT name, class_id FROM students WHERE class_id = 1;`"
+      :placeholder="$t('sqlConsole.placeholder')"
     ></textarea>
 
     <div class="result">
@@ -141,13 +145,13 @@ onMounted(loadInfo)
         <div class="err-head"><el-icon><WarningFilled /></el-icon> {{ friendlyError.title }}</div>
         <p v-if="friendlyError.hint" class="err-hint">{{ friendlyError.hint }}</p>
         <details class="err-detail">
-          <summary>技术细节</summary>
+          <summary>{{ $t('sqlConsole.err.detail') }}</summary>
           <pre>{{ friendlyError.detail }}</pre>
         </details>
       </div>
       <!-- 结果表 -->
       <div v-else-if="result && result.columns">
-        <div class="meta"><el-icon><CircleCheckFilled /></el-icon> {{ result.rowCount }} 行 · {{ result.elapsedMs }} ms</div>
+        <div class="meta"><el-icon><CircleCheckFilled /></el-icon> {{ $t('sqlConsole.result.rows', { n: result.rowCount, ms: result.elapsedMs }) }}</div>
         <table>
           <thead>
             <tr><th v-for="c in result.columns" :key="c">{{ c }}</th></tr>
@@ -164,11 +168,11 @@ onMounted(loadInfo)
       </div>
       <!-- 受影响行数(DML) -->
       <div v-else-if="result && result.columns === undefined">
-        <div class="meta"><el-icon><CircleCheckFilled /></el-icon> 影响 {{ result.rowCount }} 行 · {{ result.elapsedMs }} ms</div>
+        <div class="meta"><el-icon><CircleCheckFilled /></el-icon> {{ $t('sqlConsole.result.affected', { n: result.rowCount, ms: result.elapsedMs }) }}</div>
       </div>
       <!-- 空状态 -->
       <div v-else class="empty">
-        <p>在上方输入 SQL 并点击"执行"。教学沙箱支持 SELECT / INSERT / UPDATE / DELETE,DDL 需走"重置"恢复初始结构。</p>
+        <p>{{ $t('sqlConsole.empty') }}</p>
       </div>
     </div>
   </div>

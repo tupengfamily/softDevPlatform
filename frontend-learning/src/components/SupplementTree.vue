@@ -4,6 +4,7 @@
 // - 所有登录用户可添加;作者/管理员可编辑、删除
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { getSupplements, createSupplement, updateSupplement, deleteSupplement } from '../api/learning'
 import ContentEditor from './ContentEditor.vue'
 import SupplementNodeItem from './SupplementNodeItem.vue'
@@ -11,11 +12,20 @@ import SupplementNodeItem from './SupplementNodeItem.vue'
 const props = defineProps({
   subjectId: { type: [Number, String], default: null },
   chapterId: { type: [Number, String], default: null },
-  /** 顶层按钮文案,如"添加补充章节"/"添加补充内容" */
-  rootLabel: { type: String, default: '添加补充内容' },
-  /** 标题,如"补充内容"/"社区补充章节" */
-  title: { type: String, default: '补充内容' }
+  /** 顶层按钮文案,如"添加补充章节"/"添加补充内容"(可传原文或 i18n key) */
+  rootLabel: { type: String, default: '' },
+  /** 标题,如"补充内容"/"社区补充章节"(可传原文或 i18n key) */
+  title: { type: String, default: '' },
+  /** 隐藏组件内"添加补充内容"按钮(由外部按钮组触发 openCreate) */
+  hideRootButton: { type: Boolean, default: false },
+  /** 没有任何补充内容时隐藏整块卡片(对话框仍可由外部 openCreate 唤出) */
+  hideWhenEmpty: { type: Boolean, default: false }
 })
+
+const { t } = useI18n()
+// 外部传入文案兜底: 原文/key 均可解析,缺省用组件内文案
+const rootLabelDisplay = computed(() => t(props.rootLabel || 'supplement.addContent'))
+const titleDisplay = computed(() => t(props.title || 'supplement.defaultTitle'))
 
 const loading = ref(false)
 const nodes = ref([])
@@ -38,8 +48,8 @@ const dialogVisible = ref(false)
 const saving = ref(false)
 const form = ref({ id: null, parentNodeId: null, title: '', content: '', contentType: 'markdown' })
 const dialogTitle = computed(() => {
-  if (form.value.id) return '编辑补充内容'
-  return form.value.parentNodeId ? '添加子节点' : props.rootLabel
+  if (form.value.id) return t('supplement.editContent')
+  return form.value.parentNodeId ? t('supplement.addChild') : rootLabelDisplay.value
 })
 
 const openCreate = (parentNode = null) => {
@@ -64,9 +74,9 @@ const openEdit = (node) => {
 }
 
 const save = async () => {
-  if (!form.value.title.trim()) { ElMessage.warning('请填写标题'); return }
+  if (!form.value.title.trim()) { ElMessage.warning(t('supplement.titleRequired')); return }
   const content = form.value.content || ''
-  if (!content.trim()) { ElMessage.warning('请填写内容'); return }
+  if (!content.trim()) { ElMessage.warning(t('supplement.contentRequired')); return }
   const payload = {
     subjectId: props.subjectId || null,
     chapterId: form.value.parentNodeId ? null : (props.chapterId || null),
@@ -79,7 +89,7 @@ const save = async () => {
   try {
     if (form.value.id) await updateSupplement(form.value.id, payload)
     else await createSupplement(payload)
-    ElMessage.success(form.value.id ? '已更新' : '已添加')
+    ElMessage.success(form.value.id ? t('supplement.updated') : t('supplement.added'))
     dialogVisible.value = false
     await load()
   } catch (e) { /* 已统一弹错 */ } finally {
@@ -90,11 +100,13 @@ const save = async () => {
 const remove = async (node) => {
   try {
     await ElMessageBox.confirm(
-      node.children?.length ? `删除「${node.title}」将同时删除其 ${node.children.length} 个子节点,确定?` : `确定删除「${node.title}」?`,
-      '删除确认', { type: 'warning' }
+      node.children?.length
+        ? t('supplement.removeWithChildren', { title: node.title, n: node.children.length })
+        : t('supplement.removeTip', { title: node.title }),
+      t('supplement.deleteConfirm'), { type: 'warning' }
     )
     await deleteSupplement(node.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('supplement.deleted'))
     await load()
   } catch (e) { /* 取消或已统一弹错 */ }
 }
@@ -102,18 +114,24 @@ const remove = async (node) => {
 const toggle = (id) => { expanded.value[id] = !expanded.value[id] }
 const countNodes = (list) => list.reduce((n, x) => n + 1 + countNodes(x.children || []), 0)
 const total = computed(() => countNodes(nodes.value))
+
+// 无内容时隐藏整块卡片(hideWhenEmpty 模式);加载中保持隐藏,避免闪现
+const visible = computed(() => !props.hideWhenEmpty || nodes.value.length > 0)
+
+// 对外暴露:外部按钮组(如课时页悬浮工具栏)可触发"添加补充内容"对话框
+defineExpose({ openCreate })
 </script>
 
 <template>
-  <div class="supplement" v-loading="loading">
+  <div class="supplement" v-show="visible" v-loading="loading">
     <div class="sup-head">
-      <h3>{{ title }} <small v-if="total">共 {{ total }} 条 · 由学习者共同补充</small></h3>
-      <el-button type="primary" plain size="small" @click="openCreate(null)">
-        <el-icon><Plus /></el-icon> {{ rootLabel }}
+      <h3>{{ titleDisplay }} <small v-if="total">{{ $t('supplement.countHint', { n: total }) }}</small></h3>
+      <el-button v-if="!hideRootButton" type="primary" plain size="small" @click="openCreate(null)">
+        <el-icon><Plus /></el-icon> {{ rootLabelDisplay }}
       </el-button>
     </div>
 
-    <el-empty v-if="!nodes.length && !loading" description="还没有补充内容,欢迎第一个添加" :image-size="60" />
+    <el-empty v-if="!nodes.length && !loading" :description="$t('supplement.empty')" :image-size="60" />
 
     <div class="node-list">
       <SupplementNodeItem
@@ -129,18 +147,19 @@ const total = computed(() => countNodes(nodes.value))
       />
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="720px" destroy-on-close>
+    <!-- append-to-body: 卡片隐藏(hideWhenEmpty)时对话框仍可正常弹出 -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="720px" destroy-on-close append-to-body>
       <el-form label-position="top">
-        <el-form-item label="标题" required>
-          <el-input v-model="form.title" maxlength="100" placeholder="简要概括补充内容" />
+        <el-form-item :label="$t('supplement.fieldTitle')" required>
+          <el-input v-model="form.title" maxlength="100" :placeholder="$t('supplement.titlePlaceholder')" />
         </el-form-item>
-        <el-form-item label="内容(支持 Markdown / 富文本)">
+        <el-form-item :label="$t('supplement.contentLabel')">
           <ContentEditor v-model="form.content" v-model:content-type="form.contentType" :height="240" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="save">{{ $t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </div>

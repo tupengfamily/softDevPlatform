@@ -23,4 +23,7 @@ public interface ForumReplyRepository extends JpaRepository<ForumReply, Long> {
 
     /** 删除帖子的全部回复 */
     void deleteByPostId(Long postId);
+
+    /** 删除某条回复的全部子回复(楼中楼级联) */
+    void deleteByParentReplyId(Long parentReplyId);
 }

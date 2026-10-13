@@ -12,7 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class DictServiceImpl implements DictService {
@@ -68,21 +70,23 @@ public class DictServiceImpl implements DictService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DictItemDTO createItem(Long typeId, String itemCode, String itemValue, Integer sort, String remark) {
+    public DictItemDTO createItem(Long typeId, String itemCode, String itemValue, String itemValueEn, Integer sort, String remark) {
         DictType t = dictTypeRepository.findById(typeId)
             .orElseThrow(() -> new BusinessException(404, "字典类型不存在"));
         DictItem item = new DictItem(t.getTypeCode(), itemCode, itemValue, sort);
         item.setType(t);
+        item.setItemValueEn(itemValueEn);
         item.setRemark(remark);
         return DictItemDTO.from(dictItemRepository.save(item));
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DictItemDTO updateItem(Long id, String itemValue, Integer sort, Integer status, String remark) {
+    public DictItemDTO updateItem(Long id, String itemValue, String itemValueEn, Integer sort, Integer status, String remark) {
         DictItem item = dictItemRepository.findById(id)
             .orElseThrow(() -> new BusinessException(404, "字典项不存在"));
         if (itemValue != null) item.setItemValue(itemValue);
+        item.setItemValueEn(itemValueEn);   // 允许清空(传 null 即回退用中文值)
         if (sort != null) item.setSort(sort);
         if (status != null) item.setStatus(status);
         if (remark != null) item.setRemark(remark);
@@ -96,5 +100,27 @@ public class DictServiceImpl implements DictService {
             throw new BusinessException(404, "字典项不存在");
         }
         dictItemRepository.deleteById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, List<Map<String, String>>> mapAllEnabled() {
+        Map<String, List<Map<String, String>>> result = new LinkedHashMap<>();
+        for (DictType t : dictTypeRepository.findAll()) {
+            if (t.getStatus() == null || t.getStatus() != 1) continue;
+            List<Map<String, String>> items = dictItemRepository
+                .findByTypeCodeAndStatusOrderBySortAsc(t.getTypeCode(), 1)
+                .stream()
+                .map(i -> {
+                    Map<String, String> m = new LinkedHashMap<>();
+                    m.put("itemCode", i.getItemCode());
+                    m.put("itemValue", i.getItemValue());
+                    m.put("itemValueEn", i.getItemValueEn() == null ? "" : i.getItemValueEn());
+                    return m;
+                })
+                .toList();
+            result.put(t.getTypeCode(), items);
+        }
+        return result;
     }
 }

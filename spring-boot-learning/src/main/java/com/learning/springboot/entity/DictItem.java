@@ -38,6 +38,10 @@ public class DictItem {
     @Column(name = "item_value", nullable = false, length = 100)
     private String itemValue;
 
+    /** 项值(英文,国际化用): Enabled、Disabled;为空时前端回退中文值 */
+    @Column(name = "item_value_en", length = 100)
+    private String itemValueEn;
+
     @Column(nullable = false)
     private Integer sort = 0;
 
@@ -94,6 +98,9 @@ public class DictItem {
 
     public String getItemValue() { return itemValue; }
     public void setItemValue(String itemValue) { this.itemValue = itemValue; }
+
+    public String getItemValueEn() { return itemValueEn; }
+    public void setItemValueEn(String itemValueEn) { this.itemValueEn = itemValueEn; }
 
     public Integer getSort() { return sort; }
     public void setSort(Integer sort) { this.sort = sort; }

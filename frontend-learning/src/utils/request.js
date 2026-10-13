@@ -2,6 +2,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../store/user'
 import router from '../router'
+import i18n from '../i18n'
 
 /**
  * Axios 封装
@@ -38,8 +39,8 @@ request.interceptors.response.use(
     const data = response.data
     // 后端统一返回 { code, message, data }
     if (data && data.code !== undefined && data.code !== 200) {
-      ElMessage.error(data.message || '请求失败')
-      return Promise.reject(new Error(data.message || '请求失败'))
+      ElMessage.error(data.message || i18n.global.t('request.failed'))
+      return Promise.reject(new Error(data.message || i18n.global.t('request.failed')))
     }
     return data
   },
@@ -54,10 +55,10 @@ request.interceptors.response.use(
         userStore.clear()
         if (wasGuest) {
           // 游客访问了需要登录的功能: 温和提示即可,留在当前页继续浏览,不强制跳登录
-          ElMessage.info('该功能需要登录后使用')
+          ElMessage.info(i18n.global.t('request.needLogin'))
         } else {
           // 优先用后端返回的具体原因(如"Token 无效或已过期"),否则用默认提示
-          ElMessage.error(message || '登录已过期,请重新登录')
+          ElMessage.error(message || i18n.global.t('request.sessionExpired'))
           // 仅在不是登录页时跳转,避免循环
           if (router.currentRoute.value.path !== '/login') {
             router.push({
@@ -67,20 +68,20 @@ request.interceptors.response.use(
           }
         }
       } else if (status === 403) {
-        ElMessage.error(message || '无权限访问')
+        ElMessage.error(message || i18n.global.t('request.forbidden'))
       } else if (status === 404) {
-        ElMessage.error(message || '资源不存在')
+        ElMessage.error(message || i18n.global.t('request.notFound'))
       } else if (status === 409) {
-        ElMessage.error(message || '数据冲突')
+        ElMessage.error(message || i18n.global.t('request.conflict'))
       } else if (status === 500) {
-        ElMessage.error('服务器错误: ' + message)
+        ElMessage.error(i18n.global.t('request.serverError', { msg: message }))
       } else {
-        ElMessage.error(`请求失败 (${status}): ${message}`)
+        ElMessage.error(i18n.global.t('request.failedWithStatus', { status, msg: message }))
       }
     } else if (error.request) {
-      ElMessage.error('网络异常,请检查后端服务是否启动')
+      ElMessage.error(i18n.global.t('request.networkError'))
     } else {
-      ElMessage.error(error.message || '请求失败')
+      ElMessage.error(error.message || i18n.global.t('request.failed'))
     }
     return Promise.reject(error)
   }

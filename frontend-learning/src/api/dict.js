@@ -17,6 +17,10 @@ export const deleteDictType = (id) =>
 export const listDictItems = (typeCode) =>
   request({ url: '/dicts/items', method: 'get', params: { typeCode } })
 
+// 全量启用字典(typeCode -> [{itemCode,itemValue}]),业务页标签统一从这取
+export const dictMap = () =>
+  request({ url: '/dicts/map', method: 'get' })
+
 export const createDictItem = (data) =>
   request({ url: '/dicts/items', method: 'post', data })
 

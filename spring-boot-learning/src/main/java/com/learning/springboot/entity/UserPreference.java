@@ -35,6 +35,10 @@ public class UserPreference {
     @Column(name = "preferred_subject_id")
     private Long preferredSubjectId;
 
+    /** 界面语言偏好(zh-CN/en-US),空表示未设置(前端默认 zh-CN) */
+    @Column(name = "locale", length = 10)
+    private String locale;
+
     /** 创建时间 */
     @Column(name = "create_time", nullable = false, updatable = false)
     private LocalDateTime createTime;
@@ -72,6 +76,9 @@ public class UserPreference {
 
     public Long getPreferredSubjectId() { return preferredSubjectId; }
     public void setPreferredSubjectId(Long preferredSubjectId) { this.preferredSubjectId = preferredSubjectId; }
+
+    public String getLocale() { return locale; }
+    public void setLocale(String locale) { this.locale = locale; }
 
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }

@@ -28,13 +28,13 @@ const isOpen = () => props.depth === 0 || props.expanded[props.node.id]
       >{{ expanded[node.id] ? '▾' : '▸' }}</span>
       <span v-else class="arrow placeholder">·</span>
       <span class="node-title">{{ node.title }}</span>
-      <el-tag v-if="node.contentType === 'richtext'" size="small" effect="plain" type="info">富文本</el-tag>
-      <span class="node-meta">{{ node.username || '匿名' }} · {{ fmtTime(node.updatedAt || node.createdAt) }}</span>
+      <el-tag v-if="node.contentType === 'richtext'" size="small" effect="plain" type="info">{{ $t('supplement.richtext') }}</el-tag>
+      <span class="node-meta">{{ node.username || $t('supplement.anonymous') }} · {{ fmtTime(node.updatedAt || node.createdAt) }}</span>
       <span class="node-ops">
-        <el-button link type="primary" size="small" @click="emit('add-child', node)">子节点</el-button>
+        <el-button link type="primary" size="small" @click="emit('add-child', node)">{{ $t('supplement.childNode') }}</el-button>
         <template v-if="node.editable">
-          <el-button link type="primary" size="small" @click="emit('edit', node)">编辑</el-button>
-          <el-button link type="danger" size="small" @click="emit('remove', node)">删除</el-button>
+          <el-button link type="primary" size="small" @click="emit('edit', node)">{{ $t('common.edit') }}</el-button>
+          <el-button link type="danger" size="small" @click="emit('remove', node)">{{ $t('common.delete') }}</el-button>
         </template>
       </span>
     </div>

@@ -68,6 +68,8 @@ public class ForumVO {
         public String username;
         public String content;
         public String contentType;
+        public Long parentReplyId;        // 楼中楼: 父回复 ID(空=一级回复)
+        public String replyToUsername;    // 被回复者(展示"回复 @xxx")
         public LocalDateTime createdAt;
         public boolean editable;
     }
@@ -85,5 +87,6 @@ public class ForumVO {
     public static class ReplyCreateRequest {
         public String content;
         public String contentType;
+        public Long parentReplyId;        // 可选: 回复某条回复(楼中楼)
     }
 }

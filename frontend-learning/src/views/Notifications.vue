@@ -3,14 +3,18 @@
 // 支持类型筛选、单条/全部已读、点击跳转关联内容;管理员可发布系统通知
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { pageNotifications, markRead, markAllRead, sendSystemNotice } from '../api/notifications'
 import { useUserStore } from '../store/user'
 import { useNotificationStore } from '../store/notification'
+import { useDictStore } from '../store/dict'
 
 const router = useRouter()
+const { t } = useI18n()
 const userStore = useUserStore()
 const notifStore = useNotificationStore()
+const dictStore = useDictStore()
 const isAdmin = computed(() => userStore.roles.includes('ADMIN'))
 
 const loading = ref(false)
@@ -21,6 +25,17 @@ const size = ref(10)
 const typeFilter = ref('')        // ''=全部 SYSTEM/REPLY/TASK
 
 const typeTag = { SYSTEM: 'primary', REPLY: 'warning', TASK: 'success' }
+// 类型文案优先取数据字典 notification_type,后端 typeLabel 兜底
+const typeText = (n) => dictStore.label('notification_type', n.type, n.typeLabel || n.type)
+// 类型筛选项: 字典 notification_type 驱动,只保留已知编码,空则兜底
+const typeOptions = computed(() => {
+  const d = dictStore.options('notification_type').filter(o => typeTag[o.value])
+  return d.length ? d : [
+    { value: 'SYSTEM', label: t('notifications.type.SYSTEM') },
+    { value: 'REPLY', label: t('notifications.type.REPLY') },
+    { value: 'TASK', label: t('notifications.type.TASK') }
+  ]
+})
 
 const load = async () => {
   loading.value = true
@@ -54,7 +69,7 @@ const markOne = async (n) => {
     await markRead(n.id)
     n.read = true
     notifStore.decUnread()
-    ElMessage.success('已标记为已读')
+    ElMessage.success(t('notifications.markedRead'))
   } catch (e) { /* 已统一弹错 */ }
 }
 const markAll = async () => {
@@ -62,7 +77,7 @@ const markAll = async () => {
     await markAllRead()
     items.value.forEach(n => { n.read = true })
     notifStore.clearUnread()
-    ElMessage.success('已全部标记已读')
+    ElMessage.success(t('notifications.markedAllRead'))
   } catch (e) { /* 已统一弹错 */ }
 }
 
@@ -71,12 +86,12 @@ const sendVisible = ref(false)
 const sending = ref(false)
 const sendForm = reactive({ title: '', content: '' })
 const submitNotice = async () => {
-  if (!sendForm.title.trim()) { ElMessage.warning('请填写通知标题'); return }
-  if (!sendForm.content.trim()) { ElMessage.warning('请填写通知内容'); return }
+  if (!sendForm.title.trim()) { ElMessage.warning(t('notifications.needTitle')); return }
+  if (!sendForm.content.trim()) { ElMessage.warning(t('notifications.needContent')); return }
   sending.value = true
   try {
     const res = await sendSystemNotice({ ...sendForm })
-    ElMessage.success(res.message || '发布成功')
+    ElMessage.success(res.message || t('notifications.publishSuccess'))
     sendVisible.value = false
     sendForm.title = ''
     sendForm.content = ''
@@ -94,23 +109,21 @@ onMounted(load)
   <div class="page" v-loading="loading">
     <div class="hero">
       <div>
-        <h1>消息中心</h1>
-        <p>系统通知、论坛回复、任务完成等站内消息都在这里。</p>
+        <h1>{{ $t('notifications.title') }}</h1>
+        <p>{{ $t('notifications.subtitle') }}</p>
       </div>
       <div class="hero-actions">
         <el-button v-if="isAdmin" type="primary" plain @click="sendVisible = true">
-          <el-icon><Bell /></el-icon> 发布系统通知
+          <el-icon><Bell /></el-icon> {{ $t('notifications.sendNotice') }}
         </el-button>
-        <el-button @click="markAll"><el-icon><CircleCheck /></el-icon> 全部已读</el-button>
+        <el-button @click="markAll"><el-icon><CircleCheck /></el-icon> {{ $t('notifications.markAllRead') }}</el-button>
       </div>
     </div>
 
     <div class="filters">
       <el-radio-group v-model="typeFilter" @change="onTypeChange">
-        <el-radio-button value="">全部</el-radio-button>
-        <el-radio-button value="SYSTEM">系统通知</el-radio-button>
-        <el-radio-button value="REPLY">回复通知</el-radio-button>
-        <el-radio-button value="TASK">任务通知</el-radio-button>
+        <el-radio-button value="">{{ $t('common.all') }}</el-radio-button>
+        <el-radio-button v-for="o in typeOptions" :key="o.value" :value="o.value">{{ o.label }}</el-radio-button>
       </el-radio-group>
     </div>
 
@@ -127,9 +140,9 @@ onMounted(load)
       >
         <div class="msg-main">
           <div class="msg-title">
-            <el-tag size="small" effect="plain" :type="typeTag[n.type] || 'info'">{{ n.typeLabel }}</el-tag>
+            <el-tag size="small" effect="plain" :type="typeTag[n.type] || 'info'">{{ typeText(n) }}</el-tag>
             <b>{{ n.title }}</b>
-            <span v-if="!n.read" class="unread-dot">未读</span>
+            <span v-if="!n.read" class="unread-dot">{{ $t('notifications.unread') }}</span>
           </div>
           <div class="msg-content">{{ n.content }}</div>
           <div class="msg-meta">{{ fmtTime(n.createTime) }}</div>
@@ -140,9 +153,9 @@ onMounted(load)
           text
           class="mark-btn"
           @click.stop="markOne(n)"
-        >标记已读</el-button>
+        >{{ $t('notifications.markRead') }}</el-button>
       </div>
-      <el-empty v-if="!items.length && !loading" description="暂无消息" />
+      <el-empty v-if="!items.length && !loading" :description="$t('notifications.empty')" />
     </div>
 
     <div class="pager" v-if="total > size">
@@ -159,25 +172,25 @@ onMounted(load)
     </div>
 
     <!-- 发布系统通知 -->
-    <el-dialog v-model="sendVisible" title="发布系统通知" width="560px" destroy-on-close>
+    <el-dialog v-model="sendVisible" :title="$t('notifications.sendNotice')" width="560px" destroy-on-close>
       <el-form label-position="top">
-        <el-form-item label="标题" required>
-          <el-input v-model="sendForm.title" maxlength="200" placeholder="通知标题" />
+        <el-form-item :label="$t('notifications.titleLabel')" required>
+          <el-input v-model="sendForm.title" maxlength="200" :placeholder="$t('notifications.titlePlaceholder')" />
         </el-form-item>
-        <el-form-item label="内容" required>
-          <el-input v-model="sendForm.content" type="textarea" :rows="5" maxlength="2000" placeholder="通知内容(将推送给全体用户)" />
+        <el-form-item :label="$t('notifications.contentLabel')" required>
+          <el-input v-model="sendForm.content" type="textarea" :rows="5" maxlength="2000" :placeholder="$t('notifications.contentPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="sendVisible = false">取消</el-button>
-        <el-button type="primary" :loading="sending" @click="submitNotice">发布</el-button>
+        <el-button @click="sendVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="sending" @click="submitNotice">{{ $t('notifications.publish') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.page { padding: 24px 26px 40px; max-width: 1080px; margin: 0 auto; }
+.page { padding: 24px 32px 40px; }
 .hero {
   display: flex; align-items: center; justify-content: space-between;
   background: linear-gradient(120deg, #eef4ff 0%, #f6f1ff 60%, #fff 100%);

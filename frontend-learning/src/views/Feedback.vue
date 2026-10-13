@@ -1,25 +1,53 @@
 <script setup>
-// 意见反馈页: 系统评分 + bug 反馈 + 我的反馈 + 管理端反馈处理
+// 意见反馈页: 系统评分 + bug 反馈 + 功能建议 + 我的反馈 + 管理端反馈处理
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   deleteFeedback, getFeedbackPage, getMyFeedback, getRatingSummary,
   handleFeedback, submitFeedback
 } from '../api/feedback'
 import { useUserStore } from '../store/user'
+import { useDictStore } from '../store/dict'
 
 const userStore = useUserStore()
+const route = useRoute()
+const { t } = useI18n()
+const dictStore = useDictStore()
 const isAdmin = computed(() => userStore.roles.includes('ADMIN'))
 
 const activeTab = ref('submit')
 const summary = ref({ avgScore: null, ratingCount: 0 })
 
-const typeMap = { RATING: { text: '评分', type: 'success' }, BUG: { text: '问题反馈', type: 'danger' } }
-const statusMap = {
-  OPEN: { text: '待处理', type: 'warning' },
-  PROCESSING: { text: '处理中', type: 'primary' },
-  DONE: { text: '已处理', type: 'success' }
-}
+// 标签文案来自数据字典(feedback_type/feedback_status),tag 颜色固定在代码
+const typeMap = computed(() => ({
+  RATING: { text: dictStore.label('feedback_type', 'RATING', t('feedback.type.RATING')), type: 'success' },
+  BUG: { text: dictStore.label('feedback_type', 'BUG', t('feedback.type.BUG')), type: 'danger' },
+  SUGGESTION: { text: dictStore.label('feedback_type', 'SUGGESTION', t('feedback.type.SUGGESTION')), type: 'warning' }
+}))
+const statusMap = computed(() => ({
+  OPEN: { text: dictStore.label('feedback_status', 'OPEN', t('feedback.status.OPEN')), type: 'warning' },
+  PROCESSING: { text: dictStore.label('feedback_status', 'PROCESSING', t('feedback.status.PROCESSING')), type: 'primary' },
+  DONE: { text: dictStore.label('feedback_status', 'DONE', t('feedback.status.DONE')), type: 'success' }
+}))
+// 下拉选项: 字典就绪用字典(仅保留代码支持的编码),否则兜底
+const typeOptions = computed(() => {
+  const d = dictStore.options('feedback_type').filter(o => typeMap.value[o.value])
+  return d.length ? d : [
+    { value: 'RATING', label: t('feedback.type.RATING') },
+    { value: 'BUG', label: t('feedback.type.BUG') },
+    { value: 'SUGGESTION', label: t('feedback.type.SUGGESTION') }
+  ]
+})
+const statusOptions = computed(() => {
+  const d = dictStore.options('feedback_status').filter(o => statusMap.value[o.value])
+  return d.length ? d : [
+    { value: 'OPEN', label: t('feedback.status.OPEN') },
+    { value: 'PROCESSING', label: t('feedback.status.PROCESSING') },
+    { value: 'DONE', label: t('feedback.status.DONE') }
+  ]
+})
 
 const loadSummary = async () => {
   try {
@@ -33,18 +61,19 @@ const form = reactive({ type: 'RATING', score: 5, title: '', content: '', contac
 const submitting = ref(false)
 
 const submit = async () => {
-  if (form.type === 'BUG' && !form.title.trim()) {
-    ElMessage.warning('请填写问题标题')
+  if (form.type !== 'RATING' && !form.title.trim()) {
+    ElMessage.warning(form.type === 'BUG' ? t('feedback.needBugTitle') : t('feedback.needSuggestionTitle'))
     return
   }
   if (!form.content.trim()) {
-    ElMessage.warning('请填写反馈内容')
+    ElMessage.warning(t('feedback.needContent'))
     return
   }
   submitting.value = true
   try {
-    await submitFeedback({ ...form })
-    ElMessage.success('感谢你的反馈!')
+    // 自动携带来源页面,管理员可定位反馈出处
+    await submitFeedback({ ...form, source: `${t('feedback.sourcePage')} · ${route.path}` })
+    ElMessage.success(t('feedback.thanks'))
     form.title = ''
     form.content = ''
     form.contact = ''
@@ -104,7 +133,7 @@ const openHandle = (row) => {
 const saveHandle = async () => {
   try {
     await handleFeedback(handleForm.id, { status: handleForm.status, adminReply: handleForm.adminReply })
-    ElMessage.success('已处理')
+    ElMessage.success(t('feedback.handled'))
     handleVisible.value = false
     loadAdmin()
     loadSummary()
@@ -113,11 +142,11 @@ const saveHandle = async () => {
 
 const removeRow = async (row) => {
   try {
-    await ElMessageBox.confirm('确定删除这条反馈吗?', '提示', {
-      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning'
+    await ElMessageBox.confirm(t('feedback.deleteConfirm'), t('feedback.tip'), {
+      confirmButtonText: t('common.delete'), cancelButtonText: t('common.cancel'), type: 'warning'
     })
     await deleteFeedback(row.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('feedback.deleted'))
     loadAdmin()
   } catch (e) { /* 取消 */ }
 }
@@ -138,51 +167,54 @@ onMounted(() => {
   <div class="page">
     <div class="hero">
       <div>
-        <h1>意见反馈</h1>
-        <p>你的评分与建议是我们改进的方向,欢迎反馈问题。</p>
+        <h1>{{ $t('feedback.title') }}</h1>
+        <p>{{ $t('feedback.subtitle') }}</p>
       </div>
       <div class="score-card">
         <div class="score-num">{{ summary.avgScore ?? '—' }}</div>
         <div class="score-side">
           <el-rate :model-value="summary.avgScore || 0" disabled allow-half size="small" />
-          <small>共 {{ summary.ratingCount }} 条评分</small>
+          <small>{{ $t('feedback.ratingCount', { n: summary.ratingCount }) }}</small>
         </div>
       </div>
     </div>
 
     <el-tabs v-model="activeTab" class="fb-tabs" @tab-change="onTab">
       <!-- 提交反馈 -->
-      <el-tab-pane label="提交反馈" name="submit">
+      <el-tab-pane :label="$t('feedback.tab.submit')" name="submit">
         <div class="card">
           <el-radio-group v-model="form.type" class="type-group">
-            <el-radio-button value="RATING">系统评分</el-radio-button>
-            <el-radio-button value="BUG">问题反馈</el-radio-button>
+            <el-radio-button v-for="o in typeOptions" :key="o.value" :value="o.value">{{ o.label }}</el-radio-button>
           </el-radio-group>
 
           <div v-if="form.type === 'RATING'" class="rate-row">
-            <span class="label">给系统打个分:</span>
-            <el-rate v-model="form.score" show-text :texts="['很差', '较差', '一般', '不错', '很棒']" size="large" />
+            <span class="label">{{ $t('feedback.rateLabel') }}</span>
+            <el-rate v-model="form.score" show-text
+              :texts="[$t('feedback.rate.1'), $t('feedback.rate.2'), $t('feedback.rate.3'), $t('feedback.rate.4'), $t('feedback.rate.5')]"
+              size="large" />
           </div>
 
-          <el-form-item v-if="form.type === 'BUG'" label="问题标题" class="mt">
-            <el-input v-model="form.title" placeholder="一句话描述问题" maxlength="100" />
+          <el-form-item v-if="form.type !== 'RATING'" :label="form.type === 'BUG' ? $t('feedback.bugTitleLabel') : $t('feedback.suggestionTitleLabel')" class="mt">
+            <el-input v-model="form.title" :placeholder="form.type === 'BUG' ? $t('feedback.bugTitlePlaceholder') : $t('feedback.suggestionTitlePlaceholder')" maxlength="100" />
           </el-form-item>
 
-          <el-form-item :label="form.type === 'RATING' ? '评价内容' : '问题描述'" class="mt">
+          <el-form-item
+            :label="form.type === 'RATING' ? $t('feedback.ratingContentLabel') : (form.type === 'BUG' ? $t('feedback.bugContentLabel') : $t('feedback.suggestionContentLabel'))"
+            class="mt">
             <el-input v-model="form.content" type="textarea" :rows="5"
-              :placeholder="form.type === 'RATING' ? '说说你的使用体验, 哪里做得好, 哪里可以更好?' : '请描述复现步骤、期望与实际结果, 便于我们定位问题'" />
+              :placeholder="form.type === 'RATING' ? $t('feedback.ratingContentPlaceholder') : (form.type === 'BUG' ? $t('feedback.bugContentPlaceholder') : $t('feedback.suggestionContentPlaceholder'))" />
           </el-form-item>
 
-          <el-form-item label="联系方式" class="mt">
-            <el-input v-model="form.contact" placeholder="选填, 留下邮箱/微信便于回复" maxlength="100" style="width:320px" />
+          <el-form-item :label="$t('feedback.contactLabel')" class="mt">
+            <el-input v-model="form.contact" :placeholder="$t('feedback.contactPlaceholder')" maxlength="100" style="width:320px" />
           </el-form-item>
 
-          <el-button type="primary" :loading="submitting" @click="submit">提交反馈</el-button>
+          <el-button type="primary" :loading="submitting" @click="submit">{{ $t('feedback.submit') }}</el-button>
         </div>
       </el-tab-pane>
 
       <!-- 我的反馈 -->
-      <el-tab-pane label="我的反馈" name="mine">
+      <el-tab-pane :label="$t('feedback.tab.mine')" name="mine">
         <div v-loading="mineLoading">
           <div v-if="mine.length" class="fb-list">
             <div v-for="f in mine" :key="f.id" class="fb-item">
@@ -194,56 +226,60 @@ onMounted(() => {
                 <small class="time">{{ f.createTime?.replace('T', ' ') }}</small>
               </div>
               <p class="fb-content">{{ f.content }}</p>
+              <small v-if="f.source" class="fb-source">{{ $t('feedback.source', { source: f.source }) }}</small>
               <div v-if="f.adminReply" class="fb-reply">
-                <b>管理员回复:</b> {{ f.adminReply }}
+                <b>{{ $t('feedback.adminReplyLabel') }}</b> {{ f.adminReply }}
               </div>
             </div>
           </div>
-          <el-empty v-else description="你还没有提交过反馈" />
+          <el-empty v-else :description="$t('feedback.noFeedback')" />
         </div>
       </el-tab-pane>
 
       <!-- 反馈管理(管理员) -->
-      <el-tab-pane v-if="isAdmin" label="反馈管理" name="admin">
+      <el-tab-pane v-if="isAdmin" :label="$t('feedback.tab.admin')" name="admin">
         <div class="card" v-loading="adminLoading">
           <div class="filter-row">
-            <el-select v-model="query.type" placeholder="全部类型" clearable style="width:140px" @change="query.page = 1; loadAdmin()">
-              <el-option label="评分" value="RATING" />
-              <el-option label="问题反馈" value="BUG" />
+            <el-select v-model="query.type" :placeholder="$t('feedback.allTypes')" clearable style="width:140px" @change="query.page = 1; loadAdmin()">
+              <el-option v-for="o in typeOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
-            <el-select v-model="query.status" placeholder="全部状态" clearable style="width:140px" @change="query.page = 1; loadAdmin()">
-              <el-option label="待处理" value="OPEN" />
-              <el-option label="处理中" value="PROCESSING" />
-              <el-option label="已处理" value="DONE" />
+            <el-select v-model="query.status" :placeholder="$t('feedback.allStatus')" clearable style="width:140px" @change="query.page = 1; loadAdmin()">
+              <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </div>
 
           <el-table :data="adminList" stripe>
-            <el-table-column prop="username" label="用户" width="100" />
-            <el-table-column label="类型" width="90">
+            <el-table-column prop="username" :label="$t('feedback.col.user')" width="100" />
+            <el-table-column :label="$t('feedback.col.type')" width="90">
               <template #default="{ row }">
                 <el-tag :type="typeMap[row.type]?.type" size="small" effect="plain">{{ typeMap[row.type]?.text }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="评分" width="140">
+            <el-table-column :label="$t('feedback.col.score')" width="140">
               <template #default="{ row }">
                 <el-rate v-if="row.type === 'RATING'" :model-value="row.score" disabled size="small" />
                 <span v-else class="t-title">{{ row.title }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="content" label="内容" min-width="220" show-overflow-tooltip />
-            <el-table-column label="状态" width="90">
+            <el-table-column prop="content" :label="$t('feedback.col.content')" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="source" :label="$t('feedback.col.source')" min-width="170" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span v-if="row.source" class="src-cell">{{ row.source }}</span>
+                <el-tag v-else size="small" type="info" effect="plain">{{ $t('feedback.unknown') }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column :label="$t('feedback.col.status')" width="90">
               <template #default="{ row }">
                 <el-tag :type="statusMap[row.status]?.type" size="small">{{ statusMap[row.status]?.text }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="createTime" label="提交时间" width="160">
+            <el-table-column prop="createTime" :label="$t('feedback.col.createTime')" width="160">
               <template #default="{ row }">{{ row.createTime?.replace('T', ' ') }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column :label="$t('common.actions')" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button link type="primary" size="small" @click="openHandle(row)">处理</el-button>
-                <el-button link type="danger" size="small" @click="removeRow(row)">删除</el-button>
+                <el-button link type="primary" size="small" @click="openHandle(row)">{{ $t('feedback.handle') }}</el-button>
+                <el-button link type="danger" size="small" @click="removeRow(row)">{{ $t('common.delete') }}</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -261,29 +297,27 @@ onMounted(() => {
     </el-tabs>
 
     <!-- 处理反馈 -->
-    <el-dialog v-model="handleVisible" title="处理反馈" width="480px" destroy-on-close>
+    <el-dialog v-model="handleVisible" :title="$t('feedback.handleTitle')" width="480px" destroy-on-close>
       <el-form label-width="80px">
-        <el-form-item label="处理状态">
+        <el-form-item :label="$t('feedback.handleStatus')">
           <el-radio-group v-model="handleForm.status">
-            <el-radio-button value="OPEN">待处理</el-radio-button>
-            <el-radio-button value="PROCESSING">处理中</el-radio-button>
-            <el-radio-button value="DONE">已处理</el-radio-button>
+            <el-radio-button v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="处理备注">
-          <el-input v-model="handleForm.adminReply" type="textarea" :rows="4" placeholder="回复用户 / 处理说明" />
+        <el-form-item :label="$t('feedback.handleNote')">
+          <el-input v-model="handleForm.adminReply" type="textarea" :rows="4" :placeholder="$t('feedback.handleReplyPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="handleVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveHandle">保存</el-button>
+        <el-button @click="handleVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="saveHandle">{{ $t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.page { padding:24px 32px; max-width:1100px; margin:0 auto }
+.page { padding:24px 32px 40px }
 
 .hero { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px }
 .hero h1 { margin:0 0 4px; font-size:var(--fs-xl); font-weight:600; color:var(--c-text-1) }
@@ -310,7 +344,9 @@ onMounted(() => {
 .fb-content { margin:10px 0 0; color:var(--c-text-2); font-size:var(--fs-sm); line-height:1.8; white-space:pre-wrap }
 .fb-reply { margin-top:10px; background:var(--c-primary-bg); border-radius:var(--r-s); padding:10px 12px; font-size:var(--fs-sm); color:var(--c-text-2) }
 .fb-reply b { color:var(--c-primary) }
+.fb-source { display:block; margin-top:8px; color:var(--c-text-3); font-size:var(--fs-xs) }
 
 .filter-row { display:flex; gap:10px; margin-bottom:14px }
 .t-title { font-size:var(--fs-xs); color:var(--c-text-1) }
+.src-cell { font-size:var(--fs-xs); color:var(--c-text-2) }
 </style>

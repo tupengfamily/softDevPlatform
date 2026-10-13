@@ -214,11 +214,12 @@ public class NodeSandboxService {
         return null;
     }
 
-    /** 模块名合规检查(node: 前缀等价内置模块) */
+    /** 模块名合规检查(node: 前缀等价内置模块; 内置模块子路径如 fs/promises 按根模块放行) */
     private String checkModule(String raw) {
         String name = raw.startsWith("node:") ? raw.substring(5) : raw;
-        if (ALLOWED_MODULES.contains(name)) return null;
-        if (DANGEROUS_MODULES.contains(name)) {
+        String root = name.contains("/") ? name.substring(0, name.indexOf('/')) : name;
+        if (ALLOWED_MODULES.contains(root)) return null;
+        if (DANGEROUS_MODULES.contains(root)) {
             return "不允许导入危险模块 '" + raw + "'(教学沙箱已禁用进程/虚拟机相关能力)";
         }
         // 其余视为 npm 第三方包或相对路径: 给出本地练习指引而非安全口吻

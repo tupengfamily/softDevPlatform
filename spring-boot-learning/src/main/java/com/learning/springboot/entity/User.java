@@ -28,7 +28,7 @@ import java.util.Set;
  * <p>
  * 重要字段:
  * - password: BCrypt 加密后的密码,严禁明文
- * - status: 1=启用,0=禁用
+ * - status: 1=启用,0=禁用,2=只读(可浏览,禁止编辑/发言等写操作)
  * - roles: 用户拥有的角色(懒加载)
  */
 @Entity
@@ -67,7 +67,14 @@ public class User {
     @Column(length = 200)
     private String address;
 
-    /** 1=启用,0=禁用 */
+    /** 0=禁用 */
+    public static final int STATUS_DISABLED = 0;
+    /** 1=启用 */
+    public static final int STATUS_ENABLED = 1;
+    /** 2=只读: 可登录可浏览,禁止编辑/发言等一切写操作 */
+    public static final int STATUS_READONLY = 2;
+
+    /** 1=启用,0=禁用,2=只读 */
     @Column(nullable = false)
     private Integer status = 1;
 

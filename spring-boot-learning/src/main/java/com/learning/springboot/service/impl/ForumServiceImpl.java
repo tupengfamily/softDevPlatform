@@ -225,10 +225,27 @@ public class ForumServiceImpl implements ForumService {
         reply.setContentType(normalizeType(req.contentType));
         reply.setContent(sanitizeContent(req.content.trim(), reply.getContentType()));
         reply.setCreatedAt(LocalDateTime.now());
+        // 楼中楼: 回复某条回复(必须属于本帖;支持多级,展示时拍平)
+        if (req.parentReplyId != null) {
+            ForumReply parent = replyRepository.findById(req.parentReplyId)
+                .orElseThrow(() -> new IllegalArgumentException("被回复的评论不存在"));
+            if (!parent.getPostId().equals(postId)) {
+                throw new IllegalArgumentException("只能回复本帖内的评论");
+            }
+            reply.setParentReplyId(parent.getId());
+            reply.setReplyToUsername(parent.getUsername());
+        }
         replyRepository.save(reply);
         postRepository.recalcReplyCount(postId);
-        // 通知楼主(自己回自己不发)
-        notificationService.notifyReply(post.getUserId(), userId, username, post.getTitle(), postId);
+        // 通知: 回复评论 → 通知被回复者;回复帖子 → 通知楼主(自己回自己不发)
+        if (reply.getParentReplyId() != null) {
+            ForumReply parent = replyRepository.findById(reply.getParentReplyId()).orElse(null);
+            if (parent != null && !parent.getUserId().equals(userId)) {
+                notificationService.notifyReply(parent.getUserId(), userId, username, post.getTitle(), postId);
+            }
+        } else {
+            notificationService.notifyReply(post.getUserId(), userId, username, post.getTitle(), postId);
+        }
         return toReplyVO(reply, userId, true);
     }
 
@@ -240,6 +257,8 @@ public class ForumServiceImpl implements ForumService {
         if (!admin && !reply.getUserId().equals(userId)) {
             throw new BusinessException(403, "只能删除自己的回复");
         }
+        // 级联删除子回复(楼中楼),避免孤儿引用
+        replyRepository.deleteByParentReplyId(id);
         replyRepository.delete(reply);
         postRepository.recalcReplyCount(reply.getPostId());
         log.info("用户 {} 删除回复 {}", userId, id);
@@ -397,6 +416,8 @@ public class ForumServiceImpl implements ForumService {
         vo.username = r.getUsername();
         vo.content = r.getContent();
         vo.contentType = r.getContentType();
+        vo.parentReplyId = r.getParentReplyId();
+        vo.replyToUsername = r.getReplyToUsername();
         vo.createdAt = r.getCreatedAt();
         vo.editable = admin || (currentUserId != null && currentUserId.equals(r.getUserId()));
         return vo;

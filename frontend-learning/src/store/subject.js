@@ -14,7 +14,12 @@ export const useSubjectStore = defineStore('subject', {
   state: () => ({
     subjects: [],
     preferredSubjectId: Number(localStorage.getItem('preferredSubjectId')) || null,
-    loaded: false
+    loaded: false,
+    // 加载代次 + 用户手动切换标记:
+    // load() 是异步的,若用户在加载途中切换语言,旧的偏好响应不得回填覆盖用户刚做的选择
+    loadGen: 0,
+    userSwitched: false,
+    switchTick: 0     // 仅在用户手动切换时递增,供课时页精确响应"用户切换"动作
   }),
   getters: {
     /** 偏好科目对象(可能为 null) */
@@ -25,13 +30,17 @@ export const useSubjectStore = defineStore('subject', {
   actions: {
     /** 拉取科目列表 + 服务端偏好(服务端为准,未设置则沿用本地;游客仅拉列表) */
     async load() {
+      const gen = ++this.loadGen
       try {
         const res = await getSubjects()
+        if (gen !== this.loadGen) return   // 期间用户又发起加载/切换,丢弃本次结果
         this.subjects = res.data || []
       } catch (_) { /* 静默,列表为空时页面自行兜底 */ }
       if (useUserStore().isLogin) {
         try {
           const res = await getPreference()
+          // 用户在加载途中手动切换过语言 => 以用户选择为准,不用旧的偏好响应覆盖
+          if (gen !== this.loadGen || this.userSwitched) return
           const sid = res.data?.subjectId
           if (sid) {
             this.preferredSubjectId = sid
@@ -39,6 +48,7 @@ export const useSubjectStore = defineStore('subject', {
           }
         } catch (_) { /* 静默,沿用本地偏好 */ }
       }
+      if (gen !== this.loadGen || this.userSwitched) return
       // 偏好科目不存在/被禁用时回退到第一个启用科目
       if (!this.subjects.some(s => s.id === this.preferredSubjectId)) {
         this.preferredSubjectId = this.subjects[0]?.id || null
@@ -48,6 +58,8 @@ export const useSubjectStore = defineStore('subject', {
 
     /** 切换偏好语言:本地立即生效 + 同步后端(游客仅本地记忆;失败静默,不影响使用) */
     async setPreferred(subjectId) {
+      this.userSwitched = true               // 阻止在途 load() 的旧偏好回填覆盖本次选择
+      this.switchTick++                     // 通知课时页: 用户手动切换了语言
       this.preferredSubjectId = subjectId || null
       if (subjectId) localStorage.setItem('preferredSubjectId', String(subjectId))
       else localStorage.removeItem('preferredSubjectId')

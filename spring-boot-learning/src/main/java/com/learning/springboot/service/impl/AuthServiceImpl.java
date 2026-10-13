@@ -53,7 +53,8 @@ public class AuthServiceImpl implements AuthService {
             user = userRepository.findByUsernameWithRoles(req.getUsername())
                 .orElseThrow(() -> new BusinessException(401, "用户名或密码错误"));
 
-            if (user.getStatus() == null || user.getStatus() != 1) {
+            // 仅禁用(0)拒绝登录;只读(2)可正常登录,登录后由 UserStatusInterceptor 限制写操作
+            if (user.getStatus() == null || user.getStatus() == User.STATUS_DISABLED) {
                 throw new BusinessException(403, "账号已被禁用");
             }
 

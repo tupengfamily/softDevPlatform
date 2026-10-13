@@ -22,9 +22,15 @@ export const getBoard = (subjectId) =>
 export const getPreference = () =>
   request({ url: '/learning/preference', method: 'get' })
 
-// PUT /api/learning/preference — 保存学习偏好(0/null=清除)
-export const savePreference = (subjectId) =>
-  request({ url: '/learning/preference', method: 'put', data: { subjectId: subjectId || 0 } })
+// PUT /api/learning/preference — 保存学习偏好
+// 兼容两种调用: savePreference(subjectId) 或 savePreference({ subjectId?, locale? })
+// (0/null=清除;对象里没带的字段后端不动)
+export const savePreference = (payload) => {
+  const data = (payload !== null && typeof payload === 'object')
+    ? payload
+    : { subjectId: payload || 0 }
+  return request({ url: '/learning/preference', method: 'put', data })
+}
 
 // GET /api/learning/lessons/{id} — 课时详情
 export const getLesson = (id) =>

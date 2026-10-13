@@ -5,9 +5,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '../store/user'
 import { useSubjectStore } from '../store/subject'
 import { useNotificationStore } from '../store/notification'
+import { useDictStore } from '../store/dict'
+import { useLocaleStore } from '../store/locale'
 import { lessonCrumbTitle } from '../store/crumb'
 import { getLatestRelease } from '../api/release'
 import { sanitizeHtml } from '../utils/markdown'
@@ -18,12 +21,17 @@ const route = useRoute()
 const userStore = useUserStore()
 const subjectStore = useSubjectStore()
 const notifStore = useNotificationStore()
+const dictStore = useDictStore()
+const localeStore = useLocaleStore()
+const { t } = useI18n()
 
 const isAdmin = computed(() => userStore.roles.includes('ADMIN'))
 
 // ============== 游客访问 ==============
 // 未登录用户可浏览学习中心/课时详情;个人操作由页面内引导登录
 const isGuest = computed(() => !userStore.isLogin)
+/** 只读账号: 可浏览,禁止编辑/发言等操作(由后端拦截器强制) */
+const isReadOnly = computed(() => userStore.userInfo?.status === 2)
 const guestBannerVisible = ref(sessionStorage.getItem('guestBannerClosed') !== '1')
 const dismissGuestBanner = () => {
   guestBannerVisible.value = false
@@ -55,61 +63,92 @@ const onLangChange = async (sid) => {
 const collapsed = ref(localStorage.getItem('menuCollapsed') === '1')
 watch(collapsed, v => localStorage.setItem('menuCollapsed', v ? '1' : '0'))
 
-// 菜单分组: 学习 -> 系统管理(仅管理员) -> 其他
+// ============== 移动端适配 ==============
+// <=768px 时侧栏改为 off-canvas 抽屉:汉堡按钮唤出,遮罩点击/选中菜单即收起
+const isMobile = ref(false)
+const drawerOpen = ref(false)
+const asideWidth = computed(() => (isMobile.value ? '228px' : (collapsed.value ? '56px' : '228px')))
+const menuCollapsed = computed(() => collapsed.value && !isMobile.value)
+let mq = null
+const onMq = (e) => {
+  isMobile.value = e.matches
+  if (!e.matches) drawerOpen.value = false   // 回到桌面时复位抽屉
+}
+onMounted(() => {
+  mq = window.matchMedia('(max-width: 768px)')
+  isMobile.value = mq.matches
+  mq.addEventListener('change', onMq)
+})
+onBeforeUnmount(() => { mq?.removeEventListener('change', onMq) })
+// 路由切换(点菜单/跳转)后收起抽屉
+watch(() => route.path, () => { if (isMobile.value) drawerOpen.value = false })
+
+// 菜单分组: 学习 -> 交流 -> 个人中心 -> 系统管理(仅管理员) -> 其他
+// 标题存 i18n key(渲染时 $t 翻译);分组展开状态用 key 做标识,切换语言不丢记忆
 const menuGroups = computed(() => {
   const groups = [
     {
-      title: '学习',
+      titleKey: 'layout.group.learning',
       items: [
-        { path: '/learning', title: '学习中心', icon: 'Reading' },
-        { path: '/board',    title: '学习看板', icon: 'TrendCharts' }
+        { path: '/learning', titleKey: 'nav.learningCenter', icon: 'Reading' },
+        { path: '/board',    titleKey: 'nav.learningBoard', icon: 'TrendCharts' }
+      ]
+    },
+    {
+      titleKey: 'layout.group.social',
+      items: [
+        { path: '/forum', titleKey: 'nav.forum', icon: 'ChatLineRound' }
+      ]
+    },
+    {
+      titleKey: 'layout.group.personal',
+      items: [
+        { path: '/todos',         titleKey: 'nav.todos', icon: 'Memo' },
+        { path: '/notifications', titleKey: 'nav.notifications', icon: 'Bell' },
+        { path: '/favorites',     titleKey: 'nav.favorites', icon: 'Star' },
+        { path: '/wiki',          titleKey: 'nav.wiki', icon: 'Notebook' },
+        { path: '/data-transfer', titleKey: 'nav.dataTransfer', icon: 'Download' }
       ]
     }
   ]
   if (isAdmin.value) {
     groups.push({
-      title: '系统管理',
+      titleKey: 'layout.group.system',
       items: [
-        { path: '/dashboard', title: '仪表盘',   icon: 'DataAnalysis' },
-        { path: '/users',     title: '用户管理', icon: 'User' },
-        { path: '/roles',     title: '角色管理', icon: 'UserFilled' },
-        { path: '/dicts',     title: '数据字典', icon: 'Collection' },
-        { path: '/logs',      title: '操作日志', icon: 'Document' },
-        { path: '/learning-config', title: '学习配置', icon: 'Setting' }
+        { path: '/dashboard', titleKey: 'nav.dashboard',   icon: 'DataAnalysis' },
+        { path: '/users',     titleKey: 'nav.users', icon: 'User' },
+        { path: '/roles',     titleKey: 'nav.roles', icon: 'UserFilled' },
+        { path: '/dicts',     titleKey: 'nav.dicts', icon: 'Collection' },
+        { path: '/logs',      titleKey: 'nav.logs', icon: 'Document' },
+        { path: '/learning-config', titleKey: 'nav.learningConfig', icon: 'Setting' }
       ]
     })
   }
   groups.push({
-    title: '交流',
+    titleKey: 'layout.group.other',
     items: [
-      { path: '/forum', title: '论坛专区', icon: 'ChatLineRound' }
-    ]
-  })
-  groups.push({
-    title: '其他',
-    items: [
-      { path: '/releases', title: '更新日志', icon: 'Tickets' },
-      { path: '/feedback', title: '意见反馈', icon: 'ChatDotSquare' },
-      { path: '/about',    title: '关于',     icon: 'InfoFilled' }
+      { path: '/releases', titleKey: 'nav.releases', icon: 'Tickets' },
+      { path: '/feedback', titleKey: 'nav.feedback', icon: 'ChatDotSquare' },
+      { path: '/about',    titleKey: 'nav.about',     icon: 'InfoFilled' }
     ]
   })
   return groups
 })
 
-// 分组展开/收起(记忆到 localStorage)
+// 分组展开/收起(记忆到 localStorage;用 titleKey 做稳定标识)
 const collapsedGroups = ref(JSON.parse(localStorage.getItem('menuCollapsedGroups') || '[]'))
 watch(collapsedGroups, v => localStorage.setItem('menuCollapsedGroups', JSON.stringify(v)), { deep: true })
-const isGroupCollapsed = (title) => collapsedGroups.value.includes(title)
-const toggleGroup = (title) => {
-  const i = collapsedGroups.value.indexOf(title)
+const isGroupCollapsed = (key) => collapsedGroups.value.includes(key)
+const toggleGroup = (key) => {
+  const i = collapsedGroups.value.indexOf(key)
   if (i >= 0) collapsedGroups.value.splice(i, 1)
-  else collapsedGroups.value.push(title)
+  else collapsedGroups.value.push(key)
 }
 // 当前路由所在分组若被收起,自动展开(保证激活项可见)
 watch(() => route.path, (p) => {
   for (const group of menuGroups.value) {
     if (group.items.some(it => p === it.path || p.startsWith(it.path + '/'))) {
-      const i = collapsedGroups.value.indexOf(group.title)
+      const i = collapsedGroups.value.indexOf(group.titleKey)
       if (i >= 0) collapsedGroups.value.splice(i, 1)
     }
   }
@@ -123,12 +162,21 @@ const activePath = computed(() => {
 })
 const goTo = (path) => router.push(path)
 
+// 移动端头部紧凑标题(替代面包屑,单行省略)
+const mobileTitle = computed(() => {
+  if (route.path.startsWith('/learning/lesson') && lessonCrumbTitle.value) return lessonCrumbTitle.value
+  if (route.meta.titleKey) return t(route.meta.titleKey)
+  return route.meta.title || t('app.title')
+})
+
 // ============== 消息中心(头部铃铛) ==============
 // 未读数 60s 轮询(store 与消息页共享);面板展示最近 8 条,点击跳转关联内容(帖子/课时)
 const unread = computed(() => notifStore.unread)
 const msgList = ref([])
 const msgVisible = ref(false)
 const typeTag = { SYSTEM: 'primary', REPLY: 'warning', TASK: 'success' }
+// 类型文案优先取数据字典 notification_type,后端 typeLabel 兜底
+const typeText = (n) => dictStore.label('notification_type', n.type, n.typeLabel || n.type)
 
 const openMsgPanel = async () => {
   msgVisible.value = !msgVisible.value
@@ -138,7 +186,7 @@ const openMsgPanel = async () => {
     msgList.value = res.data || []
   } catch (e) { /* 静默 */ }
 }
-const fmtMsgTime = (t) => (t || '').replace('T', ' ').slice(0, 16)
+const fmtMsgTime = (time) => (time || '').replace('T', ' ').slice(0, 16)
 const onMsgClick = async (n) => {
   msgVisible.value = false
   if (!n.read) {
@@ -156,7 +204,7 @@ const readAllMsgs = async () => {
     await markAllRead()
     notifStore.clearUnread()
     msgList.value.forEach(n => { n.read = true })
-    ElMessage.success('已全部标记已读')
+    ElMessage.success(t('layout.msg.markAllReadDone'))
   } catch (e) { /* 已统一弹错 */ }
 }
 const goNotifications = () => { msgVisible.value = false; router.push('/notifications') }
@@ -171,6 +219,8 @@ const SEEN_KEY = 'lastSeenReleaseVersion'
 
 onMounted(async () => {
   subjectStore.load()   // 科目列表 + 学习语言偏好(异步即可,不阻塞公告;游客仅拉科目列表)
+  dictStore.load()      // 数据字典标签映射(游客可读,业务页文案统一从这取)
+  localeStore.pullFromServer()   // 登录用户拉取服务端界面语言偏好
   if (userStore.isLogin) {
     notifStore.fetchUnread()
     msgTimer = setInterval(() => notifStore.fetchUnread(), 60000)   // 未读数轮询
@@ -206,13 +256,13 @@ const onCommand = async (cmd) => {
     router.push('/profile')
   } else if (cmd === 'logout') {
     try {
-      await ElMessageBox.confirm('确定退出登录吗?', '提示', {
-        confirmButtonText: '退出',
-        cancelButtonText: '取消',
+      await ElMessageBox.confirm(t('layout.logout.confirm'), t('layout.logout.tip'), {
+        confirmButtonText: t('layout.logout.ok'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       })
       await userStore.logout()
-      ElMessage.success('已退出登录')
+      ElMessage.success(t('layout.logout.done'))
       router.push('/login')
     } catch (_) { /* 取消 */ }
   } else if (cmd === 'collapse') {
@@ -222,18 +272,23 @@ const onCommand = async (cmd) => {
 </script>
 
 <template>
-  <el-container class="layout-container">
-    <!-- 左侧菜单(可折叠) -->
-    <el-aside :width="collapsed ? '56px' : '228px'" class="aside" :class="{ collapsed }">
-      <div class="logo" :class="{ collapsed }">
-        <el-icon size="22" color="#fff"><Promotion /></el-icon>
-        <span v-show="!collapsed" class="logo-text">通用学习平台</span>
+  <el-container class="layout-container" :class="{ 'is-mobile': isMobile, 'drawer-open': drawerOpen }">
+    <!-- 移动端抽屉遮罩 -->
+    <transition name="fade">
+      <div v-if="isMobile && drawerOpen" class="drawer-mask" @click="drawerOpen = false"></div>
+    </transition>
+
+    <!-- 左侧菜单(桌面可折叠;移动端为 off-canvas 抽屉) -->
+    <el-aside :width="asideWidth" class="aside" :class="{ collapsed: menuCollapsed, mobile: isMobile }">
+      <div class="logo" :class="{ collapsed: menuCollapsed }">
+        <img class="logo-icon" src="/favicon.svg" alt="" aria-hidden="true">
+        <span v-show="!menuCollapsed" class="logo-text">{{ $t('app.title') }}</span>
       </div>
 
-      <el-scrollbar class="menu-scroll" role="navigation" aria-label="主导航">
+      <el-scrollbar class="menu-scroll" role="navigation" :aria-label="$t('layout.a11y.mainNav')">
         <el-menu
           :default-active="activePath"
-          :collapse="collapsed"
+          :collapse="menuCollapsed"
           :collapse-transition="false"
           class="aside-menu"
           background-color="transparent"
@@ -241,29 +296,29 @@ const onCommand = async (cmd) => {
           active-text-color="#fff"
           @select="goTo"
         >
-          <template v-for="group in menuGroups" :key="group.title">
+          <template v-for="group in menuGroups" :key="group.titleKey">
             <div
-              v-show="!collapsed"
+              v-show="!menuCollapsed"
               class="group-title"
-              :class="{ collapsed: isGroupCollapsed(group.title) }"
+              :class="{ collapsed: isGroupCollapsed(group.titleKey) }"
               role="button"
               tabindex="0"
-              @click="toggleGroup(group.title)"
-              @keydown.enter="toggleGroup(group.title)"
+              @click="toggleGroup(group.titleKey)"
+              @keydown.enter="toggleGroup(group.titleKey)"
             >
-              <span>{{ group.title }}</span>
+              <span>{{ $t(group.titleKey) }}</span>
               <el-icon class="g-arrow"><ArrowDown /></el-icon>
             </div>
-            <template v-if="collapsed || !isGroupCollapsed(group.title)">
+            <template v-if="menuCollapsed || !isGroupCollapsed(group.titleKey)">
               <el-menu-item
                 v-for="item in group.items"
                 :key="item.path"
                 :index="item.path"
-                :title="item.title"
+                :title="$t(item.titleKey)"
               >
                 <el-icon><component :is="item.icon" /></el-icon>
                 <template #title>
-                  <span class="mi-title">{{ item.title }}</span>
+                  <span class="mi-title">{{ $t(item.titleKey) }}</span>
                 </template>
               </el-menu-item>
             </template>
@@ -272,18 +327,19 @@ const onCommand = async (cmd) => {
       </el-scrollbar>
 
       <!-- 底部角色提示 -->
-      <div class="aside-foot" v-show="!collapsed">
+      <div class="aside-foot" v-show="!menuCollapsed">
         <span class="dot" :class="isGuest ? 'guest' : (isAdmin ? 'admin' : 'user')"></span>
-        {{ isGuest ? '游客模式 · 登录后记录学习进度' : (isAdmin ? '管理员模式 · 可管理全站' : '学员模式 · 专注你的学习') }}
+        {{ isGuest ? $t('layout.role.guest') : (isAdmin ? $t('layout.role.admin') : $t('layout.role.user')) }}
       </div>
     </el-aside>
 
-    <!-- 展开/收起把手: 主流做法,悬浮于侧栏右缘垂直居中处 -->
+    <!-- 展开/收起把手: 主流做法,悬浮于侧栏右缘垂直居中处(移动端隐藏,改用抽屉) -->
     <button
+      v-if="!isMobile"
       class="edge-toggle"
       :style="{ left: (collapsed ? 40 : 212) + 'px' }"
-      :title="collapsed ? '展开菜单' : '收起菜单'"
-      :aria-label="collapsed ? '展开菜单' : '收起菜单'"
+      :title="collapsed ? $t('layout.menu.expand') : $t('layout.menu.collapse')"
+      :aria-label="collapsed ? $t('layout.menu.expand') : $t('layout.menu.collapse')"
       @click="collapsed = !collapsed"
     >
       <el-icon :size="13"><component :is="collapsed ? 'ArrowRight' : 'ArrowLeft'" /></el-icon>
@@ -293,41 +349,77 @@ const onCommand = async (cmd) => {
       <!-- 顶部 -->
       <el-header class="header">
         <div class="header-left">
+          <!-- 移动端汉堡按钮: 唤出侧栏抽屉 -->
+          <button
+            v-if="isMobile"
+            class="burger"
+            :aria-label="$t('layout.menu.open')"
+            @click="drawerOpen = !drawerOpen"
+          >
+            <el-icon :size="18"><Expand v-if="drawerOpen" /><Fold v-else /></el-icon>
+          </button>
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: isAdmin ? '/dashboard' : '/learning' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: isAdmin ? '/dashboard' : '/learning' }">{{ $t('layout.crumb.home') }}</el-breadcrumb-item>
             <el-breadcrumb-item v-if="route.path === '/learning' || route.path.startsWith('/learning/')" :to="{ path: '/learning' }">
-              学习中心
+              {{ $t('nav.learningCenter') }}
             </el-breadcrumb-item>
             <el-breadcrumb-item v-if="route.path.startsWith('/learning/lesson') && lessonCrumbTitle">
               {{ lessonCrumbTitle }}
             </el-breadcrumb-item>
             <el-breadcrumb-item v-else-if="route.meta.title && route.path !== '/dashboard' && route.path !== '/learning'">
-              {{ route.meta.title }}
+              {{ $t(route.meta.titleKey || '') || route.meta.title }}
             </el-breadcrumb-item>
           </el-breadcrumb>
+          <!-- 移动端紧凑标题(替代面包屑,单行省略) -->
+          <span class="mobile-title">{{ mobileTitle }}</span>
         </div>
         <div class="header-right">
-          <el-select
-            class="lang-select"
-            :model-value="subjectStore.preferredSubjectId"
-            placeholder="选择学习语言"
-            aria-label="选择学习语言"
-            size="small"
-            :disabled="langChanging"
-            @change="onLangChange"
-          >
-            <template #prefix>
-              <el-icon><Connection /></el-icon>
-            </template>
-            <el-option v-for="s in subjectStore.subjects" :key="s.id" :label="s.name" :value="s.id">
-              <span>{{ s.name }}</span>
-              <small class="lang-opt-meta">{{ s.totalLessons }} 课时</small>
-            </el-option>
-          </el-select>
+          <!-- 工具组: 学习选择 + 界面语言 -->
+          <div class="hr-tools">
+            <el-select
+              class="lang-select"
+              :model-value="subjectStore.preferredSubjectId"
+              :placeholder="$t('layout.subject.select')"
+              :aria-label="$t('layout.subject.select')"
+              size="small"
+              :disabled="langChanging"
+              @change="onLangChange"
+            >
+              <template #prefix>
+                <el-icon><Connection /></el-icon>
+              </template>
+              <el-option v-for="s in subjectStore.subjects" :key="s.id" :label="s.name" :value="s.id">
+                <span>{{ s.name }}</span>
+                <small class="lang-opt-meta">{{ $t('layout.subject.lessonCount', { n: s.totalLessons }) }}</small>
+              </el-option>
+            </el-select>
 
+            <!-- 界面语言切换(中/EN): 切换即时生效并持久化 -->
+            <div class="locale-toggle" role="group" :aria-label="$t('locale.switch')">
+              <button
+                type="button"
+                class="locale-btn"
+                :class="{ active: localeStore.locale === 'zh-CN' }"
+                :title="$t('locale.switch')"
+                :aria-pressed="localeStore.locale === 'zh-CN'"
+                @click="localeStore.setLocale('zh-CN')"
+              >中</button>
+              <button
+                type="button"
+                class="locale-btn"
+                :class="{ active: localeStore.locale === 'en-US' }"
+                :title="$t('locale.switch')"
+                :aria-pressed="localeStore.locale === 'en-US'"
+                @click="localeStore.setLocale('en-US')"
+              >EN</button>
+            </div>
+          </div>
+
+          <!-- 用户组: 消息铃铛 + 身份标签 + 头像菜单 -->
+          <div class="hr-user">
           <!-- 消息中心铃铛(登录用户) -->
           <div v-if="!isGuest" class="msg-wrap">
-            <button class="msg-bell" title="消息中心" aria-label="消息中心" @click="openMsgPanel">
+            <button class="msg-bell" :title="$t('layout.msg.title')" :aria-label="$t('layout.msg.title')" @click="openMsgPanel">
               <el-badge :value="unread" :hidden="!unread" :max="99">
                 <el-icon :size="18"><Bell /></el-icon>
               </el-badge>
@@ -336,8 +428,8 @@ const onCommand = async (cmd) => {
             <transition name="fade">
               <div v-if="msgVisible" class="msg-panel">
                 <div class="msg-head">
-                  <b>消息中心</b>
-                  <el-button v-if="unread" text type="primary" size="small" @click="readAllMsgs">全部已读</el-button>
+                  <b>{{ $t('layout.msg.title') }}</b>
+                  <el-button v-if="unread" text type="primary" size="small" @click="readAllMsgs">{{ $t('layout.msg.markAllRead') }}</el-button>
                 </div>
                 <div class="msg-body">
                   <div
@@ -350,17 +442,17 @@ const onCommand = async (cmd) => {
                     @click="onMsgClick(n)"
                     @keydown.enter="onMsgClick(n)"
                   >
-                    <el-tag size="small" effect="plain" :type="typeTag[n.type] || 'info'">{{ n.typeLabel }}</el-tag>
+                    <el-tag size="small" effect="plain" :type="typeTag[n.type] || 'info'">{{ typeText(n) }}</el-tag>
                     <div class="msg-text">
                       <div class="msg-t">{{ n.title }}</div>
                       <div class="msg-c">{{ n.content }}</div>
                       <div class="msg-time">{{ fmtMsgTime(n.createTime) }}</div>
                     </div>
                   </div>
-                  <el-empty v-if="!msgList.length" description="暂无消息" :image-size="48" />
+                  <el-empty v-if="!msgList.length" :description="$t('layout.msg.empty')" :image-size="48" />
                 </div>
                 <div class="msg-foot" role="button" tabindex="0" @click="goNotifications" @keydown.enter="goNotifications">
-                  查看全部消息 →
+                  {{ $t('layout.msg.viewAll') }}
                 </div>
               </div>
             </transition>
@@ -369,39 +461,40 @@ const onCommand = async (cmd) => {
           <!-- 游客:身份提示 + 登录引导 -->
           <template v-if="isGuest">
             <el-tag type="info" size="small" effect="light" round>
-              <el-icon style="vertical-align:-2px;margin-right:2px"><UserFilled /></el-icon>游客访问
+              <el-icon style="vertical-align:-2px;margin-right:2px"><UserFilled /></el-icon>{{ $t('layout.guest.tag') }}
             </el-tag>
-            <el-button size="small" @click="goLogin">登录</el-button>
-            <el-button size="small" type="primary" @click="goRegister">注册</el-button>
+            <el-button size="small" @click="goLogin">{{ $t('nav.login') }}</el-button>
+            <el-button size="small" type="primary" @click="goRegister">{{ $t('nav.register') }}</el-button>
           </template>
 
           <template v-else>
             <el-tag :type="isAdmin ? 'danger' : 'success'" size="small" effect="light" round>
-              {{ isAdmin ? '管理员' : '普通用户' }}
+              {{ isAdmin ? $t('layout.role.adminTag') : $t('layout.role.userTag') }}
             </el-tag>
             <el-dropdown trigger="click" @command="onCommand">
               <span class="user-trigger">
                 <el-avatar :size="28" :src="avatarSrc" :style="{ background: isAdmin ? '#c22b2b' : '#15803d', fontSize: avatarSrc ? undefined : '13px' }">
                   {{ avatarChar }}
                 </el-avatar>
-                {{ userStore.displayName }}
-                <el-icon style="margin-left:4px;"><ArrowDown /></el-icon>
+                <span class="uname">{{ userStore.displayName }}</span>
+                <el-icon class="u-arrow" style="margin-left:4px;"><ArrowDown /></el-icon>
               </span>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="profile">
-                    <el-icon><User /></el-icon>个人信息设置
+                    <el-icon><User /></el-icon>{{ $t('nav.profile') }}
                   </el-dropdown-item>
                   <el-dropdown-item command="collapse" divided>
-                    <el-icon><Fold /></el-icon>{{ collapsed ? '展开菜单' : '收起菜单' }}
+                    <el-icon><Fold /></el-icon>{{ collapsed ? $t('layout.menu.expand') : $t('layout.menu.collapse') }}
                   </el-dropdown-item>
                   <el-dropdown-item command="logout" divided>
-                    <el-icon><SwitchButton /></el-icon>退出登录
+                    <el-icon><SwitchButton /></el-icon>{{ $t('layout.user.logout') }}
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
           </template>
+          </div>
         </div>
       </el-header>
 
@@ -410,13 +503,16 @@ const onCommand = async (cmd) => {
         <!-- 游客访问提示: 明确告知当前身份与登录后的权益 -->
         <div v-if="isGuest && guestBannerVisible" class="guest-bar" role="status">
           <el-icon class="gb-ic"><UserFilled /></el-icon>
-          <span class="gb-text">
-            您当前处于<strong>游客访问</strong>模式,可自由浏览全部课程;登录后可标记学习完成、同步学习进度并参与互动。
-          </span>
+          <span class="gb-text" v-html="$t('layout.guest.banner')"></span>
           <div class="gb-btns">
-            <el-button size="small" type="primary" @click="goLogin">去登录</el-button>
-            <el-button size="small" text @click="dismissGuestBanner">不再提示</el-button>
+            <el-button size="small" type="primary" @click="goLogin">{{ $t('layout.guest.login') }}</el-button>
+            <el-button size="small" text @click="dismissGuestBanner">{{ $t('layout.guest.dismiss') }}</el-button>
           </div>
+        </div>
+        <!-- 只读账号提示: 明确告知当前账号权限范围 -->
+        <div v-if="isReadOnly" class="readonly-bar" role="status">
+          <el-icon class="gb-ic"><View /></el-icon>
+          <span class="gb-text" v-html="$t('layout.readonly.banner')"></span>
         </div>
         <RouterView v-slot="{ Component }">
           <transition name="fade" mode="out-in">
@@ -430,15 +526,15 @@ const onCommand = async (cmd) => {
     <el-dialog v-model="noticeVisible" width="520px" :show-close="false" :close-on-click-modal="false" class="notice-dialog">
       <template #header>
         <div class="notice-head">
-          <span class="notice-badge">新版本</span>
+          <span class="notice-badge">{{ $t('layout.notice.badge') }}</span>
           <span class="notice-ver">v{{ noticeRelease?.version }}</span>
         </div>
       </template>
       <h3 class="notice-title">{{ noticeRelease?.title }}</h3>
       <div class="notice-body" v-html="sanitizeHtml(noticeRelease?.content)"></div>
       <template #footer>
-        <el-button @click="closeNotice">稍后再看</el-button>
-        <el-button type="primary" @click="goReleases">查看全部更新日志</el-button>
+        <el-button @click="closeNotice">{{ $t('layout.notice.later') }}</el-button>
+        <el-button type="primary" @click="goReleases">{{ $t('layout.notice.viewAll') }}</el-button>
       </template>
     </el-dialog>
   </el-container>
@@ -446,6 +542,27 @@ const onCommand = async (cmd) => {
 
 <style scoped>
 .layout-container { height: 100vh; position: relative; }
+
+/* ============ 移动端抽屉(<=768px) ============ */
+.drawer-mask {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(15, 23, 42, .45); backdrop-filter: blur(2px);
+}
+.burger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0; flex: none;
+  border: 1px solid var(--c-border-strong); border-radius: var(--r-s);
+  background: #fff; color: var(--c-text-2); cursor: pointer;
+}
+.burger:hover { color: var(--c-primary); border-color: var(--c-primary); }
+.aside.mobile {
+  position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
+  transform: translateX(-100%);
+  transition: transform .22s cubic-bezier(.4, 0, .2, 1);
+  box-shadow: 8px 0 24px rgba(15, 23, 42, .18);
+}
+.aside.mobile:not(.collapsed) { transition: transform .22s cubic-bezier(.4, 0, .2, 1); }
+.layout-container.drawer-open .aside.mobile { transform: translateX(0); }
 
 /* ============ 侧栏 ============ */
 .aside {
@@ -460,6 +577,7 @@ const onCommand = async (cmd) => {
   background: rgba(255, 255, 255, .04);
 }
 .logo.collapsed { padding: 0; justify-content: center; }
+.logo-icon { width: 26px; height: 26px; border-radius: 7px; flex: none; display: block; }
 .logo-text { color: #fff; font-size: var(--fs-md); font-weight: 600; white-space: nowrap; letter-spacing: .2px; line-height: 1; }
 
 .menu-scroll { flex: 1; }
@@ -516,6 +634,7 @@ const onCommand = async (cmd) => {
   box-shadow: 0 1px 3px rgba(15, 23, 42, .04); z-index: 10;
 }
 .header-left { display: flex; align-items: center; gap: 14px; }
+.mobile-title { display: none; }
 
 /* 侧栏右缘展开/收起把手(垂直居中, 随侧栏宽度平移) */
 .edge-toggle {
@@ -534,11 +653,28 @@ const onCommand = async (cmd) => {
   box-shadow: 0 3px 10px rgba(37, 99, 235, .28);
 }
 .header-right { display: flex; align-items: center; gap: 12px; }
+.hr-tools { display: flex; align-items: center; gap: 12px; }
+.hr-user { display: flex; align-items: center; gap: 12px; }
 
 /* 头像旁学习语言选择框 */
 .lang-select { width: 150px; }
 .lang-select :deep(.el-input__wrapper) { border-radius: var(--r-full); background: #f5f7fb; }
 .lang-opt-meta { color: var(--c-text-3); font-size: var(--fs-xs); margin-left: 8px; }
+
+/* 界面语言切换(中/EN 双按钮,当前语言高亮) */
+.locale-toggle {
+  display: inline-flex; align-items: center; flex: none;
+  gap: 2px; padding: 2px;
+  border: 1px solid var(--c-border); border-radius: var(--r-full); background: #f5f7fb;
+}
+.locale-btn {
+  min-width: 32px; height: 24px; padding: 0 8px;
+  border: none; border-radius: var(--r-full); background: transparent;
+  color: var(--c-text-2); font-size: var(--fs-xs); line-height: 24px; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.locale-btn:hover { color: var(--c-primary); }
+.locale-btn.active { background: var(--c-primary); color: #fff; font-weight: 600; }
 
 /* 消息中心铃铛 + 下拉面板 */
 .msg-wrap { position: relative; display: inline-flex; }
@@ -580,6 +716,7 @@ const onCommand = async (cmd) => {
 .msg-foot:hover { background: var(--c-primary-bg); }
 
 .user-trigger { display: inline-flex; align-items: center; cursor: pointer; color: var(--c-text-1); }
+.user-trigger .uname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; margin-left: 6px; }
 .user-trigger:hover { color: var(--c-primary); }
 
 .el-main { padding: 0; background: #f5f7fb; overflow-x: hidden; }
@@ -596,6 +733,16 @@ const onCommand = async (cmd) => {
 .guest-bar .gb-text { flex: 1; min-width: 0; line-height: 1.6; }
 .guest-bar .gb-text strong { color: #4f46e5; }
 .guest-bar .gb-btns { flex: none; display: flex; align-items: center; gap: 4px; }
+/* 只读账号横幅 */
+.readonly-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin: 12px 16px 0; padding: 10px 16px;
+  background: #fff7e6; border: 1px solid #ffd591; border-radius: var(--r-s);
+  font-size: var(--fs-sm); color: #ad6800;
+}
+.readonly-bar .gb-ic { color: #d46b08; font-size: 18px; flex: none; }
+.readonly-bar .gb-text { flex: 1; min-width: 0; line-height: 1.6; }
+.readonly-bar .gb-text strong { color: #d46b08; }
 
 .fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
@@ -616,4 +763,37 @@ const onCommand = async (cmd) => {
 .notice-body :deep(a) { color: var(--c-primary); text-decoration: underline; }
 .notice-body :deep(blockquote) { margin: 8px 0; padding: 6px 12px; border-left: 3px solid var(--c-primary); background: var(--c-primary-bg); color: var(--c-text-2); }
 .notice-body :deep(pre.ql-syntax) { background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: var(--r-s); overflow-x: auto; }
+
+/* ============ 移动端顶栏(媒体查询放最后,保证覆盖基础样式) ============ */
+@media (max-width: 768px) {
+  .header { padding: 0 12px; gap: 8px; }
+  .header-left { gap: 8px; min-width: 0; flex: 1; }
+  .header-left :deep(.el-breadcrumb) { display: none; }
+  .mobile-title {
+    display: block; flex: 1; min-width: 0;
+    font-size: var(--fs-md); font-weight: 600; color: var(--c-text-1);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .header-right { gap: 8px; flex: none; }
+  .hr-tools { gap: 8px; }
+  .lang-select { width: 110px; }
+  .locale-btn { min-width: 28px; padding: 0 6px; }
+  .msg-panel { width: min(320px, calc(100vw - 24px)); }
+  .user-trigger .uname { max-width: 60px; }
+  .hr-user .el-tag { display: none; }
+  .guest-bar { margin: 10px 12px 0; flex-wrap: wrap; }
+  .guest-bar .gb-btns { width: 100%; justify-content: flex-end; }
+  .readonly-bar { margin: 10px 12px 0; }
+}
+@media (max-width: 480px) {
+  /* 窄屏: 学习选择与中/EN 收进头部第二行,避免与标题/头像挤在一行 */
+  .header { height: auto; min-height: 52px; flex-wrap: wrap; padding: 6px 12px; row-gap: 6px; }
+  .header-right { display: contents; }
+  .header-left { order: 1; }
+  .hr-user { order: 2; margin-left: auto; gap: 8px; }
+  .hr-tools { order: 3; width: 100%; justify-content: flex-end; }
+  .user-trigger .uname, .user-trigger .u-arrow { display: none; }
+  .lang-select { width: min(180px, 55vw); }
+  .locale-btn { min-width: 26px; padding: 0 5px; }
+}
 </style>

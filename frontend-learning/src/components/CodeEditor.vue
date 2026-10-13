@@ -92,8 +92,8 @@ const onResetClick = () => emit('reset')
     <div class="toolbar">
       <div class="lang-pill">{{ language.toUpperCase() }}</div>
       <div class="acts">
-        <button class="reset-btn" title="恢复为示例代码" @click="onResetClick"><el-icon><RefreshLeft /></el-icon> 重置</button>
-        <button class="run-btn" title="运行代码" @click="onRunClick"><el-icon><VideoPlay /></el-icon> 运行</button>
+        <button class="reset-btn" :title="$t('codeEditor.resetTip')" @click="onResetClick"><el-icon><RefreshLeft /></el-icon> {{ $t('common.reset') }}</button>
+        <button class="run-btn" :title="$t('codeEditor.runTip')" @click="onRunClick"><el-icon><VideoPlay /></el-icon> {{ $t('codeEditor.run') }}</button>
       </div>
     </div>
     <div class="editor" ref="editorRef"></div>

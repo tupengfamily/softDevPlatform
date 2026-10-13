@@ -14,6 +14,7 @@ public class DictItemDTO {
     private String typeCode;
     private String itemCode;
     private String itemValue;
+    private String itemValueEn;
     private Integer sort;
     private Integer status;
     private String remark;
@@ -27,6 +28,7 @@ public class DictItemDTO {
         d.typeCode = i.getTypeCode();
         d.itemCode = i.getItemCode();
         d.itemValue = i.getItemValue();
+        d.itemValueEn = i.getItemValueEn();
         d.sort = i.getSort();
         d.status = i.getStatus();
         d.remark = i.getRemark();
@@ -45,6 +47,8 @@ public class DictItemDTO {
     public void setItemCode(String itemCode) { this.itemCode = itemCode; }
     public String getItemValue() { return itemValue; }
     public void setItemValue(String itemValue) { this.itemValue = itemValue; }
+    public String getItemValueEn() { return itemValueEn; }
+    public void setItemValueEn(String itemValueEn) { this.itemValueEn = itemValueEn; }
     public Integer getSort() { return sort; }
     public void setSort(Integer sort) { this.sort = sort; }
     public Integer getStatus() { return status; }

@@ -4,15 +4,21 @@
 // 版块默认选中当前学习语言(头部选择器偏好),用户可自行切换
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { pagePosts, createPost, toggleLike, toggleFavorite, sharePost } from '../api/forum'
 import { useUserStore } from '../store/user'
 import { useSubjectStore } from '../store/subject'
+import { useDictStore } from '../store/dict'
 import ContentEditor from '../components/ContentEditor.vue'
 
 const router = useRouter()
+const { t } = useI18n()
 const userStore = useUserStore()
 const subjectStore = useSubjectStore()
+const dictStore = useDictStore()
+// 版块文案来自数据字典 forum_board
+const boardLabel = computed(() => dictStore.label('forum_board', 0, '综合讨论'))
 const isAdmin = computed(() => userStore.roles.includes('ADMIN'))
 
 const loading = ref(false)
@@ -22,18 +28,19 @@ const page = ref(1)
 const size = ref(10)
 const keyword = ref('')
 const subjectFilter = ref(null)   // null=全部 0=综合讨论 其余=科目 id
-const subjects = ref([])
+// 跟随 store 的响应式数组(勿拷贝引用:store load() 会整体替换数组,拷贝会停留在旧空数组)
+const subjects = computed(() => subjectStore.subjects)
 const sort = ref('updated')       // updated/created/hot/likes/favorites/replies/views
 
-const sortOptions = [
-  { value: 'updated', label: '最近更新' },
-  { value: 'created', label: '最新发布' },
-  { value: 'hot', label: '最热门' },
-  { value: 'likes', label: '点赞最多' },
-  { value: 'favorites', label: '收藏最多' },
-  { value: 'replies', label: '回复最多' },
-  { value: 'views', label: '浏览最多' }
-]
+const sortOptions = computed(() => [
+  { value: 'updated', label: t('forum.sort.updated') },
+  { value: 'created', label: t('forum.sort.created') },
+  { value: 'hot', label: t('forum.sort.hot') },
+  { value: 'likes', label: t('forum.sort.likes') },
+  { value: 'favorites', label: t('forum.sort.favorites') },
+  { value: 'replies', label: t('forum.sort.replies') },
+  { value: 'views', label: t('forum.sort.views') }
+])
 
 const load = async () => {
   loading.value = true
@@ -55,14 +62,14 @@ const search = () => { page.value = 1; load() }
 const onSizeChange = (s) => { size.value = s; page.value = 1; load() }
 
 const fmtTime = (t) => (t || '').replace('T', ' ').slice(0, 16)
-const subjectName = (row) => row.subjectName || '综合讨论'
+const subjectName = (row) => row.subjectName || boardLabel.value
 const openDetail = (row) => router.push(`/forum/${row.id}`)
 
 // ---------- 列表快捷互动: 点赞 / 收藏 / 转发 ----------
 const requireLogin = () => {
   if (userStore.isLogin) return true
-  ElMessageBox.confirm('登录后才能点赞/收藏,去登录?', '提示', {
-    type: 'info', confirmButtonText: '去登录', cancelButtonText: '取消'
+  ElMessageBox.confirm(t('forum.loginRequired'), t('forum.tip'), {
+    type: 'info', confirmButtonText: t('forum.goLogin'), cancelButtonText: t('common.cancel')
   }).then(() => router.push({ path: '/login', query: { redirect: '/forum' } })).catch(() => {})
   return false
 }
@@ -105,7 +112,7 @@ const quickShare = async (p) => {
   try {
     const res = await sharePost(p.id)
     p.shareCount = res.data.shareCount
-    ElMessage.success('链接已复制,快去分享吧')
+    ElMessage.success(t('forum.linkCopied'))
   } catch (e) { /* 已统一弹错 */ }
 }
 
@@ -123,18 +130,18 @@ const writeDraft = () => {
 }
 /** 显式保存草稿 */
 const saveDraft = () => {
-  if (!form.title.trim() && !form.content.trim()) { ElMessage.warning('内容为空,无需保存草稿'); return }
+  if (!form.title.trim() && !form.content.trim()) { ElMessage.warning(t('forum.draftEmpty')); return }
   writeDraft()
-  ElMessage.success('草稿已保存,下次打开发帖可恢复')
+  ElMessage.success(t('forum.draftSaved'))
 }
 /** 打开弹窗时若有草稿,询问恢复 */
 const offerRestoreDraft = (defaultSubject) => {
   let d = null
   try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null') } catch (_) { clearDraft(); return }
   if (!d || (!(d.title || '').trim() && !(d.content || '').trim())) { clearDraft(); return }
-  ElMessageBox.confirm('检测到未发布的草稿,是否恢复?', '草稿', {
-    confirmButtonText: '恢复草稿',
-    cancelButtonText: '丢弃草稿',
+  ElMessageBox.confirm(t('forum.draftRestoreConfirm'), t('forum.draftTitle'), {
+    confirmButtonText: t('forum.draftRestore'),
+    cancelButtonText: t('forum.draftDiscard'),
     type: 'info'
   }).then(() => {
     Object.assign(form, {
@@ -163,14 +170,14 @@ const openCreate = () => {
   dialogVisible.value = true
 }
 const submit = async () => {
-  if (!form.title.trim()) { ElMessage.warning('请填写标题'); return }
-  if (!form.content.trim()) { ElMessage.warning('请填写内容'); return }
+  if (!form.title.trim()) { ElMessage.warning(t('forum.needTitle')); return }
+  if (!form.content.trim()) { ElMessage.warning(t('forum.needContent')); return }
   saving.value = true
   try {
     const res = await createPost({ ...form, subjectId: form.subjectId || null })
     skipDraftOnce = true
     clearDraft()   // 发布成功,草稿失效
-    ElMessage.success('发布成功')
+    ElMessage.success(t('forum.publishSuccess'))
     dialogVisible.value = false
     router.push(`/forum/${res.data.id}`)
   } catch (e) { /* 已统一弹错 */ } finally {
@@ -180,7 +187,6 @@ const submit = async () => {
 
 onMounted(async () => {
   if (!subjectStore.loaded) await subjectStore.load()
-  subjects.value = subjectStore.subjects
   // 版块筛选默认选中当前学习语言(''=全部,用户可自行切换)
   subjectFilter.value = subjectStore.preferredSubjectId || ''
   await load()
@@ -191,21 +197,21 @@ onMounted(async () => {
   <div class="page" v-loading="loading">
     <div class="hero">
       <div>
-        <h1>论坛专区</h1>
-        <p>学习交流、提问答疑、经验分享 — 与同学们一起成长。</p>
+        <h1>{{ $t('forum.title') }}</h1>
+        <p>{{ $t('forum.subtitle') }}</p>
       </div>
-      <el-button type="primary" @click="openCreate"><el-icon><EditPen /></el-icon> 发帖</el-button>
+      <el-button type="primary" @click="openCreate"><el-icon><EditPen /></el-icon> {{ $t('forum.createPost') }}</el-button>
     </div>
 
     <div class="filters">
-      <el-select v-model="subjectFilter" placeholder="全部版块" clearable style="width:170px" @change="search">
-        <el-option label="全部版块" value="" />
-        <el-option label="综合讨论" :value="0" />
+      <el-select v-model="subjectFilter" :placeholder="$t('forum.allBoards')" clearable style="width:170px" @change="search">
+        <el-option :label="$t('forum.allBoards')" value="" />
+        <el-option :label="boardLabel" :value="0" />
         <el-option v-for="s in subjects" :key="s.id" :label="s.name" :value="s.id" />
       </el-select>
       <el-input
         v-model="keyword"
-        placeholder="搜索标题 / 内容"
+        :placeholder="$t('forum.searchPlaceholder')"
         clearable
         style="width:240px"
         @keyup.enter="search"
@@ -213,7 +219,7 @@ onMounted(async () => {
       >
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
-      <el-button @click="search">搜索</el-button>
+      <el-button @click="search">{{ $t('common.search') }}</el-button>
       <el-radio-group v-model="sort" size="small" class="sort-group" @change="search">
         <el-radio-button v-for="o in sortOptions" :key="o.value" :value="o.value">{{ o.label }}</el-radio-button>
       </el-radio-group>
@@ -224,36 +230,36 @@ onMounted(async () => {
            @click="openDetail(p)" @keydown.enter="openDetail(p)">
         <div class="post-main">
           <div class="post-title">
-            <el-tag v-if="p.pinned" size="small" type="danger" effect="dark" class="pin">置顶</el-tag>
+            <el-tag v-if="p.pinned" size="small" type="danger" effect="dark" class="pin">{{ $t('forum.pinned') }}</el-tag>
             <el-tag size="small" effect="plain" :type="p.subjectId ? 'primary' : 'info'">{{ subjectName(p) }}</el-tag>
             <b>{{ p.title }}</b>
           </div>
           <div class="post-meta">
-            <span>{{ p.username || '匿名' }}</span>
+            <span>{{ p.username || $t('forum.anonymous') }}</span>
             <span>· {{ fmtTime(p.updatedAt || p.createdAt) }}</span>
-            <span>· {{ p.viewCount }} 浏览</span>
-            <span>· {{ p.replyCount }} 回复</span>
-            <span>· {{ p.likeCount }} 赞</span>
-            <span>· {{ p.favoriteCount }} 收藏</span>
-            <span>· {{ p.shareCount }} 转发</span>
+            <span>· {{ $t('forum.views', { n: p.viewCount }) }}</span>
+            <span>· {{ $t('forum.replies', { n: p.replyCount }) }}</span>
+            <span>· {{ $t('forum.likes', { n: p.likeCount }) }}</span>
+            <span>· {{ $t('forum.favorites', { n: p.favoriteCount }) }}</span>
+            <span>· {{ $t('forum.shares', { n: p.shareCount }) }}</span>
           </div>
         </div>
         <div class="quick">
-          <button class="qbtn" :class="{ on: p.liked }" :aria-label="p.liked ? '取消点赞' : '点赞'"
+          <button class="qbtn" :class="{ on: p.liked }" :aria-label="p.liked ? $t('forum.unlike') : $t('forum.like')"
                   @click.stop="quickLike(p)">
             <el-icon><Pointer /></el-icon> {{ p.likeCount }}
           </button>
-          <button class="qbtn" :class="{ on: p.favorited }" :aria-label="p.favorited ? '取消收藏' : '收藏'"
+          <button class="qbtn" :class="{ on: p.favorited }" :aria-label="p.favorited ? $t('forum.unfavorite') : $t('forum.favorite')"
                   @click.stop="quickFav(p)">
             <el-icon><component :is="p.favorited ? 'StarFilled' : 'Star'" /></el-icon> {{ p.favoriteCount }}
           </button>
-          <button class="qbtn" aria-label="转发" @click.stop="quickShare(p)">
+          <button class="qbtn" :aria-label="$t('forum.share')" @click.stop="quickShare(p)">
             <el-icon><Share /></el-icon> {{ p.shareCount }}
           </button>
         </div>
         <el-icon class="arrow"><ArrowRight /></el-icon>
       </div>
-      <el-empty v-if="!posts.length && !loading" description="暂无帖子,来发第一帖吧" />
+      <el-empty v-if="!posts.length && !loading" :description="$t('forum.empty')" />
     </div>
 
     <div class="pager" v-if="total > size">
@@ -270,27 +276,27 @@ onMounted(async () => {
     </div>
 
     <!-- 发帖对话框 -->
-    <el-dialog v-model="dialogVisible" title="发布帖子" width="760px" destroy-on-close class="post-dialog" @close="onDialogClose">
+    <el-dialog v-model="dialogVisible" :title="$t('forum.createTitle')" width="760px" destroy-on-close class="post-dialog" @close="onDialogClose">
       <el-form label-position="top">
-        <el-form-item label="标题" required>
-          <el-input v-model="form.title" maxlength="200" placeholder="帖子标题" />
+        <el-form-item :label="$t('forum.titleLabel')" required>
+          <el-input v-model="form.title" maxlength="200" :placeholder="$t('forum.titlePlaceholder')" />
         </el-form-item>
-        <el-form-item label="版块">
-          <el-select v-model="form.subjectId" placeholder="综合讨论" clearable style="width:200px">
-            <el-option label="综合讨论" value="" />
+        <el-form-item :label="$t('forum.board')">
+          <el-select v-model="form.subjectId" :placeholder="boardLabel" clearable style="width:200px">
+            <el-option :label="boardLabel" value="" />
             <el-option v-for="s in subjects" :key="s.id" :label="s.name" :value="s.id" />
           </el-select>
-          <el-checkbox v-if="isAdmin" v-model="form.pinned" style="margin-left:16px">置顶</el-checkbox>
+          <el-checkbox v-if="isAdmin" v-model="form.pinned" style="margin-left:16px">{{ $t('forum.pinned') }}</el-checkbox>
         </el-form-item>
-        <el-form-item label="内容(支持 Markdown / 富文本)">
+        <el-form-item :label="$t('forum.contentLabel')">
           <ContentEditor v-model="form.content" v-model:content-type="form.contentType" :height="260" />
         </el-form-item>
       </el-form>
       <template #footer>
         <div class="dialog-actions">
-          <el-button plain @click="saveDraft">保存草稿</el-button>
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="submit">发布</el-button>
+          <el-button plain @click="saveDraft">{{ $t('forum.saveDraft') }}</el-button>
+          <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
+          <el-button type="primary" :loading="saving" @click="submit">{{ $t('forum.publish') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -298,7 +304,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.page { padding: 24px 26px 40px; max-width: 1080px; margin: 0 auto; }
+.page { padding: 24px 32px 40px; }
 .hero {
   display: flex; align-items: center; justify-content: space-between;
   background: linear-gradient(120deg, #eef4ff 0%, #f6f1ff 60%, #fff 100%);

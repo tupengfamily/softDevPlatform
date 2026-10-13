@@ -79,10 +79,13 @@ public class LearningController {
     @GetMapping("/preference")
     public ResponseEntity<?> getPreference(@CurrentUser Long userId) {
         Long subjectId = learningService.getPreferredSubject(userId);
-        return Result.ok(Map.of("subjectId", subjectId == null ? 0 : subjectId));
+        String locale = learningService.getPreferredLocale(userId);
+        return Result.ok(Map.of(
+            "subjectId", subjectId == null ? 0 : subjectId,
+            "locale", locale == null ? "" : locale));
     }
 
-    /** 保存学习偏好(请求体 {subjectId: 数字或 null},0/null 表示清除) */
+    /** 保存学习偏好(请求体 {subjectId: 数字或 null, locale: zh-CN/en-US 或 null},0/null 表示清除) */
     @PutMapping("/preference")
     @OperationLog(module = "学习中心", action = "切换学习语言")
     public ResponseEntity<?> savePreference(@CurrentUser Long userId, @RequestBody Map<String, Object> body) {
@@ -95,8 +98,20 @@ public class LearningController {
             subjectId = Long.parseLong(s);
             if (subjectId == 0) subjectId = null;
         }
-        learningService.savePreferredSubject(userId, subjectId);
-        return Result.ok("学习语言已更新", Map.of("subjectId", subjectId == null ? 0 : subjectId));
+        // 只有传了 subjectId 字段才更新科目(仅传 locale 的请求不清理科目偏好)
+        if (body.containsKey("subjectId")) {
+            learningService.savePreferredSubject(userId, subjectId);
+        }
+        // 界面语言(可选): 传了 locale 字段才更新,空串/无效值按未设置处理
+        String locale = null;
+        if (body.containsKey("locale")) {
+            Object l = body.get("locale");
+            locale = (l instanceof String s && !s.isBlank()) ? s : null;
+            learningService.savePreferredLocale(userId, locale);
+        }
+        return Result.ok("学习语言已更新", Map.of(
+            "subjectId", subjectId == null ? 0 : subjectId,
+            "locale", locale == null ? "" : locale));
     }
 
     /** 课时详情 */

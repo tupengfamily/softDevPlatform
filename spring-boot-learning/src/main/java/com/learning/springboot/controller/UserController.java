@@ -9,6 +9,8 @@ import com.learning.springboot.dto.PageResult;
 import com.learning.springboot.dto.UserDTO;
 import com.learning.springboot.dto.UserVO;
 import com.learning.springboot.entity.User;
+import com.learning.springboot.exception.BusinessException;
+import com.learning.springboot.security.CurrentUser;
 import com.learning.springboot.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,11 +74,17 @@ public class UserController {
         return Result.ok("更新成功", updated);
     }
 
-    /** 启用/禁用用户 */
+    /** 启用/禁用/只读用户 */
     @PutMapping("/{id}/status")
     @OperationLog(module = "用户管理", action = "状态变更")
-    public ResponseEntity<?> updateStatus(@PathVariable Long id, @RequestBody java.util.Map<String, Integer> body) {
-        userService.updateStatus(id, body.get("status"));
+    public ResponseEntity<?> updateStatus(@PathVariable Long id, @RequestBody java.util.Map<String, Integer> body,
+                                          @CurrentUser Long currentUserId) {
+        Integer status = body.get("status");
+        // 自我保护: 不能把自己的状态改为禁用/只读,避免管理员锁死自己
+        if (id.equals(currentUserId) && (status == null || status != User.STATUS_ENABLED)) {
+            throw new BusinessException(400, "不能将自己的状态改为禁用或只读");
+        }
+        userService.updateStatus(id, status);
         return Result.ok("状态已更新", null);
     }
 

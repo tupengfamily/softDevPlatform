@@ -40,6 +40,14 @@ public class ForumReply {
     @Column(name = "content_type", nullable = false, length = 20)
     private String contentType = "markdown";
 
+    /** 父回复 ID(楼中楼: 回复某条回复时携带;空=一级回复) */
+    @Column(name = "parent_reply_id")
+    private Long parentReplyId;
+
+    /** 被回复者用户名(冗余,展示"回复 @xxx") */
+    @Column(name = "reply_to_username", length = 50)
+    private String replyToUsername;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -64,6 +72,12 @@ public class ForumReply {
 
     public String getContentType() { return contentType; }
     public void setContentType(String contentType) { this.contentType = contentType; }
+
+    public Long getParentReplyId() { return parentReplyId; }
+    public void setParentReplyId(Long parentReplyId) { this.parentReplyId = parentReplyId; }
+
+    public String getReplyToUsername() { return replyToUsername; }
+    public void setReplyToUsername(String replyToUsername) { this.replyToUsername = replyToUsername; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

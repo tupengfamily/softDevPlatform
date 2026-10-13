@@ -430,6 +430,26 @@ public class LearningServiceImpl implements LearningService {
         log.info("用户 {} 学习偏好更新为科目 {}", userId, subjectId);
     }
 
+    @Override
+    public String getPreferredLocale(Long userId) {
+        return preferenceRepository.findByUserId(userId)
+            .map(UserPreference::getLocale)
+            .orElse(null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void savePreferredLocale(Long userId, String locale) {
+        if (locale != null && !locale.equals("zh-CN") && !locale.equals("en-US")) {
+            throw new IllegalArgumentException("不支持的界面语言: " + locale);
+        }
+        UserPreference pref = preferenceRepository.findByUserId(userId)
+            .orElseGet(() -> new UserPreference(userId, null));
+        pref.setLocale(locale);
+        preferenceRepository.save(pref);
+        log.info("用户 {} 界面语言更新为 {}", userId, locale);
+    }
+
     // ==================== 私有工具 ====================
 
     /** 当前用户已学课时 id 集合(游客 userId 为空时返回空集) */
