@@ -21,8 +21,8 @@ const formRef = ref(null)
 const loading = ref(false)
 
 const form = reactive({
-  username: 'admin',
-  password: 'admin123'
+  username: '',
+  password: ''
 })
 
 const rules = computed(() => ({
@@ -40,8 +40,10 @@ const onSubmit = async () => {
       ElMessage.success(t('login.success'))
       // 有明确来源页就回来源页;否则交给根路由 "/" 按角色分流
       // (管理员 → 仪表盘, 普通用户 → 学习中心, 由 router 的 redirect 统一决定)
+      // redirect 校验: 仅接受站内相对路径(以 / 开头且非 // 协议相对),防开放跳转
       const from = route.query.redirect
-      const target = (from && from !== '/login' && from !== '/register') ? from : '/'
+      const isSafePath = typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
+      const target = (isSafePath && from !== '/login' && from !== '/register') ? from : '/'
       router.push(target)
     } catch (e) {
       // 拦截器已弹窗

@@ -43,7 +43,10 @@ const totalChapters = computed(() => stages.value.reduce((s, st) => s + st.chapt
 const totalLessons = computed(() => stages.value.reduce((s, st) => s + st.chapters.reduce((n, c) => n + c.totalLessons, 0), 0))
 const learnedCount = computed(() => progress.value?.learnedLessons || 0)
 
+// 请求序号: 快速切科目/语言时旧响应可能后到(curriculum+progress 双请求都认最后一次)
+let reqSeq = 0
 const loadData = async () => {
+  const seq = ++reqSeq
   loading.value = true
   try {
     const sid = activeSubjectId.value
@@ -52,10 +55,11 @@ const loadData = async () => {
       getCurriculum(sid),
       isGuest.value ? Promise.resolve({ data: null }) : getProgress(sid)
     ])
+    if (seq !== reqSeq) return   // 已有更新的请求,丢弃本次(旧)响应
     stages.value = curriculumRes.data || []
     progress.value = progressRes.data || null
   } catch (e) { /* 已统一弹错 */ } finally {
-    loading.value = false
+    if (seq === reqSeq) loading.value = false
   }
 }
 

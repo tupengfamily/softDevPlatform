@@ -7,6 +7,7 @@ import com.learning.springboot.entity.UserFavorite;
 import com.learning.springboot.entity.WikiArticle;
 import com.learning.springboot.entity.WikiDirectory;
 import com.learning.springboot.exception.BusinessException;
+import com.learning.springboot.security.HtmlSanitizer;
 import com.learning.springboot.repository.LessonProgressRepository;
 import com.learning.springboot.repository.TodoRepository;
 import com.learning.springboot.repository.UserDataRecordRepository;
@@ -14,24 +15,36 @@ import com.learning.springboot.repository.UserFavoriteRepository;
 import com.learning.springboot.repository.WikiArticleRepository;
 import com.learning.springboot.repository.WikiDirectoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * 个人中心服务: 个人收藏 / 我的待办 / Wiki(目录+文章+排序+分享) / 个人数据导入导出
  */
 @Service
 public class PersonalCenterService {
+
+    private static final Logger log = LoggerFactory.getLogger(PersonalCenterService.class);
+
+    /** 截止日期格式(整串匹配) */
+    private static final Pattern DATE_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
 
     @Autowired private UserFavoriteRepository favoriteRepository;
     @Autowired private TodoRepository todoRepository;
@@ -54,12 +67,10 @@ public class PersonalCenterService {
     public UserFavorite createFavorite(Long userId, String title, String url, String category, String remark) {
         if (title == null || title.trim().isEmpty()) throw new BusinessException("收藏名称不能为空");
         if (url == null || url.trim().isEmpty()) throw new BusinessException("收藏网址不能为空");
-        String norm = url.trim();
-        if (!norm.startsWith("http://") && !norm.startsWith("https://")) norm = "https://" + norm;
         UserFavorite f = new UserFavorite();
         f.setUserId(userId);
-        f.setTitle(title.trim());
-        f.setUrl(norm);
+        f.setTitle(trimTo(title, 200));
+        f.setUrl(trimTo(normalizeUrl(url), 500));
         f.setCategory(trimTo(category, 50));
         f.setRemark(trimTo(remark, 200));
         f.setSortNo(nextSortNo(favoriteRepository.findByUserIdOrderBySortNoAscIdAsc(userId).stream()
@@ -71,14 +82,13 @@ public class PersonalCenterService {
     public UserFavorite updateFavorite(Long userId, Long id, String title, String url, String category, String remark) {
         UserFavorite f = favoriteRepository.findByIdAndUserId(id, userId)
             .orElseThrow(() -> new BusinessException("收藏不存在"));
-        if (title != null && !title.trim().isEmpty()) f.setTitle(title.trim());
+        if (title != null && !title.trim().isEmpty()) f.setTitle(trimTo(title, 200));
         if (url != null && !url.trim().isEmpty()) {
-            String norm = url.trim();
-            if (!norm.startsWith("http://") && !norm.startsWith("https://")) norm = "https://" + norm;
-            f.setUrl(norm);
+            f.setUrl(trimTo(normalizeUrl(url), 500));
         }
-        f.setCategory(trimTo(category, 50));
-        f.setRemark(trimTo(remark, 200));
+        // 部分更新: 传了才改,null 不动,空串表示清除
+        if (category != null) f.setCategory(trimTo(category, 50));
+        if (remark != null) f.setRemark(trimTo(remark, 200));
         return favoriteRepository.save(f);
     }
 
@@ -150,14 +160,17 @@ public class PersonalCenterService {
         todoRepository.delete(t);
     }
 
-    /** 截止日期: 校验 yyyy-MM-dd;空串/null 归一为 null(清除) */
+    /** 截止日期: 先整串校验 yyyy-MM-dd 再入库;空串/null 归一为 null(清除) */
     private String normalizeDueDate(String dueDate) {
-        String d = trimTo(dueDate, 10);
-        if (d == null) return null;
+        String d = dueDate == null ? null : dueDate.trim();
+        if (d == null || d.isEmpty()) return null;
+        if (!DATE_PATTERN.matcher(d).matches()) {
+            throw new BusinessException("截止日期格式须为 yyyy-MM-dd");
+        }
         try {
             java.time.LocalDate.parse(d);
         } catch (Exception e) {
-            throw new BusinessException("截止日期格式应为 yyyy-MM-dd");
+            throw new BusinessException("截止日期格式须为 yyyy-MM-dd");
         }
         return d;
     }
@@ -205,16 +218,24 @@ public class PersonalCenterService {
         return directoryRepository.save(d);
     }
 
-    /** 删除目录: 递归删除子目录,级联删除目录下文章 */
+    /** 删除目录: 迭代删除子目录(带已访问 id 集合,防脏数据成环爆栈),级联删除目录下文章 */
     @Transactional
     public void deleteDirectory(Long userId, Long id) {
         WikiDirectory d = directoryRepository.findByIdAndUserId(id, userId)
             .orElseThrow(() -> new BusinessException("目录不存在"));
-        for (WikiDirectory child : siblingDirs(userId, id)) {
-            deleteDirectory(userId, child.getId());
+        Deque<Long> stack = new ArrayDeque<>();
+        Set<Long> visited = new HashSet<>();
+        stack.push(d.getId());
+        visited.add(d.getId());
+        while (!stack.isEmpty()) {
+            Long cur = stack.pop();
+            for (WikiDirectory child : siblingDirs(userId, cur)) {
+                if (visited.add(child.getId())) stack.push(child.getId());
+            }
+            articleRepository.deleteByDirectoryId(cur);
+            WikiDirectory node = directoryRepository.findById(cur).orElse(null);
+            if (node != null) directoryRepository.delete(node);
         }
-        articleRepository.deleteByDirectoryId(id);
-        directoryRepository.delete(d);
     }
 
     /** 目录移动到指定位置(同级内,拖动排序) */
@@ -235,12 +256,15 @@ public class PersonalCenterService {
             .orElseThrow(() -> new BusinessException("目录不存在"));
         if (title == null || title.trim().isEmpty()) throw new BusinessException("文章标题不能为空");
         if (content == null || content.trim().isEmpty()) throw new BusinessException("文章内容不能为空");
+        if (content.length() > 20000) throw new BusinessException("内容过长,最多 20000 字符");
         WikiArticle a = new WikiArticle();
         a.setUserId(userId);
         a.setDirectoryId(d.getId());
         a.setTitle(trimTo(title, 200));
-        a.setContent(content);
-        a.setContentType("richtext".equals(contentType) ? "richtext" : "markdown");
+        String ctype = "richtext".equals(contentType) ? "richtext" : "markdown";
+        // 富文本入库前消毒防存储型 XSS;markdown 保留原文
+        a.setContent("richtext".equals(ctype) ? HtmlSanitizer.sanitizeRichText(content) : content);
+        a.setContentType(ctype);
         a.setSortNo(nextSortNo(articleRepository.findByDirectoryIdOrderBySortNoAscIdAsc(d.getId()).stream()
             .map(WikiArticle::getSortNo).max(Integer::compareTo).orElse(0)));
         return articleRepository.save(a);
@@ -256,7 +280,13 @@ public class PersonalCenterService {
             a.setDirectoryId(d.getId());
         }
         if (title != null && !title.trim().isEmpty()) a.setTitle(trimTo(title, 200));
-        if (content != null && !content.trim().isEmpty()) a.setContent(content);
+        if (content != null && content.length() > 20000) throw new BusinessException("内容过长,最多 20000 字符");
+        if (content != null && !content.trim().isEmpty()) {
+            String ctype = contentType != null
+                ? ("richtext".equals(contentType) ? "richtext" : "markdown") : a.getContentType();
+            // 富文本入库前消毒防存储型 XSS;markdown 保留原文
+            a.setContent("richtext".equals(ctype) ? HtmlSanitizer.sanitizeRichText(content) : content);
+        }
         if (contentType != null) a.setContentType("richtext".equals(contentType) ? "richtext" : "markdown");
         return articleRepository.save(a);
     }
@@ -303,8 +333,9 @@ public class PersonalCenterService {
     public WikiArticle viewShared(String token) {
         WikiArticle a = articleRepository.findByShareToken(token)
             .orElseThrow(() -> new BusinessException(404, "分享不存在或已取消"));
-        a.setViewCount((a.getViewCount() == null ? 0L : a.getViewCount()) + 1);
-        return articleRepository.save(a);
+        // 原子自增(并发下不丢计数),随后重查返回最新值
+        articleRepository.incrementViewCount(a.getId());
+        return articleRepository.findByIdAndUserId(a.getId(), a.getUserId()).orElse(a);
     }
 
     // ==================== 个人数据导入导出 ====================
@@ -339,12 +370,16 @@ public class PersonalCenterService {
         if (payload == null) throw new BusinessException("导入数据为空");
         int fAdd = 0, fSkip = 0, dAdd = 0, dSkip = 0, aAdd = 0, aSkip = 0, pAdd = 0, pSkip = 0;
 
-        // 收藏
-        List<Map<String, Object>> favorites = (List<Map<String, Object>>) payload.getOrDefault("favorites", List.of());
+        // 收藏(元素非 Map 的跳过并计数)
+        List<Map<String, Object>> favorites = new ArrayList<>();
+        for (Object item : importList(payload, "favorites")) {
+            if (!(item instanceof Map)) { fSkip++; continue; }
+            favorites.add((Map<String, Object>) item);
+        }
         for (Map<String, Object> row : favorites) {
             String url = str(row.get("url"));
-            if (url == null || url.isEmpty()) { fSkip++; continue; }
-            String norm = url.startsWith("http") ? url : "https://" + url;
+            if (url == null || url.trim().isEmpty()) { fSkip++; continue; }
+            String norm = trimTo(normalizeUrl(url), 500);
             boolean dup = favoriteRepository.findByUserIdOrderBySortNoAscIdAsc(userId).stream()
                 .anyMatch(x -> x.getUrl().equals(norm));
             if (dup) { fSkip++; continue; }
@@ -360,8 +395,12 @@ public class PersonalCenterService {
             fAdd++;
         }
 
-        // Wiki 目录(两级处理: 先建目录,再按导出文件里的 parentId 回填父子关系)
-        List<Map<String, Object>> dirs = (List<Map<String, Object>>) payload.getOrDefault("wikiDirectories", List.of());
+        // Wiki 目录(两级处理: 先建目录,再按导出文件里的 parentId 回填父子关系;元素非 Map 的跳过并计数)
+        List<Map<String, Object>> dirs = new ArrayList<>();
+        for (Object item : importList(payload, "wikiDirectories")) {
+            if (!(item instanceof Map)) { dSkip++; continue; }
+            dirs.add((Map<String, Object>) item);
+        }
         Map<String, Long> dirNameToId = new LinkedHashMap<>();
         for (WikiDirectory d : directoryRepository.findByUserIdOrderBySortNoAscIdAsc(userId)) {
             dirNameToId.put(d.getName(), d.getId());
@@ -386,22 +425,38 @@ public class PersonalCenterService {
             created.add(d);
             dAdd++;
         }
-        // 回填父子关系
+        // 回填父子关系(拒绝自指/沿祖先链上溯校验成环,成环则置 parentId=null)
+        Map<Long, Long> newParent = new LinkedHashMap<>();   // 新目录 id -> 目标 parentId
         for (Map<String, Object> row : dirs) {
             if (!(row.get("id") instanceof Number n)) continue;
             Long newId = oldIdToNewId.get(n.longValue());
             if (newId == null) continue;
+            WikiDirectory d = created.stream().filter(x -> x.getId().equals(newId)).findFirst().orElse(null);
+            if (d == null) continue;   // 同名复用的旧目录,不动父子关系
             Long parentOld = row.get("parentId") instanceof Number p ? p.longValue() : null;
             Long parentNew = parentOld != null ? oldIdToNewId.get(parentOld) : null;
-            WikiDirectory d = created.stream().filter(x -> x.getId().equals(newId)).findFirst().orElse(null);
-            if (d != null && !Objects.equals(d.getParentId(), parentNew)) {
+            if (newId.equals(parentNew)) parentNew = null;   // 拒绝自指
+            newParent.put(newId, parentNew);
+        }
+        for (Map.Entry<Long, Long> e : newParent.entrySet()) {
+            if (e.getValue() != null && wouldCycle(e.getKey(), e.getValue(), newParent)) {
+                e.setValue(null);   // 成环,断开
+            }
+        }
+        for (WikiDirectory d : created) {
+            Long parentNew = newParent.get(d.getId());
+            if (!Objects.equals(d.getParentId(), parentNew)) {
                 d.setParentId(parentNew);
                 directoryRepository.save(d);
             }
         }
 
-        // Wiki 文章(目录按 id 映射到同名目录;目录不存在则跳过)
-        List<Map<String, Object>> articles = (List<Map<String, Object>>) payload.getOrDefault("wikiArticles", List.of());
+        // Wiki 文章(目录按 id 映射到同名目录;目录不存在则跳过;元素非 Map 的跳过并计数)
+        List<Map<String, Object>> articles = new ArrayList<>();
+        for (Object item : importList(payload, "wikiArticles")) {
+            if (!(item instanceof Map)) { aSkip++; continue; }
+            articles.add((Map<String, Object>) item);
+        }
         Map<Long, Long> dirIdMap = new LinkedHashMap<>();   // 导出文件里的目录 id -> 本地目录 id
         for (Map<String, Object> row : dirs) {
             // 建立同名映射(导入文件自带 id)
@@ -425,16 +480,24 @@ public class PersonalCenterService {
             a.setUserId(userId);
             a.setDirectoryId(dirId);
             a.setTitle(title);
-            a.setContent(str(row.get("content")) != null ? str(row.get("content")) : " ");
-            a.setContentType("richtext".equals(str(row.get("contentType"))) ? "richtext" : "markdown");
+            String content = str(row.get("content")) != null ? str(row.get("content")) : " ";
+            if (content.length() > 20000) throw new BusinessException("内容过长,最多 20000 字符");
+            String ctype = "richtext".equals(str(row.get("contentType"))) ? "richtext" : "markdown";
+            // 富文本入库前消毒防存储型 XSS;markdown 保留原文
+            a.setContent("richtext".equals(ctype) ? HtmlSanitizer.sanitizeRichText(content) : content);
+            a.setContentType(ctype);
             a.setSortNo(row.get("sortNo") instanceof Number n ? n.intValue() : aAdd);
             articleRepository.save(a);
             existingTitles.add(title);
             aAdd++;
         }
 
-        // 学习进度
-        List<Map<String, Object>> progress = (List<Map<String, Object>>) payload.getOrDefault("lessonProgress", List.of());
+        // 学习进度(元素非 Map 的跳过并计数)
+        List<Map<String, Object>> progress = new ArrayList<>();
+        for (Object item : importList(payload, "lessonProgress")) {
+            if (!(item instanceof Map)) { pSkip++; continue; }
+            progress.add((Map<String, Object>) item);
+        }
         for (Map<String, Object> row : progress) {
             if (!(row.get("lessonId") instanceof Number n)) { pSkip++; continue; }
             Long lessonId = n.longValue();
@@ -529,8 +592,8 @@ public class PersonalCenterService {
         try {
             return JSON.writerWithDefaultPrettyPrinter().writeValueAsString(o);
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new BusinessException("数据序列化失败: " + e.getMessage());
+            log.error("个人数据序列化失败", e);
+            throw new BusinessException("数据序列化失败");
         }
     }
 
@@ -544,7 +607,36 @@ public class PersonalCenterService {
 
     // ==================== 私有工具 ====================
 
+    /** 排序号取最大值 +1(并发下可能重复,由重排兜底) */
     private int nextSortNo(int max) { return max + 1; }
+
+    /** 网址归一化: 去空白,非 http:// 或 https:// 开头补 https:// */
+    private String normalizeUrl(String url) {
+        String n = url.trim();
+        if (!n.startsWith("http://") && !n.startsWith("https://")) n = "https://" + n;
+        return n;
+    }
+
+    /** 导入列表字段: 缺省为空列表;存在但不是 List 视为格式错误 */
+    private List<?> importList(Map<String, Object> payload, String key) {
+        Object v = payload.get(key);
+        if (v == null) return List.of();
+        if (!(v instanceof List<?> list)) throw new BusinessException("导入数据格式错误");
+        return list;
+    }
+
+    /** 从 parent 沿祖先链(导入映射优先,否则查库)上溯,回到 self 即成环 */
+    private boolean wouldCycle(Long self, Long parent, Map<Long, Long> newParent) {
+        Set<Long> seen = new HashSet<>();
+        seen.add(self);
+        Long cur = parent;
+        while (cur != null) {
+            if (!seen.add(cur)) return true;
+            cur = newParent.containsKey(cur) ? newParent.get(cur)
+                : directoryRepository.findById(cur).map(WikiDirectory::getParentId).orElse(null);
+        }
+        return false;
+    }
 
     /** 同级目录(按 parentId 分组) */
     private List<WikiDirectory> siblingDirs(Long userId, Long parentId) {

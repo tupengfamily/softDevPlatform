@@ -35,7 +35,9 @@ public class OperationLogAspect {
 
     private static final Logger log = LoggerFactory.getLogger(OperationLogAspect.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final Set<String> SENSITIVE_KEYS = Set.of("password", "oldPassword", "newPassword");
+    private static final Set<String> SENSITIVE_KEYS = Set.of(
+        "password", "oldPassword", "newPassword",
+        "token", "accessToken", "refreshToken", "expiresIn");
 
     @Autowired private OperationLogService operationLogService;
 
@@ -91,11 +93,11 @@ public class OperationLogAspect {
     private String serializeArgs(Object[] args) {
         if (args == null || args.length == 0) return "";
         try {
-            // 过滤 HttpServletRequest / HttpServletResponse
+            // 过滤 HttpServletRequest / HttpServletResponse(是请求/响应对象则排除, 两者都不才是保留条件)
             Object[] filtered = Arrays.stream(args)
                 .filter(a -> a == null
-                    || !(a instanceof jakarta.servlet.ServletRequest)
-                    || !(a instanceof jakarta.servlet.ServletResponse))
+                    || (!(a instanceof jakarta.servlet.ServletRequest)
+                        && !(a instanceof jakarta.servlet.ServletResponse)))
                 .toArray();
             return MAPPER.writeValueAsString(filtered);
         } catch (Exception e) {
@@ -107,9 +109,10 @@ public class OperationLogAspect {
         if (result == null) return "";
         try {
             String json = MAPPER.writeValueAsString(result);
-            // 简单过滤 password 字段
+            // 简单过滤敏感字段(字符串与数值两种形态都脱敏, 如 LoginResponse 的 token/expiresIn)
             for (String key : SENSITIVE_KEYS) {
-                json = json.replaceAll("(?i)\"" + key + "\"\\s*:\\s*\"[^\"]*\"", "\"" + key + "\":\"***\"");
+                json = json.replaceAll("(?i)\"" + key + "\"\\s*:\\s*(\"[^\"]*\"|-?\\d+(?:\\.\\d+)?)",
+                    "\"" + key + "\":\"***\"");
             }
             return json;
         } catch (Exception e) {

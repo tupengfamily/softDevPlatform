@@ -45,13 +45,19 @@ public class PythonSandboxService {
         "asyncio"
     );
 
-    /** 禁止出现的动态执行入口 */
+    /** 禁止出现的动态执行入口与逃逸入口(dunder 魔术属性/open 文件读写/动态执行) */
     private static final Pattern FORBIDDEN_CALLS =
-        Pattern.compile("__(?:import|builtins|loader)__|\\beval\\s*\\(|\\bexec\\s*\\(|\\bcompile\\s*\\(|\\bglobals\\s*\\(");
+        Pattern.compile("__(?:import|builtins|loader)__"
+            + "|__subclasses__|__mro__|__base__|__bases__|__globals__|__builtins__|__class__|__dict__"
+            + "|\\beval\\s*\\(|\\bexec\\s*\\(|\\bcompile\\s*\\(|\\bglobals\\s*\\("
+            + "|\\bbreakpoint\\s*\\(|\\bopen\\s*\\(");
 
-    /** import/from 语句提取 */
+    /** 总规则: 教学代码不需要双下划线魔术属性, 出现即拒绝(最有效的逃逸封堵) */
+    private static final Pattern DUNDER = Pattern.compile("__");
+
+    /** import/from 语句提取(全文匹配, 不做行首锚定, 防止 `x=1; import os` 绕过) */
     private static final Pattern IMPORT_STMT =
-        Pattern.compile("(?m)^\\s*(?:import|from)\\s+([A-Za-z_][\\w.]*)");
+        Pattern.compile("\\b(?:import|from)\\s+([A-Za-z_][\\w.]*)");
 
     /** SyntaxError 行号提取:  File "xxx.py", line 3 */
     private static final Pattern SYNTAX_LINE = Pattern.compile("line (\\d+)");
@@ -105,7 +111,7 @@ public class PythonSandboxService {
             Path src = workDir.resolve("main.py");
             Files.writeString(src, source, StandardCharsets.UTF_8);
 
-            ProcessBuilder pb = new ProcessBuilder(bin, "-I", "-X", "utf8", src.toString());
+            ProcessBuilder pb = new ProcessBuilder(bin, "-I", "-B", "-X", "utf8", src.toString());
             pb.directory(workDir.toFile());
             pb.redirectErrorStream(false);
             pb.environment().put("PYTHONNOUSERSITE", "1");
@@ -179,7 +185,10 @@ public class PythonSandboxService {
             }
         }
         if (FORBIDDEN_CALLS.matcher(source).find()) {
-            return "代码包含禁止的动态执行入口(eval/exec/compile/__import__ 等)";
+            return "代码包含禁止的动态执行入口或文件操作(eval/exec/compile/__import__/open 等)";
+        }
+        if (DUNDER.matcher(source).find()) {
+            return "禁止使用双下划线魔术属性(__xx__), 教学代码无需也不允许访问对象内部结构";
         }
         return null;
     }
@@ -196,7 +205,12 @@ public class PythonSandboxService {
             for (String cand : cands) {
                 try {
                     Process p = new ProcessBuilder(cand, "--version").start();
-                    if (p.waitFor(3, TimeUnit.SECONDS) && p.exitValue() == 0) {
+                    if (!p.waitFor(3, TimeUnit.SECONDS)) {
+                        // 探测超时: 强杀, 防止残留进程
+                        p.destroyForcibly();
+                        continue;
+                    }
+                    if (p.exitValue() == 0) {
                         resolvedBin = cand;
                         log.info("[PySandbox] 使用解释器: {}", cand);
                         return cand;
@@ -208,20 +222,35 @@ public class PythonSandboxService {
         }
     }
 
-    /** 读流的小工具 */
+    /** 读流的小工具(上限 256KB, 超出截断并追加标记) */
     private static class StreamGobbler extends Thread {
+        /** 输出上限: stdout / stderr 各自超过 256KB 即截断 */
+        private static final int MAX_OUTPUT = 256 * 1024;
+        /** 截断标记 */
+        private static final String TRUNCATED_MARK = "...(输出已截断)";
+
         private final java.io.InputStream in;
         private final StringBuilder buf = new StringBuilder();
+        private boolean truncated;
 
         StreamGobbler(java.io.InputStream in) { this.in = in; setDaemon(true); }
 
         @Override public void run() {
             try (var reader = new java.io.BufferedReader(new java.io.InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;
-                while ((line = reader.readLine()) != null) buf.append(line).append('\n');
+                while ((line = reader.readLine()) != null) {
+                    if (buf.length() + line.length() + 1 > MAX_OUTPUT) {
+                        // 超限: 丢弃后续内容但继续读完, 防止子进程管道阻塞
+                        truncated = true;
+                        continue;
+                    }
+                    buf.append(line).append('\n');
+                }
             } catch (IOException ignore) {}
         }
 
-        String getText() { return buf.toString(); }
+        String getText() {
+            return truncated ? buf + TRUNCATED_MARK : buf.toString();
+        }
     }
 }

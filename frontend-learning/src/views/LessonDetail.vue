@@ -121,9 +121,13 @@ const difficultyMap = computed(() => ({
 
 // ============== 课程树与选中(限定当前课时的语言) ==============
 const curriculumSubjectId = ref(undefined)   // undefined=未加载
+// 请求序号: 快速切换课时/语言时旧响应可能后到,只认最后一次请求的响应
+let curriculumSeq = 0
 const loadCurriculum = async (subjectId) => {
+  const seq = ++curriculumSeq
   try {
     const res = await getCurriculum(subjectId)
+    if (seq !== curriculumSeq) return
     curriculum.value = res.data || []
     curriculumSubjectId.value = subjectId ?? null
   } catch (e) {}
@@ -132,12 +136,16 @@ const loadCurriculum = async (subjectId) => {
 // ============== 课时正文(开源 marked 渲染,支持基本 Markdown 语法) ==============
 const renderedContent = computed(() => renderMarkdown(lesson.value?.content || ''))
 
+// 请求序号: 快速切换课时(watch 触发)只认最后一次请求的响应,防止旧响应覆盖新数据
+let reqSeq = 0
 const loadLesson = async () => {
   // 局部更新: 保留旧正文直到新数据到达,只在首次加载时显示整块 loading(避免点击章节时页面闪动)
   const firstLoad = !lesson.value
+  const seq = ++reqSeq
   if (firstLoad) loading.value = true
   try {
     const res = await getLesson(route.params.id)
+    if (seq !== reqSeq) return   // 已有更新的请求在途/完成,丢弃本次(旧)响应
     lesson.value = res.data
     // 面包屑动态标题: 首页 / 学习中心 / <课时标题>
     lessonCrumbTitle.value = lesson.value.title
@@ -154,7 +162,7 @@ const loadLesson = async () => {
     // 切换课时后内容区回到顶部(平滑滚动,不整页闪动)
     if (!firstLoad) centerRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (e) {} finally {
-    loading.value = false
+    if (seq === reqSeq) loading.value = false   // 旧请求收尾不关 loading(新请求在途)
   }
 }
 
@@ -162,11 +170,11 @@ const loadLesson = async () => {
 // 同步左侧目录的完成图标与章节进度(修复"标记完成后图标不更新")
 const syncLearned = (lessonId, learned) => {
   for (const stage of curriculum.value) {
-    for (const ch of stage.chapters) {
-      const ls = ch.lessons.find(l => l.id === lessonId)
+    for (const ch of (stage.chapters || [])) {
+      const ls = (ch.lessons || []).find(l => l.id === lessonId)
       if (ls) {
         ls.learned = learned
-        ch.learnedLessons = ch.lessons.filter(l => l.learned).length
+        ch.learnedLessons = (ch.lessons || []).filter(l => l.learned).length
       }
     }
   }
@@ -189,24 +197,29 @@ const toggleLearned = async () => {
       syncLearned(lesson.value.id, true)
       ElMessage.success(t('lesson.marked'))
     }
-  } finally {
+  } catch (e) { /* 拦截器已提示 */ } finally {
     toggling.value = false
   }
 }
 
 const completeAndNext = async () => {
-  if (!lesson.value) return
+  if (!lesson.value || toggling.value) return
   if (isGuest.value) return promptLogin()   // 游客点击 → 引导登录
-  if (!lesson.value.learned) {
-    await markLearned(lesson.value.id)
-    lesson.value.learned = true
-    syncLearned(lesson.value.id, true)
-  }
-  if (lesson.value.nextLessonId) {
-    router.push(`/learning/lesson/${lesson.value.nextLessonId}`)
-    ElMessage.success(t('lesson.doneNext'))
-  } else {
-    ElMessage.success(t('lesson.doneAll'))
+  toggling.value = true
+  try {
+    if (!lesson.value.learned) {
+      await markLearned(lesson.value.id)
+      lesson.value.learned = true
+      syncLearned(lesson.value.id, true)
+    }
+    if (lesson.value.nextLessonId) {
+      router.push(`/learning/lesson/${lesson.value.nextLessonId}`)
+      ElMessage.success(t('lesson.doneNext'))
+    } else {
+      ElMessage.success(t('lesson.doneAll'))
+    }
+  } catch (e) { /* 拦截器已提示 */ } finally {
+    toggling.value = false
   }
 }
 
@@ -490,7 +503,7 @@ onBeforeUnmount(() => {
           <div class="editor-area">
             <CodeEditor v-model="javaCode" :markers="javaMarkers" @run="runJavaCode" @reset="resetJavaCode" />
           </div>
-          <div v-if="javaResult" class="result-area" :class="javaResult.status.toLowerCase()">
+          <div v-if="javaResult" class="result-area" :class="javaResult?.status?.toLowerCase() || 'normal'">
             <div class="r-head">
               <span v-if="javaResult.status === 'OK'" class="ok"><el-icon><CircleCheckFilled /></el-icon> {{ $t('lesson.result.ok', { exit: javaResult.exitCode, ms: javaResult.elapsedMs }) }}</span>
               <span v-else-if="javaResult.status === 'COMPILE_ERROR'" class="ce"><el-icon><WarningFilled /></el-icon> {{ $t('lesson.result.compileError', { n: javaResult.errors?.length || 0 }) }}</span>
@@ -512,7 +525,7 @@ onBeforeUnmount(() => {
           <div class="editor-area">
             <CodeEditor v-model="pyCode" language="python" :markers="pyMarkers" @run="runPythonCode" @reset="resetPythonCode" />
           </div>
-          <div v-if="pyResult" class="result-area" :class="pyResult.status.toLowerCase()">
+          <div v-if="pyResult" class="result-area" :class="pyResult?.status?.toLowerCase() || 'normal'">
             <div class="r-head">
               <span v-if="pyResult.status === 'OK'" class="ok"><el-icon><CircleCheckFilled /></el-icon> {{ $t('lesson.result.ok', { exit: pyResult.exitCode, ms: pyResult.elapsedMs }) }}</span>
               <span v-else-if="pyResult.status === 'COMPILE_ERROR'" class="ce"><el-icon><WarningFilled /></el-icon> {{ $t('lesson.result.syntaxError', { n: pyResult.errors?.length || 0 }) }}</span>
@@ -534,7 +547,7 @@ onBeforeUnmount(() => {
           <div class="editor-area">
             <CodeEditor v-model="nodeCode" language="javascript" :markers="nodeMarkers" @run="runNodeCode" @reset="resetNodeCode" />
           </div>
-          <div v-if="nodeResult" class="result-area" :class="nodeResult.status.toLowerCase()">
+          <div v-if="nodeResult" class="result-area" :class="nodeResult?.status?.toLowerCase() || 'normal'">
             <div class="r-head">
               <span v-if="nodeResult.status === 'OK'" class="ok"><el-icon><CircleCheckFilled /></el-icon> {{ $t('lesson.result.ok', { exit: nodeResult.exitCode, ms: nodeResult.elapsedMs }) }}</span>
               <span v-else-if="nodeResult.status === 'COMPILE_ERROR'" class="ce"><el-icon><WarningFilled /></el-icon> {{ $t('lesson.result.syntaxError', { n: nodeResult.errors?.length || 0 }) }}</span>

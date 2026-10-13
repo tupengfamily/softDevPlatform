@@ -97,10 +97,10 @@ onMounted(async () => {
         <div class="quick-card">
           <h3>{{ $t('about.defaultAccounts') }}</h3>
           <table class="kv-table">
-            <thead><tr><th>{{ $t('about.col.username') }}</th><th>{{ $t('about.col.password') }}</th><th>{{ $t('about.col.role') }}</th></tr></thead>
+            <thead><tr><th>{{ $t('about.col.username') }}</th><th>{{ $t('about.col.role') }}</th></tr></thead>
             <tbody>
-              <tr><td>admin</td><td><code>admin123</code></td><td><el-tag size="small" type="danger" effect="plain">{{ $t('about.role.admin') }}</el-tag></td></tr>
-              <tr><td>user</td><td><code>user123</code></td><td><el-tag size="small" type="success" effect="plain">{{ $t('about.role.user') }}</el-tag></td></tr>
+              <tr><td>admin</td><td><el-tag size="small" type="danger" effect="plain">{{ $t('about.role.admin') }}</el-tag></td></tr>
+              <tr><td>user</td><td><el-tag size="small" type="success" effect="plain">{{ $t('about.role.user') }}</el-tag></td></tr>
             </tbody>
           </table>
           <p class="tip">{{ $t('about.accountTip') }}</p>

@@ -2,7 +2,7 @@
 // 论坛专区 — 帖子列表 + 发帖
 // 用户之间的学习交流;支持按语言(科目)维度筛选、关键字搜索、富文本/Markdown 发帖
 // 版块默认选中当前学习语言(头部选择器偏好),用户可自行切换
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -42,7 +42,10 @@ const sortOptions = computed(() => [
   { value: 'views', label: t('forum.sort.views') }
 ])
 
+// 请求序号: 快速切换筛选/翻页时旧响应可能后到,只认最后一次请求的响应
+let reqSeq = 0
 const load = async () => {
+  const seq = ++reqSeq
   loading.value = true
   try {
     const res = await pagePosts({
@@ -52,14 +55,18 @@ const load = async () => {
       page: page.value,
       size: size.value
     })
+    if (seq !== reqSeq) return
     posts.value = res.data?.records || []
     total.value = res.data?.total || 0
   } catch (e) { /* 已统一弹错 */ } finally {
-    loading.value = false
+    if (seq === reqSeq) loading.value = false
   }
 }
-const search = () => { page.value = 1; load() }
-const onSizeChange = (s) => { size.value = s; page.value = 1; load() }
+// 翻页/改页大小统一由 watch 触发加载(单一入口,去掉 @current-change/@size-change 与手动 load 双通道,
+// 避免同一动作同时发出两个相同请求)
+watch([page, size], load)
+// 搜索/筛选/排序: 先回到第 1 页;页码本就是 1 时 watch 不触发,手动加载
+const search = () => { if (page.value === 1) load(); else page.value = 1 }
 
 const fmtTime = (t) => (t || '').replace('T', ' ').slice(0, 16)
 const subjectName = (row) => row.subjectName || boardLabel.value
@@ -161,10 +168,10 @@ const onDialogClose = () => {
 }
 
 const openCreate = () => {
-  // 版块默认当前学习语言;若筛选已选中具体版块则沿用筛选
-  const defaultSubject = (subjectFilter.value && subjectFilter.value > 0)
-    ? subjectFilter.value
-    : (subjectStore.preferredSubjectId || null)
+  // 版块默认当前学习语言;若筛选已选中具体版块则沿用筛选('' 才算未选;0=综合讨论 是有效版块,需沿用)
+  const defaultSubject = (subjectFilter.value === '' || subjectFilter.value === null || subjectFilter.value === undefined)
+    ? (subjectStore.preferredSubjectId || null)
+    : subjectFilter.value
   Object.assign(form, { subjectId: defaultSubject, title: '', content: '', contentType: 'richtext', pinned: false })
   offerRestoreDraft(defaultSubject)
   dialogVisible.value = true
@@ -174,7 +181,8 @@ const submit = async () => {
   if (!form.content.trim()) { ElMessage.warning(t('forum.needContent')); return }
   saving.value = true
   try {
-    const res = await createPost({ ...form, subjectId: form.subjectId || null })
+    // subjectId 约定: 0=综合讨论 是有效版块不能归一成 null;仅 ''/null/undefined(未选)才传 null
+    const res = await createPost({ ...form, subjectId: (form.subjectId === '' || form.subjectId === null || form.subjectId === undefined) ? null : form.subjectId })
     skipDraftOnce = true
     clearDraft()   // 发布成功,草稿失效
     ElMessage.success(t('forum.publishSuccess'))
@@ -270,8 +278,6 @@ onMounted(async () => {
         v-model:current-page="page"
         v-model:page-size="size"
         :page-sizes="[10, 20, 50]"
-        @current-change="load"
-        @size-change="onSizeChange"
       />
     </div>
 
@@ -283,7 +289,8 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item :label="$t('forum.board')">
           <el-select v-model="form.subjectId" :placeholder="boardLabel" clearable style="width:200px">
-            <el-option :label="boardLabel" value="" />
+            <!-- 0=综合讨论 是有效版块(与筛选下拉一致),选中后提交保留 0 -->
+            <el-option :label="boardLabel" :value="0" />
             <el-option v-for="s in subjects" :key="s.id" :label="s.name" :value="s.id" />
           </el-select>
           <el-checkbox v-if="isAdmin" v-model="form.pinned" style="margin-left:16px">{{ $t('forum.pinned') }}</el-checkbox>

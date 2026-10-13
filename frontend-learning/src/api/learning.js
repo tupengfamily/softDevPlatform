@@ -34,15 +34,15 @@ export const savePreference = (payload) => {
 
 // GET /api/learning/lessons/{id} — 课时详情
 export const getLesson = (id) =>
-  request({ url: `/learning/lessons/${id}`, method: 'get' })
+  request({ url: `/learning/lessons/${encodeURIComponent(id)}`, method: 'get' })
 
 // POST /api/learning/lessons/{id}/learn — 标记已学
 export const markLearned = (id) =>
-  request({ url: `/learning/lessons/${id}/learn`, method: 'post' })
+  request({ url: `/learning/lessons/${encodeURIComponent(id)}/learn`, method: 'post' })
 
 // DELETE /api/learning/lessons/{id}/learn — 取消已学
 export const unmarkLearned = (id) =>
-  request({ url: `/learning/lessons/${id}/learn`, method: 'delete' })
+  request({ url: `/learning/lessons/${encodeURIComponent(id)}/learn`, method: 'delete' })
 
 // ==================== 用户补充节点(章节/子节点) ====================
 
@@ -56,11 +56,11 @@ export const createSupplement = (data) =>
 
 // PUT /api/learning/supplements/{id} — 编辑补充节点
 export const updateSupplement = (id, data) =>
-  request({ url: `/learning/supplements/${id}`, method: 'put', data })
+  request({ url: `/learning/supplements/${encodeURIComponent(id)}`, method: 'put', data })
 
 // DELETE /api/learning/supplements/{id} — 删除补充节点(级联子节点)
 export const deleteSupplement = (id) =>
-  request({ url: `/learning/supplements/${id}`, method: 'delete' })
+  request({ url: `/learning/supplements/${encodeURIComponent(id)}`, method: 'delete' })
 
 // ==================== 学习配置(管理员) ====================
 
@@ -74,11 +74,11 @@ export const adminCreateSubject = (data) =>
 
 // PUT /api/learning/admin/subjects/{id} — 编辑科目
 export const adminUpdateSubject = (id, data) =>
-  request({ url: `/learning/admin/subjects/${id}`, method: 'put', data })
+  request({ url: `/learning/admin/subjects/${encodeURIComponent(id)}`, method: 'put', data })
 
 // DELETE /api/learning/admin/subjects/{id} — 删除科目
 export const adminDeleteSubject = (id) =>
-  request({ url: `/learning/admin/subjects/${id}`, method: 'delete' })
+  request({ url: `/learning/admin/subjects/${encodeURIComponent(id)}`, method: 'delete' })
 
 // GET /api/learning/admin/chapters?subjectId= — 章节列表
 export const adminListChapters = (subjectId) =>
@@ -90,8 +90,8 @@ export const adminCreateChapter = (data) =>
 
 // PUT /api/learning/admin/chapters/{id} — 编辑章节
 export const adminUpdateChapter = (id, data) =>
-  request({ url: `/learning/admin/chapters/${id}`, method: 'put', data })
+  request({ url: `/learning/admin/chapters/${encodeURIComponent(id)}`, method: 'put', data })
 
 // DELETE /api/learning/admin/chapters/{id} — 删除章节(级联课时)
 export const adminDeleteChapter = (id) =>
-  request({ url: `/learning/admin/chapters/${id}`, method: 'delete' })
+  request({ url: `/learning/admin/chapters/${encodeURIComponent(id)}`, method: 'delete' })

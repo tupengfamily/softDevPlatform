@@ -52,7 +52,7 @@ public class NodeSandboxService {
 
     /** 禁止出现的动态执行入口 */
     private static final Pattern FORBIDDEN_CALLS =
-        Pattern.compile("\\beval\\s*\\(|\\bnew\\s+Function\\s*\\(|process\\.binding\\s*\\(|require\\s*\\(\\s*['\"](?:child_process|cluster|worker_threads|vm|v8|inspector|repl)['\"]");
+        Pattern.compile("\\beval\\s*\\(|\\bFunction\\s*\\(|\\bimport\\s*\\(|process\\.binding\\s*\\(|process\\.dlopen\\s*\\(|require\\s*\\(\\s*[a-zA-Z_$]|require\\s*\\(\\s*['\"](?:child_process|cluster|worker_threads|vm|v8|inspector|repl)['\"]");
 
     /** require('xxx') / require("xxx") 模块提取 */
     private static final Pattern REQUIRE_STMT =
@@ -109,26 +109,34 @@ public class NodeSandboxService {
             return result;
         }
 
-        // 3. 写临时文件并执行
+        // 3. 在临时目录内以内联方式执行
         Path workDir = null;
         try {
             workDir = Files.createTempDirectory("nodesandbox-" + (userId == null ? "guest" : userId) + "-");
-            // 含 import/export 视为 ESM, 用 .mjs 后缀; 否则 CommonJS .js
+            // 含 import/export 视为 ESM, 走 --input-type=module; 否则 CommonJS
             boolean esm = ESM_SYNTAX.matcher(source).find();
-            Path src = workDir.resolve(esm ? "main.mjs" : "main.js");
-            Files.writeString(src, source, StandardCharsets.UTF_8);
 
-            // 写入放行需同时给逻辑路径与 realpath(macOS /var -> /private/var 符号链接会导致相对路径写被拒)
+            // 读写均限定临时目录(最小权限, 防止读取 application.yml 等敏感文件);
+            // 需同时给逻辑路径与 realpath(macOS /var -> /private/var 符号链接会导致相对路径读写被拒)
             List<String> cmd = new ArrayList<>(List.of(
                 bin, "--no-warnings", "--permission",
-                "--allow-fs-read=*",
+                "--allow-fs-read=" + workDir,
                 "--allow-fs-write=" + workDir
             ));
             try {
                 String real = workDir.toRealPath().toString();
-                if (!real.equals(workDir.toString())) cmd.add("--allow-fs-write=" + real);
+                if (!real.equals(workDir.toString())) {
+                    cmd.add("--allow-fs-read=" + real);
+                    cmd.add("--allow-fs-write=" + real);
+                }
             } catch (IOException ignore) {}
-            cmd.add(src.toString());
+            // 用 --eval 内联执行而非入口 .js 文件:
+            // --permission 模式下 node 会 realpath 解析入口文件并逐级 stat 祖先目录
+            // (macOS 上 /var 是符号链接, 祖先目录无读权限 -> ERR_ACCESS_DENIED,
+            //  任何用户代码都无法启动), 内联执行无入口文件解析, 彻底规避该问题
+            if (esm) cmd.add("--input-type=module");
+            cmd.add("--eval");
+            cmd.add(source);
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.directory(workDir.toFile());
@@ -136,6 +144,11 @@ public class NodeSandboxService {
             // 清理 NODE_OPTIONS 等注入(环境可能带 fs 代理 shim, 干扰沙箱执行)
             pb.environment().remove("NODE_OPTIONS");
             pb.environment().remove("NODE_PATH");
+            // 宿主环境经 NODE_RUN_REQUIRED_MODULE 注入 node-safe-delete-shim.cjs,
+            // 该文件位于工作目录之外, --permission 模式下无法读取,
+            // 会在模块加载阶段令任何用户代码崩溃(ERR_ACCESS_DENIED), 必须一并清除
+            pb.environment().remove("NODE_RUN_REQUIRED_MODULE");
+            pb.environment().remove("NODE_REPL_EXTERNAL_MODULE");
 
             Process proc = pb.start();
             // 超时兜底: 独立线程读 stdout/stderr 防止管道阻塞
@@ -209,7 +222,7 @@ public class NodeSandboxService {
             if (denied != null) return denied;
         }
         if (FORBIDDEN_CALLS.matcher(source).find()) {
-            return "代码包含禁止的动态执行入口(eval/new Function/process.binding/child_process 等)";
+            return "代码包含禁止的动态执行入口(eval/Function/import()/process.dlopen/变量 require 等)";
         }
         return null;
     }
@@ -239,7 +252,12 @@ public class NodeSandboxService {
             for (String cand : cands) {
                 try {
                     Process p = new ProcessBuilder(cand, "--version").start();
-                    if (p.waitFor(3, TimeUnit.SECONDS) && p.exitValue() == 0) {
+                    if (!p.waitFor(3, TimeUnit.SECONDS)) {
+                        // 探测超时: 强杀, 防止残留进程
+                        p.destroyForcibly();
+                        continue;
+                    }
+                    if (p.exitValue() == 0) {
                         resolvedBin = cand;
                         log.info("[NodeSandbox] 使用运行时: {}", cand);
                         return cand;
@@ -251,20 +269,35 @@ public class NodeSandboxService {
         }
     }
 
-    /** 读流的小工具 */
+    /** 读流的小工具(上限 256KB, 超出截断并追加标记) */
     private static class StreamGobbler extends Thread {
+        /** 输出上限: stdout / stderr 各自超过 256KB 即截断 */
+        private static final int MAX_OUTPUT = 256 * 1024;
+        /** 截断标记 */
+        private static final String TRUNCATED_MARK = "...(输出已截断)";
+
         private final java.io.InputStream in;
         private final StringBuilder buf = new StringBuilder();
+        private boolean truncated;
 
         StreamGobbler(java.io.InputStream in) { this.in = in; setDaemon(true); }
 
         @Override public void run() {
             try (var reader = new java.io.BufferedReader(new java.io.InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;
-                while ((line = reader.readLine()) != null) buf.append(line).append('\n');
+                while ((line = reader.readLine()) != null) {
+                    if (buf.length() + line.length() + 1 > MAX_OUTPUT) {
+                        // 超限: 丢弃后续内容但继续读完, 防止子进程管道阻塞
+                        truncated = true;
+                        continue;
+                    }
+                    buf.append(line).append('\n');
+                }
             } catch (IOException ignore) {}
         }
 
-        String getText() { return buf.toString(); }
+        String getText() {
+            return truncated ? buf + TRUNCATED_MARK : buf.toString();
+        }
     }
 }

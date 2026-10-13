@@ -28,6 +28,8 @@ import java.util.Set;
 @Component
 public class JwtUtil {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JwtUtil.class);
+
     @Autowired
     private JwtProperties props;
 
@@ -35,8 +37,16 @@ public class JwtUtil {
 
     @PostConstruct
     public void init() {
+        String secret = props.getSecret();
+        if (secret == null || secret.isBlank()) {
+            // JWT_SECRET 未配置: 生成临时随机密钥(每次重启变化, 仅限本地开发)
+            byte[] raw = new byte[32];
+            new java.security.SecureRandom().nextBytes(raw);
+            secret = Base64.getEncoder().encodeToString(raw);
+            log.warn("JWT_SECRET 未配置,已生成临时随机密钥,重启后 token 失效,生产环境务必配置 JWT_SECRET");
+        }
         try {
-            byte[] bytes = Base64.getDecoder().decode(props.getSecret());
+            byte[] bytes = Base64.getDecoder().decode(secret);
             this.key = Keys.hmacShaKeyFor(bytes);
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("JWT 密钥配置错误(需 Base64 编码且 >= 32 字节)", e);

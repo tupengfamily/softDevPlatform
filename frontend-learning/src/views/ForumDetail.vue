@@ -1,7 +1,7 @@
 <script setup>
 // 论坛帖子详情 — 正文(富文本/Markdown)+ 回复列表 + 回复框
 // 作者/管理员可编辑、删除帖子与回复
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -32,22 +32,31 @@ const subjects = ref([])
 const render = (content, type) => renderContent(content, type)
 const fmtTime = (t) => (t || '').replace('T', ' ').slice(0, 16)
 
+// 请求序号: 快速翻页/刷新时旧响应可能后到,只认最后一次请求的响应
+let postSeq = 0
 const loadPost = async () => {
+  const seq = ++postSeq
   loading.value = true
   try {
     const res = await getPost(route.params.id)
+    if (seq !== postSeq) return
     post.value = res.data
   } catch (e) { /* 已统一弹错 */ } finally {
-    loading.value = false
+    if (seq === postSeq) loading.value = false
   }
 }
+let replySeq = 0
 const loadReplies = async () => {
+  const seq = ++replySeq
   try {
     const res = await pageReplies(route.params.id, { page: replyPage.value, size: replySize.value })
+    if (seq !== replySeq) return
     replies.value = res.data?.records || []
     replyTotal.value = res.data?.total || 0
   } catch (e) { /* 已统一弹错 */ }
 }
+// 回复翻页统一由 watch 触发加载(单一入口,去掉 @current-change 与手动 load 双通道,避免同一动作重复请求)
+watch(replyPage, loadReplies)
 
 // ---------- 编辑帖子 ----------
 const editDialog = ref(false)
@@ -113,8 +122,11 @@ const submitReply = async () => {
     ElMessage.success(replyForm.parentReplyId ? t('forumDetail.repliedTo', { name: replyForm.replyToUsername }) : t('forumDetail.replySuccess'))
     replyForm.content = ''
     cancelReplyTo()
+    // 回到第 1 页并刷新:页码变化时回复由 watch(replyPage) 触发加载;原本就在第 1 页则手动加载(保证只发一次)
+    const stayFirstPage = replyPage.value === 1
     replyPage.value = 1
-    await Promise.all([loadReplies(), loadPost()])
+    await loadPost()
+    if (stayFirstPage) await loadReplies()
   } catch (e) { /* 已统一弹错 */ } finally {
     replySaving.value = false
   }
@@ -233,7 +245,7 @@ onMounted(async () => {
             <span class="avatar">{{ (r.username || '?').charAt(0).toUpperCase() }}</span>
             <b>{{ r.username || $t('forumDetail.anonymous') }}</b>
             <span v-if="r.replyToUsername" class="reply-to">{{ $t('forumDetail.replyWord') }} <b>@{{ r.replyToUsername }}</b></span>
-            <span class="time">#{{ i + 1 }} · {{ fmtTime(r.createdAt) }}</span>
+            <span class="time">#{{ (replyPage - 1) * replySize + i + 1 }} · {{ fmtTime(r.createdAt) }}</span>
             <el-button link type="primary" size="small" class="r-reply" @click="replyTo(r)">{{ $t('forumDetail.reply') }}</el-button>
             <el-button v-if="r.editable" link type="danger" size="small" class="del" @click="removeReply(r)">{{ $t('common.delete') }}</el-button>
           </div>
@@ -244,7 +256,7 @@ onMounted(async () => {
         <div class="pager" v-if="replyTotal > replySize">
           <el-pagination
             background layout="prev, pager, next" :total="replyTotal"
-            v-model:current-page="replyPage" :page-size="replySize" @current-change="loadReplies"
+            v-model:current-page="replyPage" :page-size="replySize"
           />
         </div>
       </div>

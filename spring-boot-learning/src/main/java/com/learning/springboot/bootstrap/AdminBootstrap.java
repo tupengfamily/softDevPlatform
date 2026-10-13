@@ -29,6 +29,6 @@ public class AdminBootstrap implements CommandLineRunner {
         seedService.seedDefaultUsers();
         learningDataSeedService.seedLearningData();
         releaseNoteSeedService.seedReleaseNotes();
-        log.info("✅ 管理系统初始化完成! 默认账号: admin/admin123, user/user123");
+        log.info("✅ 管理系统初始化完成! 默认账号已初始化,请通过环境变量或尽快修改默认口令");
     }
 }

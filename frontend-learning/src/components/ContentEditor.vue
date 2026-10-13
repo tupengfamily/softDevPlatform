@@ -71,6 +71,12 @@ watch(() => props.modelValue, (v) => {
 
 const previewHtml = computed(() => renderMarkdown(text.value))
 
+// 安全取 HTML 纯文本: DOMParser 解析不执行脚本,规避 innerHTML XSS sink
+const htmlToText = (html) => {
+  const doc = new DOMParser().parseFromString(html || '', 'text/html')
+  return doc.body.textContent || ''
+}
+
 const editorOptions = computed(() => ({
   placeholder: placeholderText.value,
   modules: {
@@ -93,9 +99,7 @@ const switchType = (t) => {
     emit('update:modelValue', quillText.value)
   } else {
     // 富文本 -> Markdown: 取纯文本
-    const div = document.createElement('div')
-    div.innerHTML = quillText.value || ''
-    text.value = div.textContent || div.innerText || ''
+    text.value = htmlToText(quillText.value)
     emit('update:modelValue', text.value)
     mdTab.value = 'edit'
   }
@@ -149,9 +153,7 @@ defineExpose({
   /** 供表单校验: 是否有内容(去 HTML 标签后非空) */
   isEmpty() {
     if (type.value === 'richtext') {
-      const div = document.createElement('div')
-      div.innerHTML = quillText.value || ''
-      return !(div.textContent || '').trim()
+      return !htmlToText(quillText.value).trim()
     }
     return !text.value.trim()
   },

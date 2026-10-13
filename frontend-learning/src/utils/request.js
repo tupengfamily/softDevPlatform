@@ -12,6 +12,8 @@ import i18n from '../i18n'
  *   - 后端 {code, message, data} 统一响应,code !== 200 弹窗报错
  *   - HTTP 401 → 清 token + 跳登录页
  *   - HTTP 403 → 提示无权限
+ * - 静默请求: config 传 `silent: true` 时跳过 ElMessage 弹窗(仍正常 reject,由调用方处理),
+ *   适用于后台轮询等高频请求,避免报错轰炸
  */
 const request = axios.create({
   baseURL: '/api',
@@ -39,12 +41,15 @@ request.interceptors.response.use(
     const data = response.data
     // 后端统一返回 { code, message, data }
     if (data && data.code !== undefined && data.code !== 200) {
-      ElMessage.error(data.message || i18n.global.t('request.failed'))
-      return Promise.reject(new Error(data.message || i18n.global.t('request.failed')))
+      const message = data.message || i18n.global.t('request.failed')
+      if (!response.config?.silent) ElMessage.error(message)
+      return Promise.reject(new Error(message))
     }
     return data
   },
   (error) => {
+    // silent: true 的请求(如后台轮询)跳过弹窗,仅 reject 交调用方处理
+    const silent = !!error.config?.silent
     if (error.response) {
       const status = error.response.status
       const message = error.response.data?.message || error.message
@@ -55,10 +60,10 @@ request.interceptors.response.use(
         userStore.clear()
         if (wasGuest) {
           // 游客访问了需要登录的功能: 温和提示即可,留在当前页继续浏览,不强制跳登录
-          ElMessage.info(i18n.global.t('request.needLogin'))
+          if (!silent) ElMessage.info(i18n.global.t('request.needLogin'))
         } else {
           // 优先用后端返回的具体原因(如"Token 无效或已过期"),否则用默认提示
-          ElMessage.error(message || i18n.global.t('request.sessionExpired'))
+          if (!silent) ElMessage.error(message || i18n.global.t('request.sessionExpired'))
           // 仅在不是登录页时跳转,避免循环
           if (router.currentRoute.value.path !== '/login') {
             router.push({
@@ -67,21 +72,25 @@ request.interceptors.response.use(
             })
           }
         }
-      } else if (status === 403) {
-        ElMessage.error(message || i18n.global.t('request.forbidden'))
-      } else if (status === 404) {
-        ElMessage.error(message || i18n.global.t('request.notFound'))
-      } else if (status === 409) {
-        ElMessage.error(message || i18n.global.t('request.conflict'))
-      } else if (status === 500) {
-        ElMessage.error(i18n.global.t('request.serverError', { msg: message }))
-      } else {
-        ElMessage.error(i18n.global.t('request.failedWithStatus', { status, msg: message }))
+      } else if (!silent) {
+        if (status === 403) {
+          ElMessage.error(message || i18n.global.t('request.forbidden'))
+        } else if (status === 404) {
+          ElMessage.error(message || i18n.global.t('request.notFound'))
+        } else if (status === 409) {
+          ElMessage.error(message || i18n.global.t('request.conflict'))
+        } else if (status === 500) {
+          ElMessage.error(i18n.global.t('request.serverError', { msg: message }))
+        } else {
+          ElMessage.error(i18n.global.t('request.failedWithStatus', { status, msg: message }))
+        }
       }
-    } else if (error.request) {
-      ElMessage.error(i18n.global.t('request.networkError'))
-    } else {
-      ElMessage.error(error.message || i18n.global.t('request.failed'))
+    } else if (!silent) {
+      if (error.request) {
+        ElMessage.error(i18n.global.t('request.networkError'))
+      } else {
+        ElMessage.error(error.message || i18n.global.t('request.failed'))
+      }
     }
     return Promise.reject(error)
   }

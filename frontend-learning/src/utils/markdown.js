@@ -11,6 +11,24 @@ marked.setOptions({
   pedantic: false
 })
 
+// HTML 实体转义(链接 title/text 拼接前转义,防御纵深)
+const escapeHtml = (s) => String(s ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;')
+
+// href 协议白名单: 只允许 http/https/mailto/锚点/相对路径,其余(javascript: 等)拒绝
+const safeHref = (href) => {
+  const h = String(href ?? '').trim().replace(/[\u0000-\u001F\u007F]/g, '')
+  if (!h) return '#'
+  if (h.startsWith('#')) return h                                  // 页内锚点
+  if (/^(?:https?:|mailto:)/i.test(h)) return h                    // 白名单协议
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(h) && !h.startsWith('//')) return h // 相对路径
+  return '#'                                                       // 其余协议/协议相对 URL 拒绝
+}
+
 // 链接统一新窗口打开 + 安全 rel
 // (marked v13+ renderer 方法接收 token 对象,这里兼容旧的位置参数签名)
 const renderer = new marked.Renderer()
@@ -18,8 +36,9 @@ renderer.link = (...args) => {
   const tok = (args[0] && typeof args[0] === 'object')
     ? args[0]
     : { href: args[0], title: args[1], text: args[2] }
-  const title = tok.title ? ` title="${tok.title}"` : ''
-  return `<a href="${tok.href}"${title} target="_blank" rel="noopener noreferrer">${tok.text}</a>`
+  const href = safeHref(tok.href)
+  const title = tok.title ? ` title="${escapeHtml(tok.title)}"` : ''
+  return `<a href="${escapeHtml(href)}"${title} target="_blank" rel="noopener noreferrer">${escapeHtml(tok.text)}</a>`
 }
 
 /** 纯消毒(富文本 HTML 白名单过滤,防 XSS;任何 v-html 前都应先过这里) */

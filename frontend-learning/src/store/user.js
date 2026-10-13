@@ -35,7 +35,8 @@ export const useUserStore = defineStore('user', {
       this.token = data.token
       this.userInfo = data
       localStorage.setItem('token', data.token)
-      localStorage.setItem('userInfo', JSON.stringify(data))
+      // userInfo 落盘剔除 token,避免 token 重复存储(登录态统一从 'token' 读取)
+      localStorage.setItem('userInfo', JSON.stringify({ ...data, token: undefined }))
       return data
     },
 
@@ -48,7 +49,7 @@ export const useUserStore = defineStore('user', {
       this.token = data.token
       this.userInfo = data
       localStorage.setItem('token', data.token)
-      localStorage.setItem('userInfo', JSON.stringify(data))
+      localStorage.setItem('userInfo', JSON.stringify({ ...data, token: undefined }))
       return data
     },
 
@@ -57,7 +58,7 @@ export const useUserStore = defineStore('user', {
       const resp = await apiMe()
       // 保留 token 不变,只更新 userInfo
       this.userInfo = { ...this.userInfo, ...resp.data }
-      localStorage.setItem('userInfo', JSON.stringify(this.userInfo))
+      localStorage.setItem('userInfo', JSON.stringify({ ...this.userInfo, token: undefined }))
       return this.userInfo
     },
 
@@ -67,7 +68,7 @@ export const useUserStore = defineStore('user', {
       const data = resp.data
       // 后端返回完整用户信息(无 token 字段),合并保存
       this.userInfo = { ...this.userInfo, ...data, token: this.token }
-      localStorage.setItem('userInfo', JSON.stringify(this.userInfo))
+      localStorage.setItem('userInfo', JSON.stringify({ ...this.userInfo, token: undefined }))
       return this.userInfo
     },
 

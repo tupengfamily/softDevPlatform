@@ -156,9 +156,13 @@ public class DataSeedService {
         Role adminRole = roleRepository.findByCode("ADMIN").orElseThrow();
         Role userRole = roleRepository.findByCode("USER").orElseThrow();
 
+        // 初始口令支持环境变量覆盖(默认值仅限本地开发; 启动日志不打印口令明文)
+        String adminPassword = envOrDefault("ADMIN_INITIAL_PASSWORD", "admin123");
+        String userPassword = envOrDefault("USER_INITIAL_PASSWORD", "user123");
+
         if (!userRepository.existsByUsername("admin")) {
             User admin = new User("admin",
-                passwordEncoder.encode("admin123"),
+                passwordEncoder.encode(adminPassword),
                 "admin@example.com", 30, "系统");
             admin.setStatus(1);
             admin.setRoles(new HashSet<>(Set.of(adminRole)));
@@ -167,11 +171,17 @@ public class DataSeedService {
         }
         if (!userRepository.existsByUsername("user")) {
             User u = new User("user",
-                passwordEncoder.encode("user123"),
+                passwordEncoder.encode(userPassword),
                 "user@example.com", 25, "默认账号");
             u.setStatus(1);
             u.setRoles(new HashSet<>(Set.of(userRole)));
             userRepository.save(u);
         }
+    }
+
+    /** 读取环境变量, 未配置或为空时返回默认值 */
+    private String envOrDefault(String name, String defaultValue) {
+        String v = System.getenv(name);
+        return (v == null || v.isBlank()) ? defaultValue : v;
     }
 }

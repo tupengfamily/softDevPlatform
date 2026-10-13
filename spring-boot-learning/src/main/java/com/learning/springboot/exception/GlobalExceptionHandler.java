@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,6 +16,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 /**
  * 全局异常处理器
@@ -69,12 +71,28 @@ public class GlobalExceptionHandler {
     /** 数据完整性冲突(唯一键 / 外键) */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<?> handleDataIntegrity(DataIntegrityViolationException e) {
-        log.warn("[DB] {}", e.getMostSpecificCause().getMessage());
         String msg = e.getMostSpecificCause().getMessage();
         if (msg != null && msg.contains("UNIQUE")) {
+            log.warn("[DB] 唯一约束冲突: {}", msg);
             return Result.conflict("数据已存在,违反唯一约束");
         }
-        return Result.conflict("数据完整性错误: " + msg);
+        // 不向客户端返回内部异常细节, 统一固定文案, 详情进日志
+        log.error("[DB] 数据完整性冲突", e);
+        return Result.conflict("服务器内部错误");
+    }
+
+    /** 请求体格式错误(JSON 解析失败等) */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<?> handleNotReadable(HttpMessageNotReadableException e) {
+        log.warn("[BadRequest] 请求体格式错误: {}", e.getMessage());
+        return Result.badRequest("请求体格式错误");
+    }
+
+    /** 资源不存在 */
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<?> handleNoSuchElement(NoSuchElementException e) {
+        log.warn("[NotFound] {}", e.getMessage());
+        return Result.error(HttpStatusCode.valueOf(404), 404, "资源不存在");
     }
 
     /** 参数类型转换错误 */
@@ -86,7 +104,8 @@ public class GlobalExceptionHandler {
     /** 兜底 */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleAll(Exception e) {
+        // 不向客户端返回内部异常细节, 统一固定文案, 详情进日志
         log.error("[ERROR] 未处理异常", e);
-        return Result.error(HttpStatusCode.valueOf(500), 500, "服务器内部错误: " + e.getMessage());
+        return Result.error(HttpStatusCode.valueOf(500), 500, "服务器内部错误");
     }
 }

@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +42,12 @@ public class SqlSandboxService {
 
     /** 匹配多个 SQL 语句: ; 后还跟非空白字符(忽略末尾分号) */
     private static final Pattern MULTI_STATEMENT = Pattern.compile(";[^;]*[^\\s;]");
+
+    /** SELECT 最大返回行数(超限截断, 防止大结果集拖垮服务) */
+    private static final int MAX_ROWS = 500;
+
+    /** 语句执行超时(秒) */
+    private static final int QUERY_TIMEOUT_SECONDS = 5;
 
     private final JdbcTemplate jdbc;
 
@@ -80,7 +87,12 @@ public class SqlSandboxService {
             if ("SELECT".equals(firstWord) || "EXPLAIN".equals(firstWord)) {
                 executeSelect(trimmed, r);
             } else {
-                r.rowCount = jdbc.update(trimmed);
+                // UPDATE/INSERT/DELETE: 语句级超时, 防止长事务/大扫描拖垮服务
+                r.rowCount = jdbc.update(con -> {
+                    PreparedStatement ps = con.prepareStatement(trimmed);
+                    ps.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
+                    return ps;
+                });
             }
             r.elapsedMs = System.currentTimeMillis() - start;
             return r;
@@ -91,7 +103,13 @@ public class SqlSandboxService {
     }
 
     private void executeSelect(String sql, SqlResult r) {
-        jdbc.query(sql, rs -> {
+        // SELECT/EXPLAIN: 限制最大行数与查询超时
+        jdbc.query(con -> {
+            PreparedStatement ps = con.prepareStatement(sql);
+            ps.setMaxRows(MAX_ROWS);
+            ps.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
+            return ps;
+        }, rs -> {
             int colCount = rs.getMetaData().getColumnCount();
             if (r.columns == null) {
                 r.columns = new ArrayList<>();
@@ -108,6 +126,10 @@ public class SqlSandboxService {
             r.rows.add(row);
         });
         r.rowCount = r.rows == null ? 0 : r.rows.size();
+        // 达到行数上限: 提示结果已截断
+        if (r.rowCount >= MAX_ROWS) {
+            r.note = "结果已截断,仅显示前 " + MAX_ROWS + " 行";
+        }
     }
 
     private SqlResult errorResult(SqlResult r, String msg, long start) {
@@ -124,5 +146,6 @@ public class SqlSandboxService {
         public long rowCount;               // SELECT=行数 / DML=受影响行数
         public long elapsedMs;
         public String error;                // 失败时填充
+        public String note;                 // 提示信息(如结果截断)
     }
 }

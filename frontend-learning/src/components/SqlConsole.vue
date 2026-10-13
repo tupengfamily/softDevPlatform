@@ -92,6 +92,7 @@ const runQuery = async () => {
   try {
     const res = await runSql(sql.value)
     const d = res.data
+    if (!d) return
     if (d.error) { error.value = d.error; result.value = null }
     else { result.value = d }
     loadInfo()
@@ -106,11 +107,13 @@ const onReset = async () => {
       type: 'warning', confirmButtonText: t('sqlConsole.reset.confirm'), cancelButtonText: t('common.cancel')
     })
   } catch (_) { return }
-  await resetSql()
-  ElMessage.success(t('sqlConsole.reset.done'))
-  result.value = null
-  error.value = ''
-  loadInfo()
+  try {
+    await resetSql()
+    ElMessage.success(t('sqlConsole.reset.done'))
+    result.value = null
+    error.value = ''
+    loadInfo()
+  } catch (e) { /* 拦截器已提示 */ }
 }
 
 onMounted(loadInfo)

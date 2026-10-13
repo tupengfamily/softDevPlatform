@@ -31,14 +31,18 @@ const loading = ref(false)
 const nodes = ref([])
 const expanded = ref({})          // id -> bool
 
+// 请求序号: watch 触发的快速切换(章节/科目)只认最后一次请求的响应
+let reqSeq = 0
 const load = async () => {
   if (!props.subjectId && !props.chapterId) return
+  const seq = ++reqSeq
   loading.value = true
   try {
     const res = await getSupplements({ subjectId: props.subjectId, chapterId: props.chapterId })
+    if (seq !== reqSeq) return
     nodes.value = res.data || []
   } catch (e) { /* 已统一弹错 */ } finally {
-    loading.value = false
+    if (seq === reqSeq) loading.value = false
   }
 }
 watch(() => [props.subjectId, props.chapterId], load, { immediate: true })

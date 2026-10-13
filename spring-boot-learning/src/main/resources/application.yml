@@ -12,6 +12,11 @@ app:
     allowed-origins: http://localhost:5173,http://localhost:5174,http://[::1]:5173,http://[::1]:5174
   # 操作日志保留天数(默认 7 天,超期自动清理; <=0 表示永久保留)
   log-retention-days: 7
+  # 是否信任反向代理的 X-Forwarded-For / X-Real-IP(默认关闭, 防 IP 伪造)
+  trust-proxy: false
+  sandbox:
+    # 游客可运行沙箱开关(默认关闭: 沙箱执行接口一律需要登录; 为 true 时放行 /api/sandbox/run-*, reset-sql 仍需登录)
+    allow-guest-run: false
 
 # 服务端口
 server:
@@ -73,8 +78,8 @@ sandbox:
 # ============== JWT 配置 ==============
 jwt:
   # Base64 编码的 HMAC-SHA256 密钥(>= 32 字节)
-  # 生产环境必须通过环境变量 JWT_SECRET 注入独立密钥(默认值仅限本地开发)
-  secret: "${JWT_SECRET:VGhpc0lzQVZlcnlMb25nU2VjcmV0Rm9yU3ByaW5nQm9vdERlbW9Pbmx5X0RvTm90VXNlSW5Qcm9kdWN0aW9u}"
+  # 必须通过环境变量 JWT_SECRET 注入;未配置时启动自动生成临时随机密钥并告警(重启后 token 失效)
+  secret: "${JWT_SECRET:}"
   expiration-millis: 86400000   # 24 小时
   header: Authorization
   prefix: "Bearer "

@@ -10,14 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 /**
  * Java 单文件代码沙箱
@@ -34,14 +29,16 @@ import java.util.concurrent.TimeUnit;
  * 1. 用户提交的 Main.java 写到独立临时目录(按 userId 隔离, 自动清理)
  * 2. 用 JDK 自带的 JavaCompiler API 编译
  * 3. 编译失败 -> 返回编译错误清单(含行列号, 供前端 Monaco 标记)
- * 4. 编译成功 -> 自定义 URLClassLoader 加载, 反射调用 main 方法
- * 5. 守护线程 + 5 秒硬超时, 超时强制中断
- * 6. 重定向 System.out/err, 完整捕获输出
+ * 4. 编译成功 -> 用 {@code <java.home>/bin/java -cp <workDir> Main} 子进程执行,
+ *    与应用 classpath 完全隔离, 输出走独立管道, 超时可强杀
+ * 5. waitFor 5 秒硬超时, 超时 destroyForcibly 强制终止
+ * 6. 流读取线程收集 stdout/stderr(上限 256KB, 超出截断)
  * <p>
  * 安全:
- * - 限制导入的包(白名单), 简单拒绝 java.net / java.lang.reflect 等高风险包
- * - 守护线程防止线程泄露
- * - 独立临时目录, 失败清理
+ * - 静态检查: 全文拒绝危险包(java.net / java.lang.reflect / java.io.File 等)与
+ *   Runtime.getRuntime / ProcessBuilder / Class.forName / System.setOut 等危险调用
+ * - 子进程执行: 用户代码与宿主 JVM 隔离, 无法触碰应用内存/密钥, 可强制杀死
+ * - 独立临时目录, 执行完删除
  */
 @Service
 public class JavaSandboxService {
@@ -50,6 +47,12 @@ public class JavaSandboxService {
 
     /** 用户代码执行的硬超时 */
     private static final long TIMEOUT_MS = 5000;
+
+    /** 输出上限: stdout / stderr 各自超过 256KB 即截断 */
+    private static final int MAX_OUTPUT = 256 * 1024;
+
+    /** 截断标记 */
+    private static final String TRUNCATED_MARK = "...(输出已截断)";
 
     /** 允许的包前缀(白名单), 涉及反射/网络/进程/JNI 一律拒绝 */
     private static final List<String> ALLOWED_PACKAGE_PREFIXES = List.of(
@@ -83,7 +86,7 @@ public class JavaSandboxService {
         "java.util.Date"
     );
 
-    /** 禁止的包前缀(危险操作) */
+    /** 禁止的包前缀(危险操作), 出现在源码任意位置即拒绝(全限定名可绕过 import 扫描) */
     private static final List<String> FORBIDDEN_PACKAGE_PREFIXES = List.of(
         "java.net.",
         "java.lang.reflect.",
@@ -94,6 +97,19 @@ public class JavaSandboxService {
         "java.nio.file.Files",
         "java.nio.file.Paths",
         "java.nio.file.Path"
+    );
+
+    /** 禁止出现的危险调用模式(全文匹配, 不区分 import 行): 展示名 -> 正则 */
+    private record ForbiddenCall(String display, Pattern pattern) {}
+
+    private static final List<ForbiddenCall> FORBIDDEN_CALL_PATTERNS = List.of(
+        new ForbiddenCall("Runtime.getRuntime", Pattern.compile("Runtime\\s*\\.\\s*getRuntime")),
+        new ForbiddenCall("ProcessBuilder", Pattern.compile("ProcessBuilder")),
+        new ForbiddenCall("Class.forName", Pattern.compile("Class\\s*\\.\\s*forName")),
+        new ForbiddenCall("System.setOut", Pattern.compile("System\\s*\\.\\s*setOut")),
+        new ForbiddenCall("System.setErr", Pattern.compile("System\\s*\\.\\s*setErr")),
+        new ForbiddenCall("javax.script", Pattern.compile("javax\\.script")),
+        new ForbiddenCall("java.lang.reflect", Pattern.compile("java\\.lang\\.reflect"))
     );
 
     /**
@@ -110,12 +126,12 @@ public class JavaSandboxService {
         result.stderr = "";
         result.errors = Collections.emptyList();
 
-        // 0. 安全预检: 拒绝危险 import
-        List<String> violations = scanForbiddenImports(sourceCode);
+        // 0. 安全预检: 全文拒绝危险包名与危险调用(含全限定名绕过)
+        List<String> violations = scanForbiddenCode(sourceCode);
         if (!violations.isEmpty()) {
             result.status = SandboxResult.Status.COMPILE_ERROR;
             result.exitCode = "FORBIDDEN_IMPORT";
-            result.stderr = "为安全起见, 以下导入已被禁用: " + String.join(", ", violations);
+            result.stderr = "为安全起见, 以下内容已被禁用: " + String.join(", ", violations);
             result.elapsedMs = System.currentTimeMillis() - start;
             return result;
         }
@@ -137,8 +153,8 @@ public class JavaSandboxService {
                 return result;
             }
 
-            // 3. 编译成功 -> 加载并执行(带超时)
-            runWithTimeout(workDir, result, start);
+            // 3. 编译成功 -> 子进程执行(带超时, 可强杀)
+            runInSubprocess(workDir, result, start);
             return result;
         } catch (Exception e) {
             log.error("[Sandbox] 运行异常 userId={}", userId, e);
@@ -155,23 +171,22 @@ public class JavaSandboxService {
 
     // ==================== 内部实现 ====================
 
-    /** 扫描源码中的 import 语句, 返回违规包 */
-    private List<String> scanForbiddenImports(String source) {
+    /**
+     * 全文安全扫描: 包名出现在源码任意位置即拒绝(防御全限定名绕过 import 行扫描),
+     * 另拒绝危险调用模式。java.util/java.io/java.time 等白名单包正常使用不受影响。
+     *
+     * @return 违规项列表(空表示通过)
+     */
+    private List<String> scanForbiddenCode(String source) {
         List<String> bad = new ArrayList<>();
-        for (String line : source.split("\n")) {
-            String t = line.trim();
-            if (!t.startsWith("import ")) continue;
-            String pkg = t.substring(7).replace("static ", "").replace(";", "").trim();
-            // 类级别(不包含 .)如 java.util.List -> 允许, 反之如 java.lang.reflect.* -> 拒绝
-            if (pkg.endsWith(".*")) {
-                String prefix = pkg.substring(0, pkg.length() - 1);
-                if (FORBIDDEN_PACKAGE_PREFIXES.stream().anyMatch(prefix::startsWith)) {
-                    bad.add(pkg);
-                }
-            } else {
-                if (FORBIDDEN_PACKAGE_PREFIXES.contains(pkg)) {
-                    bad.add(pkg);
-                }
+        for (String pkg : FORBIDDEN_PACKAGE_PREFIXES) {
+            if (source.contains(pkg)) {
+                bad.add(pkg);
+            }
+        }
+        for (ForbiddenCall fc : FORBIDDEN_CALL_PATTERNS) {
+            if (fc.pattern().matcher(source).find()) {
+                bad.add(fc.display());
             }
         }
         return bad;
@@ -233,75 +248,86 @@ public class JavaSandboxService {
         }
     }
 
-    /** 加载编译产物并以守护线程运行, 5 秒超时 */
-    private void runWithTimeout(Path workDir, SandboxResult result, long start) throws Exception {
-        URLClassLoader loader = new URLClassLoader(
-            new URL[] { workDir.toUri().toURL() },
-            JavaSandboxService.class.getClassLoader());
+    /**
+     * 以独立子进程运行编译产物: {@code <java.home>/bin/java -cp <workDir> Main}
+     * <p>
+     * 用户代码与应用 classpath 隔离(拿不到应用内存/密钥), 输出走独立管道互不干扰,
+     * 超时 destroyForcibly 强杀, 不会留下僵尸线程。
+     */
+    private void runInSubprocess(Path workDir, SandboxResult result, long start) throws Exception {
+        String javaBin = System.getProperty("java.home") + "/bin/java";
+        // -cp 必须用绝对路径: workDir 是相对路径(data/sandbox/...), 而子进程 CWD
+        // 又被设为 workDir, 相对 -cp 会解析成 workDir/data/sandbox/... 导致找不到主类
+        ProcessBuilder pb = new ProcessBuilder(javaBin, "-cp", workDir.toAbsolutePath().toString(), "Main");
+        pb.directory(workDir.toFile());
+        pb.redirectErrorStream(false);
 
-        Class<?> mainClass;
-        try {
-            mainClass = loader.loadClass("Main");
-        } catch (ClassNotFoundException e) {
-            throw new IllegalStateException("找不到 Main 类, 请确认源码中包含 public class Main { ... }");
-        }
+        Process proc = pb.start();
+        // 独立线程读 stdout/stderr, 防止管道写满阻塞
+        StreamGobbler outGob = new StreamGobbler(proc.getInputStream());
+        StreamGobbler errGob = new StreamGobbler(proc.getErrorStream());
+        outGob.start();
+        errGob.start();
 
-        Method mainMethod;
-        try {
-            mainMethod = mainClass.getMethod("main", String[].class);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalStateException("找不到 public static void main(String[] args) 方法");
-        }
-
-        // 重定向 stdout / stderr
-        ByteArrayOutputStream capturedOut = new ByteArrayOutputStream();
-        ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
-        PrintStream originalOut = System.out;
-        PrintStream originalErr = System.err;
-        System.setOut(new PrintStream(capturedOut, true, StandardCharsets.UTF_8));
-        System.setErr(new PrintStream(capturedErr, true, StandardCharsets.UTF_8));
-
-        Thread runner = new Thread(() -> {
-            try {
-                mainMethod.invoke(null, (Object) new String[0]);
-            } catch (Throwable t) {
-                // 反射异常 unwrap
-                Throwable cause = t.getCause() == null ? t : t.getCause();
-                try {
-                    capturedErr.write(("Exception in thread \"main\": " + cause + "\n").getBytes(StandardCharsets.UTF_8));
-                } catch (IOException ignored) {}
-            }
-        }, "sandbox-runner");
-        runner.setDaemon(true);
-        runner.start();
-
-        try {
-            runner.join(TIMEOUT_MS);
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-        } finally {
-            // 恢复 System.out/err(必须恢复, 否则后续响应出错)
-            System.setOut(originalOut);
-            System.setErr(originalErr);
-        }
-
-        result.stdout = capturedOut.toString(StandardCharsets.UTF_8);
-        result.stderr = capturedErr.toString(StandardCharsets.UTF_8);
-        result.elapsedMs = System.currentTimeMillis() - start;
-
-        if (runner.isAlive()) {
-            // 超时: 守护线程最终会被回收, 但给用户清晰反馈
+        boolean finished = proc.waitFor(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        if (!finished) {
+            // 超时: 强制杀死子进程
+            proc.destroyForcibly();
+            proc.waitFor(1, TimeUnit.SECONDS);
+            outGob.join(500);
+            errGob.join(500);
+            result.stdout = outGob.getText();
+            result.stderr = errGob.getText() + "\n[Sandbox] 执行超过 " + TIMEOUT_MS + "ms 已被强制终止";
             result.status = SandboxResult.Status.TIMEOUT;
             result.exitCode = "TIMEOUT";
-            result.stderr += "\n[Sandbox] 执行超过 " + TIMEOUT_MS + "ms 已被强制终止";
-        } else if (!result.stderr.isEmpty() && result.stderr.contains("Exception")) {
-            result.status = SandboxResult.Status.RUNTIME_ERROR;
-            // 提取首行作为 exit 提示
-            String firstLine = result.stderr.lines().findFirst().orElse("RUNTIME_ERROR");
-            result.exitCode = firstLine.replace("Exception in thread \"main\": ", "");
-        } else {
+            result.elapsedMs = System.currentTimeMillis() - start;
+            return;
+        }
+
+        outGob.join(500);
+        errGob.join(500);
+        String stdout = outGob.getText();
+        String stderr = errGob.getText();
+        result.stdout = stdout;
+        result.stderr = stderr;
+        result.elapsedMs = System.currentTimeMillis() - start;
+
+        int code = proc.exitValue();
+        if (code == 0) {
             result.status = SandboxResult.Status.OK;
             result.exitCode = "0";
+        } else {
+            result.status = SandboxResult.Status.RUNTIME_ERROR;
+            // 提取首行作为 exit 提示
+            String firstLine = stderr.lines().findFirst().orElse("RUNTIME_ERROR");
+            result.exitCode = firstLine.replace("Exception in thread \"main\": ", "");
+        }
+    }
+
+    /** 读流的小工具(上限 256KB, 超出截断并追加标记) */
+    private static class StreamGobbler extends Thread {
+        private final java.io.InputStream in;
+        private final StringBuilder buf = new StringBuilder();
+        private boolean truncated;
+
+        StreamGobbler(java.io.InputStream in) { this.in = in; setDaemon(true); }
+
+        @Override public void run() {
+            try (var reader = new java.io.BufferedReader(new java.io.InputStreamReader(in, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (buf.length() + line.length() + 1 > MAX_OUTPUT) {
+                        // 超限: 丢弃后续内容但继续读完, 防止子进程管道阻塞
+                        truncated = true;
+                        continue;
+                    }
+                    buf.append(line).append('\n');
+                }
+            } catch (IOException ignore) {}
+        }
+
+        String getText() {
+            return truncated ? buf + TRUNCATED_MARK : buf.toString();
         }
     }
 }

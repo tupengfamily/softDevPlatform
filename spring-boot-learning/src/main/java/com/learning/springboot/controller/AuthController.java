@@ -8,10 +8,12 @@ import com.learning.springboot.dto.ProfileUpdateRequest;
 import com.learning.springboot.dto.RegisterRequest;
 import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.security.CurrentUser;
+import com.learning.springboot.security.LoginRateLimiter;
 import com.learning.springboot.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,6 +34,11 @@ import org.springframework.web.multipart.MultipartFile;
 public class AuthController {
 
     @Autowired private AuthService authService;
+    @Autowired private LoginRateLimiter loginRateLimiter;
+
+    /** 是否信任反向代理的 X-Forwarded-For / X-Real-IP(默认关闭, 防 IP 伪造) */
+    @Value("${app.trust-proxy:false}")
+    private boolean trustProxy;
 
     @PostMapping("/login")
     @OperationLog(module = "认证", action = "登录", recordParams = false)
@@ -45,6 +52,8 @@ public class AuthController {
     @OperationLog(module = "认证", action = "注册", recordParams = false)
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req, HttpServletRequest httpReq) {
         String ip = clientIp(httpReq);
+        // 注册限流: 每 IP 窗口期内有次数上限, 超限 429
+        loginRateLimiter.checkRegisterAllowed(ip);
         LoginResponse data = authService.register(req, ip);
         return Result.created("注册成功", data);
     }
@@ -80,14 +89,21 @@ public class AuthController {
         return Result.ok("已登出", null);
     }
 
+    /**
+     * 取客户端 IP: 默认直接用 TCP 对端地址(不信任可伪造的请求头);
+     * 仅当 app.trust-proxy=true(确认部署在可信反代之后)才解析 X-Forwarded-For / X-Real-IP。
+     */
     private String clientIp(HttpServletRequest req) {
-        String ip = req.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = req.getHeader("X-Real-IP");
+        if (trustProxy) {
+            String ip = req.getHeader("X-Forwarded-For");
+            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                ip = req.getHeader("X-Real-IP");
+            }
+            if (ip != null && !ip.isEmpty()) {
+                return ip.split(",")[0].trim();
+            }
         }
-        if (ip == null || ip.isEmpty()) {
-            ip = req.getRemoteAddr();
-        }
-        return ip == null ? "" : ip.split(",")[0].trim();
+        String ip = req.getRemoteAddr();
+        return ip == null ? "" : ip;
     }
 }

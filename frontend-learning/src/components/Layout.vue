@@ -135,8 +135,10 @@ const menuGroups = computed(() => {
   return groups
 })
 
-// 分组展开/收起(记忆到 localStorage;用 titleKey 做稳定标识)
-const collapsedGroups = ref(JSON.parse(localStorage.getItem('menuCollapsedGroups') || '[]'))
+// 分组展开/收起(记忆到 localStorage;用 titleKey 做稳定标识;解析失败兜底 [])
+let initCollapsed = []
+try { initCollapsed = JSON.parse(localStorage.getItem('menuCollapsedGroups') || '[]') } catch (_) { initCollapsed = [] }
+const collapsedGroups = ref(initCollapsed)
 watch(collapsedGroups, v => localStorage.setItem('menuCollapsedGroups', JSON.stringify(v)), { deep: true })
 const isGroupCollapsed = (key) => collapsedGroups.value.includes(key)
 const toggleGroup = (key) => {
@@ -161,6 +163,9 @@ const activePath = computed(() => {
   return route.path
 })
 const goTo = (path) => router.push(path)
+
+// i18n 文案可能内嵌 HTML(如 <b>/<a>),经 sanitizeHtml 消毒后再交给 v-html
+const tHtml = (key) => sanitizeHtml(t(key))
 
 // 移动端头部紧凑标题(替代面包屑,单行省略)
 const mobileTitle = computed(() => {
@@ -503,7 +508,7 @@ const onCommand = async (cmd) => {
         <!-- 游客访问提示: 明确告知当前身份与登录后的权益 -->
         <div v-if="isGuest && guestBannerVisible" class="guest-bar" role="status">
           <el-icon class="gb-ic"><UserFilled /></el-icon>
-          <span class="gb-text" v-html="$t('layout.guest.banner')"></span>
+          <span class="gb-text" v-html="tHtml('layout.guest.banner')"></span>
           <div class="gb-btns">
             <el-button size="small" type="primary" @click="goLogin">{{ $t('layout.guest.login') }}</el-button>
             <el-button size="small" text @click="dismissGuestBanner">{{ $t('layout.guest.dismiss') }}</el-button>
@@ -512,7 +517,7 @@ const onCommand = async (cmd) => {
         <!-- 只读账号提示: 明确告知当前账号权限范围 -->
         <div v-if="isReadOnly" class="readonly-bar" role="status">
           <el-icon class="gb-ic"><View /></el-icon>
-          <span class="gb-text" v-html="$t('layout.readonly.banner')"></span>
+          <span class="gb-text" v-html="tHtml('layout.readonly.banner')"></span>
         </div>
         <RouterView v-slot="{ Component }">
           <transition name="fade" mode="out-in">

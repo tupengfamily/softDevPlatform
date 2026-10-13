@@ -42,6 +42,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     @Autowired
     private JwtUtil jwtUtil;
 
+    /** 游客可运行沙箱开关(默认关闭, 沙箱执行接口一律需要登录) */
+    @org.springframework.beans.factory.annotation.Value("${app.sandbox.allow-guest-run:false}")
+    private boolean allowGuestRun;
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
@@ -52,9 +56,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         //       但 /api/auth/me 和 /api/auth/logout 需要鉴权, 走 filter
         return path.equals("/api/auth/login")
             || path.equals("/api/auth/register")
-            || path.startsWith("/api/hello")
-            || path.startsWith("/api/sandbox")   // 在线代码/SQL 沙箱: 纯教学功能(独立教学库),游客可直接试练
-            || path.startsWith("/api/public/wiki")   // Wiki 分享页: 凭令牌公开只读
+            || path.equals("/api/hello")
+            || path.startsWith("/api/hello/")
+            || (allowGuestRun && path.startsWith("/api/sandbox/run-"))   // 游客试练开关(默认关闭); reset-sql 仍需登录
+            || path.startsWith("/api/public/wiki/")   // Wiki 分享页: 凭令牌公开只读
             || path.equals("/api/public/health");
     }
 

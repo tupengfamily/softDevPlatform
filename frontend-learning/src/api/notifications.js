@@ -11,9 +11,9 @@ export const pageNotifications = ({ type, page = 1, size = 10 } = {}) =>
 export const recentNotifications = () =>
   request({ url: '/notifications/recent', method: 'get' })
 
-// GET /api/notifications/unread-count — 未读数
+// GET /api/notifications/unread-count — 未读数(silent: 后台 60s 轮询,失败不弹窗)
 export const unreadCount = () =>
-  request({ url: '/notifications/unread-count', method: 'get' })
+  request({ url: '/notifications/unread-count', method: 'get', silent: true })
 
 // PUT /api/notifications/{id}/read — 单条已读
 export const markRead = (id) =>

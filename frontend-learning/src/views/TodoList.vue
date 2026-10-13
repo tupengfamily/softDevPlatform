@@ -37,7 +37,8 @@ const quickAdd = async () => {
   if (!title) { ElMessage.warning(t('todo.msg.titleRequired')); return }
   quickAdding.value = true
   try {
-    await createTodo({ title, priority: quick.priority, dueDate: quick.dueDate || null })
+    // dueDate 约定: 统一传 ''(空串=无截止日期/清除);后端 updateTodo 传 null 表示不修改,故创建/编辑都不能用 null
+    await createTodo({ title, priority: quick.priority, dueDate: quick.dueDate || '' })
     ElMessage.success(t('todo.msg.added'))
     Object.assign(quick, { title: '', priority: 1, dueDate: '' })
     await load()
@@ -74,6 +75,7 @@ const save = async () => {
   if (!form.title.trim()) { ElMessage.warning(t('todo.msg.titleRequired')); return }
   saving.value = true
   try {
+    // dueDate 约定: 统一传 ''(空串=清除截止日期;后端 updateTodo 传 null 表示不修改,故不能用 null)
     const data = { title: form.title, priority: form.priority, dueDate: form.dueDate || '', status: form.status }
     if (form.id) await updateTodo(form.id, data)
     else await createTodo(data)

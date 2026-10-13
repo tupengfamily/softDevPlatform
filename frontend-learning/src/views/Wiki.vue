@@ -152,27 +152,29 @@ const onDrop = async (type, item, e) => {
   dragOverId.value = null
   if (dragState.type !== type || dragState.id === item.id) return
 
-  if (type === 'dir') {
-    if ((dragState.parentId ?? null) !== (item.parentId ?? null)) {
-      ElMessage.warning(t('wiki.dragSameLevel'))
-      return
+  try {
+    if (type === 'dir') {
+      if ((dragState.parentId ?? null) !== (item.parentId ?? null)) {
+        ElMessage.warning(t('wiki.dragSameLevel'))
+        return
+      }
+      const siblings = childrenOf(dragState.parentId)
+      const dragIdx = siblings.findIndex(x => x.id === dragState.id)
+      const targetIdx = siblings.findIndex(x => x.id === item.id)
+      if (dragIdx < 0 || targetIdx < 0) return
+      const position = dragIdx < targetIdx ? targetIdx - 1 : targetIdx
+      await moveWikiDir(dragState.id, position)
+    } else {
+      if (dragState.parentId !== item.directoryId) return   // 仅目录内排序
+      const list = articles.value
+      const dragIdx = list.findIndex(x => x.id === dragState.id)
+      const targetIdx = list.findIndex(x => x.id === item.id)
+      if (dragIdx < 0 || targetIdx < 0) return
+      const position = dragIdx < targetIdx ? targetIdx - 1 : targetIdx
+      await moveWikiArticle(dragState.id, position)
     }
-    const siblings = childrenOf(dragState.parentId)
-    const dragIdx = siblings.findIndex(x => x.id === dragState.id)
-    const targetIdx = siblings.findIndex(x => x.id === item.id)
-    if (dragIdx < 0 || targetIdx < 0) return
-    const position = dragIdx < targetIdx ? targetIdx - 1 : targetIdx
-    await moveWikiDir(dragState.id, position)
-  } else {
-    if (dragState.parentId !== item.directoryId) return   // 仅目录内排序
-    const list = articles.value
-    const dragIdx = list.findIndex(x => x.id === dragState.id)
-    const targetIdx = list.findIndex(x => x.id === item.id)
-    if (dragIdx < 0 || targetIdx < 0) return
-    const position = dragIdx < targetIdx ? targetIdx - 1 : targetIdx
-    await moveWikiArticle(dragState.id, position)
-  }
-  await load()
+    await load()
+  } catch (err) { /* 拦截器已提示 */ }
 }
 
 // ---------- 分享 ----------
