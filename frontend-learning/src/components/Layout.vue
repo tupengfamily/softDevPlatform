@@ -135,19 +135,34 @@ const menuGroups = computed(() => {
   return groups
 })
 
-// 分组展开/收起(记忆到 localStorage;用 titleKey 做稳定标识;解析失败兜底 [])
-let initCollapsed = []
-try { initCollapsed = JSON.parse(localStorage.getItem('menuCollapsedGroups') || '[]') } catch (_) { initCollapsed = [] }
-const collapsedGroups = ref(initCollapsed)
-watch(collapsedGroups, v => localStorage.setItem('menuCollapsedGroups', JSON.stringify(v)), { deep: true })
+// 分组展开/收起:按"用户 + 分组 key"持久化到 localStorage(刷新/重登都保留用户的选择)
+// key 用 titleKey(稳定,不受界面语言影响);解析失败兜底 []
+const collapseKey = () => `menuCollapsedGroups:${userStore.userId || 'guest'}`
+const readCollapsed = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(collapseKey()) || '[]')
+    return Array.isArray(raw) ? raw : []
+  } catch (_) {
+    return []
+  }
+}
+const collapsedGroups = ref(readCollapsed())
+watch(collapsedGroups, v => {
+  try { localStorage.setItem(collapseKey(), JSON.stringify(v)) } catch (_) { /* 存储满/隐私模式忽略 */ }
+}, { deep: true })
+
 const isGroupCollapsed = (key) => collapsedGroups.value.includes(key)
 const toggleGroup = (key) => {
   const i = collapsedGroups.value.indexOf(key)
   if (i >= 0) collapsedGroups.value.splice(i, 1)
   else collapsedGroups.value.push(key)
 }
-// 当前路由所在分组若被收起,自动展开(保证激活项可见)
+
+// 仅在"首次进入"时保证当前页所在分组可见;之后完全遵循用户的展开/收起选择(不再被路由切换覆盖)
+let collapseInitialized = false
 watch(() => route.path, (p) => {
+  if (collapseInitialized) return
+  collapseInitialized = true
   for (const group of menuGroups.value) {
     if (group.items.some(it => p === it.path || p.startsWith(it.path + '/'))) {
       const i = collapsedGroups.value.indexOf(group.titleKey)
@@ -179,7 +194,7 @@ const mobileTitle = computed(() => {
 const unread = computed(() => notifStore.unread)
 const msgList = ref([])
 const msgVisible = ref(false)
-const typeTag = { SYSTEM: 'primary', REPLY: 'warning', TASK: 'success' }
+const typeTag = { SYSTEM: 'primary', REPLY: 'warning', TASK: 'success', COLLAB_REQUEST: 'danger', COLLAB_RESULT: 'info' }
 // 类型文案优先取数据字典 notification_type,后端 typeLabel 兜底
 const typeText = (n) => dictStore.label('notification_type', n.type, n.typeLabel || n.type)
 
@@ -203,6 +218,10 @@ const onMsgClick = async (n) => {
   }
   if (n.relatedType === 'POST' && n.relatedId) router.push(`/forum/${n.relatedId}`)
   else if (n.relatedType === 'LESSON' && n.relatedId) router.push(`/learning/lesson/${n.relatedId}`)
+  else if (n.relatedType === 'WIKI_DIR' || n.relatedType === 'WIKI_ART') {
+    const tab = n.type === 'COLLAB_REQUEST' ? 'requests' : 'mine'
+    router.push({ path: '/wiki', query: { tab, dir: n.relatedId, art: n.relatedId } })
+  }
 }
 const readAllMsgs = async () => {
   try {
@@ -587,17 +606,21 @@ const onCommand = async (cmd) => {
 
 .menu-scroll { flex: 1; }
 .aside-menu { border-right: none; padding: 6px 0; }
+/* 一级: 分组标题 —— 视觉上明显大于二级菜单项, 作为分区标题 */
 .group-title {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 20px 6px; color: #94a3b8; font-size: var(--fs-xs);
-  letter-spacing: 1px; text-transform: uppercase; user-select: none;
+  padding: 16px 20px 7px;
+  color: #cbd5e1; font-size: var(--fs-md); font-weight: 600;
+  letter-spacing: .2px; user-select: none;
   cursor: pointer; transition: color .18s;
 }
-.group-title:hover { color: #e2e8f0; }
-.group-title .g-arrow { transition: transform .2s; font-size: 12px; }
+.group-title:hover { color: #fff; }
+.group-title .g-arrow { transition: transform .2s; font-size: 14px; color: #94a3b8; }
 .group-title.collapsed .g-arrow { transform: rotate(-90deg); }
+/* 二级: 菜单项 —— 略小于分组标题, 形成清晰层级 */
 .aside-menu :deep(.el-menu-item) {
-  height: 40px; line-height: 40px; margin: 3px 10px; border-radius: 8px;
+  height: 38px; line-height: 38px; margin: 2px 10px; border-radius: 8px;
+  font-size: var(--fs-sm);
   transition: background .18s, color .18s;
 }
 .aside-menu :deep(.el-menu-item:hover) { background: rgba(var(--c-primary-rgb, 37, 99, 235), .16) !important; color: #fff !important; }

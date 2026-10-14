@@ -2,6 +2,7 @@ package com.learning.springboot.controller;
 
 import com.learning.springboot.annotation.OperationLog;
 import com.learning.springboot.common.Result;
+import com.learning.springboot.dto.ChangePasswordRequest;
 import com.learning.springboot.dto.LoginRequest;
 import com.learning.springboot.dto.LoginResponse;
 import com.learning.springboot.dto.ProfileUpdateRequest;
@@ -10,6 +11,7 @@ import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.security.CurrentUser;
 import com.learning.springboot.security.LoginRateLimiter;
 import com.learning.springboot.service.AuthService;
+import com.learning.springboot.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AuthController {
 
     @Autowired private AuthService authService;
+    @Autowired private UserService userService;
     @Autowired private LoginRateLimiter loginRateLimiter;
 
     /** 是否信任反向代理的 X-Forwarded-For / X-Real-IP(默认关闭, 防 IP 伪造) */
@@ -71,6 +74,24 @@ public class AuthController {
                                            @Valid @RequestBody ProfileUpdateRequest req) {
         if (userId == null) throw new BusinessException(401, "未登录");
         return Result.ok("个人信息已更新", authService.updateProfile(userId, req));
+    }
+
+    /**
+     * 用户自行修改密码(已登录态,必须验证旧密码; 仅作用于当前用户本人,
+     * 区别于管理员重置他人密码的 PUT /api/users/{id}/password)。
+     * <p>
+     * 旧密码正确后, BCrypt 重置; 写操作日志(已对密码字段脱敏)。
+     */
+    @PutMapping("/password")
+    @OperationLog(module = "认证", action = "修改自己的密码", recordParams = false)
+    public ResponseEntity<?> changeMyPassword(@CurrentUser Long userId,
+                                              @Valid @RequestBody ChangePasswordRequest req) {
+        if (userId == null) throw new BusinessException(401, "未登录");
+        if (req.getNewPassword().equals(req.getOldPassword())) {
+            throw new BusinessException(400, "新密码不能与旧密码相同");
+        }
+        userService.changePassword(userId, req);
+        return Result.ok("密码已修改, 请重新登录", null);
     }
 
     /** 上传头像图片(multipart/form-data, 字段名 file),返回新头像 URL */

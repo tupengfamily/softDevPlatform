@@ -133,7 +133,12 @@ public class NotificationServiceImpl implements NotificationService {
             return null;
         }
         String t = type.trim().toUpperCase(Locale.ROOT);
-        if (!Notification.TYPE_SYSTEM.equals(t) && !Notification.TYPE_REPLY.equals(t) && !Notification.TYPE_TASK.equals(t)) {
+        boolean ok = Notification.TYPE_SYSTEM.equals(t)
+            || Notification.TYPE_REPLY.equals(t)
+            || Notification.TYPE_TASK.equals(t)
+            || Notification.TYPE_COLLAB_REQUEST.equals(t)
+            || Notification.TYPE_COLLAB_RESULT.equals(t);
+        if (!ok) {
             throw new IllegalArgumentException("非法消息类型: " + type);
         }
         return t;
@@ -158,6 +163,8 @@ public class NotificationServiceImpl implements NotificationService {
             case Notification.TYPE_SYSTEM: return "系统通知";
             case Notification.TYPE_REPLY:  return "回复通知";
             case Notification.TYPE_TASK:   return "任务通知";
+            case Notification.TYPE_COLLAB_REQUEST: return "协作申请";
+            case Notification.TYPE_COLLAB_RESULT:  return "协作结果";
             default: return type;
         }
     }

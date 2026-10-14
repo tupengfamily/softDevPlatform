@@ -101,6 +101,13 @@ public class GlobalExceptionHandler {
         return Result.badRequest("参数类型错误: " + e.getName());
     }
 
+    /** 上传文件超过大小限制(multipart) */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<?> handleMaxUpload(org.springframework.web.multipart.MaxUploadSizeExceededException e) {
+        log.warn("[Upload] 文件超过大小限制: {}", e.getMessage());
+        return Result.badRequest("文件过大, 最大支持 10MB");
+    }
+
     /** 兜底 */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleAll(Exception e) {

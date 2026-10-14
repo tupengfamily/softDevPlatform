@@ -32,8 +32,8 @@ public class WikiArticle {
     @Column(nullable = false, length = 200)
     private String title;
 
-    /** 正文(轻量 Markdown / 富文本) */
-    @Column(nullable = false, length = 20000)
+    /** 正文(轻量 Markdown / 富文本; 导入文档转换后可能较长) */
+    @Column(nullable = false, length = 200000)
     private String content;
 
     /** 内容格式: markdown / richtext */
@@ -44,9 +44,17 @@ public class WikiArticle {
     @Column(name = "sort_no", nullable = false)
     private Integer sortNo = 0;
 
-    /** 分享令牌(空=未开启分享;有值时 /wiki/share/{token} 公开只读) */
+    /** 分享令牌(空=未开启分享;有值时 /wiki/share/{token} 可访问) */
     @Column(name = "share_token", length = 64, unique = true)
     private String shareToken;
+
+    /**
+     * 分享是否要求登录后才能查看(false=任何人凭链接可看, 默认;true=必须登录)。
+     * columnDefinition 显式带 default 0: SQLite 不允许给已有数据的表加"NOT NULL 且无默认值"的列
+     * (否则 Hibernate ddl-auto 增量加列会静默失败)。
+     */
+    @Column(name = "share_require_login", columnDefinition = "boolean not null default 0")
+    private Boolean shareRequireLogin = false;
 
     /** 分享被查看次数 */
     @Column(name = "view_count", nullable = false)
@@ -95,6 +103,9 @@ public class WikiArticle {
 
     public String getShareToken() { return shareToken; }
     public void setShareToken(String shareToken) { this.shareToken = shareToken; }
+
+    public Boolean getShareRequireLogin() { return shareRequireLogin == null ? Boolean.FALSE : shareRequireLogin; }
+    public void setShareRequireLogin(Boolean shareRequireLogin) { this.shareRequireLogin = shareRequireLogin; }
 
     public Long getViewCount() { return viewCount; }
     public void setViewCount(Long viewCount) { this.viewCount = viewCount; }

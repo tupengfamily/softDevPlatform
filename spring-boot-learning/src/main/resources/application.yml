@@ -29,11 +29,11 @@ spring:
   application:
     name: spring-boot-learning
 
-  # 文件上传(头像等): 单文件最大 2MB
+  # 文件上传: 单文件最大 10MB(Wiki 文档导入 .md/.docx/.xlsx 需要; 头像等业务另有自身限额校验)
   servlet:
     multipart:
-      max-file-size: 2MB
-      max-request-size: 5MB
+      max-file-size: 10MB
+      max-request-size: 12MB
 
   # ============== 数据源(SQLite 文件) ==============
   datasource:
@@ -43,11 +43,16 @@ spring:
     password: ""
     hikari:
       pool-name: AdminHikariPool
-      maximum-pool-size: 10      # SQLite 单写多读,不宜过大
-      minimum-idle: 2
+      # SQLite 文件锁串行写;池太大反而加剧锁竞争。WAL 模式下读可并发,
+      # 但写依然是单写,3-5 个连接足够覆盖并发请求(HTTP 线程池共享)
+      maximum-pool-size: 5
+      minimum-idle: 1
       idle-timeout: 30000
       connection-timeout: 30000
       max-lifetime: 1800000
+      # 连接级 PRAGMA(每个新连接打开时自动执行;Hikari 启动后该字段 sealed,需在 yml 注入)
+      # 调优点: WAL 读写并发 / NORMAL 写性能 / 5s 锁重试 / FK 完整性 / 64MB 缓存 / 临时表内存
+      connection-init-sql: "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON; PRAGMA cache_size = -64000; PRAGMA temp_store = MEMORY;"
 
   # ============== JPA 配置 ==============
   jpa:
@@ -73,7 +78,7 @@ sandbox:
   datasource:
     url: jdbc:sqlite:${user.dir}/data/sandbox.db
     driver-class-name: org.sqlite.JDBC
-    pool-size: 5
+    pool-size: 2    # 沙箱教学库,SQLite 文件锁串行写,2 个连接足够(降低锁竞争)
 
 # ============== JWT 配置 ==============
 jwt:

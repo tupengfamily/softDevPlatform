@@ -25,3 +25,7 @@ export const uploadAvatar = (file) => {
   fd.append('file', file)
   return request({ url: '/auth/avatar', method: 'post', data: fd })
 }
+
+// PUT /api/auth/password — 本人修改密码(需登录,需旧密码)
+export const changeMyPassword = (data) =>
+  request({ url: '/auth/password', method: 'put', data })

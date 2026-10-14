@@ -36,6 +36,15 @@ public class SandboxDataSourceConfig {
         cfg.setMaximumPoolSize(poolSize);
         cfg.setMinimumIdle(1);
         cfg.setConnectionTimeout(10_000);
+        // 连接级 PRAGMA: 与主库保持一致(WAL/NORMAL/5s/FK/cache/temp)
+        cfg.setConnectionInitSql(
+            "PRAGMA journal_mode = WAL;"
+          + "PRAGMA synchronous = NORMAL;"
+          + "PRAGMA busy_timeout = 5000;"
+          + "PRAGMA foreign_keys = ON;"
+          + "PRAGMA cache_size = -64000;"
+          + "PRAGMA temp_store = MEMORY;"
+        );
         return new HikariDataSource(cfg);
     }
 

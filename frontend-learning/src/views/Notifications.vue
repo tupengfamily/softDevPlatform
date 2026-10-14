@@ -24,7 +24,7 @@ const page = ref(1)
 const size = ref(10)
 const typeFilter = ref('')        // ''=全部 SYSTEM/REPLY/TASK
 
-const typeTag = { SYSTEM: 'primary', REPLY: 'warning', TASK: 'success' }
+const typeTag = { SYSTEM: 'primary', REPLY: 'warning', TASK: 'success', COLLAB_REQUEST: 'danger', COLLAB_RESULT: 'info' }
 // 类型文案优先取数据字典 notification_type,后端 typeLabel 兜底
 const typeText = (n) => dictStore.label('notification_type', n.type, n.typeLabel || n.type)
 // 类型筛选项: 字典 notification_type 驱动,只保留已知编码,空则兜底
@@ -63,6 +63,11 @@ const openItem = async (n) => {
   }
   if (n.relatedType === 'POST' && n.relatedId) router.push(`/forum/${n.relatedId}`)
   else if (n.relatedType === 'LESSON' && n.relatedId) router.push(`/learning/lesson/${n.relatedId}`)
+  else if (n.relatedType === 'WIKI_DIR' || n.relatedType === 'WIKI_ART') {
+    // 协作申请/结果 → 跳到 Wiki 页面, 用 tab 参数让目标面板聚焦
+    const tab = n.type === 'COLLAB_REQUEST' ? 'requests' : 'mine'
+    router.push({ path: '/wiki', query: { tab, dir: n.relatedId, art: n.relatedId } })
+  }
 }
 const markOne = async (n) => {
   try {

@@ -28,11 +28,19 @@ public class Notification {
     public static final String TYPE_REPLY = "REPLY";
     /** 消息类型: 任务完成通知 */
     public static final String TYPE_TASK = "TASK";
+    /** 消息类型: Wiki 协作者申请提交(发给资源所有者审批) */
+    public static final String TYPE_COLLAB_REQUEST = "COLLAB_REQUEST";
+    /** 消息类型: Wiki 协作申请审批结果(发给申请人) */
+    public static final String TYPE_COLLAB_RESULT = "COLLAB_RESULT";
 
     /** 关联类型: 论坛帖子 */
     public static final String REL_POST = "POST";
     /** 关联类型: 课时 */
     public static final String REL_LESSON = "LESSON";
+    /** 关联类型: Wiki 目录(申请单 relatedId 存目录 ID) */
+    public static final String REL_WIKI_DIR = "WIKI_DIR";
+    /** 关联类型: Wiki 文章(申请单 relatedId 存文章 ID) */
+    public static final String REL_WIKI_ART = "WIKI_ART";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

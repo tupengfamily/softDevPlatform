@@ -41,6 +41,10 @@ logs/
 
 # ============ Node / 前端 ============
 node_modules/
+# 根目录 npm 误产物(memory 记录过: 必须在 frontend-learning 目录下 install, 否则污染根目录)
+/package.json
+/package-lock.json
+/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

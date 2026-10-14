@@ -5,6 +5,7 @@ import com.learning.springboot.entity.Todo;
 import com.learning.springboot.entity.UserDataRecord;
 import com.learning.springboot.entity.UserFavorite;
 import com.learning.springboot.entity.WikiArticle;
+import com.learning.springboot.entity.WikiCollaborator;
 import com.learning.springboot.entity.WikiDirectory;
 import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.security.HtmlSanitizer;
@@ -50,6 +51,7 @@ public class PersonalCenterService {
     @Autowired private TodoRepository todoRepository;
     @Autowired private WikiDirectoryRepository directoryRepository;
     @Autowired private WikiArticleRepository articleRepository;
+    @Autowired(required = false) private com.learning.springboot.service.CollaborationService collaborationService;
     @Autowired private LessonProgressRepository progressRepository;
     @Autowired private UserDataRecordRepository recordRepository;
 
@@ -218,7 +220,12 @@ public class PersonalCenterService {
         return directoryRepository.save(d);
     }
 
-    /** 删除目录: 迭代删除子目录(带已访问 id 集合,防脏数据成环爆栈),级联删除目录下文章 */
+    /**
+     * 删除目录(空目录才能删,非空直接拒绝,前端绕过也生效):
+     * - 子目录数 > 0 → 拒绝
+     * - 直接文章数 > 0 → 拒绝
+     * - 通过后再迭代删除本目录(防脏数据成环)
+     */
     @Transactional
     public void deleteDirectory(Long userId, Long id) {
         WikiDirectory d = directoryRepository.findByIdAndUserId(id, userId)
@@ -227,14 +234,26 @@ public class PersonalCenterService {
         Set<Long> visited = new HashSet<>();
         stack.push(d.getId());
         visited.add(d.getId());
+        int subDirs = 0;
+        int articles = 0;
         while (!stack.isEmpty()) {
             Long cur = stack.pop();
-            for (WikiDirectory child : siblingDirs(userId, cur)) {
+            List<WikiDirectory> children = siblingDirs(userId, cur);
+            subDirs += children.size();
+            for (WikiDirectory child : children) {
                 if (visited.add(child.getId())) stack.push(child.getId());
             }
-            articleRepository.deleteByDirectoryId(cur);
-            WikiDirectory node = directoryRepository.findById(cur).orElse(null);
-            if (node != null) directoryRepository.delete(node);
+            articles += articleRepository.findByDirectoryIdOrderBySortNoAscIdAsc(cur).size();
+        }
+        if (subDirs > 0 || articles > 0) {
+            // 目录非空: 拒绝删除,前端可提示用户先清空(实际功能上不允许递归删)
+            throw new BusinessException(400, "目录非空,无法删除(子目录 " + subDirs + " 个,文章 " + articles + " 篇),请先清空目录内容");
+        }
+        // 空目录: 删自身
+        directoryRepository.delete(d);
+        // 联动清理该目录的协作者记录
+        if (collaborationService != null) {
+            collaborationService.cleanupResource(WikiCollaborator.RESOURCE_DIR, id);
         }
     }
 
@@ -248,6 +267,37 @@ public class PersonalCenterService {
         directoryRepository.saveAll(siblings);
     }
 
+    /**
+     * 目录移动到另一个父目录下(拖动): parentId 为空表示移到顶层。
+     * 带环检测: 不允许移动到自身或自己的子孙目录下(否则树会成环)。
+     */
+    @Transactional
+    public WikiDirectory moveDirectoryToParent(Long userId, Long id, Long parentId) {
+        WikiDirectory d = directoryRepository.findByIdAndUserId(id, userId)
+            .orElseThrow(() -> new BusinessException("目录不存在"));
+        if (parentId != null) {
+            if (parentId.equals(id)) throw new BusinessException("不能把目录移动到自身下");
+            WikiDirectory parent = directoryRepository.findByIdAndUserId(parentId, userId)
+                .orElseThrow(() -> new BusinessException("目标目录不存在"));
+            // 环检测: 沿着 parent 向上找祖先, 若遇到自身则拒绝
+            Set<Long> visited = new HashSet<>();
+            WikiDirectory cur = parent;
+            while (cur != null) {
+                if (cur.getId().equals(id)) throw new BusinessException("不能把目录移动到自己的子目录下");
+                if (!visited.add(cur.getId())) break;   // 脏数据成环兜底
+                Long pid = cur.getParentId();
+                cur = pid == null ? null : directoryRepository.findByIdAndUserId(pid, userId).orElse(null);
+            }
+            d.setParentId(parent.getId());
+        } else {
+            d.setParentId(null);
+        }
+        d.setSortNo(nextSortNo(siblingDirs(userId, d.getParentId()).stream()
+            .filter(x -> !x.getId().equals(d.getId()))
+            .map(WikiDirectory::getSortNo).max(Integer::compareTo).orElse(0)));
+        return directoryRepository.save(d);
+    }
+
     // ==================== Wiki 文章 ====================
 
     @Transactional
@@ -256,7 +306,7 @@ public class PersonalCenterService {
             .orElseThrow(() -> new BusinessException("目录不存在"));
         if (title == null || title.trim().isEmpty()) throw new BusinessException("文章标题不能为空");
         if (content == null || content.trim().isEmpty()) throw new BusinessException("文章内容不能为空");
-        if (content.length() > 20000) throw new BusinessException("内容过长,最多 20000 字符");
+        if (content.length() > 200000) throw new BusinessException("内容过长,最多 200000 字符");
         WikiArticle a = new WikiArticle();
         a.setUserId(userId);
         a.setDirectoryId(d.getId());
@@ -280,14 +330,12 @@ public class PersonalCenterService {
             a.setDirectoryId(d.getId());
         }
         if (title != null && !title.trim().isEmpty()) a.setTitle(trimTo(title, 200));
-        if (content != null && content.length() > 20000) throw new BusinessException("内容过长,最多 20000 字符");
+        if (content != null && content.length() > 200000) throw new BusinessException("内容过长,最多 200000 字符");
         if (content != null && !content.trim().isEmpty()) {
-            String ctype = contentType != null
-                ? ("richtext".equals(contentType) ? "richtext" : "markdown") : a.getContentType();
-            // 富文本入库前消毒防存储型 XSS;markdown 保留原文
+            // 内容格式在创建时确定,之后不可修改(contentType 入参仅作兼容保留, 不生效)
+            String ctype = a.getContentType();
             a.setContent("richtext".equals(ctype) ? HtmlSanitizer.sanitizeRichText(content) : content);
         }
-        if (contentType != null) a.setContentType("richtext".equals(contentType) ? "richtext" : "markdown");
         return articleRepository.save(a);
     }
 
@@ -296,6 +344,9 @@ public class PersonalCenterService {
         WikiArticle a = articleRepository.findByIdAndUserId(id, userId)
             .orElseThrow(() -> new BusinessException("文章不存在"));
         articleRepository.delete(a);
+        if (collaborationService != null) {
+            collaborationService.cleanupResource(WikiCollaborator.RESOURCE_ART, id);
+        }
     }
 
     /** 文章移动到指定位置(目录内,拖动排序) */
@@ -308,14 +359,19 @@ public class PersonalCenterService {
         articleRepository.saveAll(list);
     }
 
-    /** 开启分享: 生成/复用分享令牌 */
+    /**
+     * 开启/更新分享: 生成(或复用)分享令牌, 并设置"是否要求登录查看"(默认不要求)。
+     *
+     * @param requireLogin true=必须登录才能看; false/null=任何人凭链接可看(默认)
+     */
     @Transactional
-    public WikiArticle shareArticle(Long userId, Long id) {
+    public WikiArticle shareArticle(Long userId, Long id, Boolean requireLogin) {
         WikiArticle a = articleRepository.findByIdAndUserId(id, userId)
             .orElseThrow(() -> new BusinessException("文章不存在"));
         if (a.getShareToken() == null || a.getShareToken().isEmpty()) {
             a.setShareToken(UUID.randomUUID().toString().replace("-", ""));
         }
+        a.setShareRequireLogin(requireLogin != null && requireLogin);
         return articleRepository.save(a);
     }
 
@@ -328,11 +384,18 @@ public class PersonalCenterService {
         return articleRepository.save(a);
     }
 
-    /** 分享页公开只读访问(游客),计一次浏览 */
+    /**
+     * 分享页只读访问,计一次浏览。
+     *
+     * @param authenticated 访问者是否已登录(文章设置了"需要登录"时用于拦截游客)
+     */
     @Transactional
-    public WikiArticle viewShared(String token) {
+    public WikiArticle viewShared(String token, boolean authenticated) {
         WikiArticle a = articleRepository.findByShareToken(token)
             .orElseThrow(() -> new BusinessException(404, "分享不存在或已取消"));
+        if (Boolean.TRUE.equals(a.getShareRequireLogin()) && !authenticated) {
+            throw new BusinessException(401, "该分享仅限登录用户查看, 请先登录");
+        }
         // 原子自增(并发下不丢计数),随后重查返回最新值
         articleRepository.incrementViewCount(a.getId());
         return articleRepository.findByIdAndUserId(a.getId(), a.getUserId()).orElse(a);

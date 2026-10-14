@@ -1,12 +1,13 @@
 <script setup>
 // Wiki 文章分享页(公开只读,无需登录): 凭分享令牌查看
 import { onMounted, ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getSharedArticle } from '../api/personal'
 import { renderContent } from '../utils/markdown'
 
 const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
 const article = ref(null)
 const loading = ref(true)
@@ -15,16 +16,27 @@ const error = ref('')
 const rendered = computed(() => renderContent(article.value?.content || '', article.value?.contentType))
 const fmtTime = (t) => (t || '').replace('T', ' ').slice(0, 16)
 
+const needLogin = ref(false)
+
 onMounted(async () => {
   try {
     const res = await getSharedArticle(route.params.token)
     article.value = res.data
   } catch (e) {
-    error.value = t('wikiShare.error')
+    // 分享设置了"需要登录": 后端返回 401, 给出登录入口而不是泛化错误
+    if (e?.response?.status === 401) {
+      needLogin.value = true
+    } else {
+      error.value = t('wikiShare.error')
+    }
   } finally {
     loading.value = false
   }
 })
+
+const goLogin = () => {
+  router.push({ path: '/login', query: { redirect: route.fullPath } })
+}
 </script>
 
 <template>
@@ -39,6 +51,11 @@ onMounted(async () => {
         </div>
         <div class="body rich-body" v-html="rendered"></div>
       </template>
+      <el-result v-else-if="needLogin" icon="warning" :title="$t('wikiShare.needLogin')" :sub-title="$t('wikiShare.needLoginTip')">
+        <template #extra>
+          <el-button type="primary" @click="goLogin">{{ $t('wikiShare.goLogin') }}</el-button>
+        </template>
+      </el-result>
       <el-result v-else-if="!loading" icon="warning" :title="error || $t('wikiShare.notFound')" :sub-title="$t('wikiShare.notFoundTip')">
       </el-result>
     </div>

@@ -30,4 +30,17 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 app.use(router)
 
+// 全局错误处理: 把 setup/render 阶段异常打到 console(开发期必备, 避免被 Vue dev 模式静默吞掉)
+app.config.errorHandler = (err, instance, info) => {
+  console.error('[Vue] errorHandler:', err && (err.stack || err.message), '| info:', info)
+}
+app.config.warnHandler = (msg, instance, trace) => {
+  // 过滤大量噪音警告, 留关键
+  if (msg && /(Invalid prop|missing required|Missing required|invalid prop)/i.test(msg)) {
+    console.warn('[Vue] warnHandler:', msg, '| trace:', trace)
+  }
+}
+window.addEventListener('error', e => console.error('[window.onerror]', e.message, e.error && e.error.stack))
+window.addEventListener('unhandledrejection', e => console.error('[unhandledrejection]', e.reason))
+
 app.mount('#app')

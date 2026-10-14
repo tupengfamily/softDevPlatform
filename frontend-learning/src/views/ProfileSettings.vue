@@ -6,7 +6,7 @@ import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '../store/user'
 import { useThemeStore, THEME_PRESETS } from '../store/theme'
-import { uploadAvatar } from '../api/auth'
+import { uploadAvatar, changeMyPassword } from '../api/auth'
 
 const userStore = useUserStore()
 const themeStore = useThemeStore()
@@ -104,6 +104,59 @@ const themeNames = computed(() => ({
 const onThemeClick = (id) => {
   themeStore.apply(id)
   ElMessage.success(t('profile.themeSwitched', { name: themeNames.value[id] }))
+}
+
+// ============== 修改密码(本人) ==============
+const pwdDialog = ref(false)
+const pwdSaving = ref(false)
+const pwdForm = ref(null)
+const pwdModel = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+
+const pwdRules = computed(() => ({
+  oldPassword: [{ required: true, message: t('profile.password.oldRequired'), trigger: 'blur' }],
+  newPassword: [
+    { required: true, message: t('profile.password.newRequired'), trigger: 'blur' },
+    { min: 6, max: 50, message: t('profile.password.newLength'), trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: t('profile.password.confirmRequired'), trigger: 'blur' },
+    {
+      validator: (_r, val, cb) => {
+        if (val !== pwdModel.newPassword) cb(new Error(t('profile.password.confirmMismatch')))
+        else cb()
+      },
+      trigger: 'blur'
+    }
+  ]
+}))
+
+const openPwdDialog = () => {
+  Object.assign(pwdModel, { oldPassword: '', newPassword: '', confirmPassword: '' })
+  pwdDialog.value = true
+}
+const onPwdSave = async () => {
+  if (!pwdForm.value) return
+  await pwdForm.value.validate(async (valid) => {
+    if (!valid) return
+    if (pwdModel.newPassword === pwdModel.oldPassword) {
+      ElMessage.warning(t('profile.password.sameAsOld'))
+      return
+    }
+    pwdSaving.value = true
+    try {
+      await changeMyPassword({
+        oldPassword: pwdModel.oldPassword,
+        newPassword: pwdModel.newPassword
+      })
+      ElMessage.success(t('profile.password.success'))
+      pwdDialog.value = false
+      // 强制登出,让用户用新密码重新登录
+      try { await userStore.logout() } catch (_) { /* ignore */ }
+      window.location.href = '/login?redirect=/profile'
+    } catch (e) { /* 拦截器已弹窗(包含旧密码错误 / 新旧相同 / 长度不足等) */ } finally {
+      pwdSaving.value = false
+    }
+  })
 }
 </script>
 
@@ -211,7 +264,35 @@ const onThemeClick = (id) => {
           </button>
         </div>
       </section>
+
+      <!-- 账户安全:修改自己的密码 -->
+      <section class="card">
+        <h2 class="card-title"><el-icon><Lock /></el-icon> {{ $t('profile.password.title') }}</h2>
+        <p class="theme-desc">{{ $t('profile.password.desc') }}</p>
+        <el-button type="warning" plain @click="openPwdDialog">
+          <el-icon><Key /></el-icon> {{ $t('profile.password.changeBtn') }}
+        </el-button>
+      </section>
     </div>
+
+    <!-- 修改密码对话框 -->
+    <el-dialog v-model="pwdDialog" :title="$t('profile.password.title')" width="440px" destroy-on-close>
+      <el-form ref="pwdForm" :model="pwdModel" :rules="pwdRules" label-width="100px" @submit.prevent="onPwdSave">
+        <el-form-item :label="$t('profile.password.old')" prop="oldPassword">
+          <el-input v-model="pwdModel.oldPassword" type="password" show-password autocomplete="current-password" :placeholder="$t('profile.password.oldPlaceholder')" />
+        </el-form-item>
+        <el-form-item :label="$t('profile.password.new')" prop="newPassword">
+          <el-input v-model="pwdModel.newPassword" type="password" show-password autocomplete="new-password" :placeholder="$t('profile.password.newPlaceholder')" />
+        </el-form-item>
+        <el-form-item :label="$t('profile.password.confirm')" prop="confirmPassword">
+          <el-input v-model="pwdModel.confirmPassword" type="password" show-password autocomplete="new-password" :placeholder="$t('profile.password.confirmPlaceholder')" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="pwdDialog = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="pwdSaving" @click="onPwdSave">{{ $t('profile.password.submit') }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -222,7 +303,9 @@ const onThemeClick = (id) => {
 .page-head p { margin: 0; color: var(--c-text-2); font-size: var(--fs-base) }
 
 .grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; align-items: start }
-@media (max-width: 960px) { .grid { grid-template-columns: 1fr } }
+.grid > .card { grid-column: span 1 }
+.grid > .card.full { grid-column: 1 / -1 }
+@media (max-width: 960px) { .grid { grid-template-columns: 1fr } .grid > .card.full { grid-column: auto } }
 
 .card {
   background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m);

@@ -60,9 +60,59 @@ export function renderMarkdown(text) {
   })
 }
 
+/** 把标题文本转成可作 id 的 slug(去标签/空白/特殊字符,保留 CJK) */
+export function slugifyHeading(text) {
+  const t = String(text || '').replace(/<[^>]+>/g, '').trim()
+  const base = t
+    .toLowerCase()
+    .replace(/[\s\u3000]+/g, '-')         // 空白(含全角)→ -
+    .replace(/[^\w\u4e00-\u9fa5-]/g, '')  // 仅保留字母数字_、中文、横线
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+  return base || 'section'
+}
+
+/** 给 HTML 字符串里的 h1-h6 自动补上 id(重复则 -2/-3 后缀);返回新串,原 html 不变 */
+export function attachHeadingIds(html) {
+  if (!html) return html
+  const counter = Object.create(null)
+  return String(html).replace(
+    /<h([1-6])([^>]*)>([\s\S]*?)<\/h\1>/gi,
+    (_m, lvl, attrs, inner) => {
+      const text = inner.replace(/<[^>]+>/g, '')
+      const base = slugifyHeading(text)
+      let id = base
+      if (counter[base] != null) id = `${base}-${counter[base]}`
+      counter[base] = (counter[base] || 1) + 1
+      return `<h${lvl}${attrs} id="${id}">${inner}</h${lvl}>`
+    }
+  )
+}
+
+/** 从 HTML 中抽取 h1-h3 标题大纲(依赖 attachHeadingIds 已生成 id) */
+export function extractToc(html) {
+  if (!html) return []
+  const items = []
+  const re = /<h([1-3])([^>]*)id="([^"]+)"[^>]*>([\s\S]*?)<\/h\1>/gi
+  let m
+  while ((m = re.exec(html))) {
+    items.push({
+      level: parseInt(m[1], 10),
+      id: m[3],
+      text: m[4].replace(/<[^>]+>/g, '').trim()
+    })
+  }
+  return items
+}
+
 // 统一渲染入口: 两种格式均经 DOMPurify 消毒后才可安全配合 v-html
 // (富文本虽发布端已有服务端消毒,渲染端仍兜底一道 — 防御纵深)
 export function renderContent(content, contentType) {
   if (contentType === 'richtext') return sanitizeHtml(content)
   return renderMarkdown(content)
+}
+
+/** 同 renderContent,但额外给所有 h1-h6 注入 id(给右侧目录用) */
+export function renderContentWithToc(content, contentType) {
+  return attachHeadingIds(renderContent(content, contentType))
 }
