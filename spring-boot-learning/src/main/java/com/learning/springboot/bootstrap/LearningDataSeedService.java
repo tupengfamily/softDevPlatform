@@ -171,6 +171,8 @@ public class LearningDataSeedService {
                 "SQL 数据库:关系模型 → 查询 → 修改 → 事务 → 索引 → 管理", 4);
             case "python" -> ensureSubject("python", "Python", "Python 语言开发:基础语法 → 数据结构 → 函数式 → 面向对象 → 并发网络", 2);
             case "javascript" -> ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3);
+            case "jsadv" -> ensureSubject("jsadv", "JavaScript 进阶",
+                "JavaScript 进阶 + TypeScript:现代 JS 核心 → 异步并发 → 函数式 → TS 入门 → TS 进阶 → TS 框架实战", 8);
             case "nodejs" -> ensureSubject("nodejs", "Node.js", "Node.js 服务端开发:入门 → 核心模块 → Web 开发 → 工程化实战", 5);
             case "git" -> ensureSubject("git", "Git", "Git 版本控制:基础 → 分支与远程 → 团队协作实战", 6);
             case "web" -> ensureSubject("web", "Web 开发",

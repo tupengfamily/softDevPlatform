@@ -4768,6 +4768,712 @@
         }
       ],
       "subject": "web"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "现代 JavaScript 核心",
+      "chapterNo": 1,
+      "title": "闭包与高阶函数",
+      "description": "掌握闭包的词法环境与高阶函数模式,为异步与函数式编程打基础。",
+      "codePath": "com.learning.jsadv.Closures",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "闭包与词法环境",
+          "summary": "理解闭包如何捕获外层变量,以及它在工程中的副作用。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 什么是闭包\n- 一个函数与其外层作用域的引用捆绑在一起, 即使外层函数已返回,内层函数仍能访问那些变量。\n- JavaScript 中所有函数都是闭包(函数在创建时就锁定了它的词法环境)。\n\n## 词法环境 vs 动态环境\n- 词法作用域(lexical):变量解析基于源码位置,不在调用栈。\n- 动态作用域:基于调用栈。Bash/部分 Lisp 才用,JS 不采用。\n\n## 经典踩坑: 循环里的闭包\n```\nfor (var i = 0; i < 3; i++) {\n  setTimeout(() => console.log(i), 0);\n}\n// 输出 3 3 3, 因为 var 是函数级作用域, setTimeout 回调共享同一个 i\n```\n改用 `let` 或 IIFE 即可解决。\n\n## 闭包的价值\n- 数据私有(模块化):对外只暴露需要的接口\n- 函数工厂(参数化函数)\n- 函数柯里化与偏函数(见后续章节)",
+          "codeExample": "// 闭包: 函数工厂\nfunction makeCounter(start = 0) {\n  let value = start;     // 私有变量, 外部无法直接访问\n  return {\n    inc: () => ++value,\n    get: () => value,\n  };\n}\nconst c = makeCounter(10);\nc.inc(); c.inc();\nconsole.log(c.get());    // 12\nconsole.log(value);     // ReferenceError: value is not defined",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "高阶函数与数组方法原理",
+          "summary": "理解 map/filter/reduce 内部实现,避免常见性能陷阱。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 什么是高阶函数\n- 接受函数作为参数,或返回函数的函数。\n- 内置例子: Array.prototype.map / filter / reduce / forEach / some / every。\n\n## 手动实现 map\n```\nArray.prototype.myMap = function (fn, ctx) {\n  const out = new Array(this.length);\n  for (let i = 0; i < this.length; i++) {\n    out[i] = fn.call(ctx, this[i], i, this);\n  }\n  return out;\n};\n```\n\n## 性能提示\n- map / filter / reduce 都创建新数组, 大数据时内存开销高\n- 真的只是遍历时, 优先 for-of, 不创建新数组\n- 链式调用可读性高, 但每一步都会产生中间数组",
+          "codeExample": "// 手写 filter\nfunction myFilter(arr, predicate) {\n  const out = [];\n  for (let i = 0; i < arr.length; i++) {\n    if (predicate(arr[i], i, arr)) out.push(arr[i]);\n  }\n  return out;\n}\n\nconsole.log(myFilter([1, 2, 3, 4], n => n % 2 === 0));   // [2, 4]\n\n// 链式: 经典 'map 后 filter 再 reduce'\nconst sum = [1, 2, 3, 4]\n  .map(n => n * n)\n  .filter(n => n > 5)\n  .reduce((acc, n) => acc + n, 0);\nconsole.log(sum);   // 25 = 3*3 + 4*4",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "防抖与节流: 高频事件性能优化",
+          "summary": "debounce / throttle 是搜索框、滚动、resize 场景的标配。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 防抖 (debounce)\n- 多次触发只执行最后一次(等待 N 毫秒内没有新触发才执行)\n- 适用: 搜索框输入完才请求, 窗口 resize 完成才重排\n\n## 节流 (throttle)\n- 限制一定时间窗口内最多执行一次\n- 适用: 滚动监听, 鼠标移动, 高频点击\n\n## 实现要点\n- 都用闭包持有 lastInvoke / timer\n- throttle 可选 leading(立即执行) + trailing(尾部执行) 组合\n- debounce 也常配 maxWait 防极端情况(永远不触发)\n\n## lodash 实现\n- lodash.debounce / throttle 是工业级实现,生产直接用即可",
+          "codeExample": "// 手写 debounce\nfunction debounce(fn, wait) {\n  let timer = null;\n  return function (...args) {\n    clearTimeout(timer);\n    timer = setTimeout(() => fn.apply(this, args), wait);\n  };\n}\n\n// 手写 throttle (leading + trailing)\nfunction throttle(fn, wait) {\n  let last = 0, timer = null;\n  return function (...args) {\n    const now = Date.now();\n    const remain = wait - (now - last);\n    if (remain <= 0) {\n      if (timer) { clearTimeout(timer); timer = null; }\n      last = now;\n      fn.apply(this, args);\n    } else if (!timer) {\n      timer = setTimeout(() => {\n        last = Date.now();\n        timer = null;\n        fn.apply(this, args);\n      }, remain);\n    }\n  };\n}\n\n// 用法\nconst onResize = debounce(() => console.log('resized'), 200);\nwindow.addEventListener('resize', onResize);",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "现代 JavaScript 核心",
+      "chapterNo": 2,
+      "title": "原型与继承",
+      "description": "理解 JavaScript 原型链,熟练使用 class 与继承模式。",
+      "codePath": "com.learning.jsadv.Prototype",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "原型链与 __proto__",
+          "summary": "理解对象属性查找链路,避免原型污染。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## prototype vs __proto__\n- 函数对象都有 `prototype` 属性, 指向一个对象(原型对象)\n- 每个对象实例都有 `__proto__` 指向其构造函数的 prototype\n- 对象属性查找: 自身 → __proto__ → __proto__.__proto__ → ... → null\n\n## Object.getPrototypeOf / setPrototypeOf\n- 标准推荐的 __proto__ 替代, 不污染对象字面量\n- Object.create(proto) 用 proto 作为新对象的原型\n\n## 原型链终点\n- 所有普通对象原型链最终到 Object.prototype\n- Object.prototype.__proto__ === null\n- hasOwnProperty / toString 等都来自 Object.prototype",
+          "codeExample": "function Animal(name) { this.name = name; }\nAnimal.prototype.speak = function () { return this.name + ' makes a sound'; };\n\nconst dog = new Animal('Rex');\nconsole.log(dog.speak());                       // 'Rex makes a sound'\nconsole.log(Object.getPrototypeOf(dog) === Animal.prototype);  // true\nconsole.log(dog.__proto__.__proto__ === Object.prototype);       // true\nconsole.log(typeof Object.prototype);                            // 'object'\n\n// Object.create 派生\nconst proto = { greet() { return 'hi'; } };\nconst o = Object.create(proto);\nconsole.log(o.greet());   // 'hi'",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "new 关键字与构造函数",
+          "summary": "理解 new 究竟做了什么,以及工厂函数如何替代。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## new 的执行步骤\n1. 创建一个空对象 o\n2. o.__proto__ = Constructor.prototype\n3. 以 o 为 this 执行构造函数(填充属性)\n4. 若构造函数返回对象, 则用该对象; 否则返回 o\n\n## 不需要 new: 工厂函数\n- 如果构造函数被普通调用, this 指向 undefined(严格模式)或全局(非严格)\n- 用工厂函数返回对象更安全, 也省去 new 关键字负担\n- ES6 之后普遍用 class 语法",
+          "codeExample": "function newCall(Constructor, ...args) {\n  // 1) 创建对象, 关联原型\n  const o = Object.create(Constructor.prototype);\n  // 2) 以 o 为 this 调用构造函数\n  const ret = Constructor.apply(o, args);\n  // 3) 返回值: 对象用构造返回, 否则用 o\n  return (ret !== null && typeof ret === 'object') ? ret : o;\n}\n\nfunction User(name, age) { this.name = name; this.age = age; }\nUser.prototype.intro = function () { return this.name + '/' + this.age; };\n\nconst u = newCall(User, 'Tom', 18);\nconsole.log(u.intro());   // 'Tom/18'",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "ES6 class 与 extends",
+          "summary": "用 class 替代 prototype 操作, 写更直观的继承代码。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## class 是什么\n- 语法糖: 编译后仍是基于原型的构造函数\n- 不变量: class 方法不可枚举, 默认严格模式, 不会提升\n\n## extends 与 super\n- 子类构造函数必须先调 super(), 才能用 this\n- super 既能当函数(this = 父构造) 也能当对象(访问父原型)\n- static 方法/属性也参与继承\n\n## 私有字段 (ES2022)\n- 字段名前加 #, 仅类内可访问\n- 编译后是 WeakMap, 外部完全无法访问",
+          "codeExample": "class Animal {\n  #sound;                      // 私有字段\n  constructor(name, sound) { this.name = name; this.#sound = sound; }\n  speak() { return `${this.name}: ${this.#sound}`; }\n}\n\nclass Dog extends Animal {\n  constructor(name) { super(name, 'Woof'); }\n  fetch() { return `${this.name} fetches the ball`; }\n}\n\nconst d = new Dog('Rex');\nconsole.log(d.speak());    // 'Rex: Woof'\nconsole.log(d.fetch());    // 'Rex fetches the ball'\nconsole.log(d.#sound);     // SyntaxError: Private field",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "继承模式: 寄生组合 vs 原型链",
+          "summary": "面试常见: 知道为何\"寄生组合\"是最佳实践。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 几种继承方式\n- 原型链继承: 父实例被所有子实例共享, 引用类型污染\n- 借用构造函数: 解决了属性独立, 但方法无法复用\n- 组合继承: 上面两个的组合, 但父构造函数被调用两次\n- 寄生组合继承: 最佳, 只调用一次父构造函数, 方法复用, 属性独立\n\n## 寄生组合核心\n- 不直接 call Parent, 而是 Parent.prototype 浅拷贝一个对象作为 Child.prototype\n- Object.create(Parent.prototype) 是关键\n\n## 现代方案\n- 实际工程直接用 class extends, 没必要手写\n- 但面试会问, 理解原理有用",
+          "codeExample": "function inherit(Child, Parent) {\n  // 关键: 用 Object.create 创建中间对象, 修复子类原型指向, 同时不调用 Parent\n  Child.prototype = Object.create(Parent.prototype);\n  Child.prototype.constructor = Child;\n  // 显式保留 super, ES5 中通过此函数调用父方法\n  Child.prototype.super = Parent.prototype;\n}\n\nfunction Animal(name) { this.name = name; this.alive = true; }\nAnimal.prototype.isAlive = function () { return this.alive; };\n\nfunction Dog(name) { Animal.call(this, name); this.kind = 'dog'; }\ninherit(Dog, Animal);\nDog.prototype.bark = function () { return 'Woof'; };\n\nconst d = new Dog('Rex');\nconsole.log(d.isAlive(), d.bark(), d instanceof Dog, d instanceof Animal);",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "现代 JavaScript 核心",
+      "chapterNo": 3,
+      "title": "元编程: Proxy / Reflect / Symbol",
+      "description": "用 Proxy 拦截对象操作, 实现响应式数据 / 数据校验。",
+      "codePath": "com.learning.jsadv.MetaProgramming",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Proxy 基础与 13 种陷阱",
+          "summary": "学会在 JS 层拦截对象的关键操作。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## Proxy 是什么\n- 包装目标对象, 通过'陷阱'(trap)拦截操作\n- 创建: new Proxy(target, handler)\n- 13 种 trap 覆盖了几乎所有反射操作\n\n## 常用 trap\n- get / set: 读 / 写 属性\n- has: 'in' 操作符\n- deleteProperty: delete obj.key\n- ownKeys: Object.keys / Reflect.ownKeys\n- apply: 函数调用\n- construct: new 构造\n\n## 不可代理的事\n- == / === 比较、typeof、instanceof、原生内部操作\n- 性能: 比直接访问慢 3-5x, 大数据慎用",
+          "codeExample": "// 简单数据校验\nconst withType = (target, schema) => new Proxy(target, {\n  set(t, key, value) {\n    const expect = schema[key];\n    if (expect && typeof value !== expect) {\n      throw new TypeError(`field ${key} expects ${expect}, got ${typeof value}`);\n    }\n    t[key] = value;\n    return true;\n  },\n});\n\nconst user = withType({}, { name: 'string', age: 'number' });\nuser.name = 'Tom';   // OK\nuser.age = 18;       // OK\nuser.age = '18';     // TypeError: field age expects number, got string",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Proxy 实战: 响应式数据",
+          "summary": "看 Vue3 reactivity 的简化实现。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 响应式原理\n- 用 Proxy 拦截 get/set\n- get 时记录依赖(谁在读)\n- set 时通知依赖更新\n\n## 简化版 reactive\n- 只展示核心, 真实实现见 @vue/reactivity\n- 关键数据结构: targetMap(target -> depsMap(key -> effects))",
+          "codeExample": "// 极简响应式(参考 Vue3 reactivity 思路)\nconst targetMap = new WeakMap();\nfunction track(target, key) {\n  if (!activeEffect) return;\n  let depsMap = targetMap.get(target);\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()));\n  let dep = depsMap.get(key);\n  if (!dep) depsMap.set(key, (dep = new Set()));\n  dep.add(activeEffect);\n}\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target);\n  if (!depsMap) return;\n  (depsMap.get(key) || []).forEach(fn => fn());\n}\n\nlet activeEffect = null;\nfunction reactive(obj) {\n  return new Proxy(obj, {\n    get(t, k) { track(t, k); return Reflect.get(t, k); },\n    set(t, k, v) { const r = Reflect.set(t, k, v); trigger(t, k); return r; },\n  });\n}\n\nconst state = reactive({ count: 0 });\nlet rendered = 0;\nfunction effect(fn) { activeEffect = fn; fn(); activeEffect = null; }\neffect(() => { rendered++; console.log('render:', state.count); });\nstate.count++;    // 触发 trigger",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Reflect 与 Proxy 黄金搭档",
+          "summary": "为什么 Proxy 几乎总配 Reflect。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## Reflect 是什么\n- 内置对象, 方法对应 Proxy 的 trap, 镜像了对象操作的默认行为\n- 目的: 把'默认行为'从 Object.* 转移到这里, 让 Proxy 有标准方式调用\n\n## 用 Reflect.* 的好处\n- 返回布尔值 / 抛错统一(代替 try-catch)\n- 配合 receiver 参数, 保证 this 正确(对 getter/setter 重要)\n- 代码更短、意图更清晰\n\n## 常见对照\n- Reflect.get(target, key, receiver)\n- Reflect.set(target, key, value, receiver)\n- Reflect.has(target, key)\n- Reflect.ownKeys(target)",
+          "codeExample": "const obj = { x: 1, y: 2 };\n\n// 没 Reflect 时: 直接 t[key] = v 无法控制成功/失败\n// 有 Reflect: set 返回 true/false\nconst p = new Proxy(obj, {\n  set(t, k, v, receiver) {\n    if (typeof v !== 'number') {\n      console.warn('rejected non-number:', k);\n      return false;   // 不写入\n    }\n    return Reflect.set(t, k, v, receiver);\n  },\n});\n\np.x = 10;     // OK\np.y = '20';   // 警告 + 拒绝\nconsole.log(obj);  // { x: 10, y: 2 }",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "Symbol 与迭代器协议",
+          "summary": "理解 Symbol、Iterator、Generator, 自定义 for-of 行为。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## Symbol\n- 唯一且不可变的基本类型, 常用于对象键避免冲突\n- Symbol('desc') 描述仅用于调试, 不影响唯一性\n- Symbol.for(key) 全局注册表\n- 内置 Symbol: Symbol.iterator / Symbol.asyncIterator / Symbol.toPrimitive 等\n\n## 迭代器协议\n- 对象实现 Symbol.iterator 方法即可迭代\n- 该方法返回 { next() { return { value, done } } }\n- for-of / 扩展运算符 / Array.from 都依赖此协议\n\n## Generator\n- function* + yield 实现惰性求值\n- 适合处理大文件 / 无限序列",
+          "codeExample": "// 自定义可迭代对象\nconst range = {\n  from: 1, to: 5,\n  [Symbol.iterator]() {\n    let cur = this.from, end = this.to;\n    return {\n      next() { return cur <= end ? { value: cur++, done: false } : { done: true }; },\n    };\n  },\n};\nconsole.log([...range]);   // [1, 2, 3, 4, 5]\n\n// Generator 实现相同功能(更简洁)\nfunction* gen(from, to) { for (let i = from; i <= to; i++) yield i; }\nconsole.log([...gen(1, 5)]);   // [1, 2, 3, 4, 5]",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "异步与并发",
+      "chapterNo": 4,
+      "title": "Promise 深入",
+      "description": "掌握 Promise 原理, 手写实现 Promise A+ 规范。",
+      "codePath": "com.learning.jsadv.Promise",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Promise 三态与链式调用",
+          "summary": "理解 pending/fulfilled/rejected 与微任务调度。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 三种状态\n- pending: 初始态\n- fulfilled: 决议成功(调用 resolve)\n- rejected: 决议失败(调用 reject)\n- 状态一旦变更不可再变\n\n## 链式调用\n- .then(onFulfilled, onRejected) 返回新 Promise\n- 链中每一步的返回值会传给下一层\n- throw 会让下一层进入 rejected\n\n## 错误传播\n- 链中任意一步 reject, 后续的 then 不执行(除非 catch 捕获)\n- 末尾加 .catch(fn) 兜底\n\n## 静态方法\n- Promise.resolve / reject 包装已知值\n- Promise.all: 全成功才成功, 任一失败立即失败\n- Promise.race: 第一个决议即胜出\n- Promise.allSettled: 等所有完成(不关心成功失败)\n- Promise.any: 第一个成功即成功, 全失败才失败",
+          "codeExample": "// 状态不可变\nconst p = new Promise(resolve => resolve(1));\np.then(v => v + 1).then(v => v * 2).then(console.log);   // 4\n\n// 错误传播: catch 兜底\nPromise.reject(new Error('boom'))\n  .then(v => 'never')\n  .catch(e => 'recovered: ' + e.message)\n  .then(console.log);   // 'recovered: boom'\n\n// Promise.allSettled 不中断\nconst settled = await Promise.allSettled([\n  Promise.resolve(1), Promise.reject('x'), Promise.resolve(3),\n]);\nconsole.log(settled.map(s => s.status));  // ['fulfilled', 'rejected', 'fulfilled']",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "手写 Promise A+ 规范核心",
+          "summary": "面试加分项: 理解 Promise 内部如何处理 thenable。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "## A+ 规范要点\n- then 必须返回新 Promise(无论 thenable / 异步与否)\n- resolve / reject 调用都按微任务排队\n- 同一 Promise 上 then 多次, 按订阅顺序执行\n- resolve 一个 thenable 时, 要展开它(取其最终状态)\n\n## 状态机\n- PENDING -> FULFILLED / REJECTED, 单向不可逆\n- 维护一个 handlers 队列, 状态变更时全部 flush\n\n## then 的参数\n- onFulfilled / onRejected 都可缺省(透传)\n- 缺省 onFulfilled 时, 上一个 fulfilled 透传到下一个 then",
+          "codeExample": "// 极简版 Promise(覆盖 then 链式 + thenable 解包)\nconst PENDING = 0, FULFILLED = 1, REJECTED = 2;\nfunction MiniPromise(executor) {\n  this.state = PENDING;\n  this.value = undefined;\n  this.handlers = [];\n  const resolve = v => fulfill(this, v);\n  const reject  = e => reject_(this, e);\n  try { executor(resolve, reject); } catch (e) { reject_(this, e); }\n}\nfunction fulfill(p, v) {\n  if (p.state !== PENDING) return;\n  if (v && typeof v.then === 'function') return v.then(v => fulfill(p, v), e => reject_(p, e));\n  p.state = FULFILLED; p.value = v; flush(p);\n}\nfunction reject_(p, e) { if (p.state === PENDING) { p.state = REJECTED; p.value = e; flush(p); } }\nfunction flush(p) { p.handlers.forEach(h => run(p, h)); p.handlers = []; }\nfunction run(p, h) {\n  queueMicrotask(() => {\n    if (p.state === FULFILLED) h.onFulfilled ? h.onFulfilled(p.value) : h.resolve(p.value);\n    else                          h.onRejected  ? h.onRejected(p.value)  : h.reject(p.value);\n  });\n}\nMiniPromise.prototype.then = function (onF, onR) {\n  return new MiniPromise((resolve, reject) => this.handlers.push({ onFulfilled: onF, onRejected: onR, resolve, reject }));\n};\nnew MiniPromise(r => setTimeout(() => r(1), 50)).then(v => v + 1).then(console.log);",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Promise 组合与并发控制",
+          "summary": "限流、串行、并行不同场景的成熟模式。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 三种基本模式\n- 全部并行(快): Promise.all\n- 全部串行(慢): reduce + await, 顺序保留\n- 限制并发(可控): 维护一个池子\n\n## 限流实现\n- p-limit / p-queue 是社区标配\n- 核心: 一个计数器 + 一个任务队列, 槽位空时取下一个\n- 适合批量接口调用、爬虫、限速上传",
+          "codeExample": "// 串行\nasync function serial(tasks) {\n  const out = [];\n  for (const t of tasks) out.push(await t());\n  return out;\n}\n\n// 简单并发限制\nasync function limit(tasks, n) {\n  const results = new Array(tasks.length);\n  let cursor = 0;\n  async function worker() {\n    while (true) {\n      const i = cursor++;\n      if (i >= tasks.length) return;\n      results[i] = await tasks[i]();\n    }\n  }\n  await Promise.all(Array.from({ length: n }, worker));\n  return results;\n}\n\nconst task = (i) => () => new Promise(r => setTimeout(() => r(i * i), 200));\nconsole.time('limit');\nconsole.log(await limit([1, 2, 3, 4, 5, 6].map(task), 3));   // [1, 4, 9, 16, 25, 36]\nconsole.timeEnd('limit');",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "取消 Promise 与 AbortController",
+          "summary": "fetch、axios 等都依赖这个机制。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 为什么需要取消\n- 组件卸载时, 已发出的请求结果不应再 setState\n- 用户切换查询条件, 上一个查询应被取消\n- 网络较慢时, 减少无用请求\n\n## AbortController\n- 浏览器标准, 一个 controller 可取消多个 fetch\n- AbortSignal 传给 fetch 的 signal 选项\n- controller.abort() 触发 abort 事件, fetch 拒绝\n\n## 自己包装\n- 给 Promise 加 .cancel(reason) 方法\n- 在 reject 时检查 signal.aborted, 静默处理",
+          "codeExample": "async function cancellableFetch(url, signal) {\n  const resp = await fetch(url, { signal });\n  return resp.json();\n}\n\n// 用法\nconst ctrl = new AbortController();\nsetTimeout(() => ctrl.abort(), 100);   // 100ms 后取消\ntry {\n  const data = await cancellableFetch('/api/slow', ctrl.signal);\n  console.log(data);\n} catch (e) {\n  if (e.name === 'AbortError') console.log('cancelled');\n  else throw e;\n}",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "异步与并发",
+      "chapterNo": 5,
+      "title": "async/await 模式",
+      "description": "把异步写得像同步, 但要小心坑。",
+      "codePath": "com.learning.jsadv.AsyncAwait",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "async/await 语法与微任务",
+          "summary": "理解 await 究竟做了什么, 知道执行顺序。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 转换规则\n- async 函数总是返回 Promise\n- await Promise 等于 then(同微任务)\n- await 非 Promise 值会被 Promise.resolve 包装\n- async 函数体内同步代码仍然同步执行到第一个 await\n\n## 微任务队列\n- 同一个微任务 tick 内连续多个 await 按顺序排队\n- 与 setTimeout(fn, 0) 比, await 总是先执行\n\n## 错误冒泡\n- async 函数内 throw 等同 return reject\n- try/catch 可包裹 await 调用",
+          "codeExample": "async function demo() {\n  console.log('1');\n  await null;\n  console.log('2');          // 微任务\n  await new Promise(r => setTimeout(r, 0));\n  console.log('3');          // 等宏任务\n}\ndemo();\nconsole.log('4');\n// 顺序: 1 4 2 3\n\nasync function withError() {\n  throw new Error('boom');\n}\nwithError().catch(e => console.log('caught:', e.message));",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "错误处理最佳实践",
+          "summary": "用 try/catch 还是 .catch, 边界在哪。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 三种模式\n- 全局 try/catch(适合一个异步调用)\n- 局部 try/catch(多个独立 await 各自处理)\n- 末尾 .catch(保证链尾兜底)\n\n## 原则\n- 不要把 try/catch 写得太大, 会吞掉意料外的错误\n- 一个 await 一个 try 是好习惯\n- 不确定是否 reject 时, 优先 .catch 兜底\n\n## 不要\n- async 函数里 throw 字符串(不要 throw 'error')\n- catch 后只 console.log(e) 而不继续(丢掉错误)",
+          "codeExample": "// 推荐: 每个 await 各包\nasync function load() {\n  let user, prefs;\n  try { user = await api.getUser(); } catch (e) { user = GUEST; report(e); }\n  try { prefs = await api.getPrefs(user.id); } catch (e) { prefs = DEFAULT; }\n  return { user, prefs };\n}\n\n// 推荐: 链尾兜底\nloadPage()\n  .then(render)\n  .catch(e => toast('加载失败: ' + e.message));\n\n// 反例\nasync function bad() {\n  try { await something(); await other(); }   // one big try\n  catch (e) { /* 吞掉 */ }\n}",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "并发控制: p-limit 思路",
+          "summary": "限制 N 个并发, 等待全部完成。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 业务场景\n- 批量调用第三方 API, 触发限速\n- 爬虫并发下载太多触发反爬\n- 数据库连接池大小有限\n\n## 实现思路\n- 维护正在运行数 active 与等待队列 queue\n- 启动 N 个 worker, 每个 worker 循环从队列取任务\n- 也可维护 active count, 每完成一个就启动下一个\n\n## 现成库\n- p-limit / p-queue 是社区事实标准\n- 简单场景可手写, 复杂场景加超时与重试",
+          "codeExample": "async function pLimit(tasks, n) {\n  const results = new Array(tasks.length);\n  let next = 0, active = 0;\n  return new Promise((resolve, reject) => {\n    const launch = () => {\n      while (active < n && next < tasks.length) {\n        const i = next++, activeNow = ++active;\n        Promise.resolve(tasks[i]())\n          .then(v => { results[i] = v; })\n          .catch(reject)\n          .finally(() => { active--; activeNow === 1 && next >= tasks.length && active === 0 ? resolve(results) : launch(); });\n      }\n    };\n    launch();\n  });\n}\n\nconst t = (i) => () => new Promise(r => setTimeout(() => r(i), 100 + Math.random() * 200));\nconst out = await pLimit([1,2,3,4,5,6,7,8].map(t), 3);\nconsole.log(out);   // [1,2,3,4,5,6,7,8]",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "顶层 await 与 ESM",
+          "summary": "module 顶层 await, 简化异步初始化。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 顶层 await\n- 只在 ES Module 顶层生效(不是 CommonJS)\n- 模块图会等该模块 resolve 才执行依赖\n- 适合: 动态 import + 条件加载、按需 polyfill、配置加载\n\n## 与传统 init() 区别\n- 不用包一层 async function main()\n- 但会阻塞模块图, 谨慎使用\n- 适合'必须就绪'的依赖",
+          "codeExample": "// config.js (ESM)\nexport const config = await fetch('/api/config').then(r => r.json());\n\n// app.js\nimport { config } from './config.js';   // config 已经准备好\nconsole.log('using:', config.env);\n\n// 条件加载 polyfill\nif (!window.Intl) {\n  await import('intl-polyfill');\n}\nconsole.log(new Intl.NumberFormat().format(1234.5));",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "异步与并发",
+      "chapterNo": 6,
+      "title": "Event Loop 与浏览器调度",
+      "description": "理解宏任务 / 微任务 / 帧调度, 写出无卡顿 UI。",
+      "codePath": "com.learning.jsadv.EventLoop",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "浏览器 Event Loop 模型",
+          "summary": "一图看懂调用栈 / 微任务 / 宏任务 / 帧。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 浏览器模型\n- 调用栈:同步代码执行的地方\n- 微任务队列:Promise.then / queueMicrotask / MutationObserver\n- 宏任务队列:setTimeout / setInterval / I/O / UI 渲染\n\n## 事件循环规则\n- 执行完一个宏任务后, 清空所有微任务\n- 微任务清空后, 浏览器可能做渲染(60Hz / 16.7ms)\n- requestAnimationFrame 在渲染前执行\n\n## 常见坑\n- setTimeout(fn, 0) 至少 4ms 延迟(嵌套)\n- 微任务无限递归会阻塞渲染(死循环)\n- 大量 setTimeout 调度浪费资源",
+          "codeExample": "console.log('a');\nsetTimeout(() => console.log('b'), 0);   // 宏任务\nPromise.resolve().then(() => console.log('c'));   // 微任务\nqueueMicrotask(() => console.log('d'));\nconsole.log('e');\n// 输出: a e c d b",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "宏任务 / 微任务 / rAF",
+          "summary": "三者的关系与典型应用。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 宏任务\n- setTimeout / setInterval / I/O\n- 由浏览器在合适时机调度\n- 间隔至少 4ms(嵌套调用)\n\n## 微任务\n- Promise / queueMicrotask / MutationObserver\n- 在当前任务结束后立即执行, 阻塞渲染\n- 用得太多会让页面卡顿\n\n## requestAnimationFrame\n- 在下一次重绘前执行\n- 适合动画 / 性能监控\n- 60Hz 显示器下 16.7ms 一次\n- 不可递归(浏览器会限频)\n\n## requestIdleCallback\n- 浏览器空闲时执行\n- 适合非关键工作(预加载、统计)",
+          "codeExample": "// 流畅动画模式\nlet start = null;\nfunction tick(t) {\n  if (!start) start = t;\n  const progress = (t - start) / 1000;     // 1s 动画\n  if (progress < 1) {\n    el.style.transform = `translateX(${progress * 200}px)`;\n    requestAnimationFrame(tick);\n  }\n}\nrequestAnimationFrame(tick);\n\n// 任务分片: 避免长任务阻塞主线程\nfunction chunk(items, size, fn) {\n  return new Promise(r => {\n    let i = 0;\n    const next = () => {\n      const end = Math.min(i + size, items.length);\n      for (; i < end; i++) fn(items[i]);\n      i < items.length ? requestAnimationFrame(next) : r();\n    };\n    next();\n  });\n}",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "性能优化: 长任务切片",
+          "summary": "避免单次执行超过 50ms, 拆成多个帧。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 长任务的危害\n- 浏览器把超过 50ms 的任务视为长任务\n- 主线程被独占, 用户操作延迟\n- INP(Interaction to Next Paint) 指标会劣化\n\n## 切片策略\n- requestAnimationFrame: 与渲染同步, 每帧 16ms 切片\n- setTimeout(fn, 0): 不推荐, 会进入宏任务队列, 间隔 > 0\n- scheduler.yield(): 实验性 API, 让出主线程\n\n## Web Worker\n- 真正并行: 但 postMessage 是结构化克隆(无共享)\n- SharedArrayBuffer: 共享内存, 但要 COOP/COEP 头\n- Worker 不阻塞主线程, 适合计算密集",
+          "codeExample": "// 处理 100 万条数据不卡\nasync function processBig(items, handler) {\n  const slice = 5000;     // 每帧 5000 条\n  for (let i = 0; i < items.length; i += slice) {\n    const end = Math.min(i + slice, items.length);\n    for (let j = i; j < end; j++) handler(items[j]);\n    await new Promise(r => requestAnimationFrame(r));   // 让出主线程\n  }\n}\n\n// 演示\nconst arr = Array.from({ length: 100_000 }, (_, i) => i);\nawait processBig(arr, x => { void x * 2; });\nconsole.log('done');",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "函数式编程",
+      "chapterNo": 7,
+      "title": "函数式基础",
+      "description": "纯函数、柯里化、组合, 用数学思维写代码。",
+      "codePath": "com.learning.jsadv.FnBasic",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "纯函数与引用透明",
+          "summary": "纯函数是函数式编程的基石。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 纯函数定义\n- 相同输入永远产生相同输出\n- 不修改外部状态(无副作用)\n- 不依赖外部可变状态\n\n## 好处\n- 易于测试(给定输入 -> 断言输出)\n- 易于缓存(参见 memoize)\n- 易于并行(无共享状态)\n- 易于推理(只看函数体)\n\n## 反例\n- 读全局变量 / Date.now() / Math.random()\n- 写全局变量 / DOM / 网络 / 数据库\n- 函数参数被修改",
+          "codeExample": "// 纯\nconst add = (a, b) => a + b;\nconst slugify = s => s.trim().toLowerCase().replace(/\\s+/g, '-');\n\n// 不纯: 依赖外部 + 副作用\nlet tax = 0.1;\nfunction withTax(price) { return price * (1 + tax); }   // tax 变了, 结果变\n\n// 不纯: 修改参数\nfunction pushItem(arr, item) { arr.push(item); return arr; }   // 外部数组被改\n\n// 纯化: 接受 tax 为参数, 返回新数组\nconst withTaxPure = (tax) => (price) => price * (1 + tax);\nconst appendPure = (arr, item) => [...arr, item];",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "柯里化与偏函数",
+          "summary": "把多参函数变成单参链, 提高复用。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 柯里化 (curry)\n- f(a, b, c) 变成 f(a)(b)(c)\n- lodash.curry / Ramda.curry 是工业实现\n- 自己写也不难, 主要看 arguments 长度\n\n## 偏函数 (partial)\n- 固定一部分参数, 返回新函数\n- 与柯里化的区别: 不再细化, 一次到位\n- Function.prototype.bind 就是偏函数\n\n## 使用场景\n- 参数复用: 'log' 固定 INFO 级别\n- 事件处理: 提前绑 id\n- 链式配置: 一步步构造最终函数",
+          "codeExample": "// 柯里化\nconst curry = (fn) => {\n  const arity = fn.length;\n  return function curried(...args) {\n    if (args.length >= arity) return fn(...args);\n    return (...rest) => curried(...args, ...rest);\n  };\n};\nconst add3 = curry((a, b, c) => a + b + c);\nconsole.log(add3(1)(2)(3));       // 6\nconsole.log(add3(1, 2)(3));       // 6\nconsole.log(add3(1)(2, 3));       // 6\n\n// 偏函数: 一次性固定部分参数\nconst partial = (fn, ...preset) => (...rest) => fn(...preset, ...rest);\nconst logAt = (level) => (...args) => console[level]('[' + level + ']', ...args);\nconst info = logAt('info');\ninfo('server started');     // [info] server started",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "组合 compose / pipe",
+          "summary": "把小函数串成大函数, 像乐高一样拼。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## compose 与 pipe\n- compose: 从右往左执行 f(g(h(x)))\n- pipe: 从左往右执行 h(x) -> g(.) -> f(.)\n- 两者数学等价, 风格不同\n\n## 为什么用\n- 单一职责: 每个小函数只做一件事\n- 可读性: '先 trim, 再 lowercase, 再 replace'\n- 易测试: 单元测每个小函数, 组合默认正确\n\n## 注意\n- 全部用纯函数, 否则中间步骤会污染外部\n- 命名要让组合意图清晰",
+          "codeExample": "const compose = (...fns) => (x) => fns.reduceRight((v, f) => f(v), x);\nconst pipe    = (...fns) => (x) => fns.reduce((v, f) => f(v), x);\n\nconst trim     = s => s.trim();\nconst lower    = s => s.toLowerCase();\nconst splitWs  = s => s.split(/\\s+/);\nconst uniq     = a => [...new Set(a)];\nconst sort     = a => [...a].sort();\n\n// 提取一段文本里的去重排序关键词\nconst extractKeywords = pipe(trim, lower, splitWs, uniq, sort);\nconsole.log(extractKeywords('  Apple banana APPLE  Cherry  banana  '));\n// ['apple', 'banana', 'cherry']",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "Point-free 风格",
+          "summary": "省略不必要的中间变量, 直接表达意图。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## Point-free 是什么\n- 函数定义不显式声明参数\n- 全靠组合与高阶抽象\n- 读起来更接近声明式\n\n## 反例 vs 正例\n- '给用户列表按 age 排序' -> 用 sortBy(prop('age'))\n- '只保留 18 岁以上' -> 用 filter(gte(prop('age'), 18))\n\n## 适合场景\n- 数据转换管道(JS / Ramda 的强项)\n- 简单、重复、有规律的代码\n\n## 不适合\n- 复杂业务逻辑, 调试难\n- 团队水平不齐, 易读性下降",
+          "codeExample": "// 普通\nconst getActiveUserNames = (users) =>\n  users.filter(u => u.active && u.age >= 18).map(u => u.name.toUpperCase());\n\n// Point-free (用 Ramda 风格)\nconst prop = (k) => (o) => o[k];\nconst gte = (a) => (b) => b >= a;\nconst upper = (s) => s.toUpperCase();\n\nconst isAdultActive = (u) => u.active && gte(18)(u.age);\nconst getActiveUserNamesPF = pipe(\n  (arr) => arr.filter(isAdultActive),\n  (arr) => arr.map(pipe(prop('name'), upper)),\n);\n\nconsole.log(getActiveUserNames([{ name:'tom', age:18, active:true }]));\nconsole.log(getActiveUserNamesPF([{ name:'tom', age:18, active:true }]));",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "函数式编程",
+      "chapterNo": 8,
+      "title": "不可变数据",
+      "description": "不可变性让 React/Vue/RxJS 的状态管理更安全。",
+      "codePath": "com.learning.jsadv.Immutable",
+      "estimatedHours": 3,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "不可变性原则",
+          "summary": "为什么大厂代码规范都强调'不要修改参数'。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 定义\n- 一旦创建, 值/引用永不变\n- 修改 = 产生新值, 旧值仍存在\n\n## 不可变 vs 可变\n- string / number / boolean 本身不可变\n- object / array 引用可变\n\n## 不可变的好处\n- 共享安全: 多个地方引用同一个对象, 不会互相影响\n- 时间旅行: 保留所有历史, 可回滚\n- React 性能优化: 用 Object.is 判等, 引用没变就不重渲染\n- 调试容易: 数据流可预测\n\n## 代价\n- 每次更新创建新对象, 内存 / GC 压力大\n- 大量更新性能下降(常见于大型列表)",
+          "codeExample": "// 反例: 直接改\nconst user = { name: 'Tom', age: 18 };\nuser.age = 19;                          // 引用改了, 别处持有 user 的人也变了\n\n// 正例: 不可变更新\nconst user1 = { name: 'Tom', age: 18 };\nconst user2 = { ...user1, age: 19 };     // 新对象, user1 仍为 18\nconsole.log(user1.age, user2.age);       // 18 19\n\nconst list = [1, 2, 3];\nconst list2 = [...list, 4];             // 新数组\nconsole.log(list, list2);                // [1,2,3] [1,2,3,4]",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "结构共享与持久化",
+          "summary": "Immutable.js / Immer 的核心思想。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 朴素不可变的浪费\n- 改一个属性就复制整个对象 -> 100MB 数组改一个元素, 复制 100MB\n- 不可接受\n\n## 结构共享 (structural sharing)\n- 用树(Trie)组织数据, 修改只复制路径上的节点\n- 兄弟节点保持引用, 大部分子节点共享\n- 时间复杂度: O(log n) 而非 O(n)\n\n## 主流实现\n- Immutable.js: 经典, 暴露 Map / List\n- Immer: 写时复制(Proxy), 写起来像可变, 内部不可变\n- 手工: 用 spread 嵌套更新(适合浅结构)",
+          "codeExample": "// 朴素不可变(浪费)\nconst tree = { left: { left: {}, right: { value: 1 } }, right: {} };\nconst tree2 = { ...tree, left: { ...tree.left, right: { ...tree.left.right, value: 2 } } };\n\n// 树形结构共享(概念演示)\n// 节点 { value, children: [node, node] }\n// 修改 children[1] 时:\n//   原 children 数组 -> 新 children 数组 (引用复制)\n//   原 children[0]   -> 共享\n//   原 children[1]   -> 复制 + 改 value\n//   原根节点        -> 复制 + 替换 children 引用\n// 只有路径上的节点被复制, 其他全部共享",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Immer 实战: 像可变一样写",
+          "summary": "用 Proxy 实现 draft, 写完产生不可变快照。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 核心 API\n- produce(state, recipe): 返回新 state\n- recipe 接收 draft, 可'直接'修改\n- 内部用 Proxy 拦截, 只记录改动路径\n- 没改的部分共享原引用\n\n## 与 React / Redux 配合\n- reducer: produce(state, draft => { draft.x = 1 })\n- 不可变 + 简洁的语法\n\n## 性能\n- 比 spread 快, 因为路径复制而不是整体复制\n- 改深路径时仍要小心",
+          "codeExample": "// 需先安装: npm i immer\nimport { produce } from 'immer';\n\nconst state = { user: { profile: { name: 'Tom', tags: ['admin'] } }, posts: [] };\n\nconst next = produce(state, draft => {\n  draft.user.profile.name = 'Jerry';   // 像可变一样写\n  draft.user.profile.tags.push('editor');\n  draft.posts.push({ id: 1, title: 'Hello' });\n});\n\nconsole.log(state.user.profile.name);   // Tom (原 state 不变)\nconsole.log(next.user.profile.name);    // Jerry\nconsole.log(state.posts.length);        // 0\nconsole.log(next.posts.length);         // 1",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "不可变更新模式 (React setState)",
+          "summary": "在 React 中如何正确更新嵌套状态。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 核心原则\n- 不要直接修改 state\n- 用扩展运算符创建新引用\n- 嵌套用递归 spread 或 Immer\n\n## 常见模式\n- 浅更新: setState({ ...state, name: 'X' })\n- 数组 push: setState({ ...state, list: [...state.list, item] })\n- 数组 remove: filter 重建\n- 数组 update: map + 条件改\n- 嵌套更新: 逐层 spread, 或用 Immer / 结构共享库\n\n## 不要\n- state.items.push(x)\n- state.user.profile.name = 'X'\n- 直接 mutate 后 setState(obj)(即便内容一样)",
+          "codeExample": "// 1. 浅更新\nsetState({ ...state, loading: true });\n\n// 2. 数组 push\nsetState({ ...state, items: [...state.items, newItem] });\n\n// 3. 数组 remove by id\nsetState({\n  ...state,\n  items: state.items.filter(it => it.id !== id),\n});\n\n// 4. 数组 update by id\nsetState({\n  ...state,\n  items: state.items.map(it => it.id === id ? { ...it, done: true } : it),\n});\n\n// 5. 嵌套深更新 (不推荐, 改用 Immer)\nsetState({\n  ...state,\n  user: { ...state.user, profile: { ...state.user.profile, name: 'X' } },\n});",
+          "codeType": "javascript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "TypeScript 入门",
+      "chapterNo": 9,
+      "title": "类型基础",
+      "description": "掌握基本类型 / 接口 / 泛型, 写更安全的代码。",
+      "codePath": "com.learning.jsadv.TsBasic",
+      "estimatedHours": 4,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "基本类型与类型推断",
+          "summary": "为什么 TS 仍保留 any 与 unknown 的区别。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 基本类型\n- boolean / number / string / bigint / symbol / null / undefined\n- 数组: T[] 或 Array<T>\n- 元组: [string, number]\n- 对象 / 接口\n\n## any vs unknown\n- any: 关掉类型检查, 传染其他变量\n- unknown: 安全的'任意', 使用前必须 narrow\n- 优先 unknown, 慎用 any\n\n## 类型推断\n- 初始化赋值: 自动推断\n- 返回值: 显式标注更好(签名即文档)\n- 上下文推断: 在回调参数中, TS 帮你推断\n\n## 严格模式\n- tsconfig 开启 strict: true\n- 包含 noImplicitAny / strictNullChecks 等 7 个子项",
+          "codeExample": "// 基本类型\nconst flag: boolean = true;\nconst n: number = 3.14;\nconst s: string = `pi=${n.toFixed(2)}`;\nconst arr: number[] = [1, 2, 3];\nconst tuple: [string, number] = ['Tom', 18];\n\n// any vs unknown\nlet v1: any = JSON.parse('{}');\nv1.foo.bar.baz;   // 编译过, 运行可能挂\n\nlet v2: unknown = JSON.parse('{}');\n// v2.foo;        // Error: 'v2' is of type 'unknown'\nif (typeof v2 === 'object' && v2 !== null && 'foo' in v2) {\n  (v2 as { foo: any }).foo;   // narrow 后才能用\n}",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "联合类型与类型别名",
+          "summary": "灵活表达'一个值可以是多种类型之一'。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 联合类型\n- string | number\n- 字面量联合: 'open' | 'closed' | 'pending'\n- 联合类型需要 narrow 才能用方法\n\n## 类型别名 (type)\n- type Name = string;\n- type Status = 'ok' | 'error';\n- type Callback = (data: T) => void;\n\n## 区别 type vs interface\n- type: 可以表达联合 / 交叉 / 工具类型, 更灵活\n- interface: 描述对象形状, 可以 extends / implements, 更适合面向对象\n- 习惯: 对象用 interface, 联合/工具用 type",
+          "codeExample": "// 联合类型 + 字面量\ntype Status = 'pending' | 'success' | 'error';\nfunction render(s: Status) {\n  switch (s) {\n    case 'pending': return '加载中...';\n    case 'success': return '成功';\n    case 'error':   return '失败';\n  }\n}\n\n// 类型别名组合\ntype User = { id: number; name: string };\ntype WithTimestamp = { createdAt: Date; updatedAt: Date };\ntype UserEntity = User & WithTimestamp;\n\n// 函数类型别名\ntype Handler<T> = (input: T) => void;\ntype AsyncHandler<T> = (input: T) => Promise<void>;\nconst onClick: Handler<MouseEvent> = e => console.log(e.clientX);",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "接口与对象类型",
+          "summary": "interface 是 TS 中最常用的对象描述。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## interface 基础\n- interface User { id: number; name: string }\n- 可选属性: age?: number\n- 只读属性: readonly id: number\n- 索引签名: [key: string]: unknown\n\n## 继承 (extends)\n- interface Admin extends User { role: 'admin' }\n- 多继承: interface A extends B, C {}\n\n## 合并声明\n- 同一 interface 名多次声明会自动合并\n- 第三方库扩展时常利用这个特性\n\n## implements\n- class 必须实现接口的所有属性\n- 可写 implements IUser, ITimestamp",
+          "codeExample": "interface Point { x: number; y: number }\ninterface Named { readonly name: string }\n\n// 继承 + 可选 + 只读\ninterface User extends Named {\n  id: number;\n  email?: string;\n  age: number;\n  // 索引签名: 允许额外字段\n  [extra: string]: unknown;\n}\n\nconst u: User = { id: 1, name: 'Tom', age: 18, hobby: 'coding' };\nconsole.log(u.name);     // Tom\n// u.name = 'X';         // Error: Cannot assign to 'name' because it is read-only\n\n// 类实现接口\nclass UserService implements User {\n  constructor(public id: number, public name: string, public age: number) {}\n  greet() { return `hi ${this.name}`; }\n}",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "函数类型与重载",
+          "summary": "用类型签名约束函数, IDE 自动提示。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 函数类型三种写法\n- 箭头类型: (a: number, b: number) => number\n- interface 形式: interface Add { (a: number, b: number): number }\n- type 别名: type Add = (a: number, b: number) => number\n\n## 函数重载\n- 写多个签名, 最后一个是实现签名(更宽的参数)\n- TS 用前面的签名做检查, 实际调用走实现\n\n## this 参数\n- 第一参数标 this: void, 显式禁用 this\n- TypeScript 中 this 推断可能出错, 显式声明更稳",
+          "codeExample": "// 函数重载: 不同入参不同返回值\nfunction pad(input: string, length: number): string;\nfunction pad(input: number, length: number): string;\nfunction pad(input: string | number, length: number): string {\n  return String(input).padStart(length, '0');\n}\n\nconsole.log(pad(5, 3));        // '005'\nconsole.log(pad('5', 3));      // '005'\n\n// this 参数\ninterface Cat { name: string; meow(): void }\nfunction pet(this: Cat) { console.log(this.name + ' meows'); }\n\nconst c: Cat = { name: 'Mimi', meow() { pet.call(c); } };\n// pet();  // Error: The 'this' context of type 'void' is not assignable to method's 'this' of type 'Cat'",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 5,
+          "title": "泛型基础与约束",
+          "summary": "让函数/类支持多种类型, 又不失类型安全。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 为什么用泛型\n- 写一次, 支持多种类型\n- 不像 any 那样丢失类型信息\n- 推断 / 显式都能用\n\n## 泛型函数\n- function identity<T>(x: T): T { return x }\n- 调用: identity(1) / identity<string>('a')\n\n## 泛型约束\n- <T extends Lengthwise> 限制 T 必须有 length 属性\n- 多个约束: <T extends A & B>\n- keyof 约束: <K extends keyof T> 限制 K 必须是 T 的 key",
+          "codeExample": "// 泛型函数\nfunction first<T>(arr: T[]): T | undefined {\n  return arr[0];\n}\nfirst<number>([1, 2, 3]);          // number | undefined\nfirst(['a', 'b']);                  // string | undefined, 自动推断\n\n// 约束: T 必须有 length\ninterface Lengthwise { length: number }\nfunction longest<T extends Lengthwise>(a: T, b: T): T {\n  return a.length >= b.length ? a : b;\n}\nlongest('hello', 'world');     // 'hello'\n// longest(1, 2);                // Error: number 没有 length\n\n// keyof 约束\nfunction pluck<T, K extends keyof T>(obj: T, keys: K[]): T[K][] {\n  return keys.map(k => obj[k]);\n}\npluck({ a: 1, b: 'x' }, ['a', 'b']);   // (string | number)[]",
+          "codeType": "typescript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "TypeScript 入门",
+      "chapterNo": 10,
+      "title": "进阶类型",
+      "description": "类、枚举、字面量类型、类型守卫, 写出更精确的签名。",
+      "codePath": "com.learning.jsadv.TsIntermediate",
+      "estimatedHours": 4,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "类与泛型类",
+          "summary": "用 class + 泛型 + 修饰符组织业务。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 类成员修饰符\n- public(默认) / private / protected\n- readonly: 只读字段, 构造时或之后赋值一次\n- static: 类本身, 不在实例上\n- abstract: 抽象类/方法, 不能直接 new\n\n## 实现接口\n- class Foo implements IFoo, IBar\n- 一个类可实现多个接口\n\n## 泛型类\n- class Box<T> { ... }\n- new Box<number>().get()",
+          "codeExample": "interface Entity { id: number }\n\nabstract class BaseModel<T extends Entity> {\n  abstract table: string;\n  constructor(public data: T) {}\n  save(): T { return this.data; }\n}\n\nclass User extends BaseModel<{ id: number; name: string }> {\n  table = 't_user';\n}\n\nconst u = new User({ id: 1, name: 'Tom' });\nconsole.log(u.save(), u.table);\n\n// 泛型类: 容器\nclass Box<T> {\n  constructor(public value: T) {}\n  map<U>(fn: (v: T) => U): Box<U> { return new Box(fn(this.value)); }\n}\nconst r = new Box(5).map(x => x * 2).map(x => `n=${x}`);\nconsole.log(r.value);   // 'n=10'",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "枚举与字面量类型",
+          "summary": "用类型模拟业务状态, IDE 全程提示。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 枚举 (enum)\n- 数字枚举(默认), 字符串枚举(更可读)\n- 推荐: 业务状态用字符串枚举, 性能 / 调试都好\n\n## 字面量类型\n- type Direction = 'up' | 'down' | 'left' | 'right'\n- 联合字面量最常见\n\n## const 断言\n- as const: 推断为不可变字面量\n- 数组变 readonly tuple, 字符串变字面量\n\n## enum vs 字面量\n- 简单业务用字面量类型(更轻, 无运行时)\n- 复杂业务 / 需运行时常量用 enum",
+          "codeExample": "// 字符串枚举(推荐)\nenum OrderStatus {\n  Pending   = 'PENDING',\n  Paid      = 'PAID',\n  Shipped   = 'SHIPPED',\n  Delivered = 'DELIVERED',\n  Canceled  = 'CANCELED',\n}\n\nfunction canCancel(s: OrderStatus) {\n  return s === OrderStatus.Pending || s === OrderStatus.Paid;\n}\n\n// 字面量类型\ntype Dir = 'up' | 'down' | 'left' | 'right';\nconst move = (d: Dir, n: number) => [d, n];\n\n// as const\nconst config = { api: '/api', retries: 3 } as const;\n// config.retries = 5;   // Error: Cannot assign to 'retries' because it is read-only\n\ntype Cfg = typeof config;     // { readonly api: '/api'; readonly retries: 3 }",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "类型守卫与 narrowing",
+          "summary": "把宽类型变窄, 写出健壮的业务函数。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## typeof 守卫\n- if (typeof x === 'string') x.toUpperCase()\n\n## instanceof 守卫\n- if (err instanceof Error) err.message\n\n## in 守卫\n- if ('kind' in x) x.kind === 'A'\n\n## 自定义类型谓词\n- function isUser(x: any): x is User { return x && typeof x.id === 'number' }\n\n## 判别联合 (discriminated union)\n- type Shape = { kind: 'circle'; r: number } | { kind: 'rect'; w: number; h: number }\n- switch (s.kind) 自动 narrow",
+          "codeExample": "// 自定义类型谓词\ninterface User { id: number; name: string }\nfunction isUser(x: unknown): x is User {\n  return !!x && typeof x === 'object' && typeof (x as any).id === 'number' && typeof (x as any).name === 'string';\n}\n\nconst data: unknown = JSON.parse('{\"id\":1,\"name\":\"Tom\"}');\nif (isUser(data)) {\n  console.log(data.name);   // narrow 后是 User\n}\n\n// 判别联合: 处理不同 shape 的数据\ntype Shape =\n  | { kind: 'circle'; r: number }\n  | { kind: 'rect'; w: number; h: number };\n\nfunction area(s: Shape): number {\n  switch (s.kind) {\n    case 'circle': return Math.PI * s.r * s.r;\n    case 'rect':   return s.w * s.h;\n  }\n}",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "类型守卫函数 + 联合字面量",
+          "summary": "工程中最常见的模式: 联合 + 守卫函数。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## 设计模式\n- 状态机: 多种状态(loading/success/error)\n- 动作: union of payloads\n- 守卫: isLoading / isSuccess / isError\n\n## 配合 zustand / Redux / Pinia\n- store 存判别联合状态\n- 组件用守卫函数 narrow 后访问具体字段\n- 编译器强制处理所有 case (exhaustive check)",
+          "codeExample": "// API 响应三态: 业务必备\ntype ApiResult<T> =\n  | { status: 'idle' }\n  | { status: 'loading' }\n  | { status: 'success'; data: T }\n  | { status: 'error'; error: string };\n\nconst isSuccess = <T,>(r: ApiResult<T>): r is Extract<r, { status: 'success' }> => r.status === 'success';\nconst isError   = <T,>(r: ApiResult<T>): r is Extract<r, { status: 'error' }>   => r.status === 'error';\n\nfunction render(r: ApiResult<{ name: string }>) {\n  if (isSuccess(r)) return r.data.name;     // narrow\n  if (isError(r))   return r.error;\n  return 'loading';\n}",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 5,
+          "title": "类型守卫与 API 数据校验",
+          "summary": "在边界用守卫函数做运行时校验, 内部享受类型安全。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 边界 vs 内部\n- 边界: 网络 / 本地存储 / 用户输入, 用 unknown 接收 + 守卫\n- 内部: 类型已 narrow, 编译器保证安全\n\n## 模式\n- 接收 unknown\n- 自定义守卫函数 narrow\n- 不通过则抛错或返回错误态\n\n## 库\n- zod: 声明 schema, 自动推断 TS 类型 + 运行时校验\n- valibot: 更轻的同类方案\n- io-ts: 函数式风格",
+          "codeExample": "// 手工: 接收 unknown + 守卫\ninterface Post { id: number; title: string; published: boolean }\nfunction isPost(x: unknown): x is Post {\n  return !!x && typeof x === 'object'\n    && typeof (x as any).id === 'number'\n    && typeof (x as any).title === 'string'\n    && typeof (x as any).published === 'boolean';\n}\n\nasync function loadPost(): Promise<Post> {\n  const r = await fetch('/api/post/1');\n  const d: unknown = await r.json();\n  if (!isPost(d)) throw new Error('invalid post shape');\n  return d;   // narrow 后是 Post\n}\n\n// 用 zod: schema 即类型\n// import { z } from 'zod';\n// const PostSchema = z.object({ id: z.number(), title: z.string(), published: z.boolean() });\n// type Post = z.infer<typeof PostSchema>;\n// const d = PostSchema.parse(await r.json());",
+          "codeType": "typescript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "TypeScript 进阶",
+      "chapterNo": 11,
+      "title": "高级类型",
+      "description": "条件类型 / 映射 / 模板字面量, 写出类型安全的工具库。",
+      "codePath": "com.learning.jsadv.TsAdvanced",
+      "estimatedHours": 4,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "条件类型 Conditional Types",
+          "summary": "T extends U ? X : Y, 类型世界里的 if/else。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 基础\n- T extends U ? X : Y\n- 与条件分支类似, 但作用于类型\n\n## 应用\n- 提取函数返回值: ReturnType<F>\n- 提取参数: Parameters<F>\n- 排除/选取属性: Pick / Omit\n- 类型守卫: is / never\n\n## 分布式条件\n- T 是裸类型参数时, 联合类型自动分布\n- [T] 包起来阻止分布: [T] extends [U] ? X : Y",
+          "codeExample": "// 条件类型基础\ntype IsString<T> = T extends string ? true : false;\ntype A = IsString<'hello'>;   // true\ntype B = IsString<42>;        // false\n\n// 工具类型原理\ntype MyReturnType<T> = T extends (...args: any[]) => infer R ? R : never;\ntype X = MyReturnType<() => number>;   // number\n\n// 分布式 vs 非分布式\ntype ToArray<T> = T extends unknown[] ? T : [T];\ntype T1 = ToArray<string | number>;     // [string] | [number]  (分布式)\ntype ToArray2<T> = [T] extends [unknown[]] ? T : [T];\ntype T2 = ToArray2<string | number>;   // [string | number]  (不分布)",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "映射类型与键重映射",
+          "summary": "对对象类型做转换, 在 TS 中改 schema。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 基础映射\n- { [K in keyof T]: NewType }\n- 把 T 的每个 key 映射到新类型\n\n## 修饰符\n- -readonly 去掉只读\n- -? 去掉可选\n- +readonly / +? 加上\n\n## 键重映射 (TS 4.1+)\n- as 关键字, 可以改名/过滤\n- { [K in keyof T as `get${Capitalize<string & K>}`]: () => T[K] }\n- K extends never 过滤掉某些 key",
+          "codeExample": "// 基础映射: 所有字段变可选\ntype Partial<T> = { [K in keyof T]?: T[K] };\n\n// 修饰符\ntype Mutable<T> = { -readonly [K in keyof T]: T[K] };\n\n// 键重映射: 生成 getter 集合\ntype Getters<T> = {\n  [K in keyof T as `get${Capitalize<string & K>}`]: () => T[K];\n};\n\ninterface User { id: number; name: string; age: number }\ntype U = Getters<User>;\n//   ^? { getId: () => number; getName: () => string; getAge: () => number }\n\n// 过滤: 只保留 string 类型的 key\ntype StringKeysOnly<T> = {\n  [K in keyof T as T[K] extends string ? K : never]: T[K];\n};",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "模板字面量类型",
+          "summary": "用字符串字面量构造类型, 写精确的事件名。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 基础\n- type Event = `on${Capitalize<string>}`\n- 字符串操作: Uppercase / Lowercase / Capitalize / Uncapitalize\n\n## 应用\n- CSS-in-JS: type Padding = `padding-${'top'|'right'|'bottom'|'left'}`\n- 事件名: type DomEvent = `on${MouseEventName}`\n- 路径: type Path = `${string}.${string}`\n- 国际化 key: type I18nKey = `${NS}.${SubKey}`\n\n## 限制\n- 不能用正则 / 条件分支等复杂逻辑\n- 长度有限(编译时类型实例化不能太长)",
+          "codeExample": "type Side = 'top' | 'right' | 'bottom' | 'left';\ntype Padding = `padding-${Side}`;     // 'padding-top' | 'padding-right' | ...\n\ntype Event = `on${Capitalize<Side>}`; // 'onTop' | 'onRight' | ...\n\n// 配合函数生成\nfunction padding(side: Side, value: number) {\n  return { [`padding-${side}`]: value };\n}\nconsole.log(padding('top', 10));   // { 'padding-top': 10 }\n\n// API 路径\ntype Method = 'get' | 'post' | 'put' | 'delete';\ntype Path = `/api/${string}`;\nfunction request(m: Method, p: Path) { /* ... */ }\nrequest('post', '/api/users');      // OK\n// request('get', '/other/x');     // Error: '/other/x' 不匹配 Path",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "infer 与分布式条件",
+          "summary": "高级类型体操的基石, 写库时必备。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## infer\n- 在条件类型的 true 分支中声明一个待推断类型变量\n- T extends Promise<infer U> ? U : T 提取 Promise 内部类型\n- 多个 infer 一次推断多个位置\n\n## 递归条件类型\n- 类型可以递归, 但要有终止条件\n- 应用: 解析路径、解析字符串、深度 Readonly\n\n## 实战\n- 框架源码里常出现\n- 工程里用得不多, 但能看懂很加分",
+          "codeExample": "// infer 基础: 提取 Promise 内部\ntype Awaited<T> = T extends Promise<infer U> ? Awaited<U> : T;\ntype X = Awaited<Promise<Promise<number>>>;   // number\n\n// 多个 infer\ntype MyFunction = (a: string, b: number) => boolean;\ntype Params = MyFunction extends (...args: infer P) => any ? P : never;\n//   ^? [string, number]\n\n// 递归: 路径转联合\ntype Join<K, P> = K extends string\n  ? P extends string\n    ? `${K}.${P}`\n    : never\n  : never;\ntype Leaves<T, P extends string = ''> = T extends object\n  ? { [K in keyof T]-?: Join<K & string, Leaves<T[K], P>> }[keyof T]\n  : P;\n\ninterface Api { user: { profile: { name: string } }; post: { id: number } }\ntype T = Leaves<Api>;   // 'user.profile.name' | 'post.id'",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 5,
+          "title": "类型体操案例: 简化版 EventEmitter",
+          "summary": "综合运用, 体验类型驱动 API。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "## 目标\n- type-safe EventEmitter\n- on(event, handler) handler 自动推断参数类型\n- emit(event, ...args) 参数由 event 名决定\n\n## 关键点\n- 用映射类型列举事件名\n- 每个事件的回调类型用 Record 或 interface\n- 推断 handler 第一参数即回调签名",
+          "codeExample": "// 声明事件 schema\ninterface Events {\n  login:    { userId: number };\n  logout:   void;\n  message:  { from: string; text: string };\n}\n\nclass Emitter {\n  private map = new Map<keyof Events, Function[]>();\n\n  on<K extends keyof Events>(event: K, handler: (data: Events[K]) => void): () => void {\n    const list = this.map.get(event) ?? [];\n    list.push(handler);\n    this.map.set(event, list);\n    return () => this.off(event, handler);\n  }\n\n  emit<K extends keyof Events>(event: K, ...args: Events[K] extends void ? [] : [Events[K]]) {\n    (this.map.get(event) ?? []).forEach(h => h(args[0]));\n  }\n\n  off<K extends keyof Events>(event: K, handler: (data: Events[K]) => void) {\n    const list = this.map.get(event) ?? [];\n    this.map.set(event, list.filter(h => h !== handler));\n  }\n}\n\nconst e = new Emitter();\ne.on('login', d => console.log(d.userId));   // d: { userId: number }\ne.emit('login', { userId: 42 });             // OK\ne.emit('logout');                            // OK, void\ne.emit('message', { from: 'a', text: 'hi' });",
+          "codeType": "typescript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "TypeScript 进阶",
+      "chapterNo": 12,
+      "title": "工程能力",
+      "description": "声明文件 / tsconfig / 装饰器, 把 TS 落地到项目。",
+      "codePath": "com.learning.jsadv.TsEngineering",
+      "estimatedHours": 4,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "声明文件与模块解析",
+          "summary": "没有类型的第三方库怎么用? .d.ts 来救场。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## .d.ts 是什么\n- 只含类型声明, 不含实现\n- TS 自动加载 @types/* 和 node_modules 中带的 .d.ts\n\n## 内置\n- 第三方包可以打 @types 单独发布\n- DefinitelyTyped 是公共类型仓库\n\n## 自定义\n- 在 types/xxx.d.ts 写模块声明\n- 适合: 老项目无类型、改造 js 库、全局变量声明\n\n## 模块解析\n- node: 内置模块\n- moduleResolution: bundler / node16 / nodenext\n- bundler: 现代默认值, 适合 Vite/Webpack",
+          "codeExample": "// 假设 lodash 没有类型\ndeclare module 'lodash' {\n  export function chunk<T>(arr: T[], size: number): T[][];\n  export function debounce<T extends (...a: any[]) => any>(fn: T, wait: number): T;\n}\n\n// 全局变量\ndeclare global {\n  interface Window {\n    __APP_VERSION__: string;\n  }\n}\n\n// 使用\nimport { chunk, debounce } from 'lodash';\nconst groups = chunk([1, 2, 3, 4, 5], 2);   // number[][]",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "tsconfig 配置详解",
+          "summary": "从 allowJs 到 paths, 完整理解每个选项。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 必须开的\n- strict: true (默认推荐)\n- noImplicitAny / strictNullChecks 是 strict 子集\n- esModuleInterop: true (兼容 CommonJS)\n- skipLibCheck: true (跳过 .d.ts 检查, 加速编译)\n\n## 路径别名\n- paths: { \"@/*\": [\"src/*\"] }\n- baseUrl: \".\"\n- 配 Vite/Vitest: 同时配 resolve.alias\n\n## 输出\n- declaration: 生成 .d.ts\n- declarationMap / sourceMap: 调试用\n- target / module: 控制输出 JS 版本\n\n## 增量\n- incremental: true\n- tsBuildInfoFile: 缓存位置",
+          "codeExample": "// tsconfig.json 关键项\n{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"ESNext\",\n    \"moduleResolution\": \"bundler\",\n    \"strict\": true,\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true,\n    \"paths\": { \"@/*\": [\"src/*\"] },\n    \"baseUrl\": \".\",\n    \"noUnusedLocals\": true,\n    \"noUnusedParameters\": true,\n    \"noFallthroughCasesInSwitch\": true\n  },\n  \"include\": [\"src/**/*\", \"types/**/*\"]\n}",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "装饰器与元数据",
+          "summary": "class decorator / method decorator 的标准用法。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 装饰器分类\n- 类装饰器: @Component\n- 方法装饰器: @Get('/users')\n- 属性装饰器: @Inject(USER_REPO)\n- 参数装饰器: @Param('id')\n\n## 执行顺序\n- 装饰器工厂从外到内, 装饰器应用从下到上\n- 类装饰器最后执行\n\n## 启用\n- experimentalDecorators: true (旧式, TS 5+ 默认新装饰器)\n- emitDecoratorMetadata: 配合 reflect-metadata\n\n## 应用\n- NestJS / Angular / TypeORM / class-validator 大量使用",
+          "codeExample": "// 类装饰器: 给类加 version 属性\nfunction Version(v: string) {\n  return <T extends new (...args: any[]) => any>(Target: T) =>\n    class extends Target {\n      version = v;\n    };\n}\n\n@Version('1.0.0')\nclass Service {\n  hello() { return 'hi'; }\n}\n\nconst s = new Service();\nconsole.log(s.hello(), (s as any).version);   // 'hi' '1.0.0'\n\n// 方法装饰器: 简单日志\nfunction Log(target: any, key: string, desc: PropertyDescriptor) {\n  const orig = desc.value;\n  desc.value = function (...args: any[]) {\n    console.log(`${key} called with`, args);\n    return orig.apply(this, args);\n  };\n}\n\nclass A {\n  @Log\n  add(a: number, b: number) { return a + b; }\n}",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "类型驱动开发",
+          "summary": "先把类型写出来, 实现跟上。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 思路\n- 写类型即写 API 文档\n- IDE 自动补全, 降低心智负担\n- 编译时阻止错误蔓延\n\n## 流程\n1. 写函数签名\n2. 写测试用例(类型已 narrow)\n3. 实现函数体\n4. 类型不通过时再调整类型 / 实现\n\n## 实战\n- API 客户端: 一次性定义 response shape, 整个项目用\n- 表单 schema: 用 zod, 推导表单类型\n- Redux/Zustand: State + Action 类型, 完整 narrow",
+          "codeExample": "// 1) 先写 API 形状\ntype User = { id: number; name: string; email: string };\ntype ApiClient = {\n  list: () => Promise<User[]>;\n  get:  (id: number) => Promise<User>;\n  create: (data: Omit<User, 'id'>) => Promise<User>;\n  update: (id: number, data: Partial<Omit<User, 'id'>>) => Promise<User>;\n  delete: (id: number) => Promise<void>;\n};\n\n// 2) 写 mock, 类型已 narrow\nconst mock: ApiClient = {\n  list:   async () => [{ id: 1, name: 'Tom', email: 't@x.com' }],\n  get:    async (id) => ({ id, name: 'Tom', email: 't@x.com' }),\n  create: async d => ({ id: Date.now(), ...d }),\n  update: async (id, d) => ({ id, name: 'Tom', email: 't@x.com', ...d }),\n  delete: async () => {},\n};\n\n// 3) 实现 fetcher 版本, 类型驱动\nasync function make(url: string): Promise<ApiClient> {\n  const j = (p: Promise<Response>) => p.then(r => r.json());\n  return {\n    list:   () => j(fetch(url)) as Promise<User[]>,\n    get:    id => j(fetch(`${url}/${id}`)),\n    create: d => j(fetch(url, { method: 'POST', body: JSON.stringify(d) })),\n    update: (id, d) => j(fetch(`${url}/${id}`, { method: 'PUT', body: JSON.stringify(d) })),\n    delete: id => fetch(`${url}/${id}`, { method: 'DELETE' }).then(() => {}),\n  };\n}",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 5,
+          "title": "类型测试与 dtslint",
+          "summary": "类型也是代码, 需要测试。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 为什么要测类型\n- 类型 bug 编译能过但运行时崩\n- 库作者必须保证公共 API 类型正确\n- 重构时类型签名改变, 提前发现 breakage\n\n## dtslint\n- DefinitelyTyped 团队的工具\n- 用 .ts 写测试, 利用 expect-type / expect-error\n- CI 跑 tsc 验证\n\n## expect-type 替代\n- 现代方案, API 更直观\n- 写 type-level test 像 runtime 一样",
+          "codeExample": "// 用 expect-type 写类型测试\nimport { expectType, expectError, expectAssignable } from 'expect-type';\n\n// 1) identity 应保留类型\nexpectType<(x: number) => number>(identity);\n\n// 2) Partial 应让属性可选\nexpectType<{ name?: string }>(partial({ name: 'x' } as { name: string }));\n\n// 3) Pick 选出的字段应可赋值给原对象\nexpectAssignable<{ name: string }>(pick({ name: 'a', age: 1 }, 'name'));\n\n// 4) 错误用法应报错\nexpectError(identity(1 as string));  // 入参类型不匹配, 编译失败即通过\n\n// 5) 库 API 签名稳定性\n// 每次发布前: tsc --noEmit + expect-type 跑一遍, 保证 public API 不破坏下游",
+          "codeType": "typescript"
+        }
+      ],
+      "subject": "jsadv"
+    },
+    {
+      "stageNo": 3,
+      "stageName": "TypeScript 实战",
+      "chapterNo": 13,
+      "title": "框架集成",
+      "description": "React / Vue3 / Node 项目中怎么写 TS。",
+      "codePath": "com.learning.jsadv.TsFrameworks",
+      "estimatedHours": 4,
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "React + TS: 组件类型",
+          "summary": "props / state / ref / 事件, 全套类型。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 函数组件 props\n- interface Props { name: string; onChange: (v: string) => void }\n- function Card({ name, onChange }: Props) { ... }\n\n## Hooks 类型\n- useState<T>(initial)\n- useRef<T | null>(null), 注意 null narrow\n- useEffect: 不需要返回值的副作用, useEffect(() => {...}, [])\n\n## 事件类型\n- onClick?: MouseEventHandler<HTMLButtonElement>\n- onChange?: ChangeEventHandler<HTMLInputElement>\n\n## children 类型\n- React.ReactNode / React.ReactElement / React.FC",
+          "codeExample": "import { useState, useRef, useEffect, MouseEventHandler, ReactNode } from 'react';\n\ninterface Props {\n  title: string;\n  onConfirm: (id: string) => void;\n  children?: ReactNode;\n}\n\nfunction Modal({ title, onConfirm, children }: Props) {\n  const [open, setOpen] = useState(false);\n  const ref = useRef<HTMLDivElement>(null);\n\n  useEffect(() => {\n    if (ref.current) console.log('mounted', ref.current.clientHeight);\n  }, []);\n\n  const onClick: MouseEventHandler<HTMLButtonElement> = e => {\n    e.stopPropagation();\n    onConfirm('id-1');\n  };\n\n  return open ? <div ref={ref}><h3>{title}</h3>{children}<button onClick={onClick}>OK</button></div> : null;\n}",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Vue 3 + TS: setup lang=ts",
+          "summary": "defineProps / defineEmits / ref 等组合式 API 的类型。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## defineProps 三种写法\n- 运行时: const props = defineProps({ name: String })\n- 类型式: const props = defineProps<{ name: string }>()\n- 混合: 运行时声明 + 单独类型\n\n## defineEmits\n- const emit = defineEmits<{ (e: 'change', v: string): void }>()\n- emit('change', 'value')\n\n## ref / reactive\n- const r = ref<number>(0)  // r.value 类型 number\n- const obj = reactive<{ name: string }>({ name: 'Tom' })\n\n## withDefaults\n- const props = withDefaults(defineProps<{ size?: 'sm' | 'md' }>(), { size: 'md' })",
+          "codeExample": "<script setup lang=\"ts\">\nimport { ref, computed, defineProps, defineEmits, withDefaults } from 'vue';\n\ninterface Props { name: string; size?: 'sm' | 'md' | 'lg' }\nconst props = withDefaults(defineProps<Props>(), { size: 'md' });\n\ninterface Emits { (e: 'update', value: string): void; (e: 'submit'): void }\nconst emit = defineEmits<Emits>();\n\nconst count = ref(0);\nconst doubled = computed(() => count.value * 2);\n\nfunction inc() { count.value++; emit('update', String(count.value)); }\nfunction submit() { emit('submit'); }\n</script>\n\n<template>\n  <div :class=\"['box', 'size-' + props.size]\">{{ props.name }}: {{ doubled }}</div>\n  <button @click=\"inc\">+</button>\n</template>",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Node.js + TS: 项目搭建",
+          "summary": "从 0 搭一个类型安全的 Node 服务。",
+          "difficulty": 2,
+          "durationMinutes": 25,
+          "content": "## 工具链\n- typescript + tsx (开发) / tsc (生产)\n- @types/node / @types/express\n- nodemon / tsx watch\n\n## 目录结构\n- src/\n  - index.ts (入口)\n  - routes/\n  - services/\n  - types/\n- tsconfig.json (outDir: dist, declaration: true)\n\n## package.json scripts\n- dev: tsx watch src/index.ts\n- build: tsc -p tsconfig.build.json\n- start: node dist/index.js",
+          "codeExample": "// src/index.ts\nimport express, { Request, Response, NextFunction } from 'express';\n\nconst app = express();\napp.use(express.json());\n\ninterface User { id: number; name: string }\nconst users: User[] = [{ id: 1, name: 'Tom' }];\n\napp.get('/api/users', (_req: Request, res: Response<User[]>) => {\n  res.json(users);\n});\n\napp.post<{ id: string }, unknown, Omit<User, 'id'>>(\n  '/api/users',\n  (req, res) => {\n    const u: User = { id: Date.now(), ...req.body };\n    users.push(u);\n    res.status(201).json(u);\n  },\n);\n\n// 错误中间件: 4 参数, 必须是 ErrorRequestHandler\napp.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {\n  res.status(500).json({ error: err.message });\n});\n\napp.listen(3000, () => console.log('http://localhost:3000'));",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 4,
+          "title": "类型化 API 客户端",
+          "summary": "让 fetch / axios 返回类型, 告别 any。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## fetch 包装\n- async function api<T>(url: string, init?: RequestInit): Promise<T>\n- 业务调用: const u = await api<User>('/api/users/1')\n\n## axios 拦截器\n- axios.interceptors.response.use, 解开 data\n- 自定义 ResponseType\n\n## openapi-typescript\n- 把 OpenAPI 文档转成 TS 类型\n- 一行命令: openapi-typescript openapi.yaml -o types/api.ts\n- 零运行时, 纯类型, IDE 提示拉满",
+          "codeExample": "// 1) 通用 fetch 包装\nclass HttpError extends Error { constructor(public status: number, public body: unknown) { super(`HTTP ${status}`); } }\n\nasync function api<T>(url: string, init?: RequestInit): Promise<T> {\n  const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...init });\n  if (!r.ok) throw new HttpError(r.status, await r.text().catch(() => null));\n  return r.json() as Promise<T>;\n}\n\n// 2) 业务调用, 全类型安全\ninterface User { id: number; name: string; email: string }\nconst u = await api<User>('/api/users/1');\nconsole.log(u.name, u.email);   // IDE 自动补全\n\n// 3) 配合 openapi-typescript\n// npx openapi-typescript http://api.example.com/openapi.json -o src/types/api.ts\n// import type { paths } from './types/api';\n// type GetUser = paths['/api/users/{id}']['get']['responses']['200']['content']['application/json'];",
+          "codeType": "typescript"
+        },
+        {
+          "lessonNo": 5,
+          "title": "迁移策略: JS → TS 渐进式",
+          "summary": "已有大型 JS 项目, 怎么平滑迁移。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 第一步: 打开 allowJs / checkJs\n- tsconfig: allowJs: true, checkJs: false\n- TS 把 .js 当 any, 渐进式开启检查\n\n## 第二步: 关键路径加类型\n- API 边界 / 工具函数 / 数据模型\n- 逐文件加 // @ts-check 让该文件也参与检查\n\n## 第三步: 改文件后缀\n- .js → .ts, 修类型错误\n- import 路径加 .js (ESM)\n\n## 第四步: 提升严格度\n- strict: true\n- noImplicitAny / strictNullChecks\n\n## 不要\n- 一次性全部开启 strict (大量 error 压垮团队)\n- 改完不跑测试",
+          "codeExample": "// 1) tsconfig.json 起步: 兼容现有 JS\n{\n  \"compilerOptions\": {\n    \"allowJs\": true,\n    \"checkJs\": false,        // 默认不检查 .js, 避免现有项目爆红\n    \"noEmit\": true,           // 渐进期不编译, 用 tsc 只做类型检查\n    \"strict\": false           // 先宽后严\n  },\n  \"include\": [\"src/**/*\"]\n}\n\n// 2) 关键文件打开 // @ts-check\n// @ts-check\n// /utils/api.js  -- 强制这个文件也参与类型检查\n\n// 3) 重写为 .ts: 文件名 + 后缀\n// utils/api.ts\nimport { User } from './types';\nexport async function getUser(id: number): Promise<User> { /* ... */ }\n\n// 4) 改 import 路径(ESM 必须 .js 后缀)\n// import { getUser } from './utils/api.js';\n\n// 5) 几个月后打开 strict\n// \"strict\": true, \"noImplicitAny\": true, \"strictNullChecks\": true",
+          "codeType": "typescript"
+        }
+      ],
+      "subject": "jsadv"
     }
   ]
 }
