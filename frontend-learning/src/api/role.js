@@ -4,10 +4,6 @@ import request from '../utils/request'
 export const listRoles = () =>
   request({ url: '/roles', method: 'get' })
 
-// GET /api/roles/{id}
-export const getRole = (id) =>
-  request({ url: `/roles/${id}`, method: 'get' })
-
 // POST /api/roles
 export const createRole = (data) =>
   request({ url: '/roles', method: 'post', data })

@@ -221,25 +221,6 @@ public class DocumentImportService {
         return 2;
     }
 
-    /** 段落内富文本(粗/斜/下划线)→ HTML */
-    private String runsHtml(XWPFParagraph p) {
-        StringBuilder sb = new StringBuilder();
-        for (XWPFRun run : p.getRuns()) {
-            String text = run.text();
-            if (text == null || text.isEmpty()) continue;
-            String esc = escapeHtml(text).replace("\n", "<br>").replace("\t", "&emsp;&emsp;");
-            if (run.isBold()) esc = "<strong>" + esc + "</strong>";
-            if (run.isItalic()) esc = "<em>" + esc + "</em>";
-            // POI 5.x getUnderline() 返回下划线枚举(null=未设置); 用 var 兼容不同小版本的枚举类型
-            var underline = run.getUnderline();
-            if (underline != null && !"none".equalsIgnoreCase(underline.toString())) {
-                esc = "<u>" + esc + "</u>";
-            }
-            sb.append(esc);
-        }
-        return sb.toString();
-    }
-
     private String tableToHtml(XWPFTable table, java.util.Map<String, String> picUrls) {
         StringBuilder sb = new StringBuilder("<table>");
         boolean first = true;

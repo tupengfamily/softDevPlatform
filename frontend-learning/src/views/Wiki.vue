@@ -516,10 +516,6 @@ const submitApply = async () => {
   } catch (e) { /* 拦截器已提示 */ }
 }
 
-// 在 tree 行上点「申请加入」: 给非自己拥有的资源提供入口(注: 此处保留弹窗入口,实际场景多用分享链接触发)
-const requestCollabForDir = (d) => openApplyDialog('DIR', d.id, d.name)
-const requestCollabForArticle = (a) => openApplyDialog('ART', a.id, a.title)
-
 // 状态标签辅助
 const statusTagType = (s) => ({ PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', CANCELED: 'info' }[s] || 'info')
 const permLabel = (p) => t('wiki.collab.perm' + p)  // permREAD/permEDIT
