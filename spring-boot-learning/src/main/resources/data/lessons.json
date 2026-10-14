@@ -1028,7 +1028,7 @@
           "lessonNo": 4,
           "title": "wait / notify:生产者-消费者模型",
           "summary": "线程间协作的经典范式,手写一个阻塞队列。",
-          "difficulty": 4,
+          "difficulty": 3,
           "durationMinutes": 30,
           "content": "## 从互斥到协作\n- synchronized 解决\"别同时动\",wait/notify 解决\"什么时候动\"——线程间的协调配合\n- 经典场景: 队列满了生产者等着,队列空了消费者等着,有货/有空位时互相叫醒\n\n## 三个方法(都是 Object 的方法)\n- wait(): 释放锁并进入等待,直到被 notify 唤醒后重新抢锁\n- notify(): 随机唤醒一个等待者;notifyAll(): 唤醒全部(更安全,优先用)\n- 前提: 必须先持有该对象的锁(在 synchronized 块内调用),否则抛 IllegalMonitorStateException\n\n## 标准写法: while 而不是 if\n- 等待条件必须用 while 循环包裹: 醒来后要重新检查条件\n- 原因: 可能被\"虚假唤醒\",也可能醒来时条件已被别的线程改变\n\n## 为什么推荐 BlockingQueue\n- 手写 wait/notify 容易出错(漏通知、if 误用、死锁)\n- 生产代码直接用 java.util.concurrent.BlockingQueue——put/take 内部已经封装好这套机制\n\n## 动手做\n右侧代码手写迷你阻塞队列并跑 2 生产者 + 1 消费者;观察\"满则等、空则等\"的交替输出。",
           "codeExample": "import java.util.LinkedList;\nimport java.util.Queue;\n\npublic class Main {\n\n    /** 手写阻塞队列(教学版,生产请用 ArrayBlockingQueue) */\n    static class MiniBlockingQueue {\n        private final Queue<String> queue = new LinkedList<>();\n        private final int capacity = 3;\n\n        public synchronized void put(String item) throws InterruptedException {\n            while (queue.size() == capacity) { // 必须用 while!\n                System.out.println(\"  [队列满] \" + Thread.currentThread().getName() + \" 等待...\");\n                wait();\n            }\n            queue.offer(item);\n            System.out.println(\"  生产: \" + item + \" (库存 \" + queue.size() + \")\");\n            notifyAll(); // 叫醒可能在等的消费者\n        }\n\n        public synchronized String take() throws InterruptedException {\n            while (queue.isEmpty()) { // 必须用 while!\n                System.out.println(\"  [队列空] 消费者等待...\");\n                wait();\n            }\n            String item = queue.poll();\n            System.out.println(\"  消费: \" + item + \" (库存 \" + queue.size() + \")\");\n            notifyAll(); // 叫醒可能在等的生产者\n            return item;\n        }\n    }\n\n    public static void main(String[] args) throws InterruptedException {\n        MiniBlockingQueue q = new MiniBlockingQueue();\n\n        // 2 个生产者,各生产 4 个面包\n        Runnable producer = () -> {\n            try {\n                for (int i = 1; i <= 4; i++) {\n                    q.put(Thread.currentThread().getName() + \"-面包\" + i);\n                    Thread.sleep(150);\n                }\n            } catch (InterruptedException e) {\n                Thread.currentThread().interrupt();\n            }\n        };\n        // 1 个消费者,吃 8 个\n        Thread consumer = new Thread(() -> {\n            try {\n                for (int i = 0; i < 8; i++) {\n                    q.take();\n                    Thread.sleep(400); // 吃得慢,队列会满\n                }\n            } catch (InterruptedException e) {\n                Thread.currentThread().interrupt();\n            }\n        }, \"吃货\");\n\n        Thread p1 = new Thread(producer, \"面包师甲\");\n        Thread p2 = new Thread(producer, \"面包师乙\");\n        p1.start(); p2.start(); consumer.start();\n        p1.join();  p2.join();  consumer.join();\n        System.out.println(\"全部生产消费完毕!\");\n    }\n}"
@@ -1075,7 +1075,7 @@
           "lessonNo": 4,
           "title": "线程池与 CompletableFuture",
           "summary": "为什么不 new Thread,线程池参数怎么配,以及优雅的异步编排。",
-          "difficulty": 4,
+          "difficulty": 3,
           "durationMinutes": 30,
           "content": "## 为什么不要用 new Thread\n- 线程是昂贵资源: 创建/销毁开销大,无限制创建会 OOM\n- 线程池 = 线程的\"共享单车\": 复用固定数量的线程处理海量任务\n\n## ThreadPoolExecutor 核心参数\n- corePoolSize 核心线程数 / maximumPoolSize 最大线程数\n- workQueue 任务队列: 核心满了排队,队列满了才扩到最大\n- 拒绝策略: AbortPolicy(默认抛异常) / CallerRunsPolicy(提交者自己跑,天然背压)\n- Executors 快捷工厂: newFixedThreadPool / newCachedThreadPool(慎用,可无限膨胀)\n\n## submit 与 Future\n- execute(Runnable): 只执行,没返回值\n- submit(Callable): 返回 Future,get() 阻塞拿结果——但 get 阻塞就失去了异步意义\n\n## CompletableFuture: 现代异步编排\n- supplyAsync(任务): 异步执行并返回结果\n- thenApply(转换) / thenAccept(消费) / thenCompose(串联下一个异步) / thenCombine(合并两个结果)\n- 链式写法像 Stream,异常用 exceptionally 兜底——告别回调地狱\n\n## 动手做\n右侧代码用 CompletableFuture 编排一个\"查用户信息 + 查订单 + 合并展示\"的异步流程。",
           "codeExample": "import java.util.concurrent.CompletableFuture;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        ExecutorService pool = Executors.newFixedThreadPool(3);\n\n        // 模拟两个远程查询(各耗时 300ms/500ms)\n        CompletableFuture<String> userFuture = CompletableFuture.supplyAsync(() -> {\n            sleep(300);\n            System.out.println(\"  [完成] 查询用户信息 (\" + Thread.currentThread().getName() + \")\");\n            return \"张三(VIP3)\";\n        }, pool);\n\n        CompletableFuture<String> orderFuture = CompletableFuture.supplyAsync(() -> {\n            sleep(500);\n            System.out.println(\"  [完成] 查询最近订单 (\" + Thread.currentThread().getName() + \")\");\n            return \"订单#9527 已发货\";\n        }, pool);\n\n        long begin = System.currentTimeMillis();\n\n        // 合并两个异步结果: 并行执行,都完成后才合并\n        CompletableFuture<String> page = userFuture.thenCombine(orderFuture,\n                (user, order) -> \"个人主页 | \" + user + \" | \" + order);\n\n        System.out.println(\"主线程不阻塞,可以先做别的事...\");\n\n        // 链式加工 + 异常兜底\n        String result = page\n                .thenApply(s -> s + \" | 更新时间: 刚刚\")\n                .exceptionally(ex -> \"页面加载失败,展示默认页\")\n                .get(); // 最终汇总时才等待\n\n        System.out.println(result);\n        System.out.println(\"总耗时: \" + (System.currentTimeMillis() - begin) + \"ms\"\n                + \" (并行! 串行需要 300+500=800ms)\");\n\n        pool.shutdown();\n        pool.awaitTermination(2, TimeUnit.SECONDS);\n    }\n\n    static void sleep(int ms) {\n        try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }\n    }\n}"
@@ -1245,7 +1245,7 @@
           "lessonNo": 6,
           "title": "模板方法 + 责任链:流程类模式",
           "summary": "骨架复用与逐级审批,两个流程控制模式的组合拳。",
-          "difficulty": 4,
+          "difficulty": 3,
           "durationMinutes": 30,
           "content": "## 模板方法: 好莱坞原则\"别打电话给我们,我们会打给你\"\n- 父类定义算法骨架(固定流程),子类实现其中的可变步骤\n- 例: 泡茶与泡咖啡都是\"烧水->冲泡->倒杯->加料\",只有\"冲泡\"和\"加料\"不同\n- JDK 案例: AbstractList(骨架) -> ArrayList(实现细节);Servlet 的 service() -> doGet/doPost\n\n## 责任链: 请求在链条上漂流\n- 多个处理器连成链,请求依次传递,直到有人处理(或全部拒绝)\n- 例: 请假审批(组长->经理->总监,按天数升级)、Web 过滤器链(FilterChain)\n- 优势: 发起方不知道谁会处理,链条顺序与成员可动态调整\n\n## 两个模式的组合拳\n- 审批系统: 每个审批人是责任链的一环;每个审批人内部\"收单->校验->签字->流转\"是模板方法\n- Spring MVC 的拦截器链、Servlet Filter 链都是责任链的工业实现\n\n## 动手做\n右侧代码实现一个请假审批系统: 责任链负责逐级上报,模板方法统一每个审批人的处理骨架。",
           "codeExample": "public class Main {\n\n    /** 审批请求 */\n    record LeaveRequest(String employee, int days, String reason) {}\n\n    /** 责任链 + 模板方法: 审批人抽象 */\n    static abstract class Approver {\n        protected Approver next; // 链条上的下一棒\n\n        Approver setNext(Approver next) { this.next = next; return next; }\n\n        /** 模板方法: 固定处理骨架,子类只实现\"能否批\"和\"怎么批\" */\n        final void handle(LeaveRequest req) {\n            if (canApprove(req)) {\n                doApprove(req); // 可变步骤 1\n            } else if (next != null) {\n                System.out.println(\"  \" + name() + \": 权限不足(\" + maxDays() + \"天),上报上级\");\n                next.handle(req); // 传给下一棒\n            } else {\n                System.out.println(\"  \" + name() + \": 链条到头,没人能批,拒绝!\");\n            }\n        }\n\n        abstract boolean canApprove(LeaveRequest req); // 可变步骤 2\n        abstract int maxDays();\n        abstract String name();\n\n        void doApprove(LeaveRequest req) {\n            System.out.println(\"  \" + name() + \": 批准 \" + req.employee()\n                    + \" 请假 \" + req.days() + \" 天(\" + req.reason() + \")\");\n        }\n    }\n\n    static class TeamLeader extends Approver {\n        boolean canApprove(LeaveRequest r) { return r.days() <= 2; }\n        int maxDays() { return 2; }\n        String name() { return \"组长\"; }\n    }\n    static class Manager extends Approver {\n        boolean canApprove(LeaveRequest r) { return r.days() <= 5; }\n        int maxDays() { return 5; }\n        String name() { return \"经理\"; }\n    }\n    static class Director extends Approver {\n        boolean canApprove(LeaveRequest r) { return r.days() <= 15; }\n        int maxDays() { return 15; }\n        String name() { return \"总监\"; }\n    }\n\n    public static void main(String[] args) {\n        // 组装责任链: 组长 -> 经理 -> 总监\n        Approver chain = new TeamLeader();\n        chain.setNext(new Manager()).setNext(new Director());\n\n        LeaveRequest[] requests = {\n            new LeaveRequest(\"小王\", 1, \"家里有事\"),\n            new LeaveRequest(\"小李\", 4, \"年假旅行\"),\n            new LeaveRequest(\"小张\", 10, \"婚假\"),\n            new LeaveRequest(\"老周\", 30, \"环球旅行\"),\n        };\n        for (LeaveRequest r : requests) {\n            System.out.println(\"申请: \" + r.employee() + \" 请假 \" + r.days() + \" 天\");\n            chain.handle(r);\n        }\n        System.out.println(\"对照思考: Servlet 的 FilterChain、Spring 拦截器链都是这个模式\");\n    }\n}"
@@ -1292,7 +1292,7 @@
           "lessonNo": 4,
           "title": "非对称加密与数字签名:RSA 实战",
           "summary": "公私钥对、加密与签名的区别,HTTPS 握手的原理骨架。",
-          "difficulty": 4,
+          "difficulty": 3,
           "durationMinutes": 25,
           "content": "## 非对称加密\n- 一对密钥: 公钥公开、私钥自己藏好\n- 公钥加密 -> 只有私钥能解(保密);私钥签名 -> 公钥能验(身份与完整性)\n- 代价: 比对称加密慢上百倍,所以只用于\"加密密钥\"或\"签名\",不用于大数据\n\n## RSA 的两个典型用法\n- 加密: A 用 B 的公钥加密 -> B 用自己的私钥解密。适合传\"对称密钥\"这类小数据\n- 签名: A 用自己的私钥对消息摘要签名 -> 任何人用 A 的公钥验证,证明\"确实是 A 发的且没被篡改\"\n- 关键区分: 加密用对方公钥,签名用自己的私钥——用反了毫无安全意义\n\n## HTTPS 握手骨架(理解即可)\n- 客户端发起请求 -> 服务器返回证书(内含公钥)\n- 客户端用公钥加密一个随机\"会话密钥\"发过去 -> 双方用这个对称密钥通信\n- 证书由 CA 签发: 客户端用 CA 的公钥验证证书签名,确认服务器身份不是冒充的\n- 结论: 非对称负责\"安全地协商密钥 + 验身份\",对称负责\"快速加密数据\"\n\n## JDK 内置 API\n- KeyPairGenerator.getInstance(\"RSA\").initialize(2048) 生成密钥对\n- Signature.getInstance(\"SHA256withRSA\") -> initSign(私钥)/initVerify(公钥) -> update + sign/verify\n\n## 动手做\n右侧代码完整演示: 私钥签名 + 公钥验证成功、被篡改后验证失败;试着用 2048 位密钥观察耗时变化。",
           "codeExample": "import java.nio.charset.StandardCharsets;\nimport java.security.KeyPair;\nimport java.security.KeyPairGenerator;\nimport java.security.Signature;\nimport java.util.Base64;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        // 1. 生成 RSA 密钥对(演示用 1024 位;生产建议 2048 以上)\n        KeyPairGenerator kpg = KeyPairGenerator.getInstance(\"RSA\");\n        kpg.initialize(1024);\n        KeyPair keyPair = kpg.generateKeyPair();\n        System.out.println(\"密钥对已生成: \" + keyPair.getPublic().getAlgorithm()\n                + \" \" + keyPair.getPublic().getEncoded().length * 8 + \" 位(公钥)\");\n\n        String message = \"转账 100 元给张三,订单号 NO-9527\";\n\n        // 2. 用私钥签名\n        Signature signer = Signature.getInstance(\"SHA256withRSA\");\n        signer.initSign(keyPair.getPrivate());\n        signer.update(message.getBytes(StandardCharsets.UTF_8));\n        byte[] signature = signer.sign();\n        String signatureB64 = Base64.getEncoder().encodeToString(signature);\n        System.out.println(\"\\n原文: \" + message);\n        System.out.println(\"签名(前 40 字符): \" + signatureB64.substring(0, 40) + \"...\");\n\n        // 3. 用公钥验证(任何人拿公钥都能验)\n        Signature verifier = Signature.getInstance(\"SHA256withRSA\");\n        verifier.initVerify(keyPair.getPublic());\n        verifier.update(message.getBytes(StandardCharsets.UTF_8));\n        System.out.println(\"\\n验证原始消息: \" + (verifier.verify(signature) ? \"通过 ✓\" : \"失败 ✗\"));\n\n        // 4. 篡改消息 -> 验证失败(这就是\"防篡改\")\n        String tampered = \"转账 10000 元给张三,订单号 NO-9527\";\n        Signature verifier2 = Signature.getInstance(\"SHA256withRSA\");\n        verifier2.initVerify(keyPair.getPublic());\n        verifier2.update(tampered.getBytes(StandardCharsets.UTF_8));\n        System.out.println(\"验证被篡改的消息: \" + (verifier2.verify(signature) ? \"通过 ✓\" : \"失败 ✗\"));\n        System.out.println(\"> 金额从 100 改成 10000,签名立刻失效\\n\");\n\n        System.out.println(\"HTTPS 类比: 服务器证书 = 公钥 + CA 签名;\");\n        System.out.println(\"客户端验证 CA 签名 -> 确认服务器身份 -> 再协商会话密钥\");\n    }\n}"
@@ -1368,7 +1368,7 @@
           "lessonNo": 3,
           "title": "从 Servlet 到 MVC:分层与路由设计",
           "summary": "用 HttpServer 实现一个真正的迷你 MVC 框架,理解 DispatcherServlet 思想。",
-          "difficulty": 4,
+          "difficulty": 3,
           "durationMinutes": 30,
           "content": "## MVC 要解决的问题\n- Servlet 时代: 一个 URL 一个类,业务代码、参数解析、响应拼装全挤在一起\n- MVC 分层: Model(数据) - View(展示) - Controller(调度),各司其职\n- Spring MVC 的分工: DispatcherServlet(前端控制器) 找 HandlerMapping(路由) -> HandlerAdapter(执行) -> ViewResolver(视图)\n\n## 本项目就是标准 MVC\n- controller 层: 只做参数接收与响应返回(LearningController)\n- service 层: 业务逻辑(LearningService)\n- repository 层: 数据访问(LearningChapterRepository)\n- entity/dto: Model 的不同视角(entity 面向数据库,dto 面向接口)\n\n## 路由的本质\n- 核心是一张表: (HTTP 方法 + URL 模式) -> 处理函数\n- Spring 的 @GetMapping(\"/lessons/{id}\") 背后就是扫描注解建表 + 路径参数提取\n- 通配符/路径变量: /lessons/{id} 要能匹配 /lessons/42 并提取 id=42\n\n## 动手做\n右侧代码实现迷你 MVC: 注解式路由注册 + 路径变量提取 + 统一 JSON 响应,完整体验 Spring MVC 的核心思想。",
           "codeExample": "import com.sun.net.httpserver.HttpServer;\nimport java.lang.annotation.*;\nimport java.lang.reflect.Method;\nimport java.net.InetSocketAddress;\nimport java.nio.charset.StandardCharsets;\nimport java.util.*;\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\npublic class Main {\n\n    // ---------- 1. 定义注解(对照 Spring 的 @RestController / @GetMapping) ----------\n    @Retention(RetentionPolicy.RUNTIME)\n    @Target(ElementType.METHOD)\n    @interface GetMapping { String value(); }\n\n    @Retention(RetentionPolicy.RUNTIME)\n    @Target(ElementType.TYPE)\n    @interface RestController { }\n\n    // ---------- 2. 控制器(对照本项目 LearningController) ----------\n    @RestController\n    static class UserController {\n        @GetMapping(\"/api/users\")\n        public String list() {\n            return \"{\\\"code\\\":0,\\\"data\\\":[\\\"张三\\\",\\\"李四\\\"]}\";\n        }\n\n        @GetMapping(\"/api/users/{id}\")\n        public String detail(String id) {\n            return \"{\\\"code\\\":0,\\\"data\\\":{\\\"id\\\":\" + id + \",\\\"name\\\":\\\"用户\" + id + \"\\\"}}\";\n        }\n    }\n\n    // ---------- 3. 迷你 DispatcherServlet: 扫描注解 + 建路由表 + 分发 ----------\n    static class MiniDispatcher {\n        record Route(Pattern pattern, List<String> vars, Method method, Object handler) { }\n        final List<Route> routes = new ArrayList<>();\n\n        void register(Object controller) {\n            if (!controller.getClass().isAnnotationPresent(RestController.class)) return;\n            for (Method m : controller.getClass().getDeclaredMethods()) {\n                GetMapping mapping = m.getAnnotation(GetMapping.class);\n                if (mapping == null) continue;\n                // 把 /api/users/{id} 编译成正则,同时记录变量名\n                List<String> vars = new ArrayList<>();\n                StringBuilder regexSb = new StringBuilder();\n                Matcher matcher = Pattern.compile(\"\\\\{([^/]+)\\\\}\").matcher(mapping.value());\n                while (matcher.find()) {\n                    vars.add(matcher.group(1));\n                    matcher.appendReplacement(regexSb, \"([^/]+)\");\n                }\n                matcher.appendTail(regexSb);\n                String regex = regexSb.toString();\n                routes.add(new Route(Pattern.compile(\"^\" + regex + \"$\"), vars, m, controller));\n                System.out.println(\"  [路由注册] GET \" + mapping.value()\n                        + \" -> \" + controller.getClass().getSimpleName() + \"#\" + m.getName());\n            }\n        }\n\n        String dispatch(String httpMethod, String path) {\n            for (Route r : routes) {\n                Matcher matcher = r.pattern().matcher(path);\n                if (!matcher.matches()) continue;\n                try {\n                    Object[] args = new Object[r.vars().size()];\n                    for (int i = 0; i < args.length; i++) args[i] = matcher.group(i + 1);\n                    return (String) r.method().invoke(r.handler(), args);\n                } catch (Exception e) {\n                    return \"{\\\"code\\\":500,\\\"message\\\":\\\"服务器内部错误\\\"}\";\n                }\n            }\n            return \"{\\\"code\\\":404,\\\"message\\\":\\\"没有匹配的路由\\\"}\";\n        }\n    }\n\n    public static void main(String[] args) throws Exception {\n        System.out.println(\"[启动] 扫描控制器,建立路由表:\");\n        MiniDispatcher dispatcher = new MiniDispatcher();\n        dispatcher.register(new UserController());\n\n        HttpServer server = null;\n        try {\n            server = HttpServer.create(new InetSocketAddress(\"127.0.0.1\", 18082), 0);\n            server.createContext(\"/\", exchange -> {\n                String path = exchange.getRequestURI().getPath();\n                String body = dispatcher.dispatch(exchange.getRequestMethod(), path);\n                byte[] bytes = body.getBytes(StandardCharsets.UTF_8);\n                exchange.getResponseHeaders().set(\"Content-Type\", \"application/json; charset=utf-8\");\n                exchange.sendResponseHeaders(200, bytes.length);\n                try (var os = exchange.getResponseBody()) { os.write(bytes); }\n            });\n            server.start();\n            Thread.sleep(200);\n\n            System.out.println(\"\\n[测试] 模拟客户端请求:\");\n            var client = java.net.http.HttpClient.newHttpClient();\n            for (String p : new String[]{\"/api/users\", \"/api/users/42\", \"/api/orders\"}) {\n                var resp = client.send(java.net.http.HttpRequest.newBuilder(\n                                java.net.URI.create(\"http://127.0.0.1:18082\" + p)).build(),\n                        java.net.http.HttpResponse.BodyHandlers.ofString());\n                System.out.println(\"  GET \" + p);\n                System.out.println(\"    -> \" + resp.body());\n            }\n        } catch (Exception e) {\n            System.out.println(\"沙箱环境可能限制端口绑定: \" + e.getMessage());\n        } finally {\n            if (server != null) server.stop(0);\n        }\n\n        System.out.println(\"\\n这就是 Spring MVC 的核心机制:\");\n        System.out.println(\"  @GetMapping 注解 -> 扫描建路由表 -> 按路径匹配 -> 提取路径变量 -> 反射调用\");\n    }\n}"
@@ -1388,7 +1388,7 @@
           "lessonNo": 1,
           "title": "手写迷你 IoC 容器:依赖注入的原理",
           "summary": "用反射 + 注解实现一个能跑通的容器,理解控制反转到底反转了什么。",
-          "difficulty": 4,
+          "difficulty": 3,
           "durationMinutes": 30,
           "content": "## 什么是 IoC / DI\n- 传统写法: 需要什么对象,自己 new——谁用谁创建,依赖关系硬编码\n- 控制反转(IoC): 对象的创建与依赖装配交给容器,你只说\"我需要什么\"\n- 依赖注入(DI): IoC 的实现手段——构造器注入、setter 注入、字段注入\n\n## 反转了什么\n- 控制权反转: 从\"代码控制对象创建\"变成\"容器控制,代码被动接收\"\n- 好处: 解耦(可替换实现)、便于测试(可注入 Mock)、统一管理生命周期(单例)\n\n## Spring 容器的工作流程(迷你版)\n- 1. 扫描: 找出带 @Component/@Service/@Repository 的类 -> 得到\"Bean 定义表\"\n- 2. 实例化: 反射调用无参构造创建对象\n- 3. 注入: 遍历字段,发现 @Autowired 就从容器里找出同类型对象塞进去\n- 4. 提供: getBean(Class) 按类型取\n\n## 本项目对照\n- spring-boot-learning 中 30+ 个 @Service/@Repository/@RestController 全部由容器托管\n- LearningServiceImpl 里 @Autowired private LearningChapterRepository —— 正是本课要手写的机制\n\n## 动手做\n右侧代码实现完整迷你容器: 扫描注解 -> 实例化 -> 字段注入 -> 依赖链自动解析(UserService 依赖 UserRepository)。",
           "codeExample": "import java.lang.annotation.*;\nimport java.lang.reflect.Field;\nimport java.util.*;\n\npublic class Main {\n\n    // ---------- 注解(对照 Spring 的 @Component / @Autowired) ----------\n    @Retention(RetentionPolicy.RUNTIME) @Target(ElementType.TYPE)\n    @interface Component { }\n\n    @Retention(RetentionPolicy.RUNTIME) @Target(ElementType.FIELD)\n    @interface Autowired { }\n\n    @Component\n    static class UserRepository {\n        public String findById(long id) { return \"用户#\" + id + \" 张三\"; }\n    }\n\n    @Component\n    static class ScoreRepository {\n        public int scoreOf(long id) { return 88; }\n    }\n\n    @Component\n    static class UserService {\n        @Autowired private UserRepository userRepository;\n        @Autowired private ScoreRepository scoreRepository;\n\n        public String describe(long id) {\n            if (userRepository == null) return \"依赖未注入!\";\n            return userRepository.findById(id) + \", 成绩 \" + scoreRepository.scoreOf(id);\n        }\n    }\n\n    // ---------- 迷你 IoC 容器 ----------\n    static class MiniApplicationContext {\n        private final Map<Class<?>, Object> beans = new HashMap<>();\n\n        MiniApplicationContext(Class<?>... candidates) {\n            // 第 1 步: 扫描 -> 实例化\n            for (Class<?> c : candidates) {\n                if (c.isAnnotationPresent(Component.class)) {\n                    try {\n                        Object instance = c.getDeclaredConstructor().newInstance();\n                        beans.put(c, instance);\n                        System.out.println(\"  [容器] 实例化 \" + c.getSimpleName());\n                    } catch (Exception e) {\n                        throw new RuntimeException(e);\n                    }\n                }\n            }\n            // 第 2 步: 注入 @Autowired 字段\n            for (Object bean : beans.values()) {\n                for (Field f : bean.getClass().getDeclaredFields()) {\n                    if (!f.isAnnotationPresent(Autowired.class)) continue;\n                    Object dependency = beans.get(f.getType());\n                    if (dependency == null) {\n                        throw new IllegalStateException(\"找不到依赖: \" + f.getType().getSimpleName());\n                    }\n                    f.setAccessible(true);\n                    try { f.set(bean, dependency); } catch (Exception e) { throw new RuntimeException(e); }\n                    System.out.println(\"  [容器] 注入 \" + bean.getClass().getSimpleName()\n                            + \".\" + f.getName() + \" <- \" + dependency.getClass().getSimpleName());\n                }\n            }\n        }\n\n        <T> T getBean(Class<T> type) { return type.cast(beans.get(type)); }\n    }\n\n    public static void main(String[] args) {\n        System.out.println(\"[启动] 扫描并装配 Bean:\");\n        MiniApplicationContext ctx = new MiniApplicationContext(\n                UserRepository.class, ScoreRepository.class, UserService.class);\n\n        System.out.println(\"\\n[使用] 从容器取 Bean 并调用:\");\n        UserService service = ctx.getBean(UserService.class);\n        System.out.println(\"  \" + service.describe(1001));\n        System.out.println(\"  \" + service.describe(1002));\n\n        System.out.println(\"\\n[验证] 单例: 两次 getBean 是同一对象? \"\n                + (ctx.getBean(UserService.class) == service));\n\n        System.out.println(\"\\n对照 Spring: @SpringBootApplication 启动时做的就是上述过程,\");\n        System.out.println(\"只是支持了构造器注入、循环依赖、AOP 代理、作用域等更多细节\");\n    }\n}"
@@ -1406,7 +1406,7 @@
           "lessonNo": 3,
           "title": "AOP 与动态代理:横切关注点",
           "summary": "用 JDK 动态代理亲手实现日志切面,看懂本项目 @OperationLog 的实现。",
-          "difficulty": 4,
+          "difficulty": 3,
           "durationMinutes": 30,
           "content": "## 什么是横切关注点\n- 日志、事务、权限、缓存、性能监控——它们散布在所有业务方法上,却与业务逻辑无关\n- 如果每个方法都手写\"记日志 + 开事务 + 校验权限\",代码将被污染成\"业务 + 样板\"的混合物\n- AOP(面向切面编程)把这些横切逻辑\"抽取到切面\",由代理在方法前后自动织入\n\n## Spring AOP 的四个概念\n- 切点(Pointcut): 在哪些方法上织入,如 execution(* com.learning..service..*(..))\n- 通知(Advice): 何时做什么——@Before/@After/@Around/@AfterThrowing\n- 切面(Aspect): 切点 + 通知的组合(@Aspect 类)\n- 织入(Weaving): 生成代理对象,把通知嵌进方法调用链\n\n## 底层:动态代理\n- JDK 动态代理: 基于接口,Proxy.newProxyInstance + InvocationHandler——Spring 默认\n- CGLIB: 基于继承生成子类,可代理没有接口的类\n- 关键结论: 代理对象是\"包装过的壳\",调用方法时先过壳(切面),再到真实对象\n\n## 本项目实战\n- LoggingAspect 用 @Around 记录每个 Service/Controller 方法的耗时与参数\n- @OperationLog 注解 + AOP 把用户操作写进 t_operation_log 表\n- 你在日志里看到的 \"[AOP] 调用 LearningServiceImpl.getLessonDetail, 参数: [86, 1]\" 就是切面输出的\n\n## 动手做\n右侧代码用 JDK 动态代理实现日志切面与耗时统计,再手写一个简化版 @OperationLog 注解拦截器。",
           "codeExample": "import java.lang.reflect.InvocationHandler;\nimport java.lang.reflect.Method;\nimport java.lang.reflect.Proxy;\n\ninterface UserService {\n    void save(String user);\n}\n\npublic class Main {\n    public static void main(String[] args) {\n        UserService target = user -> System.out.println(\"业务: 保存 \" + user);\n\n        // JDK 动态代理: 在不改业务代码的前提下织入横切逻辑(日志/耗时)\n        UserService proxy = (UserService) Proxy.newProxyInstance(\n            Main.class.getClassLoader(),\n            new Class[]{UserService.class},\n            (proxyObj, method, args2) -> {\n                long t = System.nanoTime();\n                System.out.println(\"[AOP] \" + method.getName() + \" 开始\");\n                Object r = method.invoke(target, args2);\n                System.out.println(\"[AOP] \" + method.getName() + \" 耗时 \"\n                    + (System.nanoTime() - t) / 1000 + \"us\");\n                return r;\n            });\n\n        proxy.save(\"张三\");\n    }\n}",
@@ -1416,7 +1416,7 @@
           "lessonNo": 4,
           "title": "声明式事务:@Transactional 的原理与陷阱",
           "summary": "事务传播、回滚规则,以及自调用失效这个经典坑。",
-          "difficulty": 4,
+          "difficulty": 3,
           "durationMinutes": 25,
           "content": "## @Transactional 做了什么\n- 加在方法上,Spring 通过 AOP 代理在方法前开启事务、正常返回后提交、抛异常后回滚\n- 你一行代码没写,事务就生效了——这是声明式编程的威力\n- 本质: 一个 @Around 通知,包裹了 TransactionManager 的 begin/commit/rollback\n\n## 三条必知规则\n- 默认只对 RuntimeException 和 Error 回滚;受检异常(IOException)不会回滚 -> 需显式 @Transactional(rollbackFor = Exception.class)\n- 只对 public 方法生效(代理机制决定);private/protected 上加了也无效\n- 默认传播行为 REQUIRED: 加入当前事务;如果本来没事务就开一个新的\n\n## 最经典的坑:自调用失效\n- 同类内部直接调用(this.method())不经过代理 -> 事务、AOP 全部不生效!\n- 原因: 事务靠代理织入,自调用走的是原始对象,绕过了壳\n- 解法: 拆到另一个类、注入自身(@Lazy 自注入)、或用 AopContext.currentProxy()\n\n## 其他常见陷阱\n- try-catch 吞掉异常: 事务管理器看不到异常,以为成功了就提交 -> 数据不一致\n- 事务方法里做长耗时操作(远程调用、循环): 连接被长时间占用,拖垮数据库\n- 大事务: 一次修改几万行,锁范围大、回滚代价高 -> 拆小批处理\n\n## 本项目对照\n- 种子服务 LearningDataSeedService.seedLearningData 标了 @Transactional(rollbackFor = Exception.class):\n  课程导入要么全成功要么全回滚,不会留下半截数据\n\n## 动手做\n右侧代码用动态代理模拟事务管理器,演示\"正常提交 / 异常回滚 / 自调用失效\"三种情况。",
           "codeExample": "import java.lang.reflect.Proxy;\nimport java.util.ArrayList;\nimport java.util.List;\n\ninterface AccountDao {\n    void transfer(String from, String to, double amount);\n}\n\npublic class Main {\n    static final List<String> TX_LOG = new ArrayList<>();\n\n    public static void main(String[] args) {\n        AccountDao dao = (from, to, amount) ->\n            System.out.println(\"业务: \" + from + \" -> \" + to + \" \" + amount);\n\n        // 用代理模拟 @Transactional: 方法前 BEGIN, 正常 COMMIT, 异常 ROLLBACK\n        AccountDao tx = (AccountDao) Proxy.newProxyInstance(\n            Main.class.getClassLoader(), new Class[]{AccountDao.class},\n            (p, m, a) -> {\n                TX_LOG.add(\"BEGIN\");\n                try {\n                    Object r = m.invoke(dao, a);\n                    TX_LOG.add(\"COMMIT\");\n                    return r;\n                } catch (Exception e) {\n                    TX_LOG.add(\"ROLLBACK: \" + e.getCause().getMessage());\n                    throw e;\n                }\n            });\n\n        tx.transfer(\"张三\", \"李四\", 100);\n        System.out.println(\"事务日志: \" + TX_LOG);\n        System.out.println(\"经典陷阱: 同类内部自调用不走代理, 事务会失效!\");\n    }\n}",
@@ -1484,7 +1484,7 @@
           "lessonNo": 2,
           "title": "核心组件与迷你实现:注册中心与服务调用",
           "summary": "用纯 Java 实现服务注册发现、负载均衡与网关路由,建立组件直觉。",
-          "difficulty": 4,
+          "difficulty": 3,
           "durationMinutes": 30,
           "content": "## Spring Cloud 生态的核心组件\n- 注册中心(Nacos / Eureka): 服务启动时上报自己的地址;调用方从这里查可用实例列表\n- 客户端负载均衡(LoadBalancer): 从实例列表里按策略(轮询/随机/权重)挑一个发请求\n- 网关(Spring Cloud Gateway): 统一入口,负责路由转发、鉴权、限流、跨域\n- 配置中心(Nacos Config / Apollo): 配置集中管理,支持热更新\n- 熔断降级(Sentinel / Resilience4j): 下游挂了快速失败,避免连环雪崩\n- 链路追踪(SkyWalking / Sleuth): 给请求打 TraceId,跨服务串起完整调用链\n\n## 为什么需要注册中心\n- 容器化部署下实例 IP 与端口都是动态的,写死在配置里必然失效\n- 服务注册: 实例启动 -> PUT 自己的地址到注册中心 -> 定期心跳续约\n- 服务发现: 调用方 GET 服务名 -> 拿到实例列表 -> 本地缓存 + 定时刷新\n\n## 网关做了什么\n- 路由: /api/user/** -> 用户服务;/api/order/** -> 订单服务\n- 鉴权: 校验 JWT 后再放行,下游服务不必各自实现(本项目 JwtAuthFilter 在单体中的应用)\n- 限流: 按 IP/用户令牌桶限流,保护后端\n\n## 本项目的定位\n- 目前是单体应用(前端 + 后端两个进程),但分层清晰、接口统一——具备拆分的良好基础\n- 拆分路径: 提取 JwtAuthFilter 到网关 -> 按业务域拆 UserService/LearningService -> 引入 Nacos + OpenFeign\n\n## 动手做\n右侧代码用纯 Java 实现迷你版: 注册中心(注册/心跳/发现) + 轮询负载均衡 + 网关路由,完整跑通一次\"下单\"链路。",
           "codeExample": "import java.util.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.AtomicInteger;\n\npublic class Main {\n\n    // ---------- 1. 迷你注册中心(对照 Nacos / Eureka) ----------\n    static class ServiceRegistry {\n        // 服务名 -> 实例地址列表\n        private final Map<String, List<String>> services = new ConcurrentHashMap<>();\n        private final Map<String, Long> heartbeats = new ConcurrentHashMap<>();\n\n        void register(String serviceName, String address) {\n            services.computeIfAbsent(serviceName, k -> new CopyOnWriteArrayList<>()).add(address);\n            heartbeats.put(address, System.currentTimeMillis());\n            System.out.println(\"  [注册中心] \" + serviceName + \" 注册实例: \" + address\n                    + \" (共 \" + services.get(serviceName).size() + \" 个实例)\");\n        }\n\n        /** 心跳续约: 超时未续约的实例会被摘除 */\n        void heartbeat(String address) { heartbeats.put(address, System.currentTimeMillis()); }\n\n        List<String> discover(String serviceName) {\n            List<String> list = services.getOrDefault(serviceName, List.of());\n            System.out.println(\"  [注册中心] \" + serviceName + \" 被查询,返回 \" + list.size() + \" 个可用实例\");\n            return list;\n        }\n\n        void healthCheck(long timeoutMs) {\n            long now = System.currentTimeMillis();\n            heartbeats.forEach((addr, last) -> {\n                if (now - last > timeoutMs) {\n                    services.values().forEach(l -> l.remove(addr));\n                    System.out.println(\"  [注册中心] 实例心跳超时,已摘除: \" + addr);\n                }\n            });\n        }\n    }\n\n    // ---------- 2. 客户端负载均衡(轮询,对照 Spring Cloud LoadBalancer) ----------\n    static class RoundRobinLoadBalancer {\n        private final AtomicInteger counter = new AtomicInteger();\n        private final ServiceRegistry registry;\n\n        RoundRobinLoadBalancer(ServiceRegistry registry) { this.registry = registry; }\n\n        String choose(String serviceName) {\n            List<String> instances = registry.discover(serviceName);\n            if (instances.isEmpty()) throw new IllegalStateException(\"没有可用实例: \" + serviceName);\n            String chosen = instances.get(Math.abs(counter.getAndIncrement()) % instances.size());\n            System.out.println(\"  [负载均衡] 轮询选中: \" + chosen);\n            return chosen;\n        }\n    }\n\n    // ---------- 3. 迷你网关(对照 Spring Cloud Gateway) ----------\n    static class Gateway {\n        private final Map<String, String> routeRules = new LinkedHashMap<>(); // 路径前缀 -> 服务名\n        private final RoundRobinLoadBalancer lb;\n        private final Map<String, String> tokens = Map.of(\"valid-token-123\", \"admin\");\n\n        Gateway(RoundRobinLoadBalancer lb) { this.lb = lb; }\n\n        void route(String pathPrefix, String serviceName) {\n            routeRules.put(pathPrefix, serviceName);\n            System.out.println(\"  [网关] 路由规则: \" + pathPrefix + \"** -> \" + serviceName);\n        }\n\n        String forward(String path, String token) {\n            System.out.println(\"\\n  [网关] 收到请求: \" + path);\n            // 步骤1: 统一鉴权(下游服务不再各自校验)\n            if (token == null || !tokens.containsKey(token)) {\n                System.out.println(\"  [网关] 鉴权失败 -> 返回 401\");\n                return \"401 Unauthorized\";\n            }\n            System.out.println(\"  [网关] 鉴权通过,用户: \" + tokens.get(token));\n            // 步骤2: 匹配路由\n            for (Map.Entry<String, String> e : routeRules.entrySet()) {\n                if (path.startsWith(e.getKey())) {\n                    System.out.println(\"  [网关] 匹配路由 \" + e.getKey() + \"** -> \" + e.getValue());\n                    // 步骤3: 负载均衡选实例 -> 转发\n                    String instance = lb.choose(e.getValue());\n                    return \"200 OK (来自 \" + instance + \" 的响应)\";\n                }\n            }\n            System.out.println(\"  [网关] 无匹配路由 -> 404\");\n            return \"404 Not Found\";\n        }\n    }\n\n    public static void main(String[] args) throws Exception {\n        ServiceRegistry registry = new ServiceRegistry();\n        RoundRobinLoadBalancer lb = new RoundRobinLoadBalancer(registry);\n        Gateway gateway = new Gateway(lb);\n\n        System.out.println(\"=== 1. 服务启动并注册 ===\");\n        registry.register(\"user-service\", \"10.0.0.1:8081\");\n        registry.register(\"user-service\", \"10.0.0.2:8081\");\n        registry.register(\"order-service\", \"10.0.0.3:8082\");\n\n        System.out.println(\"\\n=== 2. 网关配置路由 ===\");\n        gateway.route(\"/api/user\", \"user-service\");\n        gateway.route(\"/api/order\", \"order-service\");\n\n        System.out.println(\"\\n=== 3. 客户端请求(观察负载均衡轮询) ===\");\n        System.out.println(\"  -> \" + gateway.forward(\"/api/user/profile\", \"valid-token-123\"));\n        System.out.println(\"  -> \" + gateway.forward(\"/api/user/orders\", \"valid-token-123\"));\n        System.out.println(\"  -> \" + gateway.forward(\"/api/order/create\", \"valid-token-123\"));\n\n        System.out.println(\"\\n=== 4. 未携带令牌(网关统一拦截) ===\");\n        System.out.println(\"  -> \" + gateway.forward(\"/api/user/profile\", null));\n\n        System.out.println(\"\\n=== 5. 实例故障 -> 摘除 -> 流量自动转移 ===\");\n        System.out.println(\"  (模拟 10.0.0.1 心跳超时)\");\n        registry.heartbeat(\"10.0.0.2:8081\"); // 只有 0.2 续约\n        registry.healthCheck(50);\n        Thread.sleep(60);\n        registry.heartbeat(\"10.0.0.2:8081\");\n        System.out.println(\"  -> \" + gateway.forward(\"/api/user/profile\", \"valid-token-123\"));\n\n        System.out.println(\"\\n=== 组件对照表 ===\");\n        System.out.println(\"  迷你实现              生产方案\");\n        System.out.println(\"  ServiceRegistry       Nacos / Eureka\");\n        System.out.println(\"  RoundRobinLoadBalancer Spring Cloud LoadBalancer\");\n        System.out.println(\"  Gateway               Spring Cloud Gateway\");\n        System.out.println(\"  下一步可自行扩展: 熔断(Resilience4j)、配置中心、链路追踪\");\n    }\n}"
@@ -2986,8 +2986,8 @@
           "difficulty": 1,
           "durationMinutes": 15,
           "content": "## 为什么需要版本控制\n- 手工备份(报告_v1.doc、报告_最终版.doc)很快失控:不知道谁改了什么、改坏了无法回退\n- 版本控制工具自动记录每次改动,可随时回到任意历史版本,并支持多人协作互不覆盖\n\n## 集中式 vs 分布式\n- 集中式(如 SVN):历史保存在中央服务器,离线无法提交,服务器宕机全员停工\n- 分布式(如 Git):每台电脑都是完整仓库,本地即可提交/回退/开分支,联网时再同步\n- Git 还支持离线查看全部历史、轻量级分支、按快照(而非差异)存储,性能优异\n\n## Git 的设计哲学\n- 快照模型:每次提交保存完整文件快照,未修改的文件只存一份引用\n- 几乎所有操作都在本地完成,速度极快且离线可用\n- 完整性保证:所有数据用 SHA-1 哈希寻址,历史几乎不可能被悄悄篡改",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 初始化仓库(把当前目录变成 git 仓库)\ngit init\n\n# 查看仓库状态\ngit status\n\n# 查看历史记录\ngit log --oneline\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 2,
@@ -2996,8 +2996,8 @@
           "difficulty": 1,
           "durationMinutes": 15,
           "content": "## 安装\n- Windows: 官网下载安装包,安装后自带 Git Bash\n- macOS: `xcode-select --install` 或 `brew install git`\n- Linux: `sudo apt install git`(Debian/Ubuntu)或 `sudo yum install git`\n\n## 必须配置的用户信息\n- 提交记录需要署名,安装后第一件事就是配置:\n  - `git config --global user.name \"Your Name\"`\n  - `git config --global user.email \"you@example.com\"`\n- `--global` 表示对当前用户所有仓库生效;不加则只对当前仓库生效\n\n## 三级配置文件\n- `--system`: 系统级,对所有用户生效(一般不动)\n- `--global`: 用户级,~/.gitconfig,个人偏好配置放这里\n- 仓库级: 仓库根目录下的 .git/config,优先级最高\n- 查看配置: `git config --list --show-origin`(带来源列出全部配置)",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 全局配置:告诉 git 你是谁(每个项目都会用到这些信息)\ngit config --global user.name \"Your Name\"\ngit config --global user.email \"you@example.com\"\n\n# 配置默认分支名\ngit config --global init.defaultBranch main\n\n# 开启颜色输出\ngit config --global color.ui auto\n\n# 查看当前所有配置\ngit config --list\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 3,
@@ -3006,8 +3006,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## 创建仓库\n- `git init`: 把当前目录变成 Git 仓库(生成隐藏的 .git 目录,存放全部版本历史)\n- `git clone <url>`: 拷贝一个已有远程仓库(后面章节详讲)\n\n## 工作区、暂存区、版本库\n- 工作区(Working Directory): 电脑上能看到的项目目录\n- 暂存区(Index/Stage): `git add` 后进入的区域,是一份待提交清单\n- 版本库(Repository): `git commit` 后快照永久存入 .git 历史\n- 记忆口诀:add 是「告诉 Git 我打算提交这些改动」,commit 才是「正式存档」\n\n## 第一次提交流程\n- `git status`: 查看哪些文件被修改/未跟踪\n- `git add README.md`(或 `git add .`): 加入暂存区\n- `git commit -m \"init commit\"`: 提交,附上清晰的说明\n- `git log --oneline --graph`: 查看简洁的提交历史",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 在当前目录创建仓库\ngit init my-project\ncd my-project\n\n# 创建一个 README 文件\necho \"# My Project\" > README.md\n\n# 把 README 加入暂存区\ngit add README.md\n\n# 提交第一个版本\ngit commit -m \"feat: initial commit\"\n",
+          "codeType": "bash"
         }
       ]
     },
@@ -3028,8 +3028,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## status: 谁改了什么\n- `git status` 的三种典型状态:\n  - `Changes not staged for commit`: 工作区改了但还没 add\n  - `Changes to be committed`: 已 add 进暂存区,等 commit\n  - `Untracked files`: 全新文件,Git 还没跟踪\n\n## diff: 改动的逐行对比\n- `git diff`: 工作区 vs 暂存区(还没 add 的改动)\n- `git diff --cached`(或 `git diff --staged`): 暂存区 vs 最新提交(已 add 的改动)\n- `git diff HEAD`: 工作区 vs 最新提交(所有未提交改动)\n- 输出里 `+` 开头是新增行,`-` 开头是删除行,`@@` 块标明行号位置\n\n## 好习惯\n- 提交前先 `git diff --cached` 过目一遍即将提交的内容\n- 一次提交只做一件事,提交说明写清楚「为什么改」",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 工作区 vs 暂存区 的 diff\ngit diff\n\n# 暂存区 vs 最近一次提交 的 diff\ngit diff --cached\n\n# 工作区 vs 最近一次提交 的完整 diff\ngit diff HEAD\n\n# 简短状态\ngit status -s\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 2,
@@ -3038,8 +3038,8 @@
           "difficulty": 3,
           "durationMinutes": 25,
           "content": "## HEAD 与提交链\n- 每次 commit 生成一个快照,并指向上一次提交,形成一条链\n- HEAD 指向当前分支的最新提交;回退的本质就是移动 HEAD 指针\n- `git log --oneline` 看历史,commit id(SHA-1)是版本的唯一标识,可缩写前 7 位\n\n## reset 的三种模式\n- `git reset --hard <commit>`: HEAD 移动,暂存区和工作区都丢弃,改动彻底消失(慎用!)\n- `git reset --soft <commit>`: 只移动 HEAD,改动保留在暂存区(适合重新组织提交)\n- `git reset --mixed <commit>`(默认): HEAD 移动,暂存区清空,改动留在工作区\n\n## 后悔药: reflog\n- `git reflog`: 记录 HEAD 的每一次移动(包括被 reset 掉的提交)\n- 误操作回退过头?找到旧的 commit id 再 `git reset --hard` 回去即可\n- reflog 只在本地保留一段时间,别把它当常规备份",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 查看所有操作记录(包括已删除的 commit, 救命用)\ngit reflog\n\n# 软重置: 保留修改到暂存区\ngit reset --soft HEAD~1\n\n# 混合重置(默认): 保留修改到工作区\ngit reset HEAD~1\n\n# 硬重置: 丢弃所有修改\ngit reset --hard HEAD~1\n\n# 回到指定 commit\ngit reset --hard abc1234\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 3,
@@ -3048,8 +3048,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 提交的是暂存区,不是工作区\n- Git 只会提交 `git add` 过的内容:add 之后继续改的行,不会进入本次 commit\n- 这是新手最常见的困惑:「我明明改了,怎么提交里没有?」\n\n## 分步提交\n- 一个功能包含多个文件/多处改动时,可以按逻辑拆成多次提交:\n  - `git add src/model/User.java` → `git commit -m \"新增用户模型\"`\n  - `git add src/service/UserService.java` → `git commit -m \"补全用户服务\"`\n- 小步提交让历史可读、回滚精准、Code Review 轻松\n\n## 补救技巧\n- 提交后发现漏了改动:补一个 `git add` + `git commit --amend`,合并进上一次提交\n- `--amend` 只适合还没推送出去的本地提交(改写历史会影响他人)",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 暂存单个文件\ngit add README.md\n\n# 暂存所有改动\ngit add -A\n\n# 暂存所有 .js 文件\ngit add *.js\n\n# 取消暂存(把文件从暂存区移回工作区, 但保留修改)\ngit restore --staged README.md\n\n# 查看暂存区内容\ngit ls-files --stage\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 4,
@@ -3058,8 +3058,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 场景一: 工作区改乱了,想丢弃\n- `git restore <file>`(新版)或 `git checkout -- <file>`(经典写法)\n- 文件回到暂存区(或最后一次提交)的状态,未 add 的改动全部消失\n\n## 场景二: 已经 add 了,想撤回暂存区\n- `git restore --staged <file>`(新版)或 `git reset HEAD <file>`\n- 改动退回工作区,内容不丢,只是不再进入下次提交\n\n## 场景三: 已经 commit 了,想撤销\n- 小改动:`git commit --amend` 修改提交说明或并入遗漏文件\n- 撤销这次提交:`git reset --soft HEAD~1` 改动回到暂存区,可重新提交\n- 彻底不要:`git reset --hard HEAD~1`(无法找回,先确认!)\n\n## 优先级建议\n- 能用 restore 语义明确的新命令就用新命令;改动越接近提交,撤销代价越大,勤用 status 确认状态",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 丢弃工作区的修改(危险: 不可恢复)\ngit checkout -- README.md\n# 或\ngit restore README.md\n\n# 撤销最近一次 commit(保留修改)\ngit reset --soft HEAD~1\n\n# 生成一个反向 commit 来撤销某次提交\ngit revert <commit-hash>\n",
+          "codeType": "bash"
         }
       ]
     },
@@ -3080,8 +3080,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 两种删除\n- `rm file.txt` 只删了工作区文件,Git 会提示「deleted: file.txt」,还需要 `git add`(或 `git rm`)记录这次删除\n- `git rm file.txt`: 直接删除文件并把删除操作加入暂存区,一步到位\n- 误删还没提交?两种找回:\n  - `git restore file.txt`(从暂存区恢复)\n  - 已被 add 过删除操作:`git restore --staged file.txt` 再 `git restore file.txt`\n\n## 已提交的删除想反悔\n- `git reset --hard HEAD~1` 回到删除前(会连带丢弃其他未提交改动)\n- 或 `git checkout <commit> -- file.txt` 只把某个文件从历史版本捞回来\n\n## 建议\n- 删除也是一次「改动」,应该被提交记录:删完文件记得 add + commit\n- 整个目录删除:`git rm -r dir/`",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 从工作区和暂存区同时删除\ngit rm README.md\n\n# 仅从暂存区移除(保留工作区文件)\ngit rm --cached README.md\n\n# 误删后找回: 先用 reflog 找到删除前的 commit\ngit reflog\ngit checkout <commit-hash> -- README.md\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 2,
@@ -3090,8 +3090,8 @@
           "difficulty": 1,
           "durationMinutes": 15,
           "content": "## 改名的正确姿势\n- `git mv old.txt new.txt`: 改名并加入暂存区,Git 自动识别为 rename(保留历史)\n- 手工改名 + add 效果一样,Git 按内容相似度自动检测 rename\n- 为什么用 git mv:一次完成改名 + 暂存,状态清晰,不留 untracked/deleted 残留\n\n## 暂存区 vs 版本库\n- `git diff --cached`: 看「即将提交的内容」与最新提交的差异\n- 提交前自查清单:\n  - `git status` 确认文件清单符合预期\n  - `git diff --cached` 确认改动内容符合预期\n  - 写好提交说明再 commit\n\n## 小技巧\n- `git diff --stat`: 只看每个文件改了多少行,快速总览\n- `git diff --cached --stat`: 暂存区改动总览",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# git 跟踪改名(而不是 delete + add)\ngit mv old-name.md new-name.md\n# 等价于:\n#   mv old-name.md new-name.md\n#   git rm old-name.md\n#   git add new-name.md\n\n# 查看暂存区里的重命名检测\ngit diff --cached --find-renames\n",
+          "codeType": "bash"
         }
       ]
     },
@@ -3112,8 +3112,8 @@
           "difficulty": 2,
           "durationMinutes": 25,
           "content": "## 分支为什么快\n- Git 的分支本质上是指向某个提交的可移动指针,创建/切换只是改指针,瞬间完成\n- 主分支 master(或 main)在第一次提交时自动创建\n- 建议: 无论个人还是团队,都从主线拉分支开发,主线保持可发布状态\n\n## 常用操作\n- `git switch -c dev`(或经典 `git checkout -b dev`): 创建并切换到 dev 分支\n- `git switch dev`: 切换分支;`git branch`: 查看分支列表(`*` 标记当前分支)\n- `git merge dev`: 把 dev 的提交合并进当前分支\n- `git branch -d dev`: 删除已合并的分支(`-D` 强删未合并分支)\n\n## fast-forward 合并\n- 当前分支没有新提交时,合并只是把指针前移(快进),不产生新提交\n- 历史是一条直线,简洁但看不出「曾经有过分支」",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 查看所有分支\ngit branch\n\n# 创建分支\ngit branch feature-x\n\n# 切换分支\ngit checkout feature-x\n# 或\ngit switch feature-x\n\n# 创建并切换\ngit checkout -b feature-y\n# 或\ngit switch -c feature-y\n\n# 合并 feature-x 到当前分支\ngit merge feature-x\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 2,
@@ -3122,8 +3122,8 @@
           "difficulty": 3,
           "durationMinutes": 25,
           "content": "## 冲突是怎么产生的\n- 两个分支改了同一文件的同一区域,Git 无法自动决定保留哪个版本\n- 合并时 Git 会停下来,把冲突文件标记出来,等待人工处理\n\n## 冲突标记的含义\n- `<<<<<<< HEAD` 到 `=======`: 当前分支(被合并方之前)的版本\n- `=======` 到 `>>>>>>> dev`: 被合并分支(dev)的版本\n- 解决方式:手工编辑成最终内容,删除三组标记,然后 add + commit\n\n## 标准处理流程\n1. `git merge dev` 触发冲突,Git 提示冲突文件列表\n2. 打开文件,按业务逻辑保留/融合两段代码(不是简单二选一!)\n3. `git add <冲突文件>` 标记已解决 → `git commit` 完成合并\n4. `git merge --abort`: 后悔了,放弃这次合并回到合并前\n\n## 预防冲突\n- 小步提交、频繁同步主线、每人只改自己负责的模块",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 冲突标记示例(出现在冲突文件中):\n<<<<<<< HEAD\n当前分支的代码\n=======\nfeature-x 分支的代码\n>>>>>>> feature-x\n\n# 解决步骤:\n# 1) 手动编辑冲突文件, 保留正确内容\n# 2) git add <已解决文件>\n# 3) git commit(不要加冲突标记)\n\n# 中止合并, 回到合并前\ngit merge --abort\n\n# 选用对方分支\ngit checkout --theirs file.txt\n# 选用当前分支\ngit checkout --ours file.txt\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 3,
@@ -3132,8 +3132,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 为什么要 --no-ff\n- fast-forward 合并后分支历史被「压平」,看不出功能是在哪条分支上开发的\n- `git merge --no-ff dev`: 强制生成一个合并提交,保留分支拓扑\n- 团队约定: 功能分支合并回主干一律 `--no-ff`,历史一目了然\n\n## 常见分支模型\n- master/main: 始终可发布,只接受合并,不直接提交\n- develop(可选): 日常集成分支,功能分支从这里拉出\n- feature/*: 功能开发,完成后合并回 develop/master\n- release/*: 发布准备(版本号、文档、修复),完成后合并回 master 并打标签\n- hotfix/*: 线上紧急修复,从 master 拉出,修完合并回 master 与 develop\n\n## 简化建议\n- 小团队可以只用 master + feature/* + hotfix/* 三条规则,够用且不易乱\n- 分支命名语义化: feature/user-login、fix/null-pointer-in-order",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 保留合并历史(推荐: 能看到 feature 分支的完整轨迹)\ngit merge --no-ff feature-x -m \"Merge feature-x into main\"\n\n# 压缩合并(快进, 丢失 feature 分支痕迹)\ngit merge feature-x\n\n# 删除已合并的分支\ngit branch -d feature-x\n\n# 强制删除未合并的分支\ngit branch -D feature-x\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 4,
@@ -3142,8 +3142,8 @@
           "difficulty": 3,
           "durationMinutes": 25,
           "content": "## 场景: 开发到一半,线上炸了\n- 工作区有未提交改动,不能直接切分支(会带过去或被拒绝)\n- `git stash`: 把当前工作区+暂存区的改动「存」起来,工作区变干净\n- `git stash list`: 查看 stash 栈;`git stash pop`: 恢复最近一次并从栈删除\n- `git stash apply`: 恢复但保留 stash 记录(可重复恢复)\n\n## Bug 修复标准流程\n1. `git stash` 暂存半成品\n2. `git switch -c fix/login-crash master` 从主线拉修复分支\n3. 修复、提交、`git switch master` + `git merge --no-ff fix/login-crash`\n4. `git switch dev` 回到开发分支,`git stash pop` 继续未完成的工作\n\n## Feature 分支\n- 新功能一律开 feature 分支开发,完成(含测试)后再合并\n- 半途而废的功能:`git branch -D feature/xxx` 直接丢弃,不影响主线\n- 长期分支定期 `git merge master` 或 `git rebase master` 同步主线,避免最后冲突爆炸",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 把当前未提交的修改暂存起来\ngit stash\n\n# 暂存并写说明\ngit stash save \"调试登录问题\"\n\n# 切回其他分支, 修 bug\ngit switch -b hotfix-login\n# ... 修改 ...\ngit commit -m \"fix: 登录页空指针\"\ngit switch main\ngit merge hotfix-login\n\n# 恢复之前暂存的修改\ngit stash pop\n\n# 查看所有暂存\ngit stash list\n",
+          "codeType": "bash"
         }
       ]
     },
@@ -3164,8 +3164,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 为什么用 SSH\n- 推送/拉取远程仓库需要认证;HTTPS 每次输密码(可缓存),SSH 用密钥对免密更顺畅\n- `ssh-keygen -t rsa -C \"you@example.com\"` 生成密钥对(id_rsa 私钥 / id_rsa.pub 公钥)\n- 把公钥内容添加到 GitHub/Gitee 的 SSH Keys 设置里,`ssh -T git@github.com` 测试连通\n\n## 关联远程仓库\n- `git remote add origin git@github.com:user/repo.git`: 添加名为 origin 的远程\n- `git remote -v`: 查看远程地址(fetch/push 各一条)\n- `git remote show origin`: 查看远程详情(分支跟踪关系)\n- 一台仓库可以有多个远程: origin 主远程 + company 内网远程,分别推送\n\n## 建议\n- 私钥(id_rsa)绝不上传/分享;泄露立即在平台删除对应公钥重新生成",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 生成 SSH 密钥\nssh-keygen -t ed25519 -C \"you@example.com\"\n\n# 启动 ssh-agent 并添加\neval \"$(ssh-agent -s)\"\nssh-add ~/.ssh/id_ed25519\n\n# 把公钥(~/.ssh/id_ed25519.pub) 添加到 GitHub / Gitee\n\n# 测试连接\nssh -T git@github.com\n\n# 添加远程仓库\ngit remote add origin git@github.com:user/repo.git\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 2,
@@ -3174,8 +3174,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 首次推送\n- `git push -u origin master`: -u 把本地 master 与远程 master 建立跟踪关系\n- 之后只需 `git push`,Git 自动知道推到哪里\n- `git push origin dev`: 推送其他分支到远程同名分支(远程没有会自动创建)\n\n## 推送被拒绝?\n- 远程有你本地没有的提交(别人先推了),Git 拒绝推送避免覆盖他人工作\n- 处理: 先 `git pull` 同步(可能产生合并/冲突),解决后再 push\n- 千万不要 `git push --force` 覆盖共享分支,这是团队协作大忌\n\n## clone 的细节\n- `git clone git@github.com:user/repo.git`: 自动创建目录、检出 master、配置好 origin\n- 只想要某个分支: `git clone -b dev <url>`\n- clone 下来的仓库天然具备完整历史,本地就是一个独立仓库",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 克隆仓库\ngit clone git@github.com:user/repo.git\ncd repo\n\n# 推送当前分支到远程\ngit push origin main\n\n# 第一次推送并建立追踪\ngit push -u origin feature-x\n\n# 拉取远程更新\ngit pull\n\n# 删除远程分支\ngit push origin --delete feature-x\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 3,
@@ -3184,8 +3184,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## fetch: 只下载,不动工作区\n- `git fetch origin`: 把远程的新提交下载到本地的「远程跟踪分支」(origin/master)\n- 此时本地分支不受影响,可以先 `git log origin/master` 看看别人推了什么\n- 安全、可控,适合先了解再决定怎么合\n\n## pull = fetch + merge\n- `git pull`: 下载远程更新并立即合并进当前分支\n- 若远程与本地各自有提交,会产生一个合并提交(或冲突)\n- `git pull --rebase`: 把你的本地提交「搬到」远程提交之上,历史更线性\n\n## 选择建议\n- 想要线性历史、团队习惯 rebase: 配置 `git config --global pull.rebase true`\n- 想保留完整合并拓扑: 直接 pull(默认 merge)\n- 不确定远程改了什么时: 先 fetch 看清楚再 merge",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# fetch: 只下载远程数据, 不合并\ngit fetch origin\n\n# 查看远程分支\ngit branch -r\n\n# 比较本地与远程\ngit log --oneline main..origin/main\n\n# merge 一个远程分支\ngit merge origin/feature-x\n\n# pull = fetch + merge(常用但不安全, 容易产生意外合并)\ngit pull\n\n# pull --rebase: fetch + rebase(推荐, 历史更干净)\ngit pull --rebase\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 4,
@@ -3194,8 +3194,8 @@
           "difficulty": 3,
           "durationMinutes": 25,
           "content": "## 协作基本姿势\n- 开工前 `git pull` 同步;完成一个逻辑单元就提交并推送,不要攒大招\n- 各自开 feature 分支,通过合并(而非直接推主线)集成\n- `git branch -vv`: 查看本地分支与远程分支的跟踪/领先落后关系\n\n## 跨人冲突的处理\n1. `git pull` 时提示冲突,打开文件手工融合两人改动\n2. 注意冲突可能是「逻辑冲突」: 两边没有文本冲突,合起来却跑不通,合并后必须测试\n3. add + commit 完成合并 → `git push`\n4. 如果本地还没推过,用 `git pull --rebase` 让历史更干净\n\n## 协作规范建议\n- 提交说明规范: 一行摘要 + 必要的正文说明(改了什么、为什么改)\n- 推送前本地跑通测试;重大改动先在分支上 Code Review\n- 不要提交 IDE 配置、日志、编译产物(交给 .gitignore)",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 同步远端\ngit fetch origin\ngit rebase origin/main\n\n# 推送到远端\ngit push origin feature-x\n\n# 如果远端有更新, 推送被拒\n# 1) git pull --rebase(把本地提交 rebase 到最新远端之上)\n# 2) 解决冲突\n# 3) git push origin feature-x\n\n# PR / MR 流程:\n# 1) 切到 main, 拉最新\n# 2) 切回 feature, rebase main\n# 3) 推送到远端 feature 分支\n# 4) 在 GitHub/Gitee 页面创建 PR\n",
+          "codeType": "bash"
         }
       ]
     },
@@ -3216,8 +3216,8 @@
           "difficulty": 1,
           "durationMinutes": 15,
           "content": "## 标签是什么\n- 标签是某个提交的「书签」,通常用来标记发布版本(v1.0、v2.3.1)\n- 与分支的区别: 分支会随提交移动,标签永远固定指向创建时的那个提交\n\n## 两种标签\n- 轻量标签: `git tag v1.0`,只是个指针,适合临时标记\n- 附注标签: `git tag -a v1.0 -m \"release 1.0\"`,记录打标签人、时间、说明,发布版本推荐用它\n- `git tag`: 列出所有标签;`git show v1.0`: 查看标签详情(附注标签含说明)\n\n## 给历史提交补打\n- `git tag -a v0.9 -m \"beta\" <commit-id>`: 给之前的提交补打标签\n- 提交 id 可以用 `git log --oneline` 找,缩写 7 位即可",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 轻量标签(只是一个指针)\ngit tag v1.0\n\n# 附注标签(推荐: 包含作者/时间/签名/说明)\ngit tag -a v1.0 -m \"第一版发布\"\n\n# 给历史 commit 打标签\ngit tag -a v0.9 <commit-hash>\n\n# 列出所有标签\ngit tag -l\n\n# 查看标签信息\ngit show v1.0\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 2,
@@ -3226,8 +3226,8 @@
           "difficulty": 1,
           "durationMinutes": 15,
           "content": "## 推送标签\n- 标签只在本地,要共享必须推送:\n  - `git push origin v1.0`: 推送单个标签\n  - `git push origin --tags`: 推送全部本地标签\n- 推送后,GitHub/Gitee 的 Releases 页面可以基于标签发布正式版本\n\n## 删除标签\n- 本地: `git tag -d v1.0`\n- 远程: `git push origin :refs/tags/v1.0`(或 `git push origin --delete v1.0`)\n- 打错的标签在推送前删除最省事;已推送的删除要谨慎,可能有人已在使用\n\n## 版本发布小流程\n1. 确认主线代码通过测试\n2. `git tag -a v1.2.0 -m \"描述本次发布\"`\n3. `git push origin master --tags`\n4. 在代码平台基于标签创建 Release,写更新说明",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 推送单个标签\ngit push origin v1.0\n\n# 推送所有标签\ngit push origin --tags\n\n# 删除本地标签\ngit tag -d v1.0\n\n# 删除远程标签\ngit push origin :refs/tags/v1.0\n# 或\ngit push origin --delete v1.0\n",
+          "codeType": "bash"
         }
       ]
     },
@@ -3248,8 +3248,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 基本规则\n- 在仓库根目录创建 .gitignore,每行一条规则(支持目录、通配符、取反 `!`)\n- 示例:\n  - `*.class` 忽略所有 class 文件\n  - `build/` 忽略 build 目录\n  - `!README.md` 取反,不忽略该文件\n- .gitignore 本身应提交进仓库,全组人共享同一套规则\n\n## 常见陷阱\n- 已被跟踪的文件,加进 .gitignore 不会生效!\n  - 处理: `git rm --cached <file>` 移出跟踪(不删本地文件)再提交\n- 规则写在子目录的 .gitignore 中,只对该目录及子目录生效\n- 全局忽略: `git config --global core.excludesfile ~/.gitignore_global`(个人 IDE 配置放这里)\n\n## 各语言模板\n- GitHub 提供 gitignore 模板仓库(github/gitignore),Java/Node/Python 开箱即用",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# .gitignore 基础语法\n#   # 开头是注释\n#   *   匹配除 / 外的任意字符\n#   **  匹配任意目录层级\n#   !   否定(取消忽略)\n#   /   结尾表示目录\n\n# 例子\nnode_modules/\ndist/\n*.log\n.env\n!.env.example\nbuild/\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 2,
@@ -3258,8 +3258,8 @@
           "difficulty": 1,
           "durationMinutes": 15,
           "content": "## 常用别名\n- `git config --global alias.st status`\n- `git config --global alias.co checkout`\n- `git config --global alias.br branch`\n- `git config --global alias.ci commit`\n- `git config --global alias.lg \"log --oneline --graph --decorate --all\"`\n- 配置后 `git st` 等价于 `git status`,高频操作效率翻倍\n\n## 配置文件长什么样\n- `~/.gitconfig` 就是纯文本,`[alias]` 小节下一行一条,可以直接编辑\n- `git config --list --show-origin`: 查看所有配置及来源,排查配置问题利器\n\n## 值得配置的几项\n- `git config --global core.editor \"vim\"`: 指定默认编辑器\n- `git config --global color.ui true`: 彩色输出\n- `git config --global init.defaultBranch main`: 新仓库默认分支名",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# ~/.gitconfig 中加别名\n[alias]\n    st = status\n    co = checkout\n    br = branch\n    ci = commit\n    co = checkout\n    unstage = reset HEAD --\n    last = log -1 HEAD\n    visual = log --oneline --graph --decorate --all\n\n# 使用\ngit st\ngit co main\ngit last\ngit visual\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 3,
@@ -3268,8 +3268,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 高频小技巧\n- `git commit --amend`: 并入遗漏文件/修改提交说明(仅限未推送)\n- `git cherry-pick <commit>`: 把某个提交「复制」到当前分支(修 bug 时把修复同步到多分支)\n- `git stash show -p`: 查看 stash 里具体存了什么\n- `git log -p -- <file>`: 查看某个文件的完整修改历史\n\n## 自救三板斧\n1. 改乱了工作区 → `git restore <file>` 丢弃改动\n2. 回退过头/误 reset → `git reflog` 找回 commit id 再 reset 回去\n3. 提交到了错误分支 → `git reset --soft HEAD~1` 撤回提交,切对分支后重新 commit\n\n## 原则\n- 没推送到远程的历史都可以安全改写;推送后的共享历史禁止 force push\n- 拿不准就先 `git status` + `git log --oneline --graph` 看清楚现状再动手",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 撤销刚刚的 commit, 保留修改\ngit reset --soft HEAD~1\n\n# 修改最近一次 commit 的说明\ngit commit --amend -m \"新说明\"\n\n# 找回被删除的 commit\ngit fsck --lost-found\ngit reflog\n\n# 找回被 reset 删掉的 commit\ngit reflog\ngit reset --hard <hash-from-reflog>\n\n# 查看谁改了某行\ngit blame file.txt\n\n# 找出引入 bug 的 commit\ngit bisect start\ngit bisect bad\ngit bisect good <known-good-commit>\n",
+          "codeType": "bash"
         }
       ]
     },
@@ -3290,8 +3290,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 开源协作模式\n- fork: 把别人的仓库复制一份到自己账号下\n- clone 自己 fork 的仓库到本地,开分支修改,推送到自己的远程\n- 在 GitHub 上发起 Pull Request(PR),请求把你的分支合并进原仓库\n- 维护者 Code Review、提出修改意见,通过后合并,你就成了贡献者\n\n## 写好 PR\n- 一个 PR 只做一件事,标题说清目的,正文描述改了什么、为什么、如何测试\n- 提交干净(可读的 commit message),不要把调试代码、格式化噪音混进来\n- 及时响应评审意见,用追加提交或 rebase 整理后再推\n\n## 仓库协作\n- 直接在原仓库开发时,所有人有推送权限也要走分支 + PR\n- GitHub Actions 可以做 CI: PR 自动跑测试、检查代码风格",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 1) 在 GitHub 上 fork 上游仓库(网页操作)\n# 2) 克隆自己的 fork\ngit clone git@github.com:YOUR-USERNAME/repo.git\ncd repo\n\n# 3) 添加上游远程\ngit remote add upstream git@github.com:ORIGINAL-OWNER/repo.git\n\n# 4) 切新分支做修改\ngit switch -c fix-typo\n# ... 修改 ...\ngit commit -m \"fix: 修正 README 拼写\"\ngit push origin fix-typo\n\n# 5) 在 GitHub 网页点 \"Compare & pull request\"\n# 6) 等 review + merge\n\n# 同步上游更新\ngit fetch upstream\ngit merge upstream/main\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 2,
@@ -3300,8 +3300,8 @@
           "difficulty": 1,
           "durationMinutes": 15,
           "content": "## Gitee(码云)\n- 国内托管平台,速度快、中文友好,支持私有仓库、PR、Gitee Go(类 CI)\n- 用法与 GitHub 基本一致: SSH 公钥、clone、push、PR\n- 适合国内团队内部协作、或作为 GitHub 的同步镜像\n\n## 一仓多远程\n- 本地仓库可以同时关联 GitHub 与 Gitee:\n  - `git remote add github git@github.com:user/repo.git`\n  - `git remote add gitee git@gitee.com:user/repo.git`\n- `git push github main` / `git push gitee main` 分别推送\n- 从零迁移: 在新平台「导入仓库」填旧仓库地址即可,历史完整保留\n\n## 权限管理\n- 团队仓库按角色分配权限(管理员/开发者/观察者)\n- 保护分支(master/main)禁止直接推送,只能通过 PR 合并",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 克隆(国内速度更快)\ngit clone https://gitee.com/user/repo.git\n\n# 同时推送到 GitHub + Gitee(多远程)\ngit remote add github git@github.com:user/repo.git\ngit remote add gitee https://gitee.com/user/repo.git\ngit push github main\ngit push gitee main\n\n# 仓库迁移: 镜像推送\ngit clone --bare git@github.com:old/repo.git\ncd repo.git\ngit push --mirror git@gitee.com:new/repo.git\n",
+          "codeType": "bash"
         },
         {
           "lessonNo": 3,
@@ -3310,8 +3310,8 @@
           "difficulty": 2,
           "durationMinutes": 20,
           "content": "## 两种主流工作流\n- Git Flow: master/develop/feature/release/hotfix 五类分支,流程完备,适合有固定发布周期的团队\n- 主干开发(Trunk-Based): 大家基于短命分支高频合并主干,配合 CI/CD 持续交付,适合发布频繁的团队\n- 小团队建议: master + 短命 feature 分支 + 必要 hotfix,简单可靠\n\n## Commit Message 规范(Conventional Commits)\n- 格式: `type(scope): 简短描述`,如 `feat(auth): 支持手机号登录`、`fix(order): 修复金额精度问题`\n- 常用 type: feat / fix / docs / style / refactor / test / chore\n- 好处: 历史可读、便于生成更新日志、便于自动化工具处理\n\n## 上线与回滚\n- 上线: 打标签 → CI 构建产物 → 部署\n- 出问题回滚: 优先 `git revert <bad-commit>`(生成反向提交,不改写历史,可安全推送)\n- 仅在未推送/个人分支上才用 reset 改写历史",
-          "codeExample": "",
-          "codeType": "git"
+          "codeExample": "# 常见工作流:\n\n# 1) Git Flow(重型)\n#    main: 生产分支\n#    develop: 集成分支\n#    feature/*: 功能分支\n#    release/*: 发布分支\n#    hotfix/*: 紧急修复\n\n# 2) GitHub Flow(轻量)\n#    main + feature 分支\n#    PR 合并, 部署 main\n\n# Conventional Commits 提交规范:\n#   feat: 新功能\n#   fix:  修复\n#   docs: 文档\n#   refactor: 重构\n#   test: 测试\n#   chore: 构建/工具\n\n#   git commit -m \"feat: 用户登录加验证码\"\n#   git commit -m \"fix: 修复首页 500 错误\"\n",
+          "codeType": "bash"
         }
       ]
     },
@@ -4770,7 +4770,7 @@
       "subject": "web"
     },
     {
-      "stageNo": 3,
+      "stageNo": 1,
       "stageName": "现代 JavaScript 核心",
       "chapterNo": 1,
       "title": "闭包与高阶函数",
@@ -4812,7 +4812,7 @@
       "subject": "jsadv"
     },
     {
-      "stageNo": 3,
+      "stageNo": 1,
       "stageName": "现代 JavaScript 核心",
       "chapterNo": 2,
       "title": "原型与继承",
@@ -4864,7 +4864,7 @@
       "subject": "jsadv"
     },
     {
-      "stageNo": 3,
+      "stageNo": 1,
       "stageName": "现代 JavaScript 核心",
       "chapterNo": 3,
       "title": "元编程: Proxy / Reflect / Symbol",
@@ -4916,7 +4916,7 @@
       "subject": "jsadv"
     },
     {
-      "stageNo": 3,
+      "stageNo": 2,
       "stageName": "异步与并发",
       "chapterNo": 4,
       "title": "Promise 深入",
@@ -4968,7 +4968,7 @@
       "subject": "jsadv"
     },
     {
-      "stageNo": 3,
+      "stageNo": 2,
       "stageName": "异步与并发",
       "chapterNo": 5,
       "title": "async/await 模式",
@@ -5020,7 +5020,7 @@
       "subject": "jsadv"
     },
     {
-      "stageNo": 3,
+      "stageNo": 2,
       "stageName": "异步与并发",
       "chapterNo": 6,
       "title": "Event Loop 与浏览器调度",
@@ -5166,8 +5166,8 @@
       "subject": "jsadv"
     },
     {
-      "stageNo": 3,
-      "stageName": "TypeScript 入门",
+      "stageNo": 4,
+      "stageName": "TypeScript 入门到实战",
       "chapterNo": 9,
       "title": "类型基础",
       "description": "掌握基本类型 / 接口 / 泛型, 写更安全的代码。",
@@ -5228,8 +5228,8 @@
       "subject": "jsadv"
     },
     {
-      "stageNo": 3,
-      "stageName": "TypeScript 入门",
+      "stageNo": 4,
+      "stageName": "TypeScript 入门到实战",
       "chapterNo": 10,
       "title": "进阶类型",
       "description": "类、枚举、字面量类型、类型守卫, 写出更精确的签名。",
@@ -5290,8 +5290,8 @@
       "subject": "jsadv"
     },
     {
-      "stageNo": 3,
-      "stageName": "TypeScript 进阶",
+      "stageNo": 4,
+      "stageName": "TypeScript 入门到实战",
       "chapterNo": 11,
       "title": "高级类型",
       "description": "条件类型 / 映射 / 模板字面量, 写出类型安全的工具库。",
@@ -5352,8 +5352,8 @@
       "subject": "jsadv"
     },
     {
-      "stageNo": 3,
-      "stageName": "TypeScript 进阶",
+      "stageNo": 4,
+      "stageName": "TypeScript 入门到实战",
       "chapterNo": 12,
       "title": "工程能力",
       "description": "声明文件 / tsconfig / 装饰器, 把 TS 落地到项目。",
@@ -5414,8 +5414,8 @@
       "subject": "jsadv"
     },
     {
-      "stageNo": 3,
-      "stageName": "TypeScript 实战",
+      "stageNo": 4,
+      "stageName": "TypeScript 入门到实战",
       "chapterNo": 13,
       "title": "框架集成",
       "description": "React / Vue3 / Node 项目中怎么写 TS。",

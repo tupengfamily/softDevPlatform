@@ -141,7 +141,7 @@ public class LearningDataSeedService {
     private Long ensureBuiltinSubjects() {
         LearningSubject java = ensureSubject("java", "Java", "Java 全栈开发:基础语法 → 进阶 → 并发 → 数据库 → 框架生态", 1);
         ensureSubject("python", "Python", "Python 语言开发:基础语法 → 数据结构 → 函数式 → 面向对象 → 并发网络", 2);
-        ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3);
+        ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3, false);
         ensureSubject("nodejs", "Node.js", "Node.js 服务端开发:入门 → 核心模块 → Web 开发 → 工程化实战", 5);
         ensureSubject("git", "Git", "Git 版本控制:基础 → 分支与远程 → 团队协作实战", 6);
         ensureSubject("web", "Web 开发",
@@ -150,16 +150,20 @@ public class LearningDataSeedService {
     }
 
     private LearningSubject ensureSubject(String code, String name, String description, int sortNo) {
+        return ensureSubject(code, name, description, sortNo, true);
+    }
+
+    private LearningSubject ensureSubject(String code, String name, String description, int sortNo, boolean enabled) {
         return subjectRepository.findByCode(code).orElseGet(() -> {
             LearningSubject s = new LearningSubject();
             s.setCode(code);
             s.setName(name);
             s.setDescription(description);
             s.setSortNo(sortNo);
-            s.setEnabled(true);
+            s.setEnabled(enabled);
             s.setBuiltin(true);
             LearningSubject saved = subjectRepository.save(s);
-            log.info("内置学习科目初始化: {} ({})", name, code);
+            log.info("内置学习科目初始化: {} ({}{})", name, code, enabled ? "" : ", disabled");
             return saved;
         });
     }
@@ -170,7 +174,7 @@ public class LearningDataSeedService {
             case "sql" -> ensureSubject("sql", "SQL",
                 "SQL 数据库:关系模型 → 查询 → 修改 → 事务 → 索引 → 管理", 4);
             case "python" -> ensureSubject("python", "Python", "Python 语言开发:基础语法 → 数据结构 → 函数式 → 面向对象 → 并发网络", 2);
-            case "javascript" -> ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3);
+            case "javascript" -> ensureSubject("javascript", "JavaScript", "JavaScript / 前端开发(课程建设中)", 3, false);
             case "jsadv" -> ensureSubject("jsadv", "JavaScript 进阶",
                 "JavaScript 进阶 + TypeScript:现代 JS 核心 → 异步并发 → 函数式 → TS 入门 → TS 进阶 → TS 框架实战", 8);
             case "nodejs" -> ensureSubject("nodejs", "Node.js", "Node.js 服务端开发:入门 → 核心模块 → Web 开发 → 工程化实战", 5);
