@@ -39,6 +39,24 @@ public class UserPreference {
     @Column(name = "locale", length = 10)
     private String locale;
 
+    // ==================== 新手指引(onboarding)字段 ====================
+
+    /** 学习目标: JOB(求职) / INTEREST(兴趣) / EXAM(考试) / PROJECT(项目) */
+    @Column(name = "goal", length = 20)
+    private String goal;
+
+    /** 起点水平: BEGINNER(零基础) / HAS_OTHER(有其他语言基础) / HAS_JS(有 JS 基础) / INTERMEDIATE(中级) */
+    @Column(name = "level", length = 20)
+    private String level;
+
+    /** 完成 onboarding 的时间(NULL = 未完成, 用于前端判断是否弹引导) */
+    @Column(name = "onboarded_at")
+    private LocalDateTime onboardedAt;
+
+    /** 是否主动跳过(与 onboarded_at 互斥, 同时只能有一个非空) */
+    @Column(name = "onboarding_skipped", columnDefinition = "boolean not null default 0")
+    private Boolean onboardingSkipped = false;
+
     /** 创建时间 */
     @Column(name = "create_time", nullable = false, updatable = false)
     private LocalDateTime createTime;
@@ -79,6 +97,18 @@ public class UserPreference {
 
     public String getLocale() { return locale; }
     public void setLocale(String locale) { this.locale = locale; }
+
+    public String getGoal() { return goal; }
+    public void setGoal(String goal) { this.goal = goal; }
+
+    public String getLevel() { return level; }
+    public void setLevel(String level) { this.level = level; }
+
+    public LocalDateTime getOnboardedAt() { return onboardedAt; }
+    public void setOnboardedAt(LocalDateTime onboardedAt) { this.onboardedAt = onboardedAt; }
+
+    public Boolean getOnboardingSkipped() { return onboardingSkipped; }
+    public void setOnboardingSkipped(Boolean onboardingSkipped) { this.onboardingSkipped = onboardingSkipped; }
 
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }

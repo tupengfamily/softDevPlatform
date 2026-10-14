@@ -245,6 +245,17 @@ onMounted(async () => {
   subjectStore.load()   // 科目列表 + 学习语言偏好(异步即可,不阻塞公告;游客仅拉科目列表)
   dictStore.load()      // 数据字典标签映射(游客可读,业务页文案统一从这取)
   localeStore.pullFromServer()   // 登录用户拉取服务端界面语言偏好
+  // 新手指引: 已登录但未完成 onboarding → 推到 /onboarding (仅在不是 onboarding 自身页时)
+  if (userStore.isLogin && route.path !== '/onboarding') {
+    try {
+      const { getOnboardingMe } = await import('../api/onboarding')
+      const r = await getOnboardingMe()
+      if (r.data && r.data.needsOnboarding) {
+        router.push({ path: '/onboarding', query: { redirect: route.fullPath } })
+        return
+      }
+    } catch (e) { /* 静默, 不阻塞 Layout 加载 */ }
+  }
   if (userStore.isLogin) {
     notifStore.fetchUnread()
     msgTimer = setInterval(() => notifStore.fetchUnread(), 60000)   // 未读数轮询

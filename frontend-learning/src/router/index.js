@@ -111,6 +111,12 @@ const routes = [
         meta: { title: '关于', titleKey: 'nav.about', icon: 'InfoFilled' }
       },
       {
+        path: 'onboarding',
+        name: 'Onboarding',
+        component: () => import('../views/Onboarding.vue'),
+        meta: { title: '新手指引', titleKey: 'onboarding.title', icon: 'Compass', public: true }
+      },
+      {
         path: 'profile',
         name: 'ProfileSettings',
         component: () => import('../views/ProfileSettings.vue'),

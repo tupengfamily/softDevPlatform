@@ -1,12 +1,14 @@
 <script setup>
-// 个人信息设置:头像/昵称/个性签名等资料 + 页面主题(经典配色预设)
+// 个人信息设置:头像/昵称/个性签名等资料 + 页面主题(经典配色预设) + 新手指引重做入口
 // 资料保存到后端(本人维度);主题为纯前端换肤(CSS 变量 + localStorage 持久化)
 import { computed, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '../store/user'
 import { useThemeStore, THEME_PRESETS } from '../store/theme'
 import { uploadAvatar, changeMyPassword } from '../api/auth'
+import { resetOnboarding } from '../api/onboarding'
 
 const userStore = useUserStore()
 const themeStore = useThemeStore()
@@ -130,6 +132,19 @@ const pwdRules = computed(() => ({
   ]
 }))
 
+// 重做新手指引: 调 /api/onboarding/reset, 然后跳到 /onboarding
+const router = useRouter()
+const redoing = ref(false)
+const redoOnboarding = async () => {
+  redoing.value = true
+  try {
+    await resetOnboarding()
+    ElMessage.success($t('profile.onboardingResetOk'))
+    router.push('/onboarding')
+  } catch (e) { /* 拦截器已弹错 */ }
+  finally { redoing.value = false }
+}
+
 const openPwdDialog = () => {
   Object.assign(pwdModel, { oldPassword: '', newPassword: '', confirmPassword: '' })
   pwdDialog.value = true
@@ -236,6 +251,16 @@ const onPwdSave = async () => {
           </el-form-item>
           <el-button type="primary" :loading="saving" style="width:100%" @click="onSave">{{ $t('profile.saveBtn') }}</el-button>
         </el-form>
+      </section>
+
+      <!-- 新手指引: 重做入口 -->
+      <section class="card">
+        <h2 class="card-title"><el-icon><Compass /></el-icon> {{ $t('onboarding.title') }}</h2>
+        <p class="theme-desc">{{ $t('profile.onboardingDesc') }}</p>
+        <el-button @click="redoOnboarding" plain>
+          <el-icon><RefreshRight /></el-icon>
+          {{ $t('profile.redoOnboarding') }}
+        </el-button>
       </section>
 
       <!-- 页面主题 -->
