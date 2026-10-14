@@ -32,6 +32,7 @@ const rules = computed(() => ({
 
 const onSubmit = async () => {
   if (!formRef.value) return
+  if (loading.value) return   // 防双击 / 双回车
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     loading.value = true
@@ -67,7 +68,7 @@ const onSubmit = async () => {
           <el-input v-model="form.username" :placeholder="$t('login.usernamePlaceholder')" prefix-icon="User" />
         </el-form-item>
         <el-form-item :label="$t('login.password')" prop="password">
-          <el-input v-model="form.password" type="password" :placeholder="$t('login.passwordPlaceholder')" prefix-icon="Lock" show-password />
+          <el-input v-model="form.password" type="password" :placeholder="$t('login.passwordPlaceholder')" prefix-icon="Lock" show-password @keyup.enter="onSubmit" />
         </el-form-item>
         <el-button type="primary" :loading="loading" style="width:100%" @click="onSubmit">{{ $t('login.submit') }}</el-button>
         <div class="auth-tip">

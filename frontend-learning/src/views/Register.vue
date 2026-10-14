@@ -50,6 +50,7 @@ const rules = computed(() => ({
 
 const onSubmit = async () => {
   if (!formRef.value) return
+  if (loading.value) return   // 防双击 / 双回车
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     loading.value = true
@@ -91,7 +92,7 @@ const onSubmit = async () => {
           <el-input v-model="form.password" type="password" show-password prefix-icon="Lock" />
         </el-form-item>
         <el-form-item :label="$t('register.confirm')" prop="confirm">
-          <el-input v-model="form.confirm" type="password" show-password prefix-icon="Lock" />
+          <el-input v-model="form.confirm" type="password" show-password prefix-icon="Lock" @keyup.enter="onSubmit" />
         </el-form-item>
         <el-form-item :label="$t('register.age')">
           <el-input-number v-model="form.age" :min="0" :max="150" style="width:100%" />
