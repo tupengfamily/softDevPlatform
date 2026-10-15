@@ -10,6 +10,8 @@ import com.learning.springboot.dto.RegisterRequest;
 import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.security.CurrentUser;
 import com.learning.springboot.security.LoginRateLimiter;
+import com.learning.springboot.repository.UserRepository;
+import com.learning.springboot.security.RsaKeyProvider;
 import com.learning.springboot.service.AuthService;
 import com.learning.springboot.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,6 +28,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Map;
+import java.util.Set;
+
 /**
  * 认证控制器: 注册、登录、获取当前用户、登出
  * <p>
@@ -38,6 +43,8 @@ public class AuthController {
     @Autowired private AuthService authService;
     @Autowired private UserService userService;
     @Autowired private LoginRateLimiter loginRateLimiter;
+    @Autowired private RsaKeyProvider rsaKeyProvider;
+    @Autowired private UserRepository userRepository;
 
     /** 是否信任反向代理的 X-Forwarded-For / X-Real-IP(默认关闭, 防 IP 伪造) */
     @Value("${app.trust-proxy:false}")
@@ -49,6 +56,20 @@ public class AuthController {
         String ip = clientIp(httpReq);
         LoginResponse data = authService.login(req, ip);
         return Result.ok("登录成功", data);
+    }
+
+    /**
+     * 暴露 RSA 公钥(PEM), 客户端拿来加密密码后再调 /login 或 /register。
+     * <p>免鉴权: 前端登录页加载时无需登录就能拿到公钥; 公钥是公开的, 不会泄露敏感信息。
+     */
+    @GetMapping("/public-key")
+    public ResponseEntity<?> publicKey() {
+        return Result.ok(Map.of(
+            "pem", rsaKeyProvider.getPublicKeyPem(),
+            "algorithm", "RSA-PKCS1v1.5",
+            "bits", 2048,
+            "instructions", "前端: import this PEM -> encrypt password -> base64 -> POST { encryptedPassword }"
+        ));
     }
 
     @PostMapping("/register")
@@ -105,9 +126,44 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout() {
-        // 无状态: 服务端不持有 session,前端清除 token 即可
+    @OperationLog(module = "认证", action = "登出", recordParams = false)
+    public ResponseEntity<?> logout(@CurrentUser Long userId) {
+        // SSO 单点登出: 递增 user.token_version, 该用户所有 token 立即失效
+        if (userId != null) {
+            userRepository.incrementTokenVersion(userId, java.time.LocalDateTime.now());
+        }
         return Result.ok("已登出", null);
+    }
+
+    /**
+     * 退出所有设备: 递增 tokenVersion, 该用户所有已签发的 token 立即失效
+     * <p>比 /logout 更彻底, 主动被登出所有 Tab + 其他设备
+     */
+    @PostMapping("/logout-all")
+    @OperationLog(module = "认证", action = "退出所有设备", recordParams = false)
+    public ResponseEntity<?> logoutAll(@CurrentUser Long userId) {
+        if (userId == null) throw new BusinessException(401, "未登录");
+        userRepository.incrementTokenVersion(userId, java.time.LocalDateTime.now());
+        return Result.ok("已退出所有设备", null);
+    }
+
+    /**
+     * 管理员手动解锁某用户(清掉因密码输错导致的登录锁定)
+     * <p>
+     * 场景: 普通用户连续 5 次密码错误,被锁 5 分钟; admin 收到反馈后, 可在此手动解锁
+     */
+    @PostMapping("/admin/unlock-user")
+    public ResponseEntity<?> unlockUser(@RequestBody Map<String, Object> body,
+                                        @CurrentUser Long adminId,
+                                        @CurrentUser("roles") Set<String> roles) {
+        if (adminId == null) throw new BusinessException(401, "未登录");
+        if (roles == null || !roles.contains("ADMIN")) {
+            throw new BusinessException(403, "需要管理员权限");
+        }
+        String username = body.get("username") == null ? null : String.valueOf(body.get("username"));
+        if (username == null || username.isBlank()) throw new BusinessException(400, "username 不能为空");
+        int n = loginRateLimiter.unlockUser(username);
+        return Result.ok("已解锁 " + username + " (清理 " + n + " 条锁定记录)", null);
     }
 
     /**

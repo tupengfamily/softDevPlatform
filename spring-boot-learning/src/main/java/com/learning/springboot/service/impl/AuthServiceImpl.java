@@ -13,6 +13,7 @@ import com.learning.springboot.repository.RoleRepository;
 import com.learning.springboot.repository.UserRepository;
 import com.learning.springboot.security.JwtUtil;
 import com.learning.springboot.security.LoginRateLimiter;
+import com.learning.springboot.security.RsaKeyProvider;
 import com.learning.springboot.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,10 +42,14 @@ public class AuthServiceImpl implements AuthService {
     @Autowired private JwtUtil jwtUtil;
     @Autowired private JwtProperties jwtProperties;
     @Autowired private LoginRateLimiter loginRateLimiter;
+    @Autowired private RsaKeyProvider rsaKeyProvider;
 
     @Override
     @Transactional
     public LoginResponse login(LoginRequest req, String clientIp) {
+        // 密码解密(encryptedPassword 不为空时优先用 RSA 还原; 否则保留明文兼容老客户端)
+        decryptPasswordField(req::getEncryptedPassword, req::setPassword, () -> req.getPassword() == null || req.getPassword().isEmpty(),
+            "请提供密码或加密密码");
         // 限流检查: 锁定期内直接 429(防暴力破解)
         loginRateLimiter.checkAllowed(req.getUsername(), clientIp);
 
@@ -75,7 +80,8 @@ public class AuthServiceImpl implements AuthService {
         for (Role r : user.getRoles()) roleCodes.add(r.getCode());
 
         // 颁发 Token
-        String token = jwtUtil.generate(user.getId(), user.getUsername(), roleCodes);
+        String token = jwtUtil.generate(user.getId(), user.getUsername(), roleCodes,
+            user.getTokenVersion() == null ? 0L : user.getTokenVersion());
 
         // 更新登录信息
         user.setLastLoginTime(LocalDateTime.now());
@@ -105,6 +111,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public LoginResponse register(RegisterRequest req, String clientIp) {
+        // 密码解密(encryptedPassword 不为空时优先用 RSA 还原; 否则保留明文兼容老客户端)
+        decryptPasswordField(req::getEncryptedPassword, req::setPassword, () -> req.getPassword() == null || req.getPassword().isEmpty(),
+            "请提供密码或加密密码");
+
         if (userRepository.existsByUsername(req.getUsername())) {
             throw new BusinessException(409, "用户名已存在: " + req.getUsername());
         }
@@ -129,7 +139,7 @@ public class AuthServiceImpl implements AuthService {
 
         // 自动登录: 颁发 token
         Set<String> roleCodes = new HashSet<>(Set.of("USER"));
-        String token = jwtUtil.generate(saved.getId(), saved.getUsername(), roleCodes);
+        String token = jwtUtil.generate(saved.getId(), saved.getUsername(), roleCodes, 0L);
 
         LoginResponse resp = new LoginResponse();
         resp.setToken(token);
@@ -269,5 +279,24 @@ public class AuthServiceImpl implements AuthService {
         return userRepository.findById(userId)
             .orElseThrow(() -> new BusinessException(404, "用户不存在"))
             .getUsername();
+    }
+
+    /**
+     * 密码字段解密: 若加密密文存在则还原到明文 password; 否则校验明文非空。
+     * LoginRequest 和 RegisterRequest 共享这套逻辑。
+     */
+    private void decryptPasswordField(java.util.function.Supplier<String> encryptedSupplier,
+                                       java.util.function.Consumer<String> passwordSetter,
+                                       java.util.function.BooleanSupplier isPlainEmpty,
+                                       String emptyMessage) {
+        String enc = encryptedSupplier.get();
+        if (enc != null && !enc.isEmpty()) {
+            String plain = rsaKeyProvider.decryptBase64(enc);
+            passwordSetter.accept(plain);
+            return;
+        }
+        if (isPlainEmpty.getAsBoolean()) {
+            throw new BusinessException(400, emptyMessage);
+        }
     }
 }

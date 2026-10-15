@@ -1,6 +1,7 @@
 package com.learning.springboot.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learning.springboot.repository.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -41,6 +42,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     @Autowired
     private JwtUtil jwtUtil;
+    @Autowired
+    private UserRepository userRepository;
 
     /** 游客可运行沙箱开关(默认关闭, 沙箱执行接口一律需要登录) */
     @org.springframework.beans.factory.annotation.Value("${app.sandbox.allow-guest-run:false}")
@@ -56,6 +59,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         //       但 /api/auth/me 和 /api/auth/logout 需要鉴权, 走 filter
         return path.equals("/api/auth/login")
             || path.equals("/api/auth/register")
+            || path.equals("/api/auth/public-key")    // RSA 公钥(登录前需要,免鉴权)
+            || path.startsWith("/api/track/")        // 前端埋点上报(免鉴权, 内部 IP 限流)
             || path.equals("/api/hello")
             || path.startsWith("/api/hello/")
             || (allowGuestRun && path.startsWith("/api/sandbox/run-"))   // 游客试练开关(默认关闭); reset-sql 仍需登录
@@ -83,6 +88,19 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             Long userId = jwtUtil.extractUserId(claims);
             String username = claims.getSubject();
             Set<String> roles = jwtUtil.extractRoles(claims);
+
+            // SSO: 校验 tokenVersion (单点登出/退出所有设备)
+            // 用户登出时 User.tokenVersion+1, 旧 token 立即失效(单设备登出影响所有 Tab/设备)
+            if (userId != null) {
+                Long tokenTv = jwtUtil.extractTokenVersion(claims);
+                Long userTv = userRepository.findTokenVersionById(userId);
+                if (userTv != null && tokenTv != null && tokenTv < userTv) {
+                    log.info("[JWT] token tv={} < user tv={} for userId={} → token 已失效",
+                            tokenTv, userTv, userId);
+                    writeUnauthorized(resp, "Token 已失效(账号在其他位置登出或密码已修改)");
+                    return;
+                }
+            }
 
             req.setAttribute(ATTR_USER_ID, userId);
             req.setAttribute(ATTR_USERNAME, username);

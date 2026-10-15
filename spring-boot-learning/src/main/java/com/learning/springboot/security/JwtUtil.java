@@ -62,12 +62,22 @@ public class JwtUtil {
      * @return 签名的 JWT 字符串
      */
     public String generate(Long userId, String username, Collection<String> roles) {
+        return generate(userId, username, roles, 0L);
+    }
+
+    /**
+     * 生成带 tokenVersion 的 Token
+     * @param tokenVersion 用户 token_version,用于 SSO 单点登出: 后端递增此值会让所有旧 token 失效
+     */
+    public String generate(Long userId, String username, Collection<String> roles, long tokenVersion) {
         Date now = new Date();
         Date exp = new Date(now.getTime() + props.getExpirationMillis());
         return Jwts.builder()
             .subject(username)
+            .id(java.util.UUID.randomUUID().toString())   // jti, 用于黑名单精确定位
             .claim("uid", userId)
             .claim("roles", roles == null ? List.of() : List.copyOf(roles))
+            .claim("tv", tokenVersion)                     // tokenVersion, 用于 SSO 失效
             .issuedAt(now)
             .expiration(exp)
             .signWith(key)
@@ -136,5 +146,13 @@ public class JwtUtil {
         if (uid == null) return null;
         if (uid instanceof Number n) return n.longValue();
         return Long.parseLong(uid.toString());
+    }
+
+    /** 从 Claims 中提取 token 版本号(SSO 失效比对) */
+    public Long extractTokenVersion(Claims claims) {
+        Object tv = claims.get("tv");
+        if (tv == null) return 0L;  // 旧 token 无 tv 字段, 视为版本 0
+        if (tv instanceof Number n) return n.longValue();
+        try { return Long.parseLong(tv.toString()); } catch (Exception e) { return 0L; }
     }
 }

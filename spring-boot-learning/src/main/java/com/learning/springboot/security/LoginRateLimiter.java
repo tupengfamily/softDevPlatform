@@ -11,21 +11,25 @@ import java.util.concurrent.ConcurrentHashMap;
  * 登录失败限流器(防暴力破解)
  * <p>
  * - 维度: 用户名 + 客户端 IP(任一维度超限都拒绝)
- * - 策略: 窗口期内(15 分钟)失败 5 次即锁定,锁定期内登录请求直接 429
+ * - 策略: 窗口期内(15 分钟)失败 5 次即锁定, 锁 5 分钟(缩短)
  * - 成功登录后清零该用户名/该 IP 的失败计数
  * - 注册等场景走通用次数限流({@code reg:ip:xxx} 前缀)
  * - 进程内内存实现(教学项目够用);多实例部署应换 Redis/数据库计数
  * - 内存 Map 设上限(5000 条): 超限先清理过期项,仍超限清理最老条目,防止垃圾键撑爆内存
+ * - 启动时 @PostConstruct 清空所有计数(防止上次服务进程的"幽灵锁定"把用户锁到服务重启)
+ * - 管理员可手动调 {@link #unlockUser(String)} 解锁特定用户
  */
 @Component
 public class LoginRateLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(LoginRateLimiter.class);
 
-    /** 窗口期: 15 分钟 */
+    /** 计数窗口: 15 分钟 */
     private static final long WINDOW_MS = 15 * 60 * 1000L;
     /** 窗口期内允许的最大失败次数 */
     private static final int MAX_FAILURES = 5;
+    /** 失败 5 次后锁定时长: 5 分钟(原 15 分钟太长, 用户经常忘记密码就被永久锁) */
+    private static final long LOCK_MS = 5 * 60 * 1000L;
     /** 注册场景: 窗口期内每 IP 最大次数 */
     private static final int MAX_REG_PER_WINDOW = 5;
     /** 内存 Map 条目上限(防垃圾键撑爆内存) */
@@ -36,6 +40,30 @@ public class LoginRateLimiter {
         boolean expired(long now) {
             return now - firstAt > WINDOW_MS && now > lockedUntil;
         }
+    }
+
+    /**
+     * 启动时清空所有内存计数
+     * <p>
+     * 防止上次服务进程退出时仍处于锁定状态的用户, 在重启后仍被锁(他们要再等 15 分钟)
+     */
+    @jakarta.annotation.PostConstruct
+    public void clearOnStart() {
+        int n = failures.size() + attempts.size();
+        failures.clear();
+        attempts.clear();
+        if (n > 0) log.info("[LoginRateLimiter] 启动清空 {} 条历史限流记录", n);
+    }
+
+    /**
+     * 管理员手动解锁某用户
+     * <p>
+     * 删掉该用户名相关的所有锁定键;IP 维度不解锁(攻击者可能持续攻击, 解 IP 会让所有用户失防)
+     */
+    public int unlockUser(String username) {
+        if (username == null) return 0;
+        String key = "u:" + username.toLowerCase();
+        return failures.remove(key) == null ? 0 : 1;
     }
 
     private final Map<String, Failure> failures = new ConcurrentHashMap<>();
@@ -72,7 +100,7 @@ public class LoginRateLimiter {
             Failure prev = failures.get(key);
             int count = (prev == null || prev.expired(now)) ? 1 : prev.count() + 1;
             long firstAt = (prev == null || prev.expired(now)) ? now : prev.firstAt();
-            long lockedUntil = count >= MAX_FAILURES ? now + WINDOW_MS : 0L;
+            long lockedUntil = count >= MAX_FAILURES ? now + LOCK_MS : 0L;
             putBounded(key, new Failure(count, firstAt, lockedUntil), now);
         }
     }

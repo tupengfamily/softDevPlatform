@@ -95,6 +95,14 @@ public class User {
     private String lastLoginIp;
 
     /**
+     * Token 版本号(用于单点登出 / 退出所有设备)
+     * <p>登录时把当前值写入 JWT claim "tv"; JwtAuthFilter 每次请求比对 token.tv == user.tv;
+     * 不匹配则视为旧 token 拒绝。一键"退出所有设备" = 递增此字段,所有旧 token 立即失效。
+     */
+    @Column(name = "token_version", nullable = false)
+    private Long tokenVersion = 0L;
+
+    /**
      * 用户拥有的角色(多对多,通过 t_user_role 关联)
      * 懒加载: 只有显式访问时才会查询
      */
@@ -193,6 +201,8 @@ public class User {
 
     public String getLastLoginIp() { return lastLoginIp; }
     public void setLastLoginIp(String lastLoginIp) { this.lastLoginIp = lastLoginIp; }
+    public Long getTokenVersion() { return tokenVersion; }
+    public void setTokenVersion(Long tokenVersion) { this.tokenVersion = tokenVersion; }
 
     public Set<Role> getRoles() { return roles; }
     public void setRoles(Set<Role> roles) { this.roles = roles; }

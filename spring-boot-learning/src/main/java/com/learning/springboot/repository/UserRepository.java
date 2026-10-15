@@ -114,4 +114,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
         WHERE r.code = :code
         """, nativeQuery = true)
     List<User> findByRoleCode(@Param("code") String code);
+
+    /** 单字段查询: tokenVersion(SSO 失效比对,避免加载整个 User 实体) */
+    @Query("SELECT u.tokenVersion FROM User u WHERE u.id = :id")
+    Long findTokenVersionById(@Param("id") Long id);
+
+    /** 递增 tokenVersion(SSO 单点登出 / 退出所有设备) */
+    @Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE User u SET u.tokenVersion = COALESCE(u.tokenVersion, 0) + 1, u.updateTime = :now WHERE u.id = :id")
+    @org.springframework.transaction.annotation.Transactional
+    int incrementTokenVersion(@Param("id") Long id, @Param("now") java.time.LocalDateTime now);
 }

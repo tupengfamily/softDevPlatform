@@ -13,9 +13,11 @@ public class RegisterRequest {
     @Size(min = 3, max = 50, message = "用户名长度应在 3~50 之间")
     private String username;
 
-    @NotBlank(message = "密码不能为空")
-    @Size(min = 6, max = 50, message = "密码长度应在 6~50 之间")
+    /** 明文密码(向后兼容) */
     private String password;
+
+    /** RSA 加密后的 Base64 密文(优先) */
+    private String encryptedPassword;
 
     @NotBlank(message = "邮箱不能为空")
     @Email(message = "邮箱格式不正确")
@@ -29,6 +31,9 @@ public class RegisterRequest {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    public String getEncryptedPassword() { return encryptedPassword; }
+    public void setEncryptedPassword(String encryptedPassword) { this.encryptedPassword = encryptedPassword; }
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
