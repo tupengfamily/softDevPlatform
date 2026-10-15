@@ -5,8 +5,10 @@
  * - 居中卡片
  * - 调用 auth.js.login,Pinia store 保存 token
  * - 成功后跳到 redirect 或 /dashboard
+ * - 记住账号密码(本地便利,非远程凭据): 默认仅"记住账号",勾"记住密码"才存密码;
+ *   localStorage 内容仅对当前 origin 生效,不跨设备同步
  */
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -25,10 +27,27 @@ const form = reactive({
   password: ''
 })
 
+// "记住账号" 默认开(只记用户名,不记密码), "记住密码" 默认关(更敏感)
+// 切到密码输入型 "记住密码" 时仍由用户主动勾选
+const rememberAccount = ref(true)
+const rememberPassword = ref(false)
+
 const rules = computed(() => ({
   username: [{ required: true, message: t('login.usernameRequired'), trigger: 'blur' }],
   password: [{ required: true, message: t('login.passwordRequired'), trigger: 'blur' }]
 }))
+
+const REMEMBER_USER_KEY = 'login.rememberedUsername'
+const REMEMBER_PWD_KEY = 'login.rememberedPassword'
+
+// 页面加载时: 若 localStorage 有上次记住的账号, 自动填入
+onMounted(() => {
+  try {
+    const u = localStorage.getItem(REMEMBER_USER_KEY)
+    if (u) form.username = u
+    // 密码只有"记住账号密码"勾选时才读 + 写; 不主动读
+  } catch (_) { /* localStorage 异常时静默 */ }
+})
 
 const onSubmit = async () => {
   if (!formRef.value) return
@@ -38,10 +57,21 @@ const onSubmit = async () => {
     loading.value = true
     try {
       await userStore.login({ username: form.username, password: form.password })
+      // 登录成功: 按勾选状态写/清 localStorage
+      try {
+        if (rememberAccount.value) {
+          localStorage.setItem(REMEMBER_USER_KEY, form.username)
+        } else {
+          localStorage.removeItem(REMEMBER_USER_KEY)
+        }
+        if (rememberAccount.value && rememberPassword.value) {
+          localStorage.setItem(REMEMBER_PWD_KEY, form.password)
+        } else {
+          localStorage.removeItem(REMEMBER_PWD_KEY)
+        }
+      } catch (_) { /* localStorage 不可用时静默 */ }
+
       ElMessage.success(t('login.success'))
-      // 有明确来源页就回来源页;否则交给根路由 "/" 按角色分流
-      // (管理员 → 仪表盘, 普通用户 → 学习中心, 由 router 的 redirect 统一决定)
-      // redirect 校验: 仅接受站内相对路径(以 / 开头且非 // 协议相对),防开放跳转
       const from = route.query.redirect
       const isSafePath = typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
       const target = (isSafePath && from !== '/login' && from !== '/register') ? from : '/'
@@ -70,7 +100,17 @@ const onSubmit = async () => {
         <el-form-item :label="$t('login.password')" prop="password">
           <el-input v-model="form.password" type="password" :placeholder="$t('login.passwordPlaceholder')" prefix-icon="Lock" show-password @keyup.enter="onSubmit" />
         </el-form-item>
-        <el-button type="primary" :loading="loading" style="width:100%" @click="onSubmit">{{ $t('login.submit') }}</el-button>
+        <!-- 记住账号 + 记住密码: 单独 checkbox,默认"记住账号"开, "记住密码"关 -->
+        <div class="remember-row">
+          <el-checkbox v-model="rememberAccount" size="small">{{ $t('login.rememberAccount') }}</el-checkbox>
+          <el-checkbox v-model="rememberPassword" size="small" :disabled="!rememberAccount" @change="rememberPassword && rememberAccount">
+            {{ $t('login.rememberPassword') }}
+          </el-checkbox>
+          <el-tooltip :content="$t('login.rememberTip')" placement="top" effect="light">
+            <el-icon class="tip-icon"><InfoFilled /></el-icon>
+          </el-tooltip>
+        </div>
+        <el-button type="primary" :loading="loading" style="width:100%;margin-top:4px" @click="onSubmit">{{ $t('login.submit') }}</el-button>
         <div class="auth-tip">
           {{ $t('login.noAccount') }} <router-link to="/register">{{ $t('login.registerNow') }}</router-link>
         </div>
@@ -80,7 +120,6 @@ const onSubmit = async () => {
 </template>
 
 <style scoped>
-/* 浅色柔和渐变 + 柔光晕染(业界通用的现代登录页背景) */
 .auth-page {
   min-height: 100vh;
   display: flex; align-items: center; justify-content: center;
@@ -114,7 +153,7 @@ const onSubmit = async () => {
   width: 52px; height: 52px; margin: 0 auto 14px;
   display: block;
   border-radius: 14px;
-  background: var(--c-primary-grad, linear-gradient(135deg, #2563eb, #4f46e5)); /* 图标加载失败的兜底 */
+  background: var(--c-primary-grad, linear-gradient(135deg, #2563eb, #4f46e5));
   box-shadow: 0 8px 20px rgba(37, 99, 235, .32);
 }
 .auth-header h2 { margin: 0 0 6px 0; color: #1f2937; font-size: 22px; letter-spacing: .3px; }
@@ -122,8 +161,15 @@ const onSubmit = async () => {
 .auth-tip { text-align: center; margin-top: 16px; font-size: 13px; }
 .auth-tip a { color: var(--c-primary, #2563eb); text-decoration: none; }
 
-/* 移动端: 卡片贴边全宽 */
+/* 记住账号密码行 */
+.remember-row {
+  display: flex; align-items: center; gap: 14px; margin: 0 0 4px 84px; font-size: 12px; color: #4b5563;
+}
+.tip-icon { color: #94a3b8; font-size: 14px; cursor: help; }
+.tip-icon:hover { color: #64748b; }
+
 @media (max-width: 480px) {
   .auth-card { width: calc(100vw - 32px); }
+  .remember-row { margin-left: 0; flex-wrap: wrap; }
 }
 </style>

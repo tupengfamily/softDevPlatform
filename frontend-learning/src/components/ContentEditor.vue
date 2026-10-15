@@ -5,7 +5,9 @@
 //   + 顶部"预览"按钮:用 `<Viewer>` 组件渲染效果(同一套样式)
 // - 富文本模式: Tiptap(ProseMirror)+ StarterKit + Image/Table/Underline/TextAlign/Color/Link
 //   + 自定义工具条(粗/斜/下划线/删除线/代码/H1-3/列表/引用/代码块/对齐/颜色/链接/图片/表格/撤销/重做)
-// - 全屏编辑: 两种模式均支持, Esc 退出
+// - 全屏编辑: 走浏览器原生 Fullscreen API (`requestFullscreen()`) — 不是 position:fixed 模拟遮罩
+//   真正的无 chrome 全屏, Esc 退出, 整个编辑器(类型切换 + 工具条 + 正文) 占满整个屏幕
+//   统一由 src/utils/useFullscreen.js 提供;论坛 / wiki 全文阅读也走同一套
 // - props.modelValue: 正文(HTML/Markdown); contentType: 'markdown' | 'richtext'
 //
 // Tiptap 是 GitHub 关注度最高的开源富文本(ProseMirror 内核);
@@ -51,26 +53,9 @@ const type = ref(props.contentType)
 const text = ref(props.modelValue)                                    // markdown text
 const html = ref(props.contentType === 'richtext' ? props.modelValue : '') // tiptap html
 
-// ============== 全屏编辑 ==============
-const fullscreen = ref(false)
-let bodyLocked = false
-const toggleFullscreen = () => {
-  fullscreen.value = !fullscreen.value
-  if (fullscreen.value) {
-    if (document.body.style.overflow !== 'hidden') { document.body.style.overflow = 'hidden'; bodyLocked = true }
-  } else if (bodyLocked) {
-    document.body.style.overflow = ''; bodyLocked = false
-  }
-}
-const onGlobalKeydown = (e) => {
-  if (!fullscreen.value || e.key !== 'Escape') return
-  e.preventDefault(); e.stopPropagation(); toggleFullscreen()
-}
-onMounted(() => window.addEventListener('keydown', onGlobalKeydown, true))
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onGlobalKeydown, true)
-  if (bodyLocked) document.body.style.overflow = ''
-})
+// ============== 全屏编辑 (浏览器原生 Fullscreen API) ==============
+import { useFullscreen } from '../utils/useFullscreen'
+const { isFullscreen: fullscreen, target: fsTarget, toggle: toggleFullscreen } = useFullscreen()
 
 // 外部值/类型变化同步到本地状态(父组件决定)
 watch(() => props.contentType, (v) => {
@@ -227,7 +212,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="content-editor" :class="{ fullscreen }">
+  <div ref="fsTarget" class="content-editor" :class="{ fullscreen }">
     <div class="type-switch">
       <template v-if="!lockType">
         <button type="button" :class="{ active: type === 'markdown' }" @click="type = 'markdown'; emit('update:contentType', 'markdown')">Markdown</button>
@@ -241,6 +226,7 @@ defineExpose({
       <span class="mode-tip" v-if="type === 'markdown'">bytemd · {{ mdTab === 'edit' ? $t('contentEditor.edit') : $t('contentEditor.preview') }}</span>
       <span class="mode-tip" v-else>Tiptap · ProseMirror</span>
       <button type="button" class="fs-btn" :title="fullscreen ? $t('contentEditor.exitFsTitle') : $t('contentEditor.enterFsTitle')" @click="toggleFullscreen">
+        <el-icon><component :is="fullscreen ? 'Fold' : 'FullScreen'" /></el-icon>
         {{ fullscreen ? $t('contentEditor.exitFs') : $t('contentEditor.enterFs') }}
       </button>
     </div>
@@ -289,7 +275,9 @@ defineExpose({
 .fs-btn { margin-left: auto; padding: 6px 12px; border: none; background: transparent; color: var(--c-text-2); font-size: var(--fs-xs); cursor: pointer; }
 .fs-btn:hover { color: var(--c-primary); background: var(--c-primary-bg); }
 
-.content-editor.fullscreen { position: fixed; inset: 0; z-index: 9999; border: none; border-radius: 0; background: #fff; }
+/* 浏览器原生 Fullscreen 模式下: 根元素被自动铺满整个屏幕(浏览器负责)
+   这里只补 flex 布局, 让内部 type-switch/toolbar/tab 撑满 + body 滚动 */
+.content-editor.fullscreen { display: flex; flex-direction: column; height: 100%; }
 .content-editor.fullscreen .type-switch,
 .content-editor.fullscreen .tt-toolbar,
 .content-editor.fullscreen .md-tabs { flex: none; }

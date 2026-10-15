@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { login as apiLogin, register as apiRegister, me as apiMe, logout as apiLogout, updateProfile as apiUpdateProfile } from '../api/auth'
+import { login as apiLogin, register as apiRegister, me as apiMe, logout as apiLogout, logoutAll as apiLogoutAll, updateProfile as apiUpdateProfile } from '../api/auth'
+import { encryptWithPublicKey } from '../utils/rsa'
 
 /**
  * 用户状态管理(Pinia)
@@ -30,7 +31,18 @@ export const useUserStore = defineStore('user', {
      * 登录: 调用后端 /auth/login,保存 token + 用户信息
      */
     async login(payload) {
-      const resp = await apiLogin(payload)
+      // RSA 加密密码再 POST(避免明文传输); payload 仍兼容 { password } / { encryptedPassword }
+      const safe = { ...payload }
+      if (safe.password && !safe.encryptedPassword) {
+        try {
+          safe.encryptedPassword = await encryptWithPublicKey(safe.password)
+          delete safe.password
+        } catch (e) {
+          // 公钥获取 / 加密失败,保留明文向后兼容
+          console.warn('[RSA] 公钥加密失败, 回退明文:', e?.message)
+        }
+      }
+      const resp = await apiLogin(safe)
       const data = resp.data
       this.token = data.token
       this.userInfo = data
@@ -44,7 +56,17 @@ export const useUserStore = defineStore('user', {
      * 注册: 调用 /auth/register,自动登录
      */
     async register(payload) {
-      const resp = await apiRegister(payload)
+      // 注册同样加密密码
+      const safe = { ...payload }
+      if (safe.password && !safe.encryptedPassword) {
+        try {
+          safe.encryptedPassword = await encryptWithPublicKey(safe.password)
+          delete safe.password
+        } catch (e) {
+          console.warn('[RSA] 公钥加密失败, 回退明文:', e?.message)
+        }
+      }
+      const resp = await apiRegister(safe)
       const data = resp.data
       this.token = data.token
       this.userInfo = data
@@ -72,9 +94,15 @@ export const useUserStore = defineStore('user', {
       return this.userInfo
     },
 
-    /** 登出: 调用后端 + 清本地状态 */
+    /** 登出: 调用后端(递增 tokenVersion 让该用户所有 token 失效) + 清本地状态 */
     async logout() {
       try { await apiLogout() } catch (_) { /* ignore */ }
+      this.clear()
+    },
+
+    /** 退出所有设备: 显式调后端 + 清本地状态 */
+    async logoutAll() {
+      try { await apiLogoutAll() } catch (_) { /* ignore */ }
       this.clear()
     },
 

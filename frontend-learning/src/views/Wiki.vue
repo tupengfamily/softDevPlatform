@@ -10,6 +10,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '../store/user'
+import { useCollabInboxStore } from '../store/collabInbox'
 import {
   getWikiTree, createWikiDir, updateWikiDir, deleteWikiDir, moveWikiDir, moveWikiDirParent,
   createWikiArticle, updateWikiArticle, deleteWikiArticle, moveWikiArticle,
@@ -22,6 +23,7 @@ import ContentEditor from '../components/ContentEditor.vue'
 
 const { t } = useI18n()
 const userStore = useUserStore()
+const collabInboxStore = useCollabInboxStore()
 
 const tree = ref([])
 const loading = ref(false)
@@ -113,19 +115,16 @@ const articleShareUrl = computed(() => selectedArticle.value?.shareToken
   ? `${location.origin}/wiki/share/${selectedArticle.value.shareToken}` : '')
 
 // ============ 全屏阅读 ============
-// 只在文章查看态允许全屏;按 Esc 退出,锁定 body 滚动,切换文章时自动退出
-const readerFullscreen = ref(false)
+// 全文阅读全屏: 用浏览器原生 Fullscreen API, 走 useFullscreen 统一封装
+// 模板里 .reader-panel ref 挂在要全屏的元素
+import { useFullscreen } from '../utils/useFullscreen'
+const { isFullscreen: readerFullscreen, target: readerTarget, toggle: toggleReaderFullscreen } = useFullscreen()
 const enterReader = () => {
   if (!selectedArticle.value || mode.value !== 'view') return
-  readerFullscreen.value = true
-  document.body.classList.add('reader-fullscreen')
+  toggleReaderFullscreen()  // 切到全屏(或退出)
 }
 const exitReader = () => {
-  readerFullscreen.value = false
-  document.body.classList.remove('reader-fullscreen')
-}
-const onReaderKeydown = (e) => {
-  if (e.key === 'Escape' && readerFullscreen.value) exitReader()
+  if (readerFullscreen.value) toggleReaderFullscreen()  // 安全退出
 }
 // 注: 全屏相关的两个 watch 在 mode 声明之后再注册, 避免 TDZ 报错
 
@@ -206,16 +205,11 @@ const removeDir = async (d) => {
 const mode = ref('view')
 const artSaving = ref(false)
 const artForm = reactive({ id: null, directoryId: null, title: '', content: '', contentType: 'markdown' })
-
 // 全屏相关 watch(放这里避免在 mode 声明前访问 mode,触发 TDZ)
-watch(readerFullscreen, (on) => {
-  if (on) {
-    window.addEventListener('keydown', onReaderKeydown)
-  } else {
-    window.removeEventListener('keydown', onReaderKeydown)
-  }
+// 切换文章或模式时, 自动退出全屏(useFullscreen 内部已监听 fullscreenchange)
+watch([() => selected.value?.id, () => selectedArticle.value?.id, mode], () => {
+  if (readerFullscreen.value) exitReader()
 })
-watch([() => selectedArticle.value?.id, mode], () => { if (readerFullscreen.value) exitReader() })
 
 // 新建: 直接切到内容区的内联编辑态(格式在创建时选择, 创建后不可改)
 const openArtAdd = () => {
@@ -416,7 +410,7 @@ const fileInput = ref(null)
 const IMPORT_EXT = /\.(md|markdown|docx|xlsx)$/i
 
 const openImport = () => {
-  if (!workDirId.value) { ElMessage.warning(t('wiki.needDir')); return }
+  // 不再强制要求选中目录: 允许上传到根目录(后端 createArticle 自动放根)
   fileInput.value?.click()
 }
 const onImportFile = async (e) => {
@@ -429,7 +423,8 @@ const onImportFile = async (e) => {
   try {
     const fd = new FormData()
     fd.append('file', file)
-    fd.append('directoryId', workDirId.value)
+    // 仅在选了目录时传 directoryId; 没选则后端自动放根
+    if (workDirId.value) fd.append('directoryId', workDirId.value)
     const res = await importWikiArticle(fd)
     ElMessage.success(t('wiki.importSuccess'))
     await load()
@@ -475,20 +470,66 @@ const loadCollabAll = async () => {
 const initCollabTabFromQuery = () => {
   const tab = route.query.tab
   if (tab === 'requests' || tab === 'mine' || tab === 'shared') collabTab.value = tab
+  // 来自通知中心 / 协作铃铛: ?openCollab=1 自动打开抽屉
+  if (route.query.openCollab) {
+    collabDrawer.value = true
+    collabInboxStore.refresh(true)  // 强制刷新,确保显示最新
+  }
 }
 
 watch(() => route.query.tab, initCollabTabFromQuery)
+watch(() => route.query.openCollab, initCollabTabFromQuery)
 
-// 审批操作
+// 审批操作: 通过 / 驳回 时可填写留言(选填)
+// 弹 prompt 一次, 选填: 留空也能提交, 取消 dialog = 撤销操作
+const collabPrompt = async (title, placeholder, okText) => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      placeholder, title,
+      {
+        inputType: 'textarea',
+        inputPlaceholder: placeholder,
+        inputValue: '',
+        inputValidator: () => true,    // 留空也算合法
+        confirmButtonText: okText,
+        cancelButtonText: t('common.cancel'),
+        customClass: 'collab-prompt',
+      }
+    )
+    return (value || '').trim()
+  } catch (e) {
+    return null    // 用户点取消
+  }
+}
+
 const handleApprove = async (row) => {
-  try { await approveCollaboration(row.id, ''); ElMessage.success(t('wiki.collab.approve') + ' ✓'); await loadCollabAll(); await load() }
-  catch (e) { /* 拦截器已提示 */ }
+  const comment = await collabPrompt(
+    t('wiki.collab.approveTitle'),
+    t('wiki.collab.approveCommentPh'),
+    t('wiki.collab.approve')
+  )
+  if (comment === null) return  // 用户取消
+  try {
+    await approveCollaboration(row.id, comment)
+    ElMessage.success(t('wiki.collab.approve') + ' ✓')
+    await loadCollabAll()
+    await load()
+    collabInboxStore.refresh(true)
+  } catch (e) { /* 拦截器已提示 */ }
 }
 const handleReject = async (row) => {
-  try { await ElMessageBox.confirm(t('wiki.collab.reject') + '?', t('common.confirm'), { type: 'warning' })
-        await rejectCollaboration(row.id, ''); ElMessage.success(t('wiki.collab.reject') + ' ✓')
-        await loadCollabAll() }
-  catch (e) { /* 取消 */ }
+  const comment = await collabPrompt(
+    t('wiki.collab.rejectTitle'),
+    t('wiki.collab.rejectCommentPh'),
+    t('wiki.collab.reject')
+  )
+  if (comment === null) return  // 用户取消
+  try {
+    await rejectCollaboration(row.id, comment)
+    ElMessage.success(t('wiki.collab.reject') + ' ✓')
+    await loadCollabAll()
+    collabInboxStore.refresh(true)
+  } catch (e) { /* 拦截器已提示 */ }
 }
 const handleCancel = async (row) => {
   try { await ElMessageBox.confirm(t('wiki.collab.cancelApply') + '?', t('common.confirm'), { type: 'warning' })
@@ -548,9 +589,8 @@ watch(() => selectedArticle.value?.id, () => { setupTocObserver() })
 watch(mode, () => { setupTocObserver() })
 onBeforeUnmount(() => {
   teardownTocObserver()
-  // 兜底: 卸载时若全屏未关, 清掉事件与 body class
-  window.removeEventListener('keydown', onReaderKeydown)
-  document.body.classList.remove('reader-fullscreen')
+  // 兜底: 卸载时若还在全屏, 主动退出(浏览器会恢复 chrome)
+  if (readerFullscreen.value) document.exitFullscreen?.()
 })
 </script>
 
@@ -563,7 +603,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="hero-btns">
         <el-button @click="openDirAdd()"><el-icon><FolderAdd /></el-icon> {{ $t('wiki.createDir') }}</el-button>
-        <el-button :disabled="!workDirId" :loading="importing" @click="openImport"><el-icon><Upload /></el-icon> {{ importing ? $t('wiki.importing') : $t('wiki.import') }}</el-button>
+        <el-button :loading="importing" @click="openImport"><el-icon><Upload /></el-icon> {{ importing ? $t('wiki.importing') : $t('wiki.import') }}</el-button>
         <el-button type="primary" :disabled="!workDirId" @click="openArtAdd"><el-icon><DocumentAdd /></el-icon> {{ $t('wiki.createArticle') }}</el-button>
         <el-button :type="pendingCount ? 'danger' : 'default'" plain @click="collabDrawer = !collabDrawer">
           <el-icon><UserFilled /></el-icon>
@@ -834,44 +874,40 @@ onBeforeUnmount(() => {
       </aside>
     </div>
 
-    <!-- ===== 全屏阅读(只读,可滚动;按 Esc 或点 X 退出) ===== -->
-    <teleport to="body" v-if="readerFullscreen && selectedArticle">
-      <div class="reader-mask" @click.self="exitReader">
-        <article class="reader-panel">
-          <header class="reader-bar">
-            <div class="reader-title">
-              <el-icon><Document /></el-icon>
-              <span>{{ selectedArticle.title }}</span>
-            </div>
-            <div class="reader-ops">
-              <el-button size="small" plain @click="openArtEdit(selectedArticle)"><el-icon><Edit /></el-icon> {{ $t('common.edit') }}</el-button>
-              <el-button size="small" type="success" plain @click="openShare(selectedArticle)"><el-icon><Share /></el-icon> {{ $t('wiki.share') }}</el-button>
-              <el-button size="small" type="danger" plain @click="removeArt(selectedArticle)"><el-icon><Delete /></el-icon> {{ $t('common.delete') }}</el-button>
-              <el-button size="small" @click="exitReader" :title="$t('wiki.exitFullscreen') + ' (Esc)'"><el-icon><Close /></el-icon></el-button>
-            </div>
-          </header>
-          <div class="reader-meta">
-            <span>{{ selectedArticle.contentType === 'richtext' ? $t('wiki.richType') : $t('wiki.mdType') }}</span>
-            <span>· {{ $t('wiki.charCount') }} {{ (selectedArticle.content || '').length }}</span>
-            <span>· {{ $t('wiki.createdAt') }} {{ fmtTime(selectedArticle.createTime) }}</span>
-            <span>· {{ $t('wiki.updatedAtLabel') }} {{ fmtTime(selectedArticle.updateTime) }}</span>
-          </div>
-          <div class="reader-body rich-body" v-html="contentHtml"></div>
-          <footer class="reader-foot" v-if="tocItems.length">
-            <el-divider><span class="reader-foot-label">{{ $t('wiki.tocTitle') }} ({{ tocItems.length }})</span></el-divider>
-            <ul class="reader-toc">
-              <li
-                v-for="it in tocItems" :key="it.id"
-                :class="['lv-' + it.level, { active: activeHeadingId === it.id }]"
-                @click="scrollToHeading(it.id)"
-              >
-                {{ it.text }}
-              </li>
-            </ul>
-          </footer>
-        </article>
+    <!-- ===== 全屏阅读(用浏览器原生 Fullscreen API; 按 Esc / 点 X 退出) ===== -->
+    <div v-if="selectedArticle" ref="readerTarget" class="reader-panel" :class="{ active: readerFullscreen }">
+      <header class="reader-bar">
+        <div class="reader-title">
+          <el-icon><Document /></el-icon>
+          <span>{{ selectedArticle.title }}</span>
+        </div>
+        <div class="reader-ops">
+          <el-button size="small" plain @click="openArtEdit(selectedArticle)"><el-icon><Edit /></el-icon> {{ $t('common.edit') }}</el-button>
+          <el-button size="small" type="success" plain @click="openShare(selectedArticle)"><el-icon><Share /></el-icon> {{ $t('wiki.share') }}</el-button>
+          <el-button size="small" type="danger" plain @click="removeArt(selectedArticle)"><el-icon><Delete /></el-icon> {{ $t('common.delete') }}</el-button>
+          <el-button size="small" @click="exitReader" :title="$t('wiki.exitFullscreen') + ' (Esc)'"><el-icon><Close /></el-icon></el-button>
+        </div>
+      </header>
+      <div class="reader-meta">
+        <span>{{ selectedArticle.contentType === 'richtext' ? $t('wiki.richType') : $t('wiki.mdType') }}</span>
+        <span>· {{ $t('wiki.charCount') }} {{ (selectedArticle.content || '').length }}</span>
+        <span>· {{ $t('wiki.createdAt') }} {{ fmtTime(selectedArticle.createTime) }}</span>
+        <span>· {{ $t('wiki.updatedAtLabel') }} {{ fmtTime(selectedArticle.updateTime) }}</span>
       </div>
-    </teleport>
+      <div class="reader-body rich-body" v-html="contentHtml"></div>
+      <footer class="reader-foot" v-if="tocItems.length">
+        <el-divider><span class="reader-foot-label">{{ $t('wiki.tocTitle') }} ({{ tocItems.length }})</span></el-divider>
+        <ul class="reader-toc">
+          <li
+            v-for="it in tocItems" :key="it.id"
+            :class="['lv-' + it.level, { active: activeHeadingId === it.id }]"
+            @click="scrollToHeading(it.id)"
+          >
+            {{ it.text }}
+          </li>
+        </ul>
+      </footer>
+    </div>
 
     <!-- 目录对话框 -->
     <el-dialog v-model="dirDialog" :title="dirForm.id ? $t('wiki.editDir') : $t('wiki.createDir')" width="420px" destroy-on-close>
@@ -1109,23 +1145,20 @@ onBeforeUnmount(() => {
 .slide-fade-enter-active, .slide-fade-leave-active { transition: transform .2s ease, opacity .2s ease; }
 .slide-fade-enter-from, .slide-fade-leave-to { transform: translateX(20px); opacity: 0; }
 
-/* ===== 全屏阅读(浮层) ===== */
-.reader-mask {
-  position: fixed; inset: 0; z-index: 2000;
-  background: rgba(15, 23, 42, .55);
-  display: flex; justify-content: center; align-items: stretch;
-  padding: 32px;
+/* ===== 全屏阅读(用浏览器原生 Fullscreen API) ===== */
+/* 默认状态: 隐藏(只在全屏 active 时显示, 由 :class 切换) */
+.reader-panel { display: none; }
+.reader-panel.active { display: flex; }
+/* 全屏状态下: 根元素被 requestFullscreen 铺满屏幕, 内部用 flex 撑满 */
+.reader-panel.active {
+  flex-direction: column;
+  background: #fff;
+  width: 100%; height: 100%;
+  box-shadow: 0 0 0 transparent;
+  overflow: hidden;
   animation: readerFadeIn .18s ease;
 }
 @keyframes readerFadeIn { from { opacity: 0 } to { opacity: 1 } }
-.reader-panel {
-  background: #fff; border-radius: 12px;
-  width: min(960px, 100%);
-  max-height: 100%;
-  display: flex; flex-direction: column;
-  box-shadow: 0 24px 48px rgba(0,0,0,.2);
-  overflow: hidden;
-}
 .reader-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 12px 20px; border-bottom: 1px solid var(--c-border);
@@ -1166,15 +1199,10 @@ onBeforeUnmount(() => {
 .reader-toc li.lv-2 { padding-left: 18px; }
 .reader-toc li.lv-3 { padding-left: 30px; color: var(--c-text-3); }
 
-/* 全屏时锁定 body 滚动 */
-:global(body.reader-fullscreen) { overflow: hidden; }
-
 @media (max-width: 700px) {
-  .reader-mask { padding: 0; }
-  .reader-panel { border-radius: 0; width: 100%; max-height: 100%; }
-  .reader-body { padding: 18px 20px; font-size: 16px; }
-  .reader-bar { flex-direction: column; align-items: stretch; gap: 8px; }
-  .reader-ops { justify-content: flex-end; flex-wrap: wrap; }
+  .reader-panel.active .reader-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .reader-panel.active .reader-body { padding: 18px 20px; font-size: 16px; }
+  .reader-panel.active .reader-ops { flex-wrap: wrap; }
 }
 
 /* ============ 移动端: 树与内容上下堆叠 ============ */

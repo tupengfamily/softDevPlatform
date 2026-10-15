@@ -9,6 +9,7 @@ import { useI18n } from 'vue-i18n'
 import { useUserStore } from '../store/user'
 import { useSubjectStore } from '../store/subject'
 import { useNotificationStore } from '../store/notification'
+import { useCollabInboxStore } from '../store/collabInbox'
 import { useDictStore } from '../store/dict'
 import { useLocaleStore } from '../store/locale'
 import { lessonCrumbTitle } from '../store/crumb'
@@ -23,6 +24,7 @@ const subjectStore = useSubjectStore()
 const notifStore = useNotificationStore()
 const dictStore = useDictStore()
 const localeStore = useLocaleStore()
+const collabInboxStore = useCollabInboxStore()
 const { t } = useI18n()
 
 const isAdmin = computed(() => userStore.roles.includes('ADMIN'))
@@ -123,6 +125,18 @@ const menuGroups = computed(() => {
         { path: '/learning-config', titleKey: 'nav.learningConfig', icon: 'Setting' }
       ]
     })
+    // 运营管理独立顶级分组(仅管理员可见, 含 6 个子模块)
+    groups.push({
+      titleKey: 'layout.group.operation',
+      items: [
+        { path: '/operation/overview',    titleKey: 'opNav.overview',    icon: 'Odometer' },
+        { path: '/operation/pages',       titleKey: 'opNav.pages',       icon: 'Document' },
+        { path: '/operation/user-journey', titleKey: 'opNav.userJourney', icon: 'Connection' },
+        { path: '/operation/errors',      titleKey: 'opNav.errors',      icon: 'Warning' },
+        { path: '/operation/performance', titleKey: 'opNav.performance', icon: 'Histogram' },
+        { path: '/operation/clients',     titleKey: 'opNav.clients',     icon: 'DataLine' }
+      ]
+    })
   }
   groups.push({
     titleKey: 'layout.group.other',
@@ -220,7 +234,10 @@ const onMsgClick = async (n) => {
   else if (n.relatedType === 'LESSON' && n.relatedId) router.push(`/learning/lesson/${n.relatedId}`)
   else if (n.relatedType === 'WIKI_DIR' || n.relatedType === 'WIKI_ART') {
     const tab = n.type === 'COLLAB_REQUEST' ? 'requests' : 'mine'
-    router.push({ path: '/wiki', query: { tab, dir: n.relatedId, art: n.relatedId } })
+    const query = { tab, dir: n.relatedId, art: n.relatedId }
+    // 协作申请消息: 自动打开协作抽屉(避免用户再点一次"协作者"按钮)
+    if (n.type === 'COLLAB_REQUEST') query.openCollab = '1'
+    router.push({ path: '/wiki', query })
   }
 }
 const readAllMsgs = async () => {
@@ -232,8 +249,13 @@ const readAllMsgs = async () => {
   } catch (e) { /* 已统一弹错 */ }
 }
 const goNotifications = () => { msgVisible.value = false; router.push('/notifications') }
+// 跳转到协作申请页: Wiki 抽屉自动打开 + 切到 requests tab
+const goCollabInbox = () => {
+  router.push({ path: '/wiki', query: { tab: 'requests', openCollab: '1' } })
+}
 
 let msgTimer = null
+let collabTimer = null
 
 // ============== 新版本公告弹窗 ==============
 // 对比 localStorage 已读版本,有新版本则弹窗;关闭即视为已读
@@ -259,6 +281,9 @@ onMounted(async () => {
   if (userStore.isLogin) {
     notifStore.fetchUnread()
     msgTimer = setInterval(() => notifStore.fetchUnread(), 60000)   // 未读数轮询
+    // 协作申请待审批数(独立轮询, 每 60s; 资源所有者关键入口)
+    collabInboxStore.refresh(true)
+    collabTimer = setInterval(() => collabInboxStore.refresh(), 60000)
   }
   try {
     // 新版本公告面向登录用户(游客跳过,避免匿名 401)
@@ -272,7 +297,28 @@ onMounted(async () => {
   } catch (e) { /* 未登录或接口异常时静默 */ }
 })
 
-onBeforeUnmount(() => { if (msgTimer) clearInterval(msgTimer) })
+// 跨 Tab 同步登出: 其他 Tab 清掉 localStorage token 时, 本 Tab 也跟着跳登录页
+// 配合后端 tokenVersion 机制: 一处 logout → 全端失效
+const onStorageChange = (e) => {
+  // 只关心 token key, 且新值为空(被清空)
+  if (e.key === 'token' && !e.newValue && userStore.isLogin) {
+    ElMessage.warning('您的账号已在其他位置登出, 本窗口已退出登录')
+    userStore.clear()
+    if (router.currentRoute.value.path !== '/login') {
+      router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('storage', onStorageChange)
+})
+
+onBeforeUnmount(() => {
+  if (msgTimer) clearInterval(msgTimer)
+  if (collabTimer) clearInterval(collabTimer)
+  window.removeEventListener('storage', onStorageChange)
+})
 
 const closeNotice = () => {
   if (noticeRelease.value?.version) localStorage.setItem(SEEN_KEY, noticeRelease.value.version)
@@ -300,6 +346,18 @@ const onCommand = async (cmd) => {
       ElMessage.success(t('layout.logout.done'))
       router.push('/login')
     } catch (_) { /* 取消 */ }
+  } else if (cmd === 'logoutAll') {
+    // 退出所有设备: 该用户所有 token 立即失效
+    try {
+      await ElMessageBox.confirm(
+        t('layout.logoutAll.confirm', '将退出所有已登录设备,需要重新登录'),
+        t('layout.logoutAll.tip', '退出所有设备'),
+        { confirmButtonText: t('common.ok'), cancelButtonText: t('common.cancel'), type: 'warning' }
+      )
+      await userStore.logoutAll()
+      ElMessage.success(t('layout.logoutAll.done', '已退出所有设备'))
+      router.push('/login')
+    } catch (_) { /* 取消 */ }
   } else if (cmd === 'collapse') {
     collapsed.value = !collapsed.value
   }
@@ -315,10 +373,10 @@ const onCommand = async (cmd) => {
 
     <!-- 左侧菜单(桌面可折叠;移动端为 off-canvas 抽屉) -->
     <el-aside :width="asideWidth" class="aside" :class="{ collapsed: menuCollapsed, mobile: isMobile }">
-      <div class="logo" :class="{ collapsed: menuCollapsed }">
+      <router-link to="/" class="logo" :class="{ collapsed: menuCollapsed }" :title="$t('app.title')">
         <img class="logo-icon" src="/favicon.svg" alt="" aria-hidden="true">
         <span v-show="!menuCollapsed" class="logo-text">{{ $t('app.title') }}</span>
-      </div>
+      </router-link>
 
       <el-scrollbar class="menu-scroll" role="navigation" :aria-label="$t('layout.a11y.mainNav')">
         <el-menu
@@ -452,6 +510,14 @@ const onCommand = async (cmd) => {
 
           <!-- 用户组: 消息铃铛 + 身份标签 + 头像菜单 -->
           <div class="hr-user">
+          <!-- 协作申请铃铛(登录用户): 资源所有者关键入口,红点=待审批数 -->
+          <div v-if="!isGuest" class="collab-bell-wrap">
+            <button class="msg-bell collab-bell" :title="$t('layout.collab.title')" :aria-label="$t('layout.collab.title')" @click="goCollabInbox">
+              <el-badge :value="collabInboxStore.pendingCount" :hidden="!collabInboxStore.pendingCount" :max="99" type="danger">
+                <el-icon :size="18"><UserFilled /></el-icon>
+              </el-badge>
+            </button>
+          </div>
           <!-- 消息中心铃铛(登录用户) -->
           <div v-if="!isGuest" class="msg-wrap">
             <button class="msg-bell" :title="$t('layout.msg.title')" :aria-label="$t('layout.msg.title')" @click="openMsgPanel">
@@ -524,6 +590,9 @@ const onCommand = async (cmd) => {
                   </el-dropdown-item>
                   <el-dropdown-item command="logout" divided>
                     <el-icon><SwitchButton /></el-icon>{{ $t('layout.user.logout') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="logoutAll">
+                    <el-icon><Position /></el-icon>{{ $t('layout.user.logoutAll', '退出所有设备') }}
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -606,6 +675,14 @@ const onCommand = async (cmd) => {
   transition: width .22s cubic-bezier(.4, 0, .2, 1);
   overflow: hidden;
 }
+/* logo 改为 router-link, 整块可点击回首页 */
+a.logo {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background .12s;
+}
+a.logo:hover { background: rgba(255, 255, 255, .08); }
 .logo {
   display: flex; align-items: center; gap: 9px;
   height: 52px; padding: 0 20px; flex: none;
@@ -717,6 +794,8 @@ const onCommand = async (cmd) => {
 
 /* 消息中心铃铛 + 下拉面板 */
 .msg-wrap { position: relative; display: inline-flex; }
+.collab-bell-wrap { position: relative; display: inline-flex; margin-right: 4px; }
+.collab-bell { color: var(--c-text-2); }
 .msg-bell {
   display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; padding: 0; border: none; border-radius: 50%;

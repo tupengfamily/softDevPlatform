@@ -15,6 +15,10 @@ export const me = () =>
 // POST /api/auth/logout
 export const logout = () =>
   request({ url: '/auth/logout', method: 'post' })
+
+// POST /api/auth/logout-all 退出所有设备
+export const logoutAll = () =>
+  request({ url: '/auth/logout-all', method: 'post' })
 // PUT /api/auth/profile — 本人更新个人信息(昵称/头像/个性签名/邮箱/年龄/地址)
 export const updateProfile = (data) =>
   request({ url: '/auth/profile', method: 'put', data })

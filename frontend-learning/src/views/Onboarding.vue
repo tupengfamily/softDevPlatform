@@ -7,7 +7,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '../store/user'
-import { finishOnboarding, skipOnboarding, getOnboardingMe, getOnboardingRecommend } from '../api/onboarding'
+import { finishOnboarding, skipOnboarding, getOnboardingMe, getRecommend as getOnboardingRecommend } from '../api/onboarding'
 
 const { t } = useI18n()
 const router = useRouter()

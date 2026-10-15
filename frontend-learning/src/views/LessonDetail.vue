@@ -13,6 +13,9 @@ import { useUserStore } from '../store/user'
 import { useSubjectStore } from '../store/subject'
 import { useDictStore } from '../store/dict'
 import { renderMarkdown } from '../utils/markdown'
+import { renderHighlighted } from '../utils/highlight'
+// 引入 highlight.js 主题 CSS(github 浅色主题, 避免全黑对眼睛刺激)
+import 'highlight.js/styles/github.css'
 import CodeEditor from '../components/CodeEditor.vue'
 import SqlConsole from '../components/SqlConsole.vue'
 import SupplementTree from '../components/SupplementTree.vue'
@@ -236,8 +239,16 @@ const onKeyActivate = (e, fn) => {
 
 // ============== 通用示例代码卡(非沙箱语言) ==============
 const SANDBOX_TYPES = ['java', 'python', 'nodejs', 'sql']
-const showExample = computed(() =>
+const showExample = computed(()=>
   !!lesson.value?.codeExample && !SANDBOX_TYPES.includes(lesson.value?.codeType || 'java'))
+/** 把 codeExample 走 highlight.js 渲染(根据 codeType 选择语言), 失败降级自动识别 */
+const renderedExample = computed(() => {
+  const l = lesson.value
+  if (!l?.codeExample) return ''
+  return renderHighlighted(l.codeExample, l.codeType)
+})
+// 沙箱 stdout/stderr 也用 highlight.js 高亮(识别为 bash / 输出文本)
+function hl(text) { return renderHighlighted(text || '', 'bash') }
 const exampleCopied = ref(false)
 const copyExample = async () => {
   try {
@@ -491,7 +502,7 @@ onBeforeUnmount(() => {
               <el-icon><CopyDocument /></el-icon> {{ exampleCopied ? $t('lesson.practice.copied') : $t('lesson.practice.copy') }}
             </el-button>
           </div>
-          <pre class="example-code"><code>{{ lesson.codeExample }}</code></pre>
+          <pre class="example-code"><code v-html="renderedExample"></code></pre>
         </div>
 
         <!-- 代码练习卡(sql/python 类型课时不展示 Java 沙箱,避免语言错配) -->
@@ -794,8 +805,28 @@ onBeforeUnmount(() => {
 
 /* 练习卡 */
 .practice { margin:30px 0; background:#fff; border:1px solid var(--c-border); border-radius:var(--r-m); overflow:hidden; box-shadow:0 2px 6px rgba(20,30,60,.06); scroll-margin-top:80px }
-.example-code { margin:0; padding:18px 20px; background:#0f172a; color:#e2e8f0; overflow-x:auto; font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size:var(--fs-sm); line-height:1.7; tab-size:2 }
-.example-code code { background:none; padding:0; color:inherit; font-size:inherit }
+.example-code {
+  margin:0; padding:18px 20px;
+  background: #f6f8fa;            /* highlight.js github 主题的浅色背景 */
+  color: #24292f;
+  overflow-x:auto;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  tab-size: 2;
+}
+/* highlight.js github 主题默认在 pre.hljs 容器, 我们用 pre.example-code, 覆盖样式 */
+.example-code { border-radius: 0 0 8px 8px }
+/* 重新设置 token 颜色, 避免被全局 pre 样式覆盖 (Element Plus 的 .el-card 等) */
+.example-code code { background: transparent; padding: 0; color: inherit; font-size: inherit; font-family: inherit }
+.example-code .hljs-keyword, .example-code .hljs-selector-tag, .example-code .hljs-built_in { color:#d73a49; font-weight:600 }
+.example-code .hljs-string, .example-code .hljs-attr { color:#032f62 }
+.example-code .hljs-comment { color:#6a737d; font-style:italic }
+.example-code .hljs-number, .example-code .hljs-literal { color:#005cc5 }
+.example-code .hljs-function, .example-code .hljs-title { color:#6f42c1 }
+.example-code .hljs-variable, .example-code .hljs-name { color:#e36209 }
+.example-code .hljs-tag, .example-code .hljs-meta { color:#22863a }
+.example-code .hljs-symbol, .example-code .hljs-bullet { color:#e36209 }
 .phead { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:linear-gradient(180deg,#fafbff,#fff); border-bottom:1px solid var(--c-border) }
 .phead h3 { margin:0; font-size:var(--fs-md) }
 .phead small { color:var(--c-text-3); font-weight:400; margin-left:8px; font-size:var(--fs-xs) }

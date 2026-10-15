@@ -81,13 +81,23 @@ const chapterTarget = (ch) => {
 
 // 键盘可达:章节卡支持 Enter / 空格 触发
 const onChapterKey = (e, ch) => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLesson(chapterTarget(ch)) }
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openChapter(ch) }
 }
 
-// 进入当前未学完的第一个章节
+// 锁定章提示: 点击/回车时弹 Modal
+const lockedChapter = ref(null)
+const openLockedHint = (ch) => { lockedChapter.value = ch }
+const closeLockedHint = () => { lockedChapter.value = null }
+const openChapter = (ch) => {
+  if (ch.locked) { openLockedHint(ch); return }
+  openLesson(chapterTarget(ch))
+}
+
+// 进入当前未学完的第一个章节(跳过 locked)
 const continueLearning = () => {
   for (const st of stages.value) {
     for (const ch of st.chapters) {
+      if (ch.locked) continue
       for (const ls of ch.lessons) {
         if (!ls.learned) { openLesson(ls.id); return }
       }
@@ -183,23 +193,28 @@ onMounted(loadSubjects)
             class="chapter"
             role="button"
             tabindex="0"
-            :class="{ done: ch.learnedLessons === ch.totalLessons && ch.totalLessons > 0 }"
-            :aria-label="$t('learningCenter.chapter.aria', { no: ch.chapterNo, title: ch.title })"
-            @click="openLesson(chapterTarget(ch))"
+            :class="{ done: ch.learnedLessons === ch.totalLessons && ch.totalLessons > 0, locked: ch.locked }"
+            :aria-label="ch.locked ? $t('learningCenter.chapter.lockedAria', { no: ch.chapterNo, title: ch.title, n: ch.unmetPrerequisites.length }) : $t('learningCenter.chapter.aria', { no: ch.chapterNo, title: ch.title })"
+            @click="openChapter(ch)"
             @keydown="onChapterKey($event, ch)"
           >
             <div class="ch-title">
               <span class="ch-no">{{ $t('learningCenter.chapter.no', { no: ch.chapterNo }) }}</span>
               <span class="ch-name">{{ ch.title }}</span>
-              <el-icon v-if="ch.learnedLessons === ch.totalLessons && ch.totalLessons > 0" color="#22c55e" class="ch-done"><CircleCheckFilled /></el-icon>
+              <el-icon v-if="ch.locked" class="ch-lock" :title="$t('learningCenter.chapter.lockedTip')"><Lock /></el-icon>
+              <el-icon v-else-if="ch.learnedLessons === ch.totalLessons && ch.totalLessons > 0" color="#22c55e" class="ch-done"><CircleCheckFilled /></el-icon>
             </div>
             <div class="ch-meta">
               <span>{{ $t('learningCenter.chapter.lessons', { n: ch.lessons.length }) }}</span>
               <span v-if="ch.estimatedHours">{{ $t('learningCenter.chapter.hours', { h: ch.estimatedHours }) }}</span>
-              <span>{{ $t('learningCenter.chapter.learned', { learned: ch.learnedLessons, total: ch.totalLessons }) }}</span>
+              <span v-if="!ch.locked">{{ $t('learningCenter.chapter.learned', { learned: ch.learnedLessons, total: ch.totalLessons }) }}</span>
+              <span v-else class="ch-meta-locked">{{ $t('learningCenter.chapter.lockedMeta', { n: ch.unmetPrerequisites.length }) }}</span>
             </div>
-            <div v-if="ch.totalLessons > 0" class="ch-progress">
+            <div v-if="!ch.locked && ch.totalLessons > 0" class="ch-progress">
               <i :style="{ width: (ch.learnedLessons / ch.totalLessons * 100) + '%' }"></i>
+            </div>
+            <div v-else class="ch-progress-locked">
+              <i></i>
             </div>
           </div>
         </div>
@@ -214,6 +229,25 @@ onMounted(loadSubjects)
       :title="$t('learningCenter.supplement.title')"
       :root-label="$t('learningCenter.supplement.rootLabel')"
     />
+
+    <!-- 锁定章节提示弹窗 -->
+    <el-dialog
+      v-model="lockedChapter"
+      :title="$t('learningCenter.locked.title')"
+      width="420px"
+      :show-close="true"
+      align-center
+    >
+      <div class="locked-dialog">
+        <el-icon class="lock-icon"><Lock /></el-icon>
+        <h3>{{ lockedChapter?.title }}</h3>
+        <p class="locked-desc">{{ $t('learningCenter.locked.desc', { n: lockedChapter?.unmetPrerequisites?.length || 0 }) }}</p>
+        <p class="locked-hint">{{ $t('learningCenter.locked.hint') }}</p>
+      </div>
+      <template #footer>
+        <el-button @click="closeLockedHint" type="primary">{{ $t('learningCenter.locked.gotIt') }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -253,6 +287,14 @@ onMounted(loadSubjects)
 .chapter { background:#fff; border:1px solid var(--c-border); border-radius:var(--r-m); padding:16px; cursor:pointer; transition:all .15s }
 .chapter:hover { transform:translateY(-2px); box-shadow:0 8px 18px rgba(20,30,60,.08); border-color:var(--c-primary) }
 .chapter.done { background:linear-gradient(180deg,#f6fcf8,#fff); border-color:#86efac }
+/* 锁定章: 灰显 + 锁图标, hover 不变形 */
+.chapter.locked { background:#f5f5f7; border:1px dashed #c7c7cc; cursor:pointer; opacity:.85 }
+.chapter.locked:hover { transform:none; box-shadow:0 2px 6px rgba(20,30,60,.04); border-color:#a1a1a6 }
+.chapter.locked .ch-name { color:var(--c-text-2) }
+.chapter.locked .ch-lock { color:#a1a1a6; font-size:18px; flex-shrink:0 }
+.chapter.locked .ch-meta-locked { color:#dc8e1f; font-weight:500 }
+.ch-progress-locked { margin-top:10px; height:4px; border-radius:2px; background:#e5e5ea; overflow:hidden }
+.ch-progress-locked i { display:block; height:100%; width:0; background:#d1d1d6 }
 .ch-title { display:flex; align-items:center; gap:8px; font-weight:600; margin-bottom:6px; font-size:var(--fs-base) }
 .ch-no { color:var(--c-text-3); font-size:var(--fs-xs); font-weight:500; width:54px; flex-shrink:0 }
 .ch-name { flex:1; color:var(--c-text-1) }
