@@ -10,6 +10,7 @@ import router from './router'
 import i18n from './i18n'
 import { useThemeStore } from './store/theme'
 import './assets/styles/main.css'
+import { initTracker } from './utils/tracker'
 
 const app = createApp(App)
 
@@ -30,6 +31,10 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 app.use(router)
 
+// 前端埋点(综合业界通用做法): 自动采集 PV/停留时长/性能/错误/用户旅程
+// 必须在 router afterEach 挂载之前装好, 以便后续路由切换能被捕获
+initTracker(router)
+
 // 全局错误处理: 把 setup/render 阶段异常打到 console(开发期必备, 避免被 Vue dev 模式静默吞掉)
 app.config.errorHandler = (err, instance, info) => {
   console.error('[Vue] errorHandler:', err && (err.stack || err.message), '| info:', info)
@@ -44,3 +49,13 @@ window.addEventListener('error', e => console.error('[window.onerror]', e.messag
 window.addEventListener('unhandledrejection', e => console.error('[unhandledrejection]', e.reason))
 
 app.mount('#app')
+
+// 路由首次就绪后, 手动触发一次 page_view(afterEach 不会重放历史首屏)
+router.isReady().then(() => {
+  const route = router.currentRoute.value
+  if (route && route.name !== 'Login' && route.name !== 'Register') {
+    import('./utils/tracker').then(({ trackEvent }) => {
+      trackEvent('first_visit', { route: route.name, url: location.href })
+    })
+  }
+})

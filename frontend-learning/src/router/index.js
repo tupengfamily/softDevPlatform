@@ -111,6 +111,20 @@ const routes = [
         meta: { title: '关于', titleKey: 'nav.about', icon: 'InfoFilled' }
       },
       {
+        path: 'operation',
+        component: () => import('../views/operation/OperationLayout.vue'),
+        meta: { title: '运营管理', titleKey: 'nav.operation', icon: 'TrendCharts', roles: ['ADMIN'] },
+        children: [
+          { path: '',          redirect: '/operation/overview' },
+          { path: 'overview',  name: 'OpOverview',  component: () => import('../views/operation/OpOverview.vue'),   meta: { title: '运营概览', titleKey: 'opNav.overview'  } },
+          { path: 'pages',     name: 'OpPages',     component: () => import('../views/operation/OpPages.vue'),      meta: { title: '页面清单', titleKey: 'opNav.pages'     } },
+          { path: 'user-journey', name: 'OpUserJourney', component: () => import('../views/operation/OpUserJourney.vue'), meta: { title: '用户旅程', titleKey: 'opNav.userJourney' } },
+          { path: 'errors',    name: 'OpErrors',    component: () => import('../views/operation/OpErrors.vue'),     meta: { title: '错误日志', titleKey: 'opNav.errors'    } },
+          { path: 'performance', name: 'OpPerformance', component: () => import('../views/operation/OpPerformance.vue'), meta: { title: '性能监控', titleKey: 'opNav.performance' } },
+          { path: 'clients',   name: 'OpClients',   component: () => import('../views/operation/OpClients.vue'),    meta: { title: '客户端画像', titleKey: 'opNav.clients'   } }
+        ]
+      },
+      {
         path: 'onboarding',
         name: 'Onboarding',
         component: () => import('../views/Onboarding.vue'),
