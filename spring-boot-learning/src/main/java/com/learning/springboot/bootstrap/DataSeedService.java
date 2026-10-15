@@ -103,6 +103,19 @@ public class DataSeedService {
                     userId, permId);
             }
         }
+        // 运营管理角色: 仅含 dashboard:view(用于运营概览)
+        if (!roleRepository.existsByCode("OPERATION")) {
+            jdbc.update(
+                "INSERT INTO t_role (code, name, description, create_time, update_time) VALUES (?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))",
+                "OPERATION", "运营管理员", "只能访问运营管理模块(系统管理仍需 ADMIN)");
+            Long opId = jdbc.queryForObject("SELECT last_insert_rowid()", Long.class);
+            for (String code : List.of("dashboard:view")) {
+                Long permId = jdbc.queryForObject(
+                    "SELECT id FROM t_permission WHERE code = ?", Long.class, code);
+                jdbc.update("INSERT OR IGNORE INTO t_role_permission (role_id, permission_id) VALUES (?, ?)",
+                    opId, permId);
+            }
+        }
     }
 
     @Transactional(rollbackFor = Exception.class)

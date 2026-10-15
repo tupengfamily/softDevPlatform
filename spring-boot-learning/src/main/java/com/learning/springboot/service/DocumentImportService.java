@@ -128,6 +128,9 @@ public class DocumentImportService {
             return html;
         } catch (IOException e) {
             throw new BusinessException("Word 文档解析失败, 文件可能已损坏或并非真正的 .docx");
+        } catch (Exception e) {
+            // POI 抛 OpenXML4J/RuntimeException (如 "No valid entries"), catch IOException 抓不到
+            throw new BusinessException("Word 文档解析失败, 文件可能已损坏或并非真正的 .docx (" + e.getClass().getSimpleName() + ")");
         }
     }
 
@@ -265,6 +268,9 @@ public class DocumentImportService {
             return html;
         } catch (IOException e) {
             throw new BusinessException("Excel 文件解析失败, 文件可能已损坏或并非真正的 .xlsx");
+        } catch (Exception e) {
+            // POI 抛 OpenXML4J/RuntimeException, catch IOException 抓不到
+            throw new BusinessException("Excel 文件解析失败, 文件可能已损坏或并非真正的 .xlsx (" + e.getClass().getSimpleName() + ")");
         }
     }
 

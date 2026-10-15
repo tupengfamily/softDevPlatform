@@ -57,6 +57,17 @@ public class LearningChapter {
     @Column(nullable = false)
     private Boolean archived = false;
 
+    /**
+     * 前置章节 ID 列表(JSON 数组, 存本学科内的其他章节 id)。
+     * 当前章节只有在该列表里所有章节都被用户标记为"已学"后才能进入。
+     * null/空 = 无前置, 默认解锁。
+     * <p>
+     * 例: 进阶章的前置 = 基础阶段的所有章 id, 用户学完基础才能开进阶。
+     * 存为 JSON 字符串避免新增关联表(本项目无关系需求,只需在课程树接口里判是否锁定)。
+     */
+    @Column(name = "prerequisites", columnDefinition = "text")
+    private String prerequisites;
+
     public LearningChapter() {}
 
     // ============== Getter / Setter ==============
@@ -90,6 +101,9 @@ public class LearningChapter {
 
     public Boolean getArchived() { return archived; }
     public void setArchived(Boolean archived) { this.archived = archived; }
+
+    public String getPrerequisites() { return prerequisites; }
+    public void setPrerequisites(String prerequisites) { this.prerequisites = prerequisites; }
 
     @Override
     public String toString() {

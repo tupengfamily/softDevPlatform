@@ -85,6 +85,12 @@ public class LearningVO {
         public long totalLessons;
         public long learnedLessons;
         public List<LessonItemVO> lessons = new ArrayList<>();
+        /** 前置章 id 列表(本学科内), null/空 = 无前置, 默认解锁 */
+        public List<Long> prerequisites = new ArrayList<>();
+        /** 未学完的前置章 id 列表; 空 = 已满足所有前置, 否则未解锁 */
+        public List<Long> unmetPrerequisites = new ArrayList<>();
+        /** 是否锁定(还有未完成的前置章) */
+        public boolean locked = false;
     }
 
     /** 课程树 - 课时条目(目录展示) */

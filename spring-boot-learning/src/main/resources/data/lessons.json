@@ -5474,6 +5474,812 @@
         }
       ],
       "subject": "jsadv"
+    },
+    {
+      "stageNo": 5,
+      "stageName": "Java 进阶与高级",
+      "chapterNo": 40,
+      "title": "Spring Boot 进阶",
+      "description": "Spring Security / Data JPA / 缓存 / 事务传播机制,生产级 Spring Boot 应用必备。",
+      "codePath": "com.learning.spring.Advanced",
+      "estimatedHours": 4,
+      "subject": "java",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Spring Security 入门:认证与授权",
+          "summary": "理解 Spring Security 的过滤器链、AuthenticationManager 与权限模型。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## Spring Security 核心概念\n- SecurityFilterChain: 一组按顺序执行的过滤器,处理 HTTP 安全\n- Authentication: 认证主体(UserDetails)\n- Authorization: 授权决策(基于角色/权限)\n\n## 常见配置\n- WebSecurityConfigurerAdapter (已弃用) → 新版用 bean 形式\n- formLogin / httpBasic / oauth2Login\n- hasRole / hasAuthority / @PreAuthorize\n\n## 实战: 角色权限\n- 定义 UserDetailsService 加载用户\n- PasswordEncoder(BCrypt)\n- Controller @PreAuthorize(\"hasRole('ADMIN')\")",
+          "codeExample": "// SecurityConfig.java (Spring Security 6.x)\n@Configuration\n@EnableWebSecurity\n@EnableMethodSecurity\npublic class SecurityConfig {\n\n  @Bean\n  public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {\n    return http\n      .authorizeHttpRequests(auth -> auth\n        .requestMatchers(\"/api/public/**\").permitAll()\n        .requestMatchers(\"/api/admin/**\").hasRole(\"ADMIN\")\n        .anyRequest().authenticated())\n      .formLogin(Customizer.withDefaults())\n      .build();\n  }\n\n  @Bean\n  public PasswordEncoder passwordEncoder() {\n    return new BCryptPasswordEncoder();\n  }\n}",
+          "codeType": "java"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Spring Data JPA 与 Repository 抽象",
+          "summary": "JpaRepository / 派生方法 / @Query / 实体关系映射,数据访问层最佳实践。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "## Repository 抽象\n- CrudRepository / PagingAndSortingRepository / JpaRepository\n- 方法名派生: findByUsernameAndAgeGreaterThan\n- @Query JPQL / 原生 SQL\n- Specification 动态查询\n- Projection: 接口 / DTO 投影\n\n## 实体关系\n- @OneToMany / @ManyToOne / @ManyToMany\n- FetchType.LAZY 默认(避免 N+1)\n- 双向关系时 mappedBy 指向对方维护字段",
+          "codeExample": "// UserRepository.java\npublic interface UserRepository extends JpaRepository<User, Long> {\n  Optional<User> findByUsername(String username);\n  List<User> findByCreatedAtAfter(LocalDateTime time);\n\n  @Query(\"SELECT u FROM User u WHERE u.email LIKE %:kw% ORDER BY u.id DESC\")\n  List<User> searchByEmail(@Param(\"kw\") String keyword, Pageable page);\n\n  // 投影: 只查需要的字段\n  @Query(\"SELECT u.username AS username, u.email AS email FROM User u WHERE u.active = true\")\n  List<UserSummary> findActiveSummaries();\n}\n\ninterface UserSummary { String getUsername(); String getEmail(); }",
+          "codeType": "java"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Spring 事务传播机制",
+          "summary": "REQUIRED / REQUIRES_NEW / NESTED 等传播行为与隔离级别,生产排错必备。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 传播行为(Propagation)\n- REQUIRED (默认): 有事务就加入, 没有就新建\n- REQUIRES_NEW: 总是新建事务, 挂起外层事务\n- NESTED: 嵌套事务(savepoint)\n- SUPPORTS / NOT_SUPPORTED / NEVER / MANDATORY\n\n## 隔离级别(Isolation)\n- READ_UNCOMMITTED / READ_COMMITTED / REPEATABLE_READ / SERIALIZABLE\n- 默认用数据库隔离级别\n\n## 实战排错\n- 事务不生效的常见原因: 同类方法内部调用(走 this 不走代理)\n- 异常被 catch 吞了不回滚\n- 隔离级别不足导致幻读/不可重复读",
+          "codeExample": "@Service\npublic class OrderService {\n\n  @Transactional(propagation = Propagation.REQUIRED)\n  public Order placeOrder(OrderDTO dto) {\n    Order order = orderRepository.save(toEntity(dto));\n    inventoryService.decreaseStock(order);  // 参与同一个事务\n    paymentService.charge(order);            // 也参与\n    return order;\n  }\n}\n\n@Service\npublic class LogService {\n  @Transactional(propagation = Propagation.REQUIRES_NEW)  // 独立事务\n  public void logOperation(String msg) {\n    operationLogRepository.save(new OperationLog(msg));\n  }\n}",
+          "codeType": "java"
+        },
+        {
+          "lessonNo": 4,
+          "title": "Spring Cache 与 Redis 集成",
+          "summary": "@Cacheable / @CacheEvict / Redis 作为分布式缓存,提升读性能。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 关键注解\n- @Cacheable: 缓存方法返回值\n- @CachePut: 更新缓存\n- @CacheEvict: 清除缓存(allEntries=true 清全部)\n\n## Redis 集成\n- spring-boot-starter-data-redis\n- RedisTemplate / StringRedisTemplate\n- 序列化: Jackson2JsonRedisSerializer / GenericJackson2JsonRedisSerializer\n\n## 实战模式\n- Cache-Aside: 读时先查 cache, miss 再查 DB 并回填\n- 写时双写 + TTL\n- 防雪崩: 随机 TTL / 防穿透: 布隆过滤器 / 空值缓存",
+          "codeExample": "@Service\n@CacheConfig(cacheNames = \"user\")\npublic class UserService {\n  @Autowired private UserRepository userRepository;\n  @Autowired private RedisTemplate<String, User> redis;\n\n  @Cacheable(key = \"#id\", unless = \"#result == null\")\n  public User getById(Long id) {\n    return userRepository.findById(id).orElse(null);\n  }\n\n  @CachePut(key = \"#user.id\")\n  public User update(User user) {\n    return userRepository.save(user);\n  }\n\n  @CacheEvict(key = \"#id\")\n  public void delete(Long id) {\n    userRepository.deleteById(id);\n  }\n}",
+          "codeType": "java"
+        }
+      ]
+    },
+    {
+      "stageNo": 5,
+      "stageName": "Java 进阶与高级",
+      "chapterNo": 41,
+      "title": "JVM 调优与性能分析",
+      "description": "JVM 内存模型 / GC 算法 / 调优工具 / 性能瓶颈定位。",
+      "codePath": "com.learning.jvm.Tune",
+      "estimatedHours": 4,
+      "subject": "java",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "JVM 内存模型与 OOM 排错",
+          "summary": "堆/栈/方法区/直接内存,OutOfMemoryError 实战排错。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 内存区域\n- 堆: 对象实例(年轻代 + 老年代)\n- 虚拟机栈: 线程栈帧, 局部变量\n- 方法区: 类元数据 + 运行时常量池\n- 本地方法栈 / PC 寄存器\n- 直接内存(NIO 用的堆外)\n\n## OOM 类型\n- Java heap space: 堆满, 内存泄漏或真用尽\n- GC overhead limit exceeded: GC 时间占比过高\n- PermGen / Metaspace: 类太多\n- Direct buffer memory: NIO 堆外\n- unable to create new native thread: 线程过多",
+          "codeExample": "// OOM 排查 5 步法:\n// 1) 导出堆快照\njmap -dump:format=b,file=heap.bin <pid>\n// 或启动参数: -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/heap.hprof\n\n// 2) 用 Eclipse MAT / VisualVM 打开 heap.bin\n// 看 Leak Suspects 报告 + Dominator Tree\n\n// 3) 看线程栈: jstack <pid> | grep -A 30 BLOCKED\n// 找死锁/长时间阻塞\n\n// 4) 看 GC 日志: -Xlog:gc* (JDK 9+) 或 -XX:+PrintGCDetails (JDK 8)\n\n// 5) 算占用: jcmd <pid> VM.native_memory summary",
+          "codeType": "bash"
+        },
+        {
+          "lessonNo": 2,
+          "title": "GC 算法与垃圾收集器选型",
+          "summary": "Serial / Parallel / CMS / G1 / ZGC / Shenandoah,选型与参数。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "## GC 算法\n- 标记-清除: 老年代, 内存碎片\n- 标记-整理: 老年代, 移动对象\n- 复制: 年轻代, Survivor 区\n- 分代: 综合使用\n\n## 收集器\n- Serial/Parallel: 吞吐优先\n- CMS: 低延迟(已弃用)\n- G1: 分 Region, 平衡(JDK 9+ 默认)\n- ZGC / Shenandoah: 亚毫秒级, 超大堆\n\n## G1 关键参数\n- -Xms / -Xmx: 堆大小\n- -XX:MaxGCPauseMillis=200: 目标停顿\n- -XX:InitiatingHeapOccupancyPercent=45: 启动并发标记阈值",
+          "codeExample": "# 启动一个 Spring Boot 应用, 用 G1 + 4G 堆\njava -Xms4g -Xmx4g \\\n     -XX:+UseG1GC \\\n     -XX:MaxGCPauseMillis=200 \\\n     -XX:InitiatingHeapOccupancyPercent=45 \\\n     -Xlog:gc*:file=gc.log:time,uptime,level,tags \\\n     -jar app.jar\n\n# 查看 GC 实时情况\njstat -gc <pid> 1s\n# 或 jcmd <pid> GC.heap_info\n\n# 低延迟需求: ZGC\n# -XX:+UseZGC -Xmx16g",
+          "codeType": "bash"
+        },
+        {
+          "lessonNo": 3,
+          "title": "JIT 即时编译与代码优化",
+          "summary": "C1/C2/TieredCompilation,锁优化、逃逸分析、内联。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 编译分层\n- 解释执行 → C1 客户端编译 → C2 服务端编译\n- TieredCompilation: JDK 7+ 默认, 混合模式\n- -Xint 纯解释 / -Xcomp 纯编译(预热慢)\n\n## 优化手段\n- 锁消除: 同步块在单线程里直接去掉\n- 锁粗化: 连续加锁解锁合并\n- 逃逸分析: 对象未逃逸可栈分配\n- 方法内联: 小方法直接展开\n- 循环展开 / 表达式优化",
+          "codeExample": "# 启动参数: 看 JIT 输出\njava -XX:+UnlockDiagnosticVMOptions \\\n     -XX:+PrintCompilation \\\n     -XX:+PrintInlining \\\n     -jar app.jar\n\n# JMH 微基准测试: 看 JIT 实际效果\n@Benchmark\n@Warmup(iterations = 5, time = 1)\n@Measurement(iterations = 10, time = 1)\npublic int sum() {\n  int s = 0;\n  for (int i = 0; i < 1_000_000; i++) s += i;\n  return s;\n}",
+          "codeType": "bash"
+        },
+        {
+          "lessonNo": 4,
+          "title": "async-profiler 与火焰图",
+          "summary": "perf + async-profiler 定位 CPU / 锁 / 内存瓶颈,生成火焰图。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## async-profiler 安装\n- 下载: https://github.com/async-profiler/async-profiler/releases\n- 解压得到 libasyncProfiler.so\n\n## 常用模式\n- CPU 火焰图: 找热路径\n- 锁火焰图: 找锁竞争\n- 内存火焰图: 找分配热点\n- 实时采样: -e cpu 5s\n\n## 与 Arthas 配合\n- Arthas: dashboard / thread / profiler start\n- async-profiler: 离线分析, 生成 SVG/HTML 报告\n- IDEA Profiler: 集成开发",
+          "codeExample": "# 启动后采样 30s, 生成 CPU 火焰图\n./profiler.sh -e cpu -d 30 -f /tmp/cpu.html <pid>\n\n# 锁采样\n./profiler.sh -e lock -d 30 -f /tmp/lock.html <pid>\n\n# 内存分配\n./profiler.sh -e alloc -d 30 -f /tmp/alloc.html <pid>\n\n# 持续模式(实时刷新)\n./profiler.sh -e cpu -t -f /tmp/live.html <pid> &\n# 另开终端 tail -f /tmp/live.html\n\n# 在火焰图里: 宽 = CPU 时间占比, 找最宽的栈顶 → 热路径",
+          "codeType": "bash"
+        }
+      ]
+    },
+    {
+      "stageNo": 5,
+      "stageName": "Java 进阶与高级",
+      "chapterNo": 42,
+      "title": "高并发实战",
+      "description": "CompletableFuture / 虚拟线程 / Reactive Stream,生产级并发方案。",
+      "codePath": "com.learning.concurrent.Advanced",
+      "estimatedHours": 4,
+      "subject": "java",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "CompletableFuture 链式与组合",
+          "summary": "thenApply / thenCompose / thenCombine,异步编排利器。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 静态工厂方法\n- supplyAsync: 返回值的异步\n- runAsync: 无返回值的异步\n- completedFuture: 包装已完成的\n- failedFuture: 包装异常的\n\n## 链式\n- thenApply: 转换结果(类似 map)\n- thenAccept: 消费结果\n- thenRun: 不消费结果\n- thenCompose: 串联另一个异步(类似 flatMap)\n- thenCombine: 两个独立异步合并\n\n## 异常处理\n- exceptionally: 异常时降级\n- handle: 无论成败都处理\n- whenComplete: 收尾",
+          "codeExample": "// 多接口并发调用合并\nCompletableFuture<User> userF = CompletableFuture.supplyAsync(() -> userApi.get(id));\nCompletableFuture<List<Order>> orderF = CompletableFuture.supplyAsync(() -> orderApi.list(id));\nCompletableFuture<Account> accountF = CompletableFuture.supplyAsync(() -> accountApi.get(id));\n\nCompletableFuture.allOf(userF, orderF, accountF).join();\n\nProfileVO vo = new ProfileVO(\n  userF.join(), orderF.join(), accountF.join()\n);\n\n// 异常降级\nCompletableFuture.supplyAsync(() -> callFlakyService())\n  .exceptionally(ex -> defaultValue)\n  .thenAccept(this::save)",
+          "codeType": "java"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Java 21 虚拟线程 (Virtual Threads)",
+          "summary": "Project Loom,百万级线程不再是梦。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 虚拟线程 vs 平台线程\n- 平台线程: 1:1 映射 OS 线程, 切换开销大\n- 虚拟线程: M:N 映射, JVM 调度, 切换成本极低\n- 适合: I/O 密集任务(HTTP / DB / 文件)\n- 不适合: 长时间 CPU 计算(用平台线程)\n\n## 使用\n- Thread.ofVirtual().start(task)\n- Executors.newVirtualThreadPerTaskExecutor()\n- @Async 配 spring.threads.virtual.enabled=true\n\n## 同步原语\n- synchronized 会有 pinning 风险(避免在 hot path 用)\n- 优先用 ReentrantLock",
+          "codeExample": "// 启动 100 万个虚拟线程跑 HTTP 请求\ntry (var executor = Executors.newVirtualThreadPerTaskExecutor()) {\n  for (int i = 0; i < 1_000_000; i++) {\n    final int id = i;\n    executor.submit(() -> callRemoteApi(id));\n  }\n}  // 自动等待所有任务\n\n// Spring Boot 3.2+ 启用虚拟线程\n// application.yml\nspring:\n  threads:\n    virtual:\n      enabled: true",
+          "codeType": "java"
+        },
+        {
+          "lessonNo": 3,
+          "title": "响应式编程: Reactive Streams",
+          "summary": "Reactor / Mono / Flux / 背压,WebFlux 入门。",
+          "difficulty": 3,
+          "durationMinutes": 30,
+          "content": "## 核心概念\n- Publisher: 数据源(Mono 0..1, Flux 0..N)\n- Subscriber: 消费者\n- Subscription: 订阅关系\n- Backpressure: 消费者反向控制生产速度\n- Operators: map / flatMap / filter / zip / merge\n\n## WebFlux vs WebMVC\n- WebMVC: 同步, 1 请求 1 线程, 简单\n- WebFlux: 异步非阻塞, 少线程处理多请求, 适合 I/O 密集\n- 数据库驱动: R2DBC(响应式 JDBC)\n\n## 何时用\n- 高并发 I/O 密集 + 团队熟悉响应式\n- 不要为了\"酷\"上 WebFlux, 同步也能 scale 到很大",
+          "codeExample": "// WebFlux Controller\n@RestController\n@RequestMapping(\"/api/users\")\npublic class UserController {\n  @Autowired private UserRepository repo;\n\n  @GetMapping(\"/{id}\")\n  public Mono<User> get(@PathVariable Long id) {\n    return repo.findById(id);  // R2DBC 反应式\n  }\n\n  @GetMapping\n  public Flux<User> list() {\n    return repo.findAll();\n  }\n\n  @GetMapping(\"/stream\")\n  public Flux<User> stream() {\n    return Flux.interval(Duration.ofSeconds(1))\n               .flatMap(i -> repo.findById(i))\n               .take(10);\n  }\n}",
+          "codeType": "java"
+        },
+        {
+          "lessonNo": 4,
+          "title": "限流与降级:Sentinel / Resilience4j",
+          "summary": "令牌桶 / 滑动窗口 / 熔断,生产必备的高可用武器。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 限流算法\n- 固定窗口 / 滑动窗口: 简单, 边界毛刺\n- 令牌桶: 平滑突发\n- 漏桶: 平滑速率\n- 计数器: 最简单\n\n## Resilience4j 熔断\n- @CircuitBreaker(fallbackMethod = \"fallback\")\n- 三态: CLOSED / OPEN / HALF_OPEN\n- slidingWindowSize / failureRateThreshold\n\n## 实战\n- 接口级限流: 防止下游挂掉拖垮自己\n- 降级: 缓存兜底 / 默认值\n- 熔断: 慢调用积累到阈值跳闸",
+          "codeExample": "// 限流: Bucket4j 令牌桶\nBucket bucket = Bucket.builder()\n  .addLimit(Bandwidth.classic(100, Refill.greedy(100, Duration.ofMinutes(1))))\n  .build();\n\nif (bucket.tryConsume(1)) {\n  return callDownstream();\n} else {\n  return ResponseEntity.status(429).build();\n}\n\n// 熔断: Resilience4j\n@CircuitBreaker(name = \"payment\", fallbackMethod = \"fallback\")\npublic PaymentResult charge(Order order) {\n  return paymentClient.charge(order);\n}\n\nprivate PaymentResult fallback(Order order, Throwable t) {\n  return PaymentResult.delayed(order);  // 排队稍后重试\n}",
+          "codeType": "java"
+        }
+      ]
+    },
+    {
+      "stageNo": 5,
+      "stageName": "Java 进阶与高级",
+      "chapterNo": 43,
+      "title": "微服务基础",
+      "description": "Spring Cloud Gateway / Config / 服务发现,微服务架构入门。",
+      "codePath": "com.learning.microservice.Basic",
+      "estimatedHours": 3,
+      "subject": "java",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "微服务架构思想与拆分原则",
+          "summary": "从单体到微服务,何时拆/怎么拆。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 单体 vs 微服务\n- 单体: 简单部署, 紧密耦合, 难扩展\n- 微服务: 独立部署, 松耦合, 团队自治\n- 代价: 分布式事务/网络延迟/运维复杂\n\n## 拆分原则\n- 业务边界(Bounded Context)\n- 一个服务一个团队(Conway's Law)\n- 数据独立: 库不共享\n- 接口稳定: API 版本管理\n\n## 何时拆\n- 团队超过 8 人(两个披萨原则)\n- 不同模块发布频率差异大\n- 单体已经不能 scale\n- 否则别拆",
+          "codeExample": "// 服务边界划分(领域驱动设计)\n// 用户中心: 注册/登录/资料\n// 商品中心: 商品/库存/类目\n// 交易中心: 订单/支付/账单\n// 营销中心: 优惠券/活动\n// 数据中心: 报表/分析\n\n// 每个服务独立的 build.gradle\nplugins { id \"org.springframework.boot\" version \"3.2.0\" }\ndependencies {\n  implementation \"org.springframework.boot:spring-boot-starter-web\"\n  implementation \"org.springframework.boot:spring-boot-starter-data-jpa\"\n  // 只引入自己需要的依赖\n}",
+          "codeType": "java"
+        },
+        {
+          "lessonNo": 2,
+          "title": "服务注册与发现:Nacos / Eureka",
+          "summary": "服务上线自动注册,调用方动态发现。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 服务发现\n- 注册中心: 服务的\"通讯录\"\n- 服务启动时注册, 下线时反注册\n- 客户端定期拉取或订阅变更\n\n## Nacos vs Eureka\n- Nacos: 同时支持配置中心, 国内主流(阿里)\n- Eureka: Netflix, 简单, 已停止新功能\n- Consul: HashiCorp, 多数据中心\n\n## 实战\n- 服务提供方: @EnableDiscoveryClient + spring.application.name\n- 消费方: RestTemplate / OpenFeign / WebClient",
+          "codeExample": "// 服务提供方 application.yml\nspring:\n  application:\n    name: user-service\n  cloud:\n    nacos:\n      discovery:\n        server-addr: 127.0.0.1:8848\n\n// 启动类\n@SpringBootApplication\n@EnableDiscoveryClient\npublic class UserApplication { public static void main(String[] args) {...} }\n\n// 消费方用 OpenFeign\n@FeignClient(\"user-service\")\npublic interface UserClient {\n  @GetMapping(\"/api/users/{id}\")\n  User getById(@PathVariable(\"id\") Long id);\n}",
+          "codeType": "java"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Spring Cloud Gateway 网关",
+          "summary": "路由 / 鉴权 / 限流统一入口,微服务的\"门神\"。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 核心概念\n- Route: 路由规则(id + uri + predicates + filters)\n- Predicate: 匹配条件(Path / Method / Header / 时间)\n- Filter: 过滤器(添加/修改请求/响应)\n\n## 常见 Filter\n- StripPrefix: 去掉前缀\n- AddRequestHeader: 加请求头\n- RequestRateLimiter: 限流(Redis)\n- GlobalFilter: 全局, 如鉴权\n\n## 实战\n- 路径路由: /api/user/** → user-service\n- 统一鉴权: JWT 校验 + 透传用户信息\n- 限流 + 熔断: Resilience4j 集成",
+          "codeExample": "# application.yml 路由配置\nspring:\n  cloud:\n    gateway:\n      routes:\n        - id: user-service\n          uri: lb://user-service\n          predicates:\n            - Path=/api/user/**\n          filters:\n            - StripPrefix=0\n        - id: order-service\n          uri: lb://order-service\n          predicates:\n            - Path=/api/order/**\n            - Method=GET,POST\n\n# 全局鉴权 filter\n@Component\npublic class AuthFilter implements GlobalFilter {\n  public Mono<Void> filter(...) {\n    String token = exchange.getRequest().getHeaders().getFirst(\"Authorization\");\n    if (token == null || !verify(token)) {\n      return Mono.error(new UnauthorizedException());\n    }\n    return chain.filter(exchange);\n  }\n}",
+          "codeType": "yaml"
+        },
+        {
+          "lessonNo": 4,
+          "title": "分布式链路追踪:Sleuth + Zipkin",
+          "summary": "一个请求经过 N 个服务,如何定位慢在哪?",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 链路追踪原理\n- traceId: 整条调用链唯一 ID\n- spanId: 单个服务内部的一段操作\n- parentSpanId: 上级 span\n- 透传 HTTP header(traceparent)\n\n## 实战\n- 引入 spring-cloud-starter-sleuth\n- 每个请求自动加 traceId/spanId 到 MDC + 日志\n- 集成 Zipkin: 可视化调用链\n- 慢请求定位: 看 Zipkin 的 span 树\n\n## 替代方案\n- SkyWalking: 字节系, 国产\n- Jaeger: Uber 系, 云原生\n- 阿里 ARMS: 商业",
+          "codeExample": "// 服务调用方自动传递 traceId\n// RestTemplate / WebClient / Feign 都已自动集成\n\n// 日志格式加入 traceId: application.yml\nlogging:\n  pattern:\n    level: \"%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]\"\n\n// 输出示例:\n// INFO [order-service,abc123,def456] 处理订单 id=1001\n// 同一个 traceId 串起所有服务的日志\n\n// 启动 Zipkin (docker)\n// docker run -d -p 9411:9411 openzipkin/zipkin\n// 配置: spring.zipkin.base-url=http://localhost:9411",
+          "codeType": "java"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Python 进阶",
+      "chapterNo": 13,
+      "title": "装饰器与元类",
+      "description": "函数装饰器 / 类装饰器 / 元类 / 描述符,Python 高级魔法。",
+      "codePath": "com.learning.python.Meta",
+      "estimatedHours": 3,
+      "subject": "python",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "函数装饰器深入",
+          "summary": "@functools.wraps / 带参装饰器 / 类装饰器。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 装饰器基础\n- 本质: 一个返回函数的函数\n- @my_decorator 等价于 func = my_decorator(func)\n- functools.wraps 保留原函数元信息\n\n## 带参装饰器\n- 三层嵌套: 参数 → 装饰器 → wrapper\n\n## 类装饰器\n- 用类实现, __call__ 当 wrapper\n- 优势: 可以保持状态(self.xxx)\n\n## 装饰器栈\n- @a @b @c 等价于 a(b(c(func)))",
+          "codeExample": "from functools import wraps\nimport time\n\n# 计时装饰器\ndef timer(func):\n  @wraps(func)  # 保留 __name__/__doc__\n  def wrapper(*args, **kw):\n    t0 = time.perf_counter()\n    result = func(*args, **kw)\n    print(f\"{func.__name__} 耗时 {time.perf_counter()-t0:.3f}s\")\n    return result\n  return wrapper\n\n@timer\ndef slow():\n  time.sleep(1)\n\n# 带参装饰器: 重试\ndef retry(max_times=3, delay=1):\n  def decorator(func):\n    @wraps(func)\n    def wrapper(*args, **kw):\n      for i in range(max_times):\n        try: return func(*args, **kw)\n        except Exception as e:\n          if i == max_times - 1: raise\n          time.sleep(delay)\n    return wrapper\n  return decorator\n\n@retry(max_times=5, delay=2)\ndef call_api(): ...",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "描述符与属性管理",
+          "summary": "__get__ / __set__ / property 原理。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 描述符协议\n- __get__(self, obj, type): 读\n- __set__(self, obj, value): 写\n- __delete__(self, obj): 删\n- 数据描述符(有 __set__): 优先级高于实例字典\n- 非数据描述符: 被实例字典覆盖\n\n## @property 原理\n- 装饰方法成 property 对象\n- property 是数据描述符\n\n## 实战\n- 校验: 类型检查\n- 懒加载: 第一次访问才计算\n- ORM 字段映射",
+          "codeExample": "class Typed:\n  def __init__(self, name, expected_type):\n    self.name = name\n    self.expected_type = expected_type\n\n  def __get__(self, obj, owner):\n    if obj is None: return self\n    value = obj.__dict__.get(self.name)\n    if not isinstance(value, self.expected_type):\n      raise TypeError(f\"{self.name} 应为 {self.expected_type}, 实际 {type(value)}\")\n    return value\n\n  def __set__(self, obj, value):\n    if not isinstance(value, self.expected_type):\n      raise TypeError(f\"{self.name} 应为 {self.expected_type}, 实际 {type(value)}\")\n    obj.__dict__[self.name] = value\n\nclass User:\n  name = Typed(\"name\", str)\n  age  = Typed(\"age\",  int)\n\nu = User()\nu.name = \"Tom\"   # OK\nu.age  = 18      # OK\nu.age  = \"x\"     # TypeError",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "元类 metaclass",
+          "summary": "类的类,控制类的创建过程。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 概念\n- type 是所有类的元类\n- 定义类时 Python 会调 metaclass(name, bases, namespace)\n- class User = type(\"User\", (), {...}) 的语法糖\n\n## 实战场景\n- ORM:Django Models / SQLAlchemy 用 metaclass 收集字段\n- 抽象类注册: 自动注册子类到全局表\n- API 校验: 字段类型 + 默认值\n- 单例模式: 拦截 __new__\n\n## 现代替代\n- dataclass + __init_subclass__ 大部分场景够用\n- 只有需要动态生成类时才用 metaclass",
+          "codeExample": "# 简单 ORM 风格的 metaclass\nclass Field:\n  def __init__(self, t): self.t = t\n\nclass ModelMeta(type):\n  def __new__(mcs, name, bases, ns):\n    fields = {k: v for k, v in ns.items() if isinstance(v, Field)}\n    for k in fields: del ns[k]\n    ns[\"_fields\"] = fields\n    return super().__new__(mcs, name, bases, ns)\n\nclass Model(metaclass=ModelMeta):\n  def to_dict(self):\n    return {k: getattr(self, k) for k in self._fields}\n\nclass User(Model):\n  name = Field(str)\n  age  = Field(int)\n\nu = User(); u.name = \"Tom\"; u.age = 18\nprint(u.to_dict())   # {\"name\": \"Tom\", \"age\": 18}",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 4,
+          "title": "上下文管理器与 __enter__/__exit__",
+          "summary": "with 语句原理 + contextlib。",
+          "difficulty": 2,
+          "durationMinutes": 20,
+          "content": "## with 协议\n- __enter__(self): 进入时调用, 返回绑定变量\n- __exit__(self, exc_type, exc_val, exc_tb): 退出时调用\n  - 返回 True: 吞掉异常\n  - 返回 False/None: 异常继续传播\n\n## contextlib\n- @contextmanager 装饰器: 把生成器变 context manager\n\n## 实战\n- 资源管理: 文件 / 锁 / DB 连接\n- 事务: 自动 commit/rollback\n- 计时: 进入记时间, 退出打印",
+          "codeExample": "from contextlib import contextmanager\nimport time\n\n# 事务上下文\n@contextmanager\ndef transaction(db):\n  db.begin()\n  try:\n    yield db\n    db.commit()\n  except Exception:\n    db.rollback()\n    raise\n\nwith transaction(db) as conn:\n  conn.execute(...)   # 自动 commit / 异常自动 rollback\n\n# 计时\n@contextmanager\ndef timer(name):\n  t0 = time.perf_counter()\n  yield\n  print(f\"{name}: {time.perf_counter()-t0:.3f}s\")\n\nwith timer(\"load\"):\n  do_heavy_loading()\n\n# 类实现\nclass Timer:\n  def __enter__(self):\n    self.t = time.perf_counter()\n    return self\n  def __exit__(self, *exc):\n    print(f\"elapsed: {time.perf_counter()-self.t:.3f}s\")",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Python 进阶",
+      "chapterNo": 14,
+      "title": "异步编程深入",
+      "description": "asyncio / aiohttp / 协程调度 / 异步生态。",
+      "codePath": "com.learning.python.Async",
+      "estimatedHours": 3,
+      "subject": "python",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "asyncio 核心: 协程 / Task / EventLoop",
+          "summary": "事件循环调度原理,理解 Python 异步。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 协程 (coroutine)\n- async def foo(): ... 创建协程对象\n- await 挂起,让出控制权\n- await 只能用于 awaitable (coroutine / Task / Future)\n\n## Event Loop\n- 单线程事件循环\n- Task 是协程的包装, 加入 loop 调度\n- create_task() 并发运行多个协程\n\n## 关键 API\n- asyncio.gather(*tasks): 并发, 全部完成才返回\n- asyncio.wait(tasks, timeout=...): 控制更细\n- asyncio.create_task(coro): 立即调度\n- asyncio.run(main()): 入口函数",
+          "codeExample": "import asyncio\nimport aiohttp\n\nasync def fetch(session, url):\n  async with session.get(url) as r:\n    return await r.json()\n\nasync def main():\n  urls = [f\"https://api.example.com/{i}\" for i in range(10)]\n  async with aiohttp.ClientSession() as session:\n    # 并发 fetch, 慢的等慢的, 但比串行快 10 倍\n    results = await asyncio.gather(*[fetch(session, u) for u in urls])\n    for url, data in zip(urls, results):\n      print(url, data)\n\nasyncio.run(main())",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "异步生成器与异步迭代",
+          "summary": "async for / async with / async generator。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 异步迭代协议\n- __aiter__: 返回异步迭代器\n- __anext__: 返回 awaitable\n- async for: 自动调用\n\n## 异步生成器\n- async def + yield: 异步生成器\n- [x async for x in agen()]: 列表推导异步版\n\n## 异步上下文管理器\n- __aenter__ / __aexit__ 都是 awaitable\n- async with cm: 异步版 with\n- aiohttp session / db conn / redis pool 都是",
+          "codeExample": "class AsyncRange:\n  def __init__(self, n): self.n = n\n  def __aiter__(self): return self\n  async def __anext__(self):\n    if self.n <= 0: raise StopAsyncIteration\n    self.n -= 1\n    return self.n + 1\n\nasync def main():\n  async for i in AsyncRange(5):\n    print(i)   # 5 4 3 2 1\n\n  evens = [i async for i in AsyncRange(10) if i % 2 == 0]\n\n# async with\nclass AsyncSession:\n  async def __aenter__(self):\n    self.conn = await connect()\n    return self\n  async def __aexit__(self, *exc):\n    await self.conn.close()\n\nasync with AsyncSession() as s:\n  await s.conn.execute(...)",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "aiohttp 客户端与服务端",
+          "summary": "高并发 HTTP 客户端 + 异步 Web 框架。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 客户端\n- aiohttp.ClientSession: 长连接复用\n- 设置连接池上限 / 超时\n- 流式下载: content.read(chunk_size)\n\n## 服务端\n- aiohttp.web.Application\n- RouteDef: 路由 + handler\n- 启动: web.run_app(app, port=8080)\n- 中间件: @web.middleware\n\n## 性能\n- 单进程单线程, 但能处理上千并发\n- 适合: 高 I/O 场景(API 转发、爬虫、WebSocket)\n- 不适合: CPU 密集(用 ProcessPoolExecutor 配合)",
+          "codeExample": "# 异步爬虫(并发 100 个 URL)\nimport aiohttp, asyncio\n\nasync def fetch_one(session, url):\n  try:\n    async with session.get(url, timeout=10) as r:\n      return (url, await r.text())\n  except Exception as e:\n    return (url, f\"ERROR: {e}\")\n\nasync def main():\n  urls = [...]   # 100 个 URL\n  conn = aiohttp.TCPConnector(limit=50)   # 限并发 50\n  async with aiohttp.ClientSession(connector=conn) as session:\n    results = await asyncio.gather(*[fetch_one(session, u) for u in urls])\n    for url, html in results[:5]:\n      print(url, len(html))\n\nasyncio.run(main())",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 4,
+          "title": "异步任务队列: Celery",
+          "summary": "分布式任务队列,生产级异步任务调度。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 概念\n- Broker: 消息中间件(RabbitMQ / Redis)\n- Worker: 真正执行任务\n- Beat: 定时调度\n- Result Backend: 任务结果存储\n\n## 实战\n- @app.task 装饰函数即可\n- delay() 异步派发, apply_async() 自定义\n- 链式: task1.s().task2.s()\n- 定时: CELERY_BEAT_SCHEDULE\n\n## 与 asyncio 配合\n- 任务里用 async def, 用 asgiref.sync.async_to_sync\n- 或者用 celery-pool-asyncio",
+          "codeExample": "# tasks.py\nfrom celery import Celery\n\napp = Celery(\"tasks\", broker=\"redis://localhost:6379/0\")\n\n@app.task\ndef add(x, y):\n  return x + y\n\n# 派发\nfrom tasks import add\nadd.delay(4, 4)                  # 异步\nadd.apply_async(args=[10, 20], countdown=60)   # 60s 后执行\n\n# 链式\nadd.s(4, 4) | add.s(8)           # 先算 4+4=8, 再算 8+8=16\n\n# 定时: beat_schedule\napp.conf.beat_schedule = {\n  \"every-hour\": {\n    \"task\": \"tasks.add\",\n    \"schedule\": 3600.0,\n    \"args\": (1, 1),\n  }\n}",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Python 进阶",
+      "chapterNo": 15,
+      "title": "性能优化与调优",
+      "description": "cProfile / line_profiler / numba / Cython,Python 性能极限。",
+      "codePath": "com.learning.python.Perf",
+      "estimatedHours": 3,
+      "subject": "python",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "cProfile 与性能瓶颈定位",
+          "summary": "cProfile + pstats 找出慢函数,不用瞎猜。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 命令行\n- python -m cProfile -s cumtime script.py\n- 输出按\"累计时间\"排序, 慢函数一眼可见\n\n## 代码内调用\n- import cProfile, pstats\n- pr = cProfile.Profile()\n- pr.enable(); ...; pr.disable()\n- pstats.Stats(pr).sort_stats(\"cumulative\").print_stats(20)\n\n## 配合可视化\n- snakeviz: cProfile 输出转交互式饼图\n  pip install snakeviz\n  python -m cProfile -o prof.out script.py\n  snakeviz prof.out  # 浏览器打开",
+          "codeExample": "# 命令行\npython -m cProfile -s cumtime my_app.py\n\n# 排序选项: cumtime / tottime / ncalls / name\n\n# 代码内\nimport cProfile, pstats, io\nfrom contextlib import contextmanager\n\n@contextmanager\ndef profile():\n  pr = cProfile.Profile()\n  pr.enable()\n  try: yield\n  finally:\n    pr.disable()\n    s = io.StringIO()\n    pstats.Stats(pr, stream=s).sort_stats(\"cumulative\").print_stats(20)\n    print(s.getvalue())\n\n# 慢函数? top 5 一眼能看出\nwith profile():\n  do_heavy_work()",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "数据结构与算法优化",
+          "summary": "选择正确的数据结构, 比微优化更管用。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## Big-O 速查\n- list 查找 O(n), 追加 O(1), 插入 O(n)\n- set/dict 查找/插入/删除 O(1)\n- deque 双端队列 O(1) 头尾操作\n- heapq 堆 O(log n) 取 top-k\n- bisect 二分查找 O(log n)\n\n## 常见替换\n- 频繁 in 检查: list → set\n- 维护有序序列: list + bisect\n- LRU 缓存: collections.OrderedDict + lru_cache\n- 大列表求和: sum() C 实现, 比 reduce 快 2x\n- 字符串拼接: 大量 + → join 或 io.StringIO\n\n## 实战\n- 100w 数据 in list: 30s\n- 100w 数据 in set: 0.05s (差 600 倍!)",
+          "codeExample": "from collections import deque, Counter, defaultdict\nfrom functools import lru_cache\nimport heapq\nimport bisect\n\n# 1) 频繁成员检查\nitems = [...]   # 100w 元素\nlookup = set(items)   # O(1) vs list O(n)\nif \"needle\" in lookup: ...\n\n# 2) top-k: heap\nnums = [...]   # 100w 元素\ntop10 = heapq.nlargest(10, nums)\n\n# 3) LRU 缓存\n@lru_cache(maxsize=128)\ndef fib(n):\n  return n if n < 2 else fib(n-1) + fib(n-2)\n\n# 4) 有序插入 + 查找\nsorted_list = [1, 3, 5, 7, 9]\nidx = bisect.bisect_left(sorted_list, 6)\nsorted_list.insert(idx, 6)\n\n# 5) Counter 统计\nwords = [\"apple\", \"banana\", \"apple\", \"cherry\"]\ntop = Counter(words).most_common(2)   # [(\"apple\", 2), (\"banana\", 1)]",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "多进程与 GIL 突破",
+          "summary": "GIL 限制多线程, 多进程 + 进程池才能真正并行。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## GIL\n- Global Interpreter Lock: 同一进程内, 任意时刻只有一个线程执行 Python 字节码\n- CPU 密集任务: 多线程 = 串行\n- I/O 密集任务: 多线程仍然有效(因为 I/O 等待时 GIL 释放)\n\n## 解决方案\n- multiprocessing: 多进程, 各进程独立 GIL, 真并行\n- ProcessPoolExecutor: 高级封装\n- numpy/pandas: C 实现, 释放 GIL\n- Cython/numba: JIT, 也释放 GIL\n\n## 选型\n- CPU 密集: ProcessPoolExecutor\n- I/O 密集: ThreadPoolExecutor 或 asyncio\n- 数据并行: numpy 矢量化, 比 Python 循环快 100x",
+          "codeExample": "from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor\nimport multiprocessing as mp\nimport requests\n\n# CPU 密集: ProcessPoolExecutor\ndef heavy_compute(n):\n    s = 0\n    for i in range(n): s += i*i\n    return s\n\nwith ProcessPoolExecutor(max_workers=mp.cpu_count()) as ex:\n    results = list(ex.map(heavy_compute, [10**7] * 8))\n\n# I/O 密集: ThreadPoolExecutor\ndef fetch(url):\n    return requests.get(url).text\n\nurls = [f\"https://api.example.com/{i}\" for i in range(50)]\nwith ThreadPoolExecutor(max_workers=20) as ex:\n    pages = list(ex.map(fetch, urls))\n\n# numpy 矢量化\nimport numpy as np\na = np.arange(10_000_000)\nb = a * a + a   # C 实现, 比 Python 循环快 1000 倍",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 4,
+          "title": "numba 与 Cython: 极致性能",
+          "summary": "Python 代码的 JIT/AOT 加速,接近 C 速度。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## numba (JIT)\n- pip install numba\n- @jit 装饰器: 第一次调用慢(编译), 之后快\n- @njit: nopython 模式, 更快\n- @cuda.jit: GPU 加速\n\n## Cython (AOT)\n- pip install cython\n- .pyx 文件写 C 风格代码\n- cythonize 编译为 .so\n- Python 端 import 时无感\n- 类型标注越细, 加速越明显\n\n## 选型\n- 快速试验: numba\n- 极致性能: Cython\n- 不改代码: numpy + multiprocessing",
+          "codeExample": "from numba import njit, prange\nimport numpy as np\n\n# numba JIT: 写 Python 代码, 跑 C 速度\n@njit(parallel=True, fastmath=True)\ndef sum_squares(n):\n    s = 0.0\n    for i in prange(n):       # 并行\n        s += i * i\n    return s\n\n# 第一次跑 ~2s (编译), 之后 0.001s\nprint(sum_squares(10_000_000))\n\n# cython: 写 .pyx\n# myfunc.pyx\n# cython: language_level=3\n# from libc.math cimport sqrt\n# def pyfunc(double[:] arr):\n#     cdef double s = 0.0\n#     for i in range(arr.shape[0]):\n#         s += sqrt(arr[i])\n#     return s\n\n# setup.py from setuptools + Cython.Build\n# python setup.py build_ext --inplace\n# from myfunc import pyfunc  # 速度跟纯 C 一致",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "Python 进阶",
+      "chapterNo": 16,
+      "title": "Web 框架:Django + SQLAlchemy",
+      "description": "Django 全家桶 / SQLAlchemy ORM,生产级 Web 开发。",
+      "codePath": "com.learning.python.Web",
+      "estimatedHours": 3,
+      "subject": "python",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Django 入门:MTV 模式与项目结构",
+          "summary": "Django 的设计哲学与快速开发。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## MTV 模式\n- M (Model): 数据模型, ORM 映射\n- T (Template): HTML 模板\n- V (View): 视图函数/类, 处理请求\n\n## 项目结构\n- manage.py: 命令行工具\n- mysite/: 项目配置\n- app/: 业务模块\n- migrations/: 数据库迁移\n\n## 快速开发\n- python manage.py startapp blog\n- 定义 Model → makemigrations → migrate\n- urls.py 路由 → view → template\n- admin.py 自动后台管理\n\n## 优势\n- 自带 ORM / Admin / Auth / Form / i18n\n- 文档齐全, 生态丰富\n- 适合 CMS / 后台系统 / 中小型 Web",
+          "codeExample": "# 创建项目\ndjango-admin startproject mysite\ncd mysite\npython manage.py startapp blog\n\n# blog/models.py\nfrom django.db import models\n\nclass Post(models.Model):\n    title = models.CharField(max_length=200)\n    body  = models.TextField()\n    created_at = models.DateTimeField(auto_now_add=True)\n    published  = models.BooleanField(default=False)\n\n    class Meta:\n        ordering = [\"-created_at\"]\n\n# blog/views.py\nfrom django.shortcuts import render\nfrom .models import Post\n\ndef post_list(request):\n    posts = Post.objects.filter(published=True)\n    return render(request, \"blog/list.html\", {\"posts\": posts})\n\n# mysite/urls.py\nfrom django.urls import path\nfrom blog.views import post_list\nurlpatterns = [path(\"posts/\", post_list)]",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Django REST Framework:API 开发",
+          "summary": "DRF 序列化器 / 视图集 / 路由,生产级 RESTful。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 安装\n- pip install djangorestframework\n- INSTALLED_APPS 加 \"rest_framework\"\n\n## 核心概念\n- Serializer: 序列化/反序列化/校验\n- ViewSet: 增删改查一组\n- Router: 自动生成 URL\n- Permission: 权限控制\n- Throttling: 限流\n\n## 实战\n- ModelSerializer 自动从 Model 推断字段\n- 嵌套序列化: 文章含作者/标签\n- 分页 / 过滤 / 搜索: 配 filter_backends",
+          "codeExample": "# blog/serializers.py\nfrom rest_framework import serializers\nfrom .models import Post, Comment\n\nclass CommentSerializer(serializers.ModelSerializer):\n    class Meta:\n        model = Comment\n        fields = [\"id\", \"body\", \"author\"]\n\nclass PostSerializer(serializers.ModelSerializer):\n    comments = CommentSerializer(many=True, read_only=True)\n\n    class Meta:\n        model = Post\n        fields = [\"id\", \"title\", \"body\", \"created_at\", \"comments\"]\n\n# blog/views.py\nfrom rest_framework import viewsets, permissions\n\nclass PostViewSet(viewsets.ModelViewSet):\n    queryset = Post.objects.all()\n    serializer_class = PostSerializer\n    permission_classes = [permissions.IsAuthenticatedOrReadOnly]\n\n# blog/urls.py\nfrom rest_framework.routers import DefaultRouter\nrouter = DefaultRouter()\nrouter.register(\"posts\", PostViewSet)\nurlpatterns = router.urls",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 3,
+          "title": "SQLAlchemy Core 与 ORM",
+          "summary": "工业级 ORM,关系映射和复杂查询的瑞士军刀。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 两种风格\n- Core: SQL 表达式语言, 接近原生 SQL, 灵活\n- ORM: 面向对象, 自动 join / lazy load\n\n## 核心概念\n- Engine: 数据库连接\n- Session: ORM 会话(短生命周期)\n- declarative_base: 模型基类\n- relationship: 表关联\n- Query: 链式查询\n\n## 实战\n- 一对多 / 多对多 / 一对一\n- 懒加载 vs 急加载(避免 N+1)\n- 事务: session.begin() / commit() / rollback()",
+          "codeExample": "from sqlalchemy import create_engine, Column, Integer, String, ForeignKey\nfrom sqlalchemy.orm import declarative_base, relationship, sessionmaker\n\nBase = declarative_base()\n\nclass User(Base):\n    __tablename__ = \"user\"\n    id   = Column(Integer, primary_key=True)\n    name = Column(String(50))\n    posts = relationship(\"Post\", back_populates=\"author\", lazy=\"selectin\")  # 防 N+1\n\nclass Post(Base):\n    __tablename__ = \"post\"\n    id       = Column(Integer, primary_key=True)\n    title    = Column(String(200))\n    author_id = Column(Integer, ForeignKey(\"user.id\"))\n    author   = relationship(\"User\", back_populates=\"posts\")\n\nengine = create_engine(\"sqlite:///db.sqlite3\")\nBase.metadata.create_all(engine)\nSession = sessionmaker(bind=engine)\n\nwith Session() as s:\n    u = User(name=\"Tom\")\n    u.posts.append(Post(title=\"Hello\"))\n    s.add(u)\n    s.commit()\n\n    # 查询: lazy=\"selectin\" 一次拿所有关联\n    for u in s.query(User).all():\n        print(u.name, [p.title for p in u.posts])",
+          "codeType": "python"
+        },
+        {
+          "lessonNo": 4,
+          "title": "FastAPI:现代异步 Web 框架",
+          "summary": "Pydantic 校验 + 自动 OpenAPI 文档,异步原生。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 安装\n- pip install fastapi uvicorn[standard]\n- python -m uvicorn main:app --reload\n\n## 特点\n- 基于 Pydantic, 数据校验自动\n- 自动生成 OpenAPI/Swagger 文档 (/docs)\n- 原生 async/await, 性能接近 Go/Node\n- 类型注解即 API 契约\n\n## 核心\n- @app.get / @app.post: 路由\n- Path / Query / Body: 参数声明\n- Depends: 依赖注入(认证/DB session)\n- Pydantic BaseModel: 请求/响应模型",
+          "codeExample": "from fastapi import FastAPI, Depends, HTTPException\nfrom pydantic import BaseModel, Field\nfrom typing import Optional\n\napp = FastAPI(title=\"My API\", version=\"1.0.0\")\n\nclass UserIn(BaseModel):\n    name: str = Field(..., min_length=1, max_length=50)\n    email: str = Field(..., regex=r\"^[^@]+@[^@]+$\")\n    age:  Optional[int] = Field(None, ge=0, le=150)\n\nclass UserOut(BaseModel):\n    id: int\n    name: str\n    email: str\n\nusers: dict[int, UserOut] = {}\n\n@app.post(\"/api/users\", response_model=UserOut, status_code=201)\nasync def create(user: UserIn):\n    uid = len(users) + 1\n    u = UserOut(id=uid, **user.dict())\n    users[uid] = u\n    return u\n\n@app.get(\"/api/users/{uid}\", response_model=UserOut)\nasync def get(uid: int):\n    if uid not in users: raise HTTPException(404, \"user not found\")\n    return users[uid]\n\n# 启动: uvicorn main:app --reload\n# 文档: http://localhost:8000/docs",
+          "codeType": "python"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "SQL 进阶",
+      "chapterNo": 9,
+      "title": "窗口函数与 CTE",
+      "description": "ROW_NUMBER / RANK / 公共表表达式,复杂分析的瑞士军刀。",
+      "codePath": "com.learning.sql.Window",
+      "estimatedHours": 3,
+      "subject": "sql",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "窗口函数:ROW_NUMBER / RANK / DENSE_RANK",
+          "summary": "分组排序不打乱,精确取 top-N。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 窗口函数三剑客\n- ROW_NUMBER(): 1, 2, 3, 4 (无并列,每行唯一序号)\n- RANK(): 1, 2, 2, 4 (并列后跳号)\n- DENSE_RANK(): 1, 2, 2, 3 (并列后不跳号)\n\n## OVER 语法\n- PARTITION BY: 分组(类似 GROUP BY 但不合并行)\n- ORDER BY: 排序\n- ROWS/RANGE: 帧\n\n## 实战\n- 每组 top N\n- 累计求和\n- 前后行对比",
+          "codeExample": "-- 每个部门薪资前 3 名\nSELECT * FROM (\n  SELECT\n    name, dept, salary,\n    DENSE_RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS rk\n  FROM employee\n) t\nWHERE rk <= 3\nORDER BY dept, rk;\n\n-- 累计求和\nSELECT\n  month, amount,\n  SUM(amount) OVER (ORDER BY month) AS cumulative\nFROM sales;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "LEAD / LAG / FIRST_VALUE",
+          "summary": "访问前后行,做对比和趋势分析。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 偏移函数\n- LEAD(col, n, default): 当前行往下 n 行的值\n- LAG(col, n, default): 当前行往上 n 行的值\n- FIRST_VALUE(col): 分组内第一行\n- LAST_VALUE(col): 分组内最后一行\n\n## 实战\n- 计算月环比/同比\n- 用户上一次登录时间\n- 工资差距",
+          "codeExample": "-- 月环比\nSELECT\n  month, revenue,\n  LAG(revenue, 1, 0) OVER (ORDER BY month) AS prev,\n  ROUND((revenue - LAG(revenue, 1, 0) OVER (ORDER BY month)) * 100.0 /\n        NULLIF(LAG(revenue, 1, 0) OVER (ORDER BY month), 0), 2) AS pct\nFROM monthly_sales;\n\n-- 用户上次登录\nSELECT\n  user_id, login_at,\n  LAG(login_at) OVER (PARTITION BY user_id ORDER BY login_at) AS prev_login\nFROM user_login;",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 3,
+          "title": "公用表表达式 CTE",
+          "summary": "WITH ... AS 写可读的复杂查询,替代嵌套子查询。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## CTE 基础\n- WITH cte_name AS (SELECT ...)\n- 后续查询可直接引用 cte_name\n- 可读性: 把复杂查询拆成命名块\n\n## 递归 CTE\n- WITH RECURSIVE cte AS (\n    base query  -- 锚点\n    UNION ALL\n    recursive query  -- 递归,引用 cte\n  )\n- 适合: 树形结构 / 层级 / 图遍历\n\n## 实战\n- 组织架构递归\n- 菜单树\n- 评论树",
+          "codeExample": "-- 简单 CTE\nWITH avg_salary AS (\n  SELECT dept, AVG(salary) AS avg_s\n  FROM employee\n  GROUP BY dept\n)\nSELECT e.name, e.salary, a.avg_s\nFROM employee e\nJOIN avg_salary a ON e.dept = a.dept\nWHERE e.salary > a.avg_s;\n\n-- 递归: 员工上下级\nWITH RECURSIVE org AS (\n  SELECT id, name, manager_id, 1 AS depth\n  FROM employee WHERE manager_id IS NULL\n  UNION ALL\n  SELECT e.id, e.name, e.manager_id, o.depth + 1\n  FROM employee e\n  JOIN org o ON e.manager_id = o.id\n)\nSELECT * FROM org ORDER BY depth, id;",
+          "codeType": "sql"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "SQL 进阶",
+      "chapterNo": 10,
+      "title": "性能调优:EXPLAIN 与索引",
+      "description": "EXPLAIN ANALYZE / 索引覆盖 / 慢查询分析,生产必备。",
+      "codePath": "com.learning.sql.Tune",
+      "estimatedHours": 3,
+      "subject": "sql",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "EXPLAIN 执行计划解读",
+          "summary": "看懂 SQL 怎么执行,优化才有方向。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 关键列\n- type: 访问类型(从好到差)\n  - system > const > eq_ref > ref > range > index > ALL\n- possible_keys: 可能用到的索引\n- key: 实际用到的索引\n- rows: 扫描行数(估算)\n- Extra: 额外信息(Using filesort / Using temporary / Using index)\n\n## 优化目标\n- type 至少 range 以上\n- 避免 ALL(全表扫描)\n- 避免 Using filesort / Using temporary\n- Using index = 覆盖索引,最优",
+          "codeExample": "-- 看执行计划\nEXPLAIN SELECT * FROM orders WHERE user_id = 123;\n\n-- MySQL: EXPLAIN ANALYZE 实际执行\nEXPLAIN ANALYZE\nSELECT u.name, COUNT(o.id)\nFROM users u\nJOIN orders o ON o.user_id = u.id\nWHERE u.created_at > '2024-01-01'\nGROUP BY u.id;\n\n-- 期望看到:\n-- 1. users 表 type=range (有索引)\n-- 2. orders 表 type=ref (有索引)\n-- 3. 没有 Using temporary / filesort",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "索引类型与设计",
+          "summary": "B-Tree / Hash / 全文 / 复合索引,选对索引提升 100x。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## B-Tree 索引(默认)\n- 适合: =, >, <, BETWEEN, ORDER BY\n- 不适合: 前缀模糊(通配符在前面)\n- 复合索引: 最左前缀原则\n\n## Hash 索引\n- 适合: 精确等值查询\n- 不支持范围查询\n- Memory 引擎默认\n\n## 全文索引\n- FULLTEXT: 文本搜索\n- MATCH AGAINST 语法\n\n## 设计原则\n- 高频查询字段建索引\n- 不在低区分度字段建(如性别)\n- 复合索引按选择性降序排列\n- 索引覆盖: SELECT 字段都在索引里\n- 避免过度索引(写入变慢)",
+          "codeExample": "-- 复合索引\nCREATE INDEX idx_user_created ON users(dept, created_at DESC);\n-- 用得上:\nSELECT * FROM users WHERE dept = 'A' ORDER BY created_at DESC;\n-- 用不上:\nSELECT * FROM users WHERE created_at > '2024-01-01';  -- 没用到 dept\n\n-- 覆盖索引(SELECT 字段都在索引里)\nCREATE INDEX idx_covering ON orders(user_id, status, created_at);\nSELECT user_id, status, created_at FROM orders\nWHERE user_id = 123 AND status = 'PAID';\n-- Extra: Using index (无需回表)\n\n-- 索引下推(MySQL 5.6+)\n-- LIKE 'abc%' 能用索引, '%abc' 不能",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 3,
+          "title": "慢查询分析与优化实战",
+          "summary": "从发现问题到解决,完整的优化闭环。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 步骤\n1. 开启慢查询日志: slow_query_log=ON, long_query_time=1\n2. 用 pt-query-digest 分析日志\n3. 找 TOP N 慢查询\n4. EXPLAIN 分析每条\n5. 优化(索引 / 改写 / 拆分)\n6. 上线后复测\n\n## 常见坑\n- SELECT *: 不必要的字段, 触发回表\n- 函数在 WHERE 左侧: WHERE DATE(created_at) = ... (不走索引)\n- 隐式类型转换: WHERE phone = 138... (phone 是 varchar, 全表扫)\n- 负向查询: !=, NOT IN (可能不走索引)\n- 深分页: LIMIT 100000, 20 (扫 100020 行)",
+          "codeExample": "-- ❌ 反例: 函数在左侧\nSELECT * FROM orders WHERE DATE(created_at) = '2024-01-01';\n\n-- ✅ 改写: 范围查询\nSELECT * FROM orders\nWHERE created_at >= '2024-01-01'\n  AND created_at <  '2024-01-02';\n\n-- ❌ 反例: 深分页\nSELECT * FROM orders ORDER BY id LIMIT 100000, 20;\n\n-- ✅ 改写: 子查询先定位 id\nSELECT * FROM orders\nWHERE id > 100000\nORDER BY id LIMIT 20;\n\n-- ❌ 反例: SELECT *\nSELECT * FROM users WHERE dept = 'A';\n\n-- ✅ 改写: 只查必要字段 + 覆盖索引\nCREATE INDEX idx_dept_cover ON users(dept, name, email);\nSELECT name, email FROM users WHERE dept = 'A';",
+          "codeType": "sql"
+        }
+      ]
+    },
+    {
+      "stageNo": 3,
+      "stageName": "SQL 进阶",
+      "chapterNo": 11,
+      "title": "视图 / 存储过程 / 触发器",
+      "description": "数据库对象,封装业务逻辑到数据库层。",
+      "codePath": "com.learning.sql.Objects",
+      "estimatedHours": 3,
+      "subject": "sql",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "视图:虚拟表",
+          "summary": "把复杂查询保存为视图,像查表一样用。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 视图类型\n- 普通视图: 只保存查询定义\n- 物化视图: 实际存结果(部分数据库)\n- 可更新视图: 满足条件可 INSERT/UPDATE/DELETE\n\n## 实战\n- 权限控制: 给用户看视图而不是原表\n- 简化查询: 常用 JOIN 包成视图\n- 数据脱敏: 视图只返回脱敏后的字段\n\n## 注意\n- 视图性能不一定好(本质还是执行底层查询)\n- 嵌套视图(视图套视图)性能差\n- 不要在视图里用 ORDER BY(标准 SQL 不允许)",
+          "codeExample": "-- 简单视图\nCREATE VIEW v_active_users AS\nSELECT id, name, email\nFROM users\nWHERE active = true AND deleted_at IS NULL;\n\n-- 脱敏视图\nCREATE VIEW v_user_public AS\nSELECT id, name, CONCAT(SUBSTR(phone, 1, 3), '****', SUBSTR(phone, 8)) AS phone_masked\nFROM users;\n\n-- 物化视图 (PostgreSQL)\nCREATE MATERIALIZED VIEW mv_monthly_sales AS\nSELECT\n  DATE_TRUNC('month', order_date) AS month,\n  SUM(amount) AS revenue\nFROM orders\nGROUP BY 1;\nCREATE UNIQUE INDEX ON mv_monthly_sales(month);\nREFRESH MATERIALIZED VIEW mv_monthly_sales;   -- 手动刷新",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 2,
+          "title": "存储过程与函数",
+          "summary": "把业务逻辑封装在数据库,减少网络往返。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 存储过程 vs 函数\n- 过程: 不返回值, 可执行 DDL/DML\n- 函数: 必须返回值, 纯计算\n\n## 实战\n- 复杂业务: 订单状态机流转\n- 定时任务: 数据库调度器\n- 审计: 关键表的所有变更\n\n## 注意\n- 难以调试,难以版本管理\n- 难水平扩展(主从延迟)\n- 现代: 业务逻辑应该应用层, 数据库只存数据\n- 但 OLAP / 报表场景仍适合",
+          "codeExample": "-- 存储过程: 转账(原子)\nCREATE PROCEDURE transfer(\n  IN from_id INT, IN to_id INT, IN amount DECIMAL(10,2)\n)\nBEGIN\n  DECLARE EXIT HANDLER FOR SQLEXCEPTION\n  BEGIN\n    ROLLBACK;\n    RESIGNAL;\n  END;\n\n  START TRANSACTION;\n  UPDATE accounts SET balance = balance - amount WHERE id = from_id;\n  UPDATE accounts SET balance = balance + amount WHERE id = to_id;\n  INSERT INTO transfer_log(from_id, to_id, amount, created_at)\n    VALUES(from_id, to_id, amount, NOW());\n  COMMIT;\nEND;\n\n-- 调用\nCALL transfer(1, 2, 100.00);\n\n-- 函数: 计算年龄\nCREATE FUNCTION get_age(birth DATE) RETURNS INT\nDETERMINISTIC\nRETURN TIMESTAMPDIFF(YEAR, birth, CURDATE());",
+          "codeType": "sql"
+        },
+        {
+          "lessonNo": 3,
+          "title": "触发器:自动响应数据变更",
+          "summary": "数据审计 / 同步 / 业务约束,数据库级的钩子。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 时机\n- BEFORE INSERT / UPDATE / DELETE\n- AFTER INSERT / UPDATE / DELETE\n\n## 实战\n- 审计日志: 自动记录变更\n- 数据同步: 一表变动, 同步另一表\n- 约束: 强制业务规则(如不允许删除已付款订单)\n\n## 陷阱\n- 触发器嵌套(触发器再触发触发器)\n- 性能: 大批量操作触发器慢\n- 难调试",
+          "codeExample": "-- 审计触发器: 记录所有 user 表更新\nCREATE TABLE user_audit (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  user_id INT,\n  old_name VARCHAR(50),\n  new_name VARCHAR(50),\n  changed_at DATETIME DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TRIGGER trg_user_update\nAFTER UPDATE ON users\nFOR EACH ROW\nBEGIN\n  INSERT INTO user_audit(user_id, old_name, new_name)\n  VALUES(NEW.id, OLD.name, NEW.name);\nEND;\n\n-- 业务约束: 不允许删除 paid 订单\nCREATE TRIGGER trg_order_delete\nBEFORE DELETE ON orders\nFOR EACH ROW\nBEGIN\n  IF OLD.status = 'PAID' THEN\n    SIGNAL SQLSTATE '45000'\n      SET MESSAGE_TEXT = '已付款订单不允许删除';\n  END IF;\nEND;",
+          "codeType": "sql"
+        }
+      ]
+    },
+    {
+      "stageNo": 4,
+      "stageName": "Node.js 进阶",
+      "chapterNo": 14,
+      "title": "NestJS 企业级框架",
+      "description": "依赖注入 / 装饰器 / 模块化,NestJS 让 Node 后端开发更结构化。",
+      "codePath": "com.learning.nodejs.NestJS",
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "NestJS 架构与项目结构",
+          "summary": "借鉴 Angular 的企业级 Node.js 框架。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 核心思想\n- 模块化: 一切皆 Module\n- 依赖注入: 容器管理对象创建\n- 装饰器: @Module / @Controller / @Injectable\n- AOP: 拦截器 / 守卫 / 管道 / 中间件\n\n## 项目结构\n- src/\n  - main.ts (入口)\n  - app.module.ts (根模块)\n  - modules/user/ (业务模块)\n    - user.controller.ts\n    - user.service.ts\n    - user.module.ts\n    - dto/\n    - entities/\n\n## 与 Express 区别\n- 强约定: 文件命名 / 目录结构\n- 内置 DI: 不用自己组装\n- 内置 Swagger / Config / Logger / Microservices",
+          "codeExample": "// user.module.ts\nimport { Module } from \"@nestjs/common\";\nimport { UserController } from \"./user.controller\";\nimport { UserService } from \"./user.service\";\n\n@Module({\n  controllers: [UserController],\n  providers: [UserService],\n  exports: [UserService],\n})\nexport class UserModule {}\n\n// user.service.ts\nimport { Injectable, NotFoundException } from \"@nestjs/common\";\nimport { InjectRepository } from \"@nestjs/typeorm\";\nimport { Repository } from \"typeorm\";\nimport { User } from \"./entities/user.entity\";\n\n@Injectable()\nexport class UserService {\n  constructor(\n    @InjectRepository(User) private repo: Repository<User>,\n  ) {}\n\n  async findById(id: number) {\n    const u = await this.repo.findOne({ where: { id } });\n    if (!u) throw new NotFoundException(\"User not found\");\n    return u;\n  }\n}\n\n// user.controller.ts\nimport { Controller, Get, Param, UseGuards } from \"@nestjs/common\";\nimport { JwtAuthGuard } from \"../auth/jwt.guard\";\nimport { UserService } from \"./user.service\";\n\n@Controller(\"api/users\")\n@UseGuards(JwtAuthGuard)\nexport class UserController {\n  constructor(private readonly svc: UserService) {}\n\n  @Get(\":id\")\n  async get(@Param(\"id\") id: string) {\n    return this.svc.findById(+id);\n  }\n}",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "NestJS 依赖注入与生命周期",
+          "summary": "理解 Provider 作用域,管理资源。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 作用域\n- DEFAULT: 单例(整个应用共享)\n- REQUEST: 每个请求新建\n- TRANSIENT: 每次注入新建\n\n## 生命周期钩子\n- onModuleInit: 模块初始化\n- onApplicationBootstrap: 应用启动后\n- onModuleDestroy / beforeApplicationShutdown / onApplicationShutdown: 关闭\n\n## 自定义 Provider\n- useValue: 常量\n- useClass: 根据条件选不同实现\n- useFactory: 工厂函数\n- useExisting: 别名\n\n## 实战\n- 数据库连接用工厂 + 异步初始化\n- 配置注入: ConfigService",
+          "codeExample": "// 异步工厂: 建立 DB 连接\n@Module({\n  providers: [\n    {\n      provide: \"DATABASE_CONNECTION\",\n      useFactory: async () => {\n        const conn = await createConnection({ type: \"postgres\", url: process.env.DB_URL });\n        return conn;\n      },\n    },\n    UserService,\n  ],\n  exports: [\"DATABASE_CONNECTION\"],\n})\nexport class DatabaseModule {}\n\n// 消费\nconstructor(@Inject(\"DATABASE_CONNECTION\") private conn: Connection) {}\n\n// 生命周期\n@Injectable()\nexport class CacheService implements OnModuleInit, OnModuleDestroy {\n  private client: Redis;\n  async onModuleInit() { this.client = new Redis(); }\n  async onModuleDestroy() { await this.client.quit(); }\n}",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Guard / Interceptor / Pipe 三件套",
+          "summary": "AOP 切片,横切关注点。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## Guard (守卫)\n- 决定请求是否放行\n- 典型: 鉴权 (@UseGuards(AuthGuard))\n- 返回 boolean / Promise / Observable\n\n## Interceptor (拦截器)\n- 在 handler 前/后插入逻辑\n- 典型: 统一响应包装 / 日志 / 性能监控\n- 可以转换返回值\n\n## Pipe (管道)\n- 数据转换 / 校验\n- 典型: ValidationPipe + class-validator\n- 可以 throw 异常\n\n## 请求生命周期\n- Middleware → Guard → Interceptor(before) → Pipe → Handler → Interceptor(after) → Filter(异常)",
+          "codeExample": "// Guard: JWT 鉴权\n@Injectable()\nexport class JwtAuthGuard implements CanActivate {\n  constructor(private jwt: JwtService) {}\n  canActivate(ctx: ExecutionContext): boolean {\n    const req = ctx.switchToHttp().getRequest();\n    const token = req.headers.authorization?.split(\" \")[1];\n    if (!token) throw new UnauthorizedException();\n    req.user = this.jwt.verify(token);\n    return true;\n  }\n}\n\n// Interceptor: 统一响应包装\n@Injectable()\nexport class TransformInterceptor implements NestInterceptor {\n  intercept(ctx: ExecutionContext, next: CallHandler) {\n    return next.handle().pipe(map(data => ({ code: 200, data, message: \"ok\" })));\n  }\n}\n\n// Pipe: 校验 DTO\n@Injectable()\nexport class ValidationPipe implements PipeTransform {\n  transform(value: any, meta: ArgumentMetadata) {\n    if (!meta.metatype || !this.toValidate(meta.metatype)) return value;\n    const obj = plainToInstance(meta.metatype, value);\n    const errors = validateSync(obj);\n    if (errors.length) throw new BadRequestException(errors);\n    return obj;\n  }\n}\n\n// 全局启用\napp.useGlobalGuards(new JwtAuthGuard())\n   .useGlobalInterceptors(new TransformInterceptor())\n   .useGlobalPipes(new ValidationPipe());",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 4,
+      "stageName": "Node.js 进阶",
+      "chapterNo": 15,
+      "title": "性能与 Cluster",
+      "description": "单进程 Node.js 的极限,Cluster 多进程 + Worker Threads 突破。",
+      "codePath": "com.learning.nodejs.Cluster",
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Cluster 多进程:充分利用多核",
+          "summary": "一个主进程 fork N 个子进程,共享端口。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 原理\n- 主进程 listen 端口\n- fork N 个 worker,各自有独立事件循环\n- 通过 IPC 通信\n- 内置负载均衡(轮询)\n\n## vs PM2\n- cluster 是 Node.js 内置模块\n- PM2 是进程管理工具,功能更丰富:\n  - 自动重启 / 集群模式 / 日志切割\n  - 内存监控 / 性能监控\n  - 0 秒重载 (reload)\n\n## 实战\n- CPU 密集任务: worker_threads 而不是 cluster\n- I/O 密集: cluster 即可\n- 容器化: k8s 替代 cluster",
+          "codeExample": "// cluster.js\nconst cluster = require(\"cluster\");\nconst os = require(\"os\");\nconst http = require(\"http\");\n\nif (cluster.isMaster) {\n  console.log(`Master ${process.pid} starting`);\n  const n = os.cpus().length;\n  for (let i = 0; i < n; i++) cluster.fork();\n\n  cluster.on(\"exit\", (worker, code, signal) => {\n    console.log(`Worker ${worker.process.pid} died, restarting`);\n    cluster.fork();   // 自动重启\n  });\n} else {\n  http.createServer((req, res) => {\n    res.end(`Hello from worker ${process.pid}\\n`);\n  }).listen(3000);\n  console.log(`Worker ${process.pid} started`);\n}\n\n// PM2: pm2 start app.js -i max\n// -i max: 按 CPU 数自动 fork\n// pm2 reload app: 零停机重载\n// pm2 monit: 实时监控",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Worker Threads:CPU 密集任务",
+          "summary": "真正的多线程,跑 CPU 密集计算不阻塞主循环。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 与 cluster 区别\n- cluster: 多进程, 各自独立内存, 适合 web 服务器\n- Worker Threads: 多线程, 共享 ArrayBuffer, 适合 CPU 密集\n- 都不能共享 JS 状态\n\n## 实战\n- 图像处理(sharp)\n- 数据压缩 / 加密\n- 复杂数学计算\n- WebAssembly 集成\n\n## 通信\n- parentPort.postMessage / on(\"message\")\n- SharedArrayBuffer: 共享内存\n- MessageChannel",
+          "codeExample": "// main.js\nconst { Worker } = require(\"worker_threads\");\nconst path = require(\"path\");\n\nfunction runWorker(data) {\n  return new Promise((resolve, reject) => {\n    const w = new Worker(path.join(__dirname, \"compute.js\"));\n    w.postMessage(data);\n    w.on(\"message\", resolve);\n    w.on(\"error\", reject);\n    w.on(\"exit\", code => {\n      if (code !== 0) reject(new Error(`Worker stopped with code ${code}`));\n    });\n  });\n}\n\n// 调用: 100w 个数求和\nasync function main() {\n  const chunkSize = 100_000;\n  const promises = [];\n  for (let i = 0; i < 10; i++) {\n    promises.push(runWorker({ start: i * chunkSize, end: (i + 1) * chunkSize }));\n  }\n  const sums = await Promise.all(promises);\n  console.log(\"total:\", sums.reduce((a, b) => a + b, 0));\n}\n\nmain();\n\n// compute.js\nconst { parentPort } = require(\"worker_threads\");\nparentPort.on(\"message\", ({ start, end }) => {\n  let s = 0;\n  for (let i = start; i < end; i++) s += i;\n  parentPort.postMessage(s);\n});",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "内存管理与 V8 GC 调优",
+          "summary": "V8 内存限制 / 堆外内存 / 排查内存泄漏。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 默认限制\n- 64 位系统: V8 堆最大 1.7GB\n- 32 位: 0.7GB\n- 突破: --max-old-space-size=4096\n\n## 内存组成\n- RSS: 进程总占用\n- Heap Total: V8 堆已申请\n- Heap Used: V8 堆已用\n- External: 堆外(Buffer / C++ 对象)\n\n## 排查工具\n- process.memoryUsage(): 基础指标\n- heapdump: 导出堆快照\n- chrome devtools / clinic.js\n- --inspect + heap snapshot\n\n## 常见泄漏\n- 全局 Map 不断 push 不清\n- 闭包引用大对象\n- 监听器未 removeListener\n- setInterval 未 clearInterval",
+          "codeExample": "// 看进程内存\nconsole.log(process.memoryUsage());\n// { rss: 30MB, heapTotal: 5MB, heapUsed: 4MB, external: 1MB }\n\n// 启动时扩大 V8 堆\nnode --max-old-space-size=4096 app.js\n\n// 导出堆快照\nconst heapdump = require(\"heapdump\");\nsetInterval(() => heapdump.writeSnapshot(), 60000);\n// 对比两个时间点的快照,找增长的对象\n\n// 排查: 听 GC\nnode --trace-gc app.js 2>&1 | grep -E \"Mark-sweep|Scavenge\"\n\n// 实战: 定期打印 + 告警\nsetInterval(() => {\n  const m = process.memoryUsage();\n  if (m.heapUsed > 1.5 * 1024 * 1024 * 1024) {  // 1.5GB\n    console.warn(\"Memory high!\", m);\n  }\n}, 30000);",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 4,
+      "stageName": "Node.js 进阶",
+      "chapterNo": 16,
+      "title": "部署与监控",
+      "description": "Docker / PM2 / 健康检查 / 优雅停机,生产级 Node 服务。",
+      "codePath": "com.learning.nodejs.Deploy",
+      "estimatedHours": 3,
+      "subject": "nodejs",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Docker 化 Node 应用",
+          "summary": "Dockerfile 多阶段构建,镜像小且安全。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 单阶段(简单)\n- 基础镜像 + 复制文件 + npm install + CMD\n- 缺点: 镜像大, dev 依赖一起打包\n\n## 多阶段(推荐)\n- 阶段1: 构建(包含 dev 依赖)\n- 阶段2: 运行时(只 copy dist + prod 依赖)\n- 镜像能小 5-10 倍\n\n## 安全\n- 用 alpine 或 distroless\n- 非 root 用户运行\n- 加 USER 指令\n- 镜像签名",
+          "codeExample": "# 多阶段 Dockerfile\nFROM node:20-alpine AS builder\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci\nCOPY . .\nRUN npm run build\n\nFROM node:20-alpine AS runtime\nWORKDIR /app\nRUN addgroup -g 1001 nodejs && adduser -S -u 1001 -G nodejs nodejs\nCOPY --from=builder --chown=nodejs:nodejs /app/dist ./dist\nCOPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules\nUSER nodejs\nEXPOSE 3000\nENV NODE_ENV=production\nCMD [\"node\", \"dist/main.js\"]\n\n# 镜像从 ~1GB 缩到 ~150MB\n\n# docker build -t myapp:1.0.0 .\n# docker run -d -p 3000:3000 --name myapp --restart=always myapp:1.0.0",
+          "codeType": "dockerfile"
+        },
+        {
+          "lessonNo": 2,
+          "title": "健康检查与优雅停机",
+          "summary": "容器知道服务还活着, K8s 知道何时滚动更新。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 健康检查\n- /health: 服务存活(liveness)\n- /ready: 服务就绪(readiness)\n- 区别: 活 = 进程在, 准备 = 能接流量\n\n## 优雅停机\n- 收到 SIGTERM\n- 停止接收新请求\n- 等待正在处理的请求完成(超时)\n- 关闭 DB 连接 / 释放资源\n- 进程退出\n\n## K8s 配合\n- readinessProbe 失败 → Service 摘除\n- livenessProbe 失败 → Pod 重启\n- preStop hook: 等待当前请求完成\n- terminationGracePeriodSeconds: 给够时间",
+          "codeExample": "// app.ts: 健康检查 + 优雅停机\napp.get(\"/health\", (req, res) => res.json({ status: \"ok\" }));\napp.get(\"/ready\", async (req, res) => {\n  try {\n    await db.ping();\n    await redis.ping();\n    res.json({ status: \"ready\" });\n  } catch (e) {\n    res.status(503).json({ status: \"not ready\" });\n  }\n});\n\n// 优雅停机\nlet shuttingDown = false;\nconst server = app.listen(3000);\n\nprocess.on(\"SIGTERM\", async () => {\n  if (shuttingDown) return;\n  shuttingDown = true;\n  console.log(\"Shutting down...\");\n  server.close(() => {\n    db.close();\n    redis.quit();\n    process.exit(0);\n  });\n  // 超时硬退出\n  setTimeout(() => process.exit(1), 30000);\n});\n\n# K8s manifest\nreadinessProbe:\n  httpGet: { path: /ready, port: 3000 }\n  periodSeconds: 5\nlivenessProbe:\n  httpGet: { path: /health, port: 3000 }\n  periodSeconds: 30\nterminationGracePeriodSeconds: 30",
+          "codeType": "nodejs"
+        },
+        {
+          "lessonNo": 3,
+          "title": "日志与监控最佳实践",
+          "summary": "pino + prom-client + Grafana,生产可观测性。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 结构化日志\n- pino: 极快的 JSON logger (5x faster than winston)\n- 每条日志带 traceId / userId / requestId\n- 集中收集(ELK / Loki)\n\n## 指标\n- prom-client: Prometheus 指标\n- /metrics 端点暴露\n- 4 类核心指标:\n  - counter: 累加(请求数)\n  - gauge: 瞬时值(在线人数)\n  - histogram: 分布(响应时间)\n  - summary: 百分位\n\n## 告警\n- Prometheus 规则 + Alertmanager\n- 关键指标: P99 延迟 / 错误率 / QPS / 内存",
+          "codeExample": "// 日志: pino\nimport pino from \"pino\";\nconst logger = pino({\n  level: process.env.LOG_LEVEL || \"info\",\n  base: { service: \"user-svc\", env: process.env.NODE_ENV },\n  timestamp: pino.stdTimeFunctions.isoTime,\n});\n\nlogger.info({ userId, action: \"login\" }, \"user logged in\");\n\n// HTTP 请求日志中间件(记录每个请求)\napp.use((req, res, next) => {\n  const t0 = Date.now();\n  res.on(\"finish\", () => {\n    logger.info({\n      method: req.method, url: req.url, status: res.statusCode,\n      duration: Date.now() - t0,\n    }, \"http request\");\n  });\n  next();\n});\n\n// 指标: prom-client\nimport { collectDefaultMetrics, Registry, Histogram } from \"prom-client\";\nconst registry = new Registry();\ncollectDefaultMetrics({ register: registry });\n\nconst httpDuration = new Histogram({\n  name: \"http_request_duration_seconds\",\n  help: \"Duration of HTTP requests\",\n  labelNames: [\"method\", \"route\", \"status\"],\n  buckets: [0.01, 0.05, 0.1, 0.5, 1, 5],\n  registers: [registry],\n});\n\napp.get(\"/metrics\", async (req, res) => {\n  res.set(\"Content-Type\", registry.contentType);\n  res.end(await registry.metrics());\n});",
+          "codeType": "nodejs"
+        }
+      ]
+    },
+    {
+      "stageNo": 4,
+      "stageName": "Git 进阶",
+      "chapterNo": 9,
+      "title": "子模块与子树合并",
+      "description": "多项目协作:git submodule 与 git subtree,管理第三方依赖。",
+      "codePath": "com.learning.git.Sub",
+      "estimatedHours": 3,
+      "subject": "git",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "git submodule:嵌入外部仓库",
+          "summary": "把一个 Git 仓库嵌入到另一个仓库的子目录。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 添加子模块\n- git submodule add <repo-url> <path>\n- 在主仓库里创建一个 .gitmodules 记录映射\n- 实际内容是另一个仓库的指针\n\n## 克隆含子模块的仓库\n- git clone --recurse-submodules <url>\n- 已有仓库: git submodule init + update\n\n## 优缺点\n- ✅ 子模块是独立仓库, 可单独管理\n- ❌ 子模块是 detached HEAD, 切换分支麻烦\n- ❌ 团队成员要 --recurse-submodules 才完整",
+          "codeExample": "# 添加子模块\ngit submodule add https://github.com/jquery/jquery.git vendor/jquery\ngit commit -m \"feat: 引入 jquery 子模块\"\n\n# 克隆含子模块的仓库\ngit clone --recurse-submodules https://github.com/myorg/myproject.git\n\n# 已有仓库: 拉取子模块\ngit submodule init\ngit submodule update --recursive\n\n# 更新子模块到最新\ngit submodule update --remote vendor/jquery\ngit add vendor/jquery\ngit commit -m \"chore: bump jquery to v3.7\"\n\n# 删除子模块\ngit submodule deinit vendor/jquery\ngit rm vendor/jquery\ngit commit -m \"chore: remove jquery submodule\"",
+          "codeType": "bash"
+        },
+        {
+          "lessonNo": 2,
+          "title": "git subtree:更简单的依赖管理",
+          "summary": "把外部仓库内容合并到主仓库的子目录,无 detached HEAD 问题。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 与 submodule 区别\n- submodule: 指针, 内容独立仓库\n- subtree: 把外部代码完整合并到主仓库的某个目录, 都在主仓库历史里\n- ✅ 团队成员克隆无需特殊参数\n- ✅ 工具链兼容(Sourcetree 等)\n- ❌ 主仓库体积变大\n\n## 实战\n- git subtree add: 引入外部库\n- git subtree pull: 同步更新\n- git subtree merge: 自己修改后再贡献回上游",
+          "codeExample": "# 添加: 把 libfoo 仓库合并到 vendor/libfoo 目录\ngit subtree add --prefix=vendor/libfoo https://github.com/foo/libfoo.git master --squash\n\n# 同步上游更新\ngit subtree pull --prefix=vendor/libfoo https://github.com/foo/libfoo.git master --squash\n\n# 修改后贡献回上游(拆出 vendor/libfoo 作为独立分支)\ngit subtree split --prefix=vendor/libfoo --branch libfoo-upstream\n# 把 libfoo-upstream 分支 push 给上游\n\n# 实战: 项目里嵌入公司公共组件库\ngit subtree add --prefix=shared/components git@gitlab.corp.com:fe/components.git main --squash\n# 自己改了组件,提交时就在 shared/components/ 里,无需额外操作",
+          "codeType": "bash"
+        }
+      ]
+    },
+    {
+      "stageNo": 4,
+      "stageName": "Git 进阶",
+      "chapterNo": 10,
+      "title": "Git 内部原理",
+      "description": ".git 目录 / 对象 / pack 文件,理解 Git 底层。",
+      "codePath": "com.learning.git.Internals",
+      "estimatedHours": 3,
+      "subject": "git",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": ".git 目录结构与对象模型",
+          "summary": "Git 到底是什么样的数据结构?",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## .git 目录\n- HEAD: 当前分支指针\n- config: 仓库配置\n- objects/: 对象数据库(blob / tree / commit / tag)\n- refs/: 引用(heads / remotes / tags)\n- logs/: reflog(操作日志)\n\n## 4 种对象\n- blob: 文件内容(无文件名)\n- tree: 目录结构(blob + 子 tree 引用)\n- commit: 提交(tree + parent + 作者 + 消息)\n- tag: 标签(commit 的别名, 可带签名)\n\n## SHA-1\n- 每个对象 40 字符 hash\n- 内容寻址: 相同内容同 hash\n- 一旦写入, hash 永不变",
+          "codeExample": "# 查看对象\n# 1) 看一个 commit 是什么\ngit cat-file -p HEAD\n# commit 165... (HEAD -> main)\n# tree 8a2...\n# author Tom <...> 1638360000 +0800\n# committer Tom <...> 1638360000 +0800\n# \n#     feat: 入门\n\n# 2) 看 commit 指向的 tree\ngit cat-file -p 8a2...\n# tree 8a2...\n# 100644 blob 1a2...  README.md\n# 100644 blob 3b4...  index.js\n\n# 3) 看 blob 内容(注意: blob 不含文件名!)\ngit cat-file -p 1a2...\n# # My Project\n\n# 4) 看对象类型\ngit cat-file -t 1a2...\n# blob",
+          "codeType": "bash"
+        },
+        {
+          "lessonNo": 2,
+          "title": "pack 文件与 gc",
+          "summary": "大量对象怎么高效存储?",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## loose object\n- 每个对象一个独立文件\n- 大量小文件, IO 不友好\n\n## pack 文件\n- 把多个对象打包 + 压缩 + 索引\n- delta 压缩: 只存差异\n- .git/objects/pack/*.pack\n- .git/objects/pack/*.idx 索引\n\n## gc 与 repack\n- git gc: 自动触发, 打包 + 清理\n- git gc --aggressive: 更激进压缩\n- git repack -ad: 重新打包所有对象\n\n## 浅克隆 / 部分克隆\n- git clone --depth=1: 浅克隆(只拉最近 1 个 commit)\n- git clone --filter=blob:none: 部分克隆(blob 按需)\n- 适合: CI / Docker 构建, 节省时间和磁盘",
+          "codeExample": "# 手动触发 gc\ngit gc\n# Auto packing the repository for optimum performance.\n# See \"git help gc\" for manual housekeeping options.\n\n# 统计 pack 前后大小\ngit count-objects -vH\n# size: 0 MB\n# size-pack: 0 MB\n\n# 浅克隆: 大仓库加速\ngit clone --depth=1 https://github.com/torvalds/linux.git\n# 只拉 1 个 commit + 历史链\n# 适合: CI 构建, Docker 镜像, demo\n\n# 部分克隆: 不下载 blob, 按需 fetch\ngit clone --filter=blob:none https://github.com/myorg/monorepo.git\n# 后续 git checkout 时按需拉文件\n# 配 partial.cloneFilter: blob:none\n\n# 清理悬空对象\ngit reflog expire --expire=now --all\ngit gc --prune=now --aggressive",
+          "codeType": "bash"
+        }
+      ]
+    },
+    {
+      "stageNo": 8,
+      "stageName": "Web 进阶与前沿",
+      "chapterNo": 38,
+      "title": "微前端架构",
+      "description": "Module Federation / qiankun / wujie,把多个独立应用组合成一个整体。",
+      "codePath": "com.learning.web.MicroFrontend",
+      "estimatedHours": 4,
+      "subject": "web",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "微前端:动机与方案对比",
+          "summary": "为什么需要微前端, 有哪些主流方案。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 动机\n- 大型 SPA: 团队相互影响, 部署耦合\n- 多团队协作: 各自技术栈 / 各自发布\n- 渐进迁移: 老系统慢慢切到新框架\n\n## 方案对比\n- Module Federation: Vite 5+ / Webpack 5+, 运行时共享模块\n- qiankun: 阿里系, 多个子应用挂载到主应用\n- micro-app: 京东系, 类似 qiankun 但更轻\n- wujie: 腾讯系, iframe 隔离 + 桥接\n- single-spa: 老牌, 通用基座\n\n## 选型\n- 新项目: Module Federation (Webpack 5 / Vite)\n- 存量项目: qiankun / micro-app 接入成本低",
+          "codeExample": "// Module Federation 例子 (Vite)\n// 主应用 vite.config.ts\nimport { defineConfig } from \"vite\";\nimport federation from \"@originjs/vite-plugin-federation\";\n\nexport default defineConfig({\n  plugins: [\n    federation({\n      name: \"host-app\",\n      remotes: {\n        \"user-app\": \"http://localhost:3001/assets/remoteEntry.js\",\n      },\n      shared: [\"vue\", \"vue-router\", \"pinia\"],\n    }),\n  ],\n});\n\n// 主应用加载远程组件\nconst UserProfile = defineAsyncComponent(() =>\n  import(\"user-app/UserProfile\")\n);\n\n// 子应用 vite.config.ts (独立部署在 3001)\nfederation({\n  name: \"user-app\",\n  filename: \"remoteEntry.js\",\n  exposes: { \"./UserProfile\": \"./src/components/UserProfile.vue\" },\n  shared: [\"vue\"],\n});",
+          "codeType": "javascript"
+        },
+        {
+          "lessonNo": 2,
+          "title": "Module Federation 实战",
+          "summary": "主子应用共享模块 + 独立部署。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## 核心概念\n- Host: 加载方, 运行时拉 remoteEntry.js\n- Remote: 暴露方, 暴露组件/工具\n- Shared: 共享依赖(避免重复加载 Vue)\n\n## 注意事项\n- 共享依赖版本要兼容\n- 异步加载, 需要 fallback UI\n- 样式隔离: CSS Modules / Shadow DOM\n- 全局状态: Pinia 跨应用需单独处理\n- 路由: 各自维护, 顶层路由用 host 统一\n\n## 调试\n- 浏览器 Network 看 remoteEntry.js\n- 共享依赖: DevTools > Sources 看 module map\n- 失败: 通常是 CORS 或版本不兼容",
+          "codeExample": "// 子应用: 暴露 UserCard 组件\n// remote/src/UserCard.vue\n<script setup>\ndefineProps<{ user: User }>()\n</script>\n<template>\n  <div class=\"user-card\">\n    <img :src=\"user.avatar\" />\n    <h3>{{ user.name }}</h3>\n  </div>\n</template>\n\n// remote/vite.config.ts\nexport default defineConfig({\n  plugins: [federation({\n    name: \"remote-app\",\n    filename: \"remoteEntry.js\",\n    exposes: { \"./UserCard\": \"./src/UserCard.vue\" },\n    shared: { vue: { singleton: true }, \"vue-router\": { singleton: true } },\n  })],\n  build: { target: \"esnext\", minify: false, cssCodeSplit: false },\n});\n\n// 主应用: 远程加载\nconst UserCard = defineAsyncComponent({\n  loader: () => import(\"remote-app/UserCard\"),\n  loadingComponent: Skeleton,   // 加载中显示\n  errorComponent: ErrorView,   // 失败显示\n});\n\n<template>\n  <UserCard :user=\"currentUser\" />\n</template>",
+          "codeType": "javascript"
+        }
+      ]
+    },
+    {
+      "stageNo": 8,
+      "stageName": "Web 进阶与前沿",
+      "chapterNo": 39,
+      "title": "Monorepo 工程化",
+      "description": "pnpm workspace + Turborepo + Changesets,大型项目的高效管理。",
+      "codePath": "com.learning.web.Monorepo",
+      "estimatedHours": 4,
+      "subject": "web",
+      "lessons": [
+        {
+          "lessonNo": 1,
+          "title": "Monorepo vs Polyrepo",
+          "summary": "为什么大型团队选择 Monorepo。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## Polyrepo (多仓)\n- 每个项目独立 Git 仓库\n- ✅ 权限隔离清晰, 仓库小\n- ❌ 跨项目重构困难, 依赖管理复杂\n- ❌ CI 配置重复, 工具链不统一\n\n## Monorepo (单仓)\n- 多个项目在同一 Git 仓库\n- ✅ 原子化跨项目重构\n- ✅ 依赖共享, 提升复用\n- ✅ 统一 CI / lint / test\n- ❌ 仓库大, 需要优化工具 (git lfs / sparse checkout)\n\n## 主流方案\n- pnpm workspace: 轻量, 适合中小\n- Yarn workspaces: 老牌\n- Nx: 完整工具链\n- Turborepo: 增量构建 + 远程缓存\n- Lerna: 经典, 已合并到 Nx",
+          "codeExample": "# Monorepo 结构\nmy-org/\n├── apps/\n│   ├── web/         # 主站 (Next.js)\n│   ├── admin/       # 后台 (React)\n│   └── api/         # 后端 (NestJS)\n├── packages/\n│   ├── ui/          # 共享 UI 组件\n│   ├── utils/       # 工具函数\n│   ├── tsconfig/    # 共享 TS 配置\n│   └── eslint-config/  # 共享 lint 配置\n├── package.json     # 根 package.json (workspaces 字段)\n├── pnpm-workspace.yaml\n└── turbo.json\n\n# 优势示例: 重构 ui 组件\n# 一个 PR 改 packages/ui, 自动让 apps/* 全部用上\n# 不用发包 / 不用 yarn link",
+          "codeType": "yaml"
+        },
+        {
+          "lessonNo": 2,
+          "title": "pnpm workspace + Turborepo",
+          "summary": "现代 Monorepo 的黄金组合。",
+          "difficulty": 3,
+          "durationMinutes": 25,
+          "content": "## pnpm 优势\n- 硬链接: 同一个包只装一份, 磁盘省\n- monorepo 友好: workspace 协议\n- 严格的 node_modules: 不允许幽灵依赖\n\n## Turborepo\n- 增量构建: 只构建改动的包\n- 远程缓存: CI 间共享, 命中缓存秒级\n- 任务编排: build / test / lint 依赖图\n\n## 实战\n- pnpm-workspace.yaml 声明\n- turbo.json 定义 pipeline\n- CI 加 --filter 增量构建",
+          "codeExample": "# pnpm-workspace.yaml\npackages:\n  - \"apps/*\"\n  - \"packages/*\"\n\n# turbo.json\n{\n  \"pipeline\": {\n    \"build\": {\n      \"dependsOn\": [\"^build\"],     // 先构建依赖\n      \"outputs\": [\"dist/**\"]\n    },\n    \"test\": {\n      \"dependsOn\": [\"build\"],\n      \"outputs\": [\"coverage/**\"]\n    },\n    \"lint\": {},\n    \"dev\": { \"cache\": false }       // dev 不缓存\n  }\n}\n\n# 常用命令\npnpm -F web dev              # 只跑 web 包 dev\nturbo run build --filter=web  # 构建 web 及其依赖\nturbo run test --affected    # 只测 PR 改动的包\n\n# CI 加远程缓存\nTURBO_TOKEN=xxx turbo run build --remote-only",
+          "codeType": "yaml"
+        },
+        {
+          "lessonNo": 3,
+          "title": "Changesets:语义化版本管理",
+          "summary": "Monorepo 下的版本管理 + 变更日志。",
+          "difficulty": 3,
+          "durationMinutes": 20,
+          "content": "## 动机\n- 哪个 PR 改了哪些包, 影响多少版本?\n- 怎么生成 CHANGELOG?\n- 团队怎么协作 release?\n\n## Changesets 流程\n- PR 加 .changeset/<branch>.md 描述变更\n- .changeset/config.json 配置包映射 + 版本\n- pnpm changeset: 创建变更\n- pnpm version: 升级版本 + 生成 changelog\n- pnpm publish: 发布\n\n## 替代\n- release-please: Google 出品, GitHub 集成\n- semantic-release: 配置稍复杂\n- changesets 当前最流行",
+          "codeExample": "# .changeset/feat-add-user-search.md\n---\n\"@myorg/ui\": minor\n\"@myorg/web\": patch\n---\n\nfeat(ui): 新增 SearchInput 组件, 支持 debounce 搜索\n\n# 改 ui 组件 minor, 改使用方 web patch\n\n# 命令\npnpm changeset           # 创建变更\npnpm changeset version   # 升级版本 + 写 changelog\npnpm publish -r         # 发布所有变了的包\n\n# 自动化: PR 合入后自动 bot 创建 version PR\n# .changeset/config.json\ngitHub: { access: \"contributor\" }\nchangelog: \"@changesets/cli/changelog\"\ncommit: false",
+          "codeType": "yaml"
+        }
+      ]
     }
   ]
 }

@@ -15,5 +15,7 @@ public interface WikiDirectoryRepository extends JpaRepository<WikiDirectory, Lo
 
     Optional<WikiDirectory> findByIdAndUserId(Long id, Long userId);
 
+    Optional<WikiDirectory> findByUserIdAndSortNo(Long userId, Integer sortNo);
+
     void deleteByUserId(Long userId);
 }

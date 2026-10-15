@@ -15,6 +15,8 @@ import com.learning.springboot.repository.UserPreferenceRepository;
 import com.learning.springboot.repository.UserRepository;
 import com.learning.springboot.service.LearningService;
 import com.learning.springboot.service.NotificationService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +57,7 @@ public class LearningServiceImpl implements LearningService {
     @Autowired private UserRepository userRepository;
     @Autowired private UserPreferenceRepository preferenceRepository;
     @Autowired private NotificationService notificationService;
+    @Autowired private ObjectMapper objectMapper;
 
     // ==================== 科目(语言)维度 ====================
 
@@ -74,6 +77,34 @@ public class LearningServiceImpl implements LearningService {
     public List<LearningVO.StageVO> getCurriculum(Long userId, Long subjectId) {
         Set<Long> learnedIds = findLearnedIds(userId);
         List<LearningChapter> chapters = chaptersOf(subjectId);
+
+        // 章级 prerequisite -> 是否已学完(同科目内)
+        // 缓存: chapterId -> Set<Long> lessonIds
+        Map<Long, Set<Long>> lessonsByChapterId = new HashMap<>();
+        for (LearningChapter c : chapters) {
+            Set<Long> ls = new HashSet<>();
+            for (LearningLesson l : lessonRepository.findByChapterIdOrderByLessonNoAsc(c.getId())) {
+                ls.add(l.getId());
+            }
+            lessonsByChapterId.put(c.getId(), ls);
+        }
+
+        // 解析每章的 prerequisites JSON (本学科内的其他章 id 列表)
+        Map<Long, List<Long>> prereqByChapterId = new HashMap<>();
+        for (LearningChapter c : chapters) {
+            String raw = c.getPrerequisites();
+            if (raw == null || raw.isBlank()) continue;
+            try {
+                List<Long> ids = objectMapper.readValue(raw, new TypeReference<List<Long>>() {});
+                // 过滤掉不存在的章 id(防 schema 漂移)
+                Set<Long> validChapterIds = new HashSet<>();
+                for (LearningChapter x : chapters) validChapterIds.add(x.getId());
+                ids = ids.stream().filter(validChapterIds::contains).toList();
+                prereqByChapterId.put(c.getId(), ids);
+            } catch (Exception e) {
+                log.warn("解析章节 prerequisites JSON 失败, chapterId={}, raw={}", c.getId(), raw);
+            }
+        }
 
         Map<Integer, LearningVO.StageVO> stageMap = new LinkedHashMap<>();
         for (LearningChapter chapter : chapters) {
@@ -96,6 +127,24 @@ public class LearningServiceImpl implements LearningService {
             cv.description = chapter.getDescription();
             cv.codePath = chapter.getCodePath();
             cv.estimatedHours = chapter.getEstimatedHours() == null ? 0 : chapter.getEstimatedHours();
+
+            // 前置 + 锁定态计算
+            List<Long> prereqs = prereqByChapterId.getOrDefault(chapter.getId(), List.of());
+            cv.prerequisites = prereqs;
+            if (prereqs.isEmpty()) {
+                cv.locked = false;
+                cv.unmetPrerequisites = List.of();
+            } else {
+                // 计算未学完的前置章(至少还有 1 个 lesson 未学)
+                List<Long> unmet = new ArrayList<>();
+                for (Long pid : prereqs) {
+                    Set<Long> pLessons = lessonsByChapterId.getOrDefault(pid, Set.of());
+                    boolean allLearned = !pLessons.isEmpty() && learnedIds.containsAll(pLessons);
+                    if (!allLearned) unmet.add(pid);
+                }
+                cv.unmetPrerequisites = unmet;
+                cv.locked = !unmet.isEmpty();
+            }
 
             List<LearningLesson> lessons =
                 lessonRepository.findByChapterIdOrderByLessonNoAsc(chapter.getId());

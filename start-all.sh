@@ -37,6 +37,118 @@ step()    { echo -e "${MAGENTA}[STEP]${NC} $1"; }
 # 失败计数
 FAIL=0
 
+# ===========================================
+# 0) 第一步: 强制清理端口 + 残留进程(关键, 避免端口冲突)
+#    - 后端 8080
+#    - 前端 5173-5180(Vite 默认 5173, 但端口冲突/沙箱重映射时会顺延到 5174-5180)
+#    - 同时按进程命令杀 java / node 派生,兜底杀掉不监听到端口但仍占资源的进程
+#    SKIP_PORT_CLEAN=1 可跳过(紧急情况)
+# ===========================================
+
+# 安全杀指定 PID (避免 PID 1 / 自身 / shell 父进程)
+_safe_kill() {
+    local p=$1
+    [ -z "$p" ] && return 0
+    [ "$p" = "1" ] && return 0
+    [ "$p" = "$$" ] && return 0
+    [ "$p" = "$PPID" ] && return 0
+    kill -0 "$p" 2>/dev/null || return 0
+    kill -TERM "$p" 2>/dev/null
+    return 0
+}
+
+# 杀单个端口的所有进程(TERM → 等 2s → KILL 顽固)
+kill_port() {
+    local port=$1
+    local pids
+    pids=$(lsof -ti :$port 2>/dev/null | tr '\n' ' ')
+    [ -z "$pids" ] && return 0
+    for p in $pids; do
+        _safe_kill "$p"
+        warn "  端口 $port 占用 PID=$p, kill -TERM ..."
+    done
+    sleep 2
+    for p in $pids; do
+        [ -z "$p" ] && continue
+        [ "$p" = "1" ] && continue
+        [ "$p" = "$$" ] && continue
+        [ "$p" = "$PPID" ] && continue
+        if kill -0 "$p" 2>/dev/null; then
+            warn "  PID=$p 不响应 TERM, 强制 KILL -9"
+            kill -KILL "$p" 2>/dev/null
+        fi
+    done
+    sleep 1
+}
+
+# 按进程命令模式杀进程(兜底, 用于 lsof 抓不到但仍占资源的进程)
+# 用法: kill_by_pattern <pattern> <description>
+# 模式匹配的是 ps -o args 输出(包含命令行); 用 grep -E
+kill_by_pattern() {
+    local pattern="$1"
+    local desc="$2"
+    # 仅看自己的进程,避免误伤系统进程
+    local pids
+    pids=$(pgrep -fl "$pattern" 2>/dev/null | awk '{print $1}')
+    [ -z "$pids" ] && return 0
+    for p in $pids; do
+        _safe_kill "$p"
+        warn "  $desc 进程 PID=$p, kill -TERM ..."
+    done
+    sleep 2
+    for p in $pids; do
+        [ -z "$p" ] && continue
+        [ "$p" = "1" ] && continue
+        [ "$p" = "$$" ] && continue
+        [ "$p" = "$PPID" ] && continue
+        if kill -0 "$p" 2>/dev/null; then
+            kill -KILL "$p" 2>/dev/null
+        fi
+    done
+}
+
+if [ "${SKIP_PORT_CLEAN:-0}" = "1" ]; then
+    info "SKIP_PORT_CLEAN=1, 跳过端口清理"
+else
+    step "① 清理占用端口与残留进程(确保启动是干净状态)..."
+
+    # 端口段: 5173-5180(Vite dev server 默认 + 重映射顺延)
+    declare -a PORTS_TO_CLEAN=("8080" "5173" "5174" "5175" "5176" "5177" "5178" "5179" "5180")
+    OCCUPIED=()
+    for port in "${PORTS_TO_CLEAN[@]}"; do
+        n=$(lsof -ti :$port 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$n" -gt 0 ]; then
+            OCCUPIED+=("$port($n)")
+            kill_port "$port"
+        fi
+    done
+
+    # 兜底: 按进程命令杀 Vite / 后端 jar / mvn spring-boot 派生(覆盖 lsof 抓不到的情况)
+    kill_by_pattern "spring-boot-learning-.*\\.jar" "后端 jar"
+    kill_by_pattern "vite" "前端 vite"
+    kill_by_pattern "node.*frontend-learning.*\\.bin" "前端 npm run dev"
+
+    # 二次确认
+    REMAINING=""
+    for port in "${PORTS_TO_CLEAN[@]}"; do
+        n=$(lsof -ti :$port 2>/dev/null | wc -l | tr -d ' ')
+        [ "$n" -gt 0 ] && REMAINING="$REMAINING $port($n)"
+    done
+    if [ -z "$REMAINING" ]; then
+        if [ ${#OCCUPIED[@]} -gt 0 ]; then
+            success "端口清理完成(原占用: ${OCCUPIED[*]})"
+        else
+            success "所有端口空闲(8080 / 5173-5180)"
+        fi
+    else
+        warn "仍有进程占用:$REMAINING, 启动可能失败"
+    fi
+
+    # 清理 .run/ 下历史 PID 文件
+    rm -f "$SCRIPT_DIR/.run/backend.pid" "$SCRIPT_DIR/.run/frontend.pid" 2>/dev/null
+    echo ""
+fi
+
 # 提取版本号中的主版本数字(支持 "21.0.3" / "v18.17.0" / "1.2.3" 等格式)
 version_major() {
     echo "$1" | sed -E 's/^[vV]?//' | awk -F. '{print $1}'
@@ -369,8 +481,8 @@ echo ""
 step "⑦ 启动后端 Spring Boot..."
 cd "$SCRIPT_DIR/spring-boot-learning"
 
-# 后台启动 mvn
-nohup mvn spring-boot:run > "$BACKEND_LOG" 2>&1 &
+# 后台启动 mvn(显式传 SERVER_PORT=8080, 覆盖沙箱可能注入的其他端口, 避免监听错位)
+nohup env SERVER_PORT=8080 mvn spring-boot:run > "$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$BACKEND_PID_FILE"
 
@@ -378,7 +490,8 @@ info "后端进程 PID: $BACKEND_PID, 日志: $BACKEND_LOG"
 
 # 等待后端就绪(最多 90 秒,首次启动要拉依赖)
 info "等待后端启动(端口 8080, 首次启动可能需要 60-90 秒)..."
-HEALTH_URL="http://localhost:8080/api/hello"
+# 探活 URL 选 /api/auth/public-key(免鉴权 + 必存在)
+HEALTH_URL="http://localhost:8080/api/auth/public-key"
 HEALTH_OK=0
 for i in {1..45}; do
     sleep 2
@@ -411,7 +524,8 @@ step "⑧ 启动前端 Vue + Vite..."
 cd "$SCRIPT_DIR/frontend-learning"
 
 # 后台启动 Vite
-nohup npm run dev > "$FRONTEND_LOG" 2>&1 &
+# 显式传 BACKEND_PORT=8080, vite proxy 才能跟后端对齐
+nohup env BACKEND_PORT=8080 npm run dev > "$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > "$FRONTEND_PID_FILE"
 

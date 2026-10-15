@@ -302,11 +302,17 @@ public class PersonalCenterService {
 
     @Transactional
     public WikiArticle createArticle(Long userId, Long directoryId, String title, String content, String contentType) {
-        WikiDirectory d = directoryRepository.findByIdAndUserId(directoryId, userId)
-            .orElseThrow(() -> new BusinessException("目录不存在"));
-        if (title == null || title.trim().isEmpty()) throw new BusinessException("文章标题不能为空");
-        if (content == null || content.trim().isEmpty()) throw new BusinessException("文章内容不能为空");
-        if (content.length() > 200000) throw new BusinessException("内容过长,最多 200000 字符");
+        // directoryId == null → 放用户根目录(若不存在则自动创建, 支持从 Wiki 根入口直接导入文档)
+        WikiDirectory d;
+        if (directoryId == null) {
+            d = ensureUserRootDirectory(userId);
+        } else {
+            d = directoryRepository.findByIdAndUserId(directoryId, userId)
+                .orElseThrow(() -> new BusinessException(400, "目录不存在"));
+        }
+        if (title == null || title.trim().isEmpty()) throw new BusinessException(400, "文章标题不能为空");
+        if (content == null || content.trim().isEmpty()) throw new BusinessException(400, "文章内容不能为空");
+        if (content.length() > 200000) throw new BusinessException(400, "内容过长,最多 200000 字符");
         WikiArticle a = new WikiArticle();
         a.setUserId(userId);
         a.setDirectoryId(d.getId());
@@ -318,6 +324,25 @@ public class PersonalCenterService {
         a.setSortNo(nextSortNo(articleRepository.findByDirectoryIdOrderBySortNoAscIdAsc(d.getId()).stream()
             .map(WikiArticle::getSortNo).max(Integer::compareTo).orElse(0)));
         return articleRepository.save(a);
+    }
+
+    /**
+     * 取用户的 Wiki 根目录(若不存在则自动创建并返回)。
+     * 用于"无目录上下文"场景(如文档导入、API 直接创建文章)。
+     */
+    private WikiDirectory ensureUserRootDirectory(Long userId) {
+        // 优先找 sort_no=0 的根目录(创建目录时 root 用 0)
+        return directoryRepository.findByUserIdAndSortNo(userId, 0).orElseGet(() -> {
+            // 没有就找任一根目录
+            List<WikiDirectory> list = directoryRepository.findByUserIdOrderBySortNoAscIdAsc(userId);
+            if (!list.isEmpty()) return list.get(0);
+            // 完全没有 → 创建一个"我的 Wiki"根目录
+            WikiDirectory root = new WikiDirectory();
+            root.setUserId(userId);
+            root.setName("我的 Wiki");
+            root.setSortNo(0);
+            return directoryRepository.save(root);
+        });
     }
 
     @Transactional
