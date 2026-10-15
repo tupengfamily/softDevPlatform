@@ -109,6 +109,7 @@ const menuGroups = computed(() => {
         { path: '/notifications', titleKey: 'nav.notifications', icon: 'Bell' },
         { path: '/favorites',     titleKey: 'nav.favorites', icon: 'Star' },
         { path: '/wiki',          titleKey: 'nav.wiki', icon: 'Notebook' },
+        { path: '/my-docs',       titleKey: 'nav.myDocs', icon: 'Files' },
         { path: '/data-transfer', titleKey: 'nav.dataTransfer', icon: 'Download' }
       ]
     }

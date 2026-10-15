@@ -29,11 +29,11 @@ spring:
   application:
     name: spring-boot-learning
 
-  # 文件上传: 单文件最大 10MB(Wiki 文档导入 .md/.docx/.xlsx 需要; 头像等业务另有自身限额校验)
+  # 文件上传: 单文件最大 20MB(个人文档导入 .docx/.xlsx/.pptx 可能带图; Wiki 导入另有 10MB 业务校验)
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 12MB
+      max-file-size: 20MB
+      max-request-size: 24MB
 
   # ============== 数据源(SQLite 文件) ==============
   datasource:

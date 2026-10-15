@@ -155,6 +155,12 @@ const routes = [
         meta: { title: '我的 Wiki', titleKey: 'nav.wiki', icon: 'Notebook' }
       },
       {
+        path: 'my-docs',
+        name: 'MyDocuments',
+        component: () => import('../views/MyDocuments.vue'),
+        meta: { title: '我的文档', titleKey: 'nav.myDocs', icon: 'Files' }
+      },
+      {
         path: 'data-transfer',
         name: 'DataTransfer',
         component: () => import('../views/DataTransfer.vue'),
