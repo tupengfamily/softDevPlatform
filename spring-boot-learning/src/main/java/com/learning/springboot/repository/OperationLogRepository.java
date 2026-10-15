@@ -57,4 +57,27 @@ public interface OperationLogRepository extends JpaRepository<OperationLog, Long
         ORDER BY cnt DESC
         """, nativeQuery = true)
     List<Object[]> countGroupByModuleSince(@Param("since") LocalDateTime since);
+
+    // 接口报错: 状态=0 且 error_msg 不为 null
+    @Query(value = """
+        SELECT id, create_time, user_id, username, ip, module, action,
+               request_method, request_url, status, error_msg, cost_ms, user_agent
+        FROM t_operation_log
+        WHERE status = 0 AND error_msg IS NOT NULL AND error_msg != ''
+          AND create_time >= :from AND create_time < :to
+        ORDER BY create_time DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<Object[]> apiErrors(LocalDateTime from, LocalDateTime to, int limit);
+
+    // 接口报错按模块分布
+    @Query(value = """
+        SELECT module, COUNT(*) AS cnt
+        FROM t_operation_log
+        WHERE status = 0 AND error_msg IS NOT NULL AND error_msg != ''
+          AND create_time >= :from AND create_time < :to
+        GROUP BY module
+        ORDER BY cnt DESC
+        """, nativeQuery = true)
+    List<Object[]> apiErrorByModule(LocalDateTime from, LocalDateTime to);
 }

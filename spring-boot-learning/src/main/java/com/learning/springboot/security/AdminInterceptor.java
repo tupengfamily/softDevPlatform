@@ -2,6 +2,7 @@ package com.learning.springboot.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learning.springboot.annotation.RequireAdmin;
+import com.learning.springboot.annotation.RequireOperation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -15,13 +16,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 管理员权限拦截器
- * <p>
- * 校验被 {@link RequireAdmin} 标记的控制器方法/类:
- * - 角色集合中包含 ADMIN: 放行
- * - 否则: 返回 403 + 统一 JSON(与 JwtAuthFilter 的 401 响应结构保持一致)
- * <p>
- * 角色来源: JwtAuthFilter 解析 JWT 后写入的 request attribute,无需重复查库。
+ * 角色权限拦截器(通用版)
+ *
+ * <p>校验 {@link RequireAdmin} / {@link RequireOperation} 标记:
+ * <ul>
+ *   <li>{@code @RequireAdmin}: 角色必须含 ADMIN</li>
+ *   <li>{@code @RequireOperation}: 角色必须含 ADMIN 或 OPERATION</li>
+ * </ul>
+ * <p>优先级: 方法级注解 > 类级注解; 多个注解取「最严」(合并检查)。
+ * <p>角色来源: JwtAuthFilter 解析 JWT 后写入的 request attribute。
  */
 public class AdminInterceptor implements HandlerInterceptor {
 
@@ -30,38 +33,51 @@ public class AdminInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest req, HttpServletResponse resp, Object handler) throws Exception {
-        if (!(handler instanceof HandlerMethod handlerMethod)) {
-            return true; // 静态资源等直接放行
+        if (!(handler instanceof HandlerMethod hm)) {
+            return true;
         }
-        RequireAdmin annotation = handlerMethod.getMethodAnnotation(RequireAdmin.class);
-        if (annotation == null) {
-            annotation = handlerMethod.getBeanType().getAnnotation(RequireAdmin.class);
-        }
-        if (annotation == null) {
-            return true; // 未标记,无需管理员权限
-        }
+        // 取方法级或类级注解(方法优先)
+        RequireAdmin admin = hm.getMethodAnnotation(RequireAdmin.class);
+        if (admin == null) admin = hm.getBeanType().getAnnotation(RequireAdmin.class);
+        RequireOperation op = hm.getMethodAnnotation(RequireOperation.class);
+        if (op == null) op = hm.getBeanType().getAnnotation(RequireOperation.class);
+
+        // 没有权限注解,放行
+        if (admin == null && op == null) return true;
 
         @SuppressWarnings("unchecked")
         Set<String> roles = (Set<String>) req.getAttribute(JwtAuthFilter.ATTR_ROLES);
-        if (roles != null && roles.contains("ADMIN")) {
-            return true;
-        }
 
-        log.warn("[权限] 拒绝非管理员访问 {}.{} (角色: {})",
-                handlerMethod.getBeanType().getSimpleName(), handlerMethod.getMethod().getName(), roles);
-        writeForbidden(resp, annotation.value());
-        return false;
+        // @RequireAdmin: 必须 ADMIN
+        if (admin != null) {
+            if (roles == null || !roles.contains("ADMIN")) {
+                deny(req, resp, hm, admin.value(), roles);
+                return false;
+            }
+        }
+        // @RequireOperation: ADMIN 或 OPERATION
+        if (op != null) {
+            if (roles == null || (!roles.contains("ADMIN") && !roles.contains("OPERATION"))) {
+                deny(req, resp, hm, op.value(), roles);
+                return false;
+            }
+        }
+        return true;
     }
 
-    private void writeForbidden(HttpServletResponse resp, String message) throws Exception {
-        resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("code", 403);
-        body.put("message", message);
-        body.put("data", null);
-        body.put("timestamp", LocalDateTime.now().toString());
-        resp.getWriter().write(MAPPER.writeValueAsString(body));
+    private void deny(HttpServletRequest req, HttpServletResponse resp, HandlerMethod hm, String message, Set<String> roles) {
+        log.warn("[权限] 拒绝访问 {}.{} (角色: {})",
+                hm.getBeanType().getSimpleName(), hm.getMethod().getName(), roles);
+        try {
+            resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            resp.setContentType("application/json");
+            resp.setCharacterEncoding("UTF-8");
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("code", 403);
+            body.put("message", message);
+            body.put("data", null);
+            body.put("timestamp", LocalDateTime.now().toString());
+            resp.getWriter().write(MAPPER.writeValueAsString(body));
+        } catch (Exception ignored) {}
     }
 }

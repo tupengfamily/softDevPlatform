@@ -68,17 +68,25 @@ public class AdminSecurityConfig implements WebMvcConfigurer {
         return reg;
     }
 
-    /** CORS: 只允许配置白名单内的前端源跨域(禁止 * 任意源) */
+    /** CORS: 精确白名单(白名单) + 本地通配模式兜底(开发用) */
     @Bean
     public CorsFilter corsFilter() {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         // 鉴权走 Authorization 头(非 Cookie),无需 allowCredentials;白名单精确匹配来源
         config.setAllowCredentials(false);
+        // 1) 精确白名单(来自 application.yml, 生产环境改为实际域名)
         config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
             .map(String::trim)
             .filter(s -> !s.isEmpty())
             .toList());
+        // 2) 兜底模式: 本地开发常见端口都允许(Vite 默认 5173, 但沙箱 / 端口冲突时可能被映射到 5174/5175/...)
+        //    生产环境如部署到正式域名,白名单已经覆盖,本地模式不影响
+        config.setAllowedOriginPatterns(List.of(
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+            "http://[::1]:*"
+        ));
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.addExposedHeader(jwtProperties.getHeader());
