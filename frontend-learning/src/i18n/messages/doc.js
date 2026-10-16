@@ -74,6 +74,8 @@ export default {
 
     'myDocs.loading': '加载中…',
     'myDocs.loadFail': '文档加载失败',
+    'myDocs.ooFallback': 'OnlyOffice 编辑器未启用',
+    'myDocs.ooFallbackDesc': '后端 OO_ENABLED=false, 自动降级到内置编辑器。要切换请设后端环境变量 OO_ENABLED=true 并部署 OnlyOffice Document Server (docker run -d --name onlyoffice -p 8088:80 -e JWT_SECRET=... onlyoffice/documentserver:9.4.0)。',
 
     'myDocs.editorTitle': '编辑 · {name}',
     'myDocs.saveBtn': '保存',
@@ -312,6 +314,8 @@ export default {
 
     'myDocs.loading': 'Loading…',
     'myDocs.loadFail': 'Failed to load the document',
+    'myDocs.ooFallback': 'OnlyOffice Editor disabled',
+    'myDocs.ooFallbackDesc': 'OO_ENABLED=false on backend. Falling back to built-in editor. To switch, set OO_ENABLED=true and run OnlyOffice Document Server.',
 
     'myDocs.editorTitle': 'Edit · {name}',
     'myDocs.saveBtn': 'Save',

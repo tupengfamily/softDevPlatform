@@ -95,3 +95,14 @@ logging:
     root: INFO
     com.learning.springboot: DEBUG
     org.hibernate.SQL: DEBUG
+
+# ============== OnlyOffice Document Server 集成 ==============
+# 总开关: 设 true 后 MyDocuments 编辑器走 OO iframe, 否则走 v5 自绘
+# 配套环境变量: OO_URL / OO_INTERNAL_URL / OO_JWT_SECRET / OO_JWT_ENABLED
+onlyoffice:
+  enabled: ${OO_ENABLED:false}
+  url: ${OO_URL:http://localhost:8088}
+  internal-url: ${OO_INTERNAL_URL:http://onlyoffice:80}
+  jwt-secret: ${OO_JWT_SECRET:}
+  jwt-enabled: ${OO_JWT_ENABLED:true}
+  jwt-header: ${OO_JWT_HEADER:Authorization}

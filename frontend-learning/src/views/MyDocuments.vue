@@ -1,27 +1,34 @@
 <script setup>
-// 个人文档: 目录树 + 文件列表 + Word/Excel/PPT 在线编辑 + 导入导出 + 历史版本
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+// 个人文档: 树形(目录+文件) + Word/Excel/PPT 在线编辑 + 导入导出 + 历史版本
+import { computed, onBeforeUnmount, onMounted, ref, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUserStore } from '../store/user'
 import {
   getDocTree, createDocDir, renameDocDir, deleteDocDir, moveDocDir,
   createDocFile, importDocFile, renameDocFile, moveDocFile, copyDocFile,
   deleteDocFile, downloadDocFile, getDocModel, saveDocModel,
-  getDocVersions, downloadDocVersion, restoreDocVersion
+  getDocVersions, downloadDocVersion, restoreDocVersion, fetchEditorInfo
 } from '../api/myDoc'
 import WordEditor from '../components/doc/WordEditor.vue'
 import SheetEditor from '../components/doc/SheetEditor.vue'
 import SlideEditor from '../components/doc/SlideEditor.vue'
+import OnlyOfficeEditor from '../components/doc/OnlyOfficeEditor.vue'
 
 const { t } = useI18n()
+const userStore = useUserStore()
+const currentUserId = computed(() => userStore.userId || 0)
+const currentUsername = computed(() => userStore.username || 'anon')
 
-const ROOT = 'root'
+import { Folder, FolderAdd, Document, DocumentAdd, Grid, Picture, Plus, Upload, UploadFilled, Refresh } from '@element-plus/icons-vue'
+
+const ROOT = 0  // 0 = 全部文档(根视图); 目录 id 为正整数; 文件不在 currentKey 范围
 
 const loading = ref(false)
 const directories = ref([])
 const rootFiles = ref([])
 const stats = ref({})
-const currentKey = ref(ROOT)
+const currentKey = ref(ROOT)  // ROOT 或 dir.id
 const keyword = ref('')
 
 // ==================== 数据加载 ====================
@@ -50,19 +57,43 @@ const dirMap = computed(() => {
   return m
 })
 
-/** 目录树(带 children); 顶层加一个虚拟"全部文档"节点 */
+/** 树形: 目录节点 + 文件节点 混排, 目录在上文件在下, 无 ROOT 虚拟层 */
+const fileNodeOf = (f) => ({
+  key: 'file-' + f.id,
+  kind: 'file',
+  id: f.id,
+  name: f.name,
+  fullName: f.fullName,
+  ext: f.ext,
+  docType: f.docType,
+  sizeBytes: f.sizeBytes,
+  sizeText: f.sizeText,
+  version: f.version,
+  updateTime: f.updateTime,
+  isLeaf: true
+})
+const sortDirsFirst = (a, b) => {
+  if (a.kind === b.kind) return 0
+  return a.kind === 'dir' ? -1 : 1
+}
 const treeData = computed(() => {
-  const nodes = {}
+  // 1. 目录嵌套, 目录 key = dir.id(数字)
+  const dirNodes = {}
   directories.value.forEach(d => {
-    nodes[d.id] = { key: d.id, name: d.name, raw: d, files: d.files || [], children: [] }
+    dirNodes[d.id] = { key: d.id, kind: 'dir', id: d.id, name: d.name, raw: d, children: [] }
   })
-  const roots = []
+  // 2. 文件挂到对应目录的 children(目录在前文件在后)
   directories.value.forEach(d => {
-    const node = nodes[d.id]
-    if (d.parentId && nodes[d.parentId]) nodes[d.parentId].children.push(node)
-    else roots.push(node)
+    const dirNode = dirNodes[d.id]
+    if (!dirNode) return
+    const fileNodes = (d.files || []).map(fileNodeOf)
+    dirNode.children = [...dirNode.children, ...fileNodes].sort(sortDirsFirst)
   })
-  return [{ key: ROOT, name: t('myDocs.allFiles'), files: rootFiles.value, children: roots, isRoot: true }]
+  // 3. 顶层: 根目录 + 根级文件, 排序
+  const rootDirs = []
+  directories.value.forEach(d => { if (!d.parentId) rootDirs.push(dirNodes[d.id]) })
+  const rootFileNodes = rootFiles.value.map(fileNodeOf)
+  return [...rootDirs, ...rootFileNodes].sort(sortDirsFirst)
 })
 
 /** 目录树选择器数据(移动/新建时选目标目录); 0 = 根目录 */
@@ -84,13 +115,56 @@ const currentName = computed(() => {
 })
 
 const currentFiles = computed(() => {
-  const list = currentKey.value === ROOT ? rootFiles.value : (dirMap.value[currentKey.value]?.files || [])
+  let list = []
+  if (currentKey.value === ROOT) list = rootFiles.value
+  else list = (dirMap.value[currentKey.value]?.files || [])
   const kw = keyword.value.trim().toLowerCase()
   if (!kw) return list
   return list.filter(f => f.fullName.toLowerCase().includes(kw))
 })
 
-const onTreeClick = (node) => { currentKey.value = node.key; keyword.value = '' }
+/** 当前选中目录的元信息(文件数 / 子目录数 / 大小) */
+const currentDirInfo = computed(() => {
+  let dir
+  let files = []
+  if (currentKey.value === ROOT) {
+    dir = { name: t('myDocs.allFiles'), id: 0, parentId: null }
+    files = rootFiles.value
+  } else {
+    dir = dirMap.value[currentKey.value]
+    if (!dir) return null
+    files = dir.files || []
+  }
+  // 子目录数
+  const dirCount = currentKey.value === ROOT
+    ? directories.value.filter(d => !d.parentId).length
+    : directories.value.filter(d => d.parentId === currentKey.value).length
+  // 总大小
+  const totalBytes = files.reduce((s, f) => s + (f.sizeBytes || 0), 0)
+  const sizeText = totalBytes < 1024 ? totalBytes + ' B'
+    : totalBytes < 1024 * 1024 ? (totalBytes / 1024).toFixed(1) + ' KB'
+    : totalBytes < 1024 * 1024 * 1024 ? (totalBytes / 1024 / 1024).toFixed(1) + ' MB'
+    : (totalBytes / 1024 / 1024 / 1024).toFixed(2) + ' GB'
+  return {
+    id: dir.id,
+    name: dir.name,
+    dirCount,
+    fileCount: files.length,
+    sizeText
+  }
+})
+
+const onTreeClick = (node) => {
+  if (node.kind === 'file') {
+    // 文件节点: 直接打开编辑器
+    const row = rootFiles.value.find(f => f.id === node.id)
+      || directories.value.flatMap(d => d.files || []).find(f => f.id === node.id)
+    if (row) openEditor(row)
+    return
+  }
+  currentKey.value = node.key
+  keyword.value = ''
+}
 
 // ==================== 目录操作 ====================
 
@@ -299,14 +373,29 @@ const editing = ref(null)      // 当前文件
 const model = ref(null)        // 编辑器模型
 const dirty = ref(false)
 const lastSaved = ref('')
+const ooEnabled = ref(false)   // OnlyOffice 模式开关
 
 const openEditor = async (row) => {
   editing.value = row
   model.value = null
   dirty.value = false
   lastSaved.value = ''
+  ooEnabled.value = false
   editorVisible.value = true
   editorLoading.value = true
+  // 先探测 OnlyOffice 是否启用
+  try {
+    const oo = await fetchEditorInfo(row.id)
+    if (oo?.enabled) {
+      ooEnabled.value = true
+      editorLoading.value = false
+      // OO 自己拉字节,这里不需要 model
+      return
+    }
+  } catch (e) {
+    // OO info 端点不存在/失败,走 v5 fallback
+  }
+  // v5 自绘编辑器
   try {
     const res = await getDocModel(row.id)
     model.value = res.data
@@ -453,19 +542,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           default-expand-all
           draggable
           :allow-drop="allowDrop"
+          :current-node-key="currentKey"
           @node-click="onTreeClick"
           @node-drop="onDrop"
         >
           <template #default="{ data }">
-            <span class="tree-node">
+            <span class="tree-node" :class="{ 'is-file': data.kind === 'file' }">
               <span class="tree-label">
-                <el-icon><Folder v-if="!data.isRoot" /><Files v-else /></el-icon>
-                {{ data.name }}
-                <em v-if="data.files?.length" class="count">{{ data.files.length }}</em>
+                <el-icon v-if="data.kind === 'dir'"><Folder /></el-icon>
+                <el-icon v-else :class="`ficon i-${data.docType}`">
+                  <component :is="data.docType === 'word' ? Document : (data.docType === 'excel' ? Grid : Picture)" />
+                </el-icon>
+                <span class="t-name">{{ data.name }}<span v-if="data.kind === 'file' && data.ext" class="ext">.{{ data.ext }}</span></span>
+                <em v-if="data.kind === 'dir' && data.raw?.files?.length" class="count">{{ data.raw.files.length }}</em>
+                <em v-else-if="data.kind === 'file'" class="meta">{{ data.sizeText }}</em>
               </span>
-              <span v-if="!data.isRoot" class="tree-ops">
+              <span v-if="data.kind === 'dir'" class="tree-ops">
                 <el-button link size="small" @click.stop="openRenameDir(data)">{{ $t('myDocs.actionRename') }}</el-button>
                 <el-button link size="small" type="danger" @click.stop="removeDir(data)">{{ $t('myDocs.actionDelete') }}</el-button>
+              </span>
+              <span v-else class="tree-ops">
+                <el-button link size="small" @click.stop="openEditor(data)">{{ $t('myDocs.actionEdit') }}</el-button>
+                <el-button link size="small" type="danger" @click.stop="doDelete(data)">{{ $t('myDocs.actionDelete') }}</el-button>
               </span>
             </span>
           </template>
@@ -477,46 +575,32 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <span class="cur">{{ currentName }}</span>
           <el-input v-model="keyword" :placeholder="$t('myDocs.searchPlaceholder')" size="small" clearable style="width:200px" />
         </div>
-        <el-table :data="currentFiles" v-loading="loading" style="width:100%" size="default">
-          <el-table-column :label="$t('myDocs.colName')" min-width="240">
-            <template #default="{ row }">
-              <span class="fname" @click="openEditor(row)">
-                <el-icon class="ficon" :class="`i-${row.docType}`"><Document /></el-icon>
-                <b>{{ row.name }}</b><span class="ext">.{{ row.ext }}</span>
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('myDocs.colType')" width="140">
-            <template #default="{ row }">
-              <el-tag size="small" :type="typeTag(row.docType)">{{ typeLabel(row.docType) }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="sizeText" :label="$t('myDocs.colSize')" width="100" align="right" />
-          <el-table-column prop="updateTime" :label="$t('myDocs.colUpdated')" width="180" />
-          <el-table-column :label="$t('common.actions')" width="330" align="right">
-            <template #default="{ row }">
-              <el-button link type="primary" size="small" @click="openEditor(row)">{{ $t('myDocs.actionEdit') }}</el-button>
-              <el-button link type="primary" size="small" @click="doDownload(row)">{{ $t('myDocs.actionDownload') }}</el-button>
-              <el-dropdown trigger="click">
-                <el-button link type="primary" size="small">{{ $t('common.actions') }}</el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item @click="openRename(row)">{{ $t('myDocs.actionRename') }}</el-dropdown-item>
-                    <el-dropdown-item @click="openMove(row)">{{ $t('myDocs.actionMove') }}</el-dropdown-item>
-                    <el-dropdown-item @click="doCopy(row)">{{ $t('myDocs.actionCopy') }}</el-dropdown-item>
-                    <el-dropdown-item @click="openVersions(row)">{{ $t('myDocs.actionVersions') }}</el-dropdown-item>
-                    <el-dropdown-item divided @click="doDelete(row)">{{ $t('myDocs.actionDelete') }}</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </template>
-          </el-table-column>
-          <template #empty>
-            <el-empty :description="keyword ? $t('myDocs.emptySearch') : $t('myDocs.emptyFiles')" :image-size="80">
-              <p class="empty-hint">{{ $t('myDocs.emptyHint') }}</p>
-            </el-empty>
-          </template>
-        </el-table>
+        <!-- 当前目录信息卡: 文件数 / 子目录数 / 大小, 不再重复列出文件(树里已有) -->
+        <div class="info-card" v-if="currentDirInfo">
+          <div class="info-row">
+            <el-icon class="info-icon"><Folder /></el-icon>
+            <span class="info-name">{{ currentDirInfo.name }}</span>
+          </div>
+          <div class="info-stats">
+            <div class="info-stat"><span class="num">{{ currentDirInfo.dirCount }}</span><span class="lab">{{ $t('myDocs.statDirs') }}</span></div>
+            <div class="info-stat"><span class="num">{{ currentDirInfo.fileCount }}</span><span class="lab">{{ $t('myDocs.statFiles') }}</span></div>
+            <div class="info-stat"><span class="num">{{ currentDirInfo.sizeText }}</span><span class="lab">{{ $t('myDocs.statSize') }}</span></div>
+          </div>
+          <div class="info-actions">
+            <el-button size="small" @click="openNewDoc">
+              <el-icon style="margin-right:4px"><Plus /></el-icon>{{ $t('myDocs.newDoc') }}
+            </el-button>
+            <el-button size="small" @click="openNewDir()">
+              <el-icon style="margin-right:4px"><FolderAdd /></el-icon>{{ $t('myDocs.newDir') }}
+            </el-button>
+            <el-button size="small" @click="openImport">
+              <el-icon style="margin-right:4px"><Upload /></el-icon>{{ $t('myDocs.importDoc') }}
+            </el-button>
+          </div>
+        </div>
+        <el-empty v-else :description="keyword ? $t('myDocs.emptySearch') : $t('myDocs.emptyFiles')" :image-size="80">
+          <p class="empty-hint">{{ $t('myDocs.emptyHint') }}</p>
+        </el-empty>
       </section>
     </div>
 
@@ -658,7 +742,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         </div>
       </template>
       <div v-loading="editorLoading" class="editor-body">
-        <template v-if="model">
+        <OnlyOfficeEditor
+          v-if="ooEnabled && editing"
+          :key="editing.id"
+          :file-id="editing.id"
+          :doc-type="editing.docType"
+          :user-id="currentUserId"
+          :username="currentUsername"
+          @save="markDirty"
+        />
+        <template v-else-if="model">
           <WordEditor v-if="editing.docType === 'word'" :model="model" @change="markDirty" />
           <SheetEditor v-else-if="editing.docType === 'excel'" :model="model" @change="markDirty" />
           <SlideEditor v-else :model="model" @change="markDirty" />
@@ -667,6 +760,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
     </el-dialog>
   </div>
 </template>
+
+<style>
+/* 编辑器弹窗全局样式 (el-dialog 是子组件, scoped 不会注入 data-v 到子组件根)
+   非 scoped 写, 选择器用 .editor-dialog 限定作用范围 */
+.editor-dialog { display: flex; flex-direction: column; }
+.editor-dialog .el-dialog__body { padding: 0; flex: 1; min-height: 0; }
+.editor-dialog .el-dialog__header { padding: 0; border-bottom: 1px solid var(--c-border); margin-right: 0; flex: 0 0 auto; }
+.editor-dialog .el-dialog__headerbtn { top: 10px; right: 14px; }
+.editor-dialog .el-dialog__footer { padding: 0; border-top: 1px solid var(--c-border); }
+</style>
 
 <style scoped>
 .page { padding: 24px 32px; }
@@ -682,15 +785,34 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 .stat.wide { flex: 1; justify-content: flex-end; }
 
 .body { display: flex; gap: 16px; align-items: flex-start; }
-.tree-pane { width: 268px; flex: none; background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m); padding: 10px 8px 14px; box-shadow: 0 2px 6px rgba(20,30,60,.04); max-height: calc(100vh - 260px); overflow: auto; }
+.tree-pane { width: 280px; min-width: 240px; flex: none; background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m); padding: 10px 8px 14px; box-shadow: 0 2px 6px rgba(20,30,60,.04); max-height: calc(100vh - 220px); overflow: auto; align-self: flex-start; }
+.tree-pane .el-tree { background: transparent; }
+.tree-pane :deep(.el-tree-node__content):hover { background: var(--c-primary-bg); border-radius: 4px; }
+.tree-pane :deep(.el-tree-node.is-current > .el-tree-node__content) { background: var(--c-primary-bg); border-radius: 4px; color: var(--c-primary); }
+.tree-node { display: flex; align-items: center; justify-content: space-between; width: 100%; padding-right: 4px; min-height: 26px; }
+.tree-node .tree-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--c-text-1); flex: 1; min-width: 0; }
+.tree-node .tree-label .t-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-node .tree-label .ext { color: var(--c-text-4); font-size: 12px; }
+.tree-node .tree-label .count, .tree-node .tree-label .meta { font-style: normal; font-size: 11px; color: var(--c-text-4); background: var(--c-bg-3, #f3f4f8); border-radius: 8px; padding: 0 6px; flex: 0 0 auto; }
+.tree-node.is-file .tree-label { color: var(--c-text-2); }
+.tree-node.is-file .tree-label .ficon { font-size: 14px; }
+.tree-node .tree-ops { display: none; gap: 2px; }
+.tree-node:hover .tree-ops { display: inline-flex; }
 .list-pane { flex: 1; min-width: 0; background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m); padding: 10px 14px 16px; box-shadow: 0 2px 6px rgba(20,30,60,.04); }
 .pane-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 6px 10px; border-bottom: 1px solid var(--c-border); margin-bottom: 10px; }
 .pane-head .cur { font-weight: 600; color: var(--c-text-1); font-size: 14px; }
-.tree-node { display: flex; align-items: center; justify-content: space-between; width: 100%; padding-right: 6px; }
-.tree-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--c-text-1); }
-.tree-label .count { font-style: normal; font-size: 11px; color: var(--c-text-4); background: var(--c-bg-3, #f3f4f8); border-radius: 8px; padding: 0 6px; }
-.tree-ops { display: none; }
-.tree-node:hover .tree-ops { display: inline-flex; }
+
+/* 右侧信息卡:展示当前目录的统计与快捷创建 */
+.info-card { background: linear-gradient(180deg, #f7f9ff 0%, #fff 100%); border: 1px solid var(--c-border); border-radius: var(--r-m); padding: 22px 20px; }
+.info-card .info-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.info-card .info-row .info-icon { font-size: 28px; color: var(--c-primary); }
+.info-card .info-row .info-name { font-size: 18px; font-weight: 600; color: var(--c-text-1); }
+.info-card .info-stats { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.info-card .info-stat { background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-s); padding: 10px 18px; display: flex; align-items: baseline; gap: 6px; min-width: 120px; }
+.info-card .info-stat .num { font-size: 20px; font-weight: 600; color: var(--c-primary); }
+.info-card .info-stat .lab { font-size: 12px; color: var(--c-text-2); }
+.info-card .info-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.empty-hint { color: var(--c-text-3); font-size: 13px; }
 
 .fname { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--c-text-1); }
 .fname:hover { color: var(--c-primary); }
@@ -708,15 +830,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 .drop-text { margin: 8px 0 0; color: var(--c-text-2); font-size: 13px; }
 .drop-file { margin: 8px 0 0; color: var(--c-primary); font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; }
 
-.editor-dialog :deep(.el-dialog__body) { padding: 0; height: calc(100vh - 49px); }
-.editor-body { min-height: calc(100vh - 49px); }
+.editor-body { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .save-state { float: left; display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--c-text-4); }
 .save-state .dirty { color: var(--c-warning); }
 .save-state .saved { color: var(--c-success); }
 
 /* 自定义编辑器标题栏:左侧标题,中部保存状态,右侧快捷键提示 + 保存/关闭按钮 */
-.editor-dialog :deep(.el-dialog__header) { padding: 0; border-bottom: 1px solid var(--c-border); margin-right: 0; }
-.editor-dialog :deep(.el-dialog__headerbtn) { top: 12px; right: 14px; }
 .editor-header { display: flex; align-items: center; gap: 14px; padding: 8px 50px 8px 20px; background: #fff; min-height: 48px; }
 .editor-header .editor-title { font-size: 15px; font-weight: 600; color: var(--c-text-1); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor-header .editor-save-state { font-size: 12px; color: var(--c-text-4); display: flex; align-items: center; gap: 8px; }

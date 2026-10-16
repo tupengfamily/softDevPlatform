@@ -1,6 +1,7 @@
 package com.learning.springboot;
 
 import com.learning.springboot.config.JwtProperties;
+import com.learning.springboot.config.OnlyOfficeProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -19,7 +20,7 @@ import java.io.File;
  * SpringApplication.run() 启动 Spring Boot 应用,自动配置内嵌 Tomcat 等。
  */
 @SpringBootApplication
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, OnlyOfficeProperties.class})
 @EnableScheduling   // 启用定时任务(操作日志超期清理等)
 public class SpringBootLearningApplication {
 

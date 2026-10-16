@@ -73,3 +73,8 @@ export const downloadDocVersion = (id, name) =>
 
 export const restoreDocVersion = (id, name) =>
   request({ url: `/my-docs/files/${id}/versions/${encodeURIComponent(name)}/restore`, method: 'post' })
+
+// ==================== OnlyOffice 集成 ====================
+
+/** 拿 OnlyOffice 编辑器入口信息(URL + access token) */
+export const fetchEditorInfo = (id) => request({ url: `/my-docs/oo/${id}/info`, method: 'get' })
