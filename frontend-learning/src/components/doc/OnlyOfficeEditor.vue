@@ -30,7 +30,7 @@ const props = defineProps({
   userId: { type: Number, required: true },
   username: { type: String, default: '' }
 })
-const emit = defineEmits(['save', 'ready', 'error'])
+const emit = defineEmits(['save', 'saved', 'ready', 'error'])
 const { t } = useI18n()
 
 const host = ref(null)
@@ -125,7 +125,15 @@ const initEditor = () => {
     events: {
       onAppReady: () => { console.log('[OO] app ready'); syncIframeSize() },
       onDocumentReady: () => { console.log('[OO] document ready'); syncIframeSize(); emit('ready', editorInfo.value) },
-      onSave: (data) => { console.log('[OO] saved', data); emit('save', data) },
+      // 用户编辑触发: emit 'save'(="可能改了"), 用于前端"已修改"提示
+      onSave: (data) => {
+        console.log('[OO] user saved (or autosave)', data)
+        emit('save', data)
+        // 紧接着拉一次 tree, 让版本号 / size 立即反映
+        emit('saved', data)
+      },
+      // OO 也会在文档状态变更时回调
+      onDocumentStateChange: (e) => { console.log('[OO] doc state', e) },
       onError: (e) => { console.warn('[OO] error', JSON.stringify(e, null, 2)); emit('error', e) }
     }
   }

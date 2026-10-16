@@ -50,6 +50,7 @@ class OfficeCodecTest {
     @DisplayName("新建空白文档: 三种类型都能生成且能被重新解析")
     void blankDocsRoundTrip() {
         for (MyDocType type : MyDocType.values()) {
+            if (type.mode() != MyDocType.Mode.OFFICE) continue;  // 非 Office 由 MyDocService 自管
             byte[] bytes = office.createBlank(type);
             assertTrue(bytes.length > 0, type + " 模板为空");
             office.validate(type, bytes);
@@ -59,9 +60,12 @@ class OfficeCodecTest {
                 case WORD -> "blocks";
                 case EXCEL -> "sheets";
                 case PPT -> "slides";
+                default -> null;
             };
-            assertNotNull(model.get(key), type + " 缺少 " + key);
-            assertFalse(((List<?>) model.get(key)).isEmpty(), type + " 模型内容为空");
+            if (key != null) {
+                assertNotNull(model.get(key), type + " 缺少 " + key);
+                assertFalse(((List<?>) model.get(key)).isEmpty(), type + " 模型内容为空");
+            }
         }
     }
 
@@ -309,6 +313,7 @@ class OfficeCodecTest {
     void invalidContentRejected() {
         byte[] junk = "this is not an office file".getBytes();
         for (MyDocType t : MyDocType.values()) {
+            if (t.mode() != MyDocType.Mode.OFFICE) continue;  // 非 Office 不走 office.validate
             var ex = assertThrows(Exception.class, () -> office.validate(t, junk));
             assertTrue(ex.getMessage().contains("无法解析"), "错误信息不友好: " + ex.getMessage());
         }

@@ -87,6 +87,12 @@ const routes = [
         meta: { title: '数据字典', titleKey: 'nav.dicts', icon: 'Collection', roles: ['ADMIN'] }
       },
       {
+        path: 'system-settings',
+        name: 'SystemSettings',
+        component: () => import('../views/SystemSettings.vue'),
+        meta: { title: '系统设置', titleKey: 'nav.systemSettings', icon: 'Tools', roles: ['ADMIN'] }
+      },
+      {
         path: 'logs',
         name: 'OperationLog',
         component: () => import('../views/OperationLog.vue'),

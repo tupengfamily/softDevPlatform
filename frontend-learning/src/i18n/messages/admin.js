@@ -110,7 +110,30 @@ export default {
     'dataTransfer.importEmptyWarn': '请选择或粘贴备份 JSON',
     'dataTransfer.importInvalidJson': 'JSON 格式无效,请检查文件内容',
     'dataTransfer.importDone': '导入完成',
-    'dataTransfer.downloadDone': '文件已下载'
+    'dataTransfer.downloadDone': '文件已下载',
+
+    // ===== 系统设置 (SystemSettings.vue) =====
+    'nav.systemSettings': '系统设置',
+    'systemSettings.title': '系统设置',
+    'systemSettings.subtitle': '由管理员维护, 调整后对所有用户的下一次操作生效',
+    'systemSettings.colKey': '键',
+    'systemSettings.colValue': '当前值',
+    'systemSettings.colDescription': '说明',
+    'systemSettings.actionEdit': '修改',
+    'systemSettings.editTitle': '修改配置',
+    'systemSettings.save': '保存',
+    'systemSettings.invalid': '校验失败, 请重新输入',
+    'systemSettings.unitBytes': '(字节)',
+    'systemSettings.unitCount': '(个)',
+    'systemSettings.editQuotaPrompt': '个人文档空间上限 (字节), 当前 {current}, 范围 50MB ~ 5GB',
+    'systemSettings.editFileBytesPrompt': '单文件上限 (字节), 当前 {current}, 范围 1MB ~ 100MB',
+    'systemSettings.editFileCountPrompt': '单用户文件数上限, 当前 {current}, 范围 1 ~ 5000',
+    'systemSettings.editGenericPrompt': '修改 {key}, 当前 {current}',
+    'systemSettings.quotaRange': '需在 50MB ~ 5GB 之间',
+    'systemSettings.fileBytesRange': '需在 1MB ~ 100MB 之间',
+    'systemSettings.fileCountRange': '需在 1 ~ 5000 之间',
+    'systemSettings.tip1': '· 个人文档配额: 每个用户的总占用空间上限。默认 500 MB, 管理员可在 50 MB ~ 5 GB 区间内调整。',
+    'systemSettings.tip2': '· 单文件上限与文件数上限同样可调。降低配额不会删除现有文件, 但下一次上传会被拦截。'
   },
   'en-US': {
     // ===== Dictionary (DictManagement.vue) =====
@@ -222,6 +245,29 @@ export default {
     'dataTransfer.importEmptyWarn': 'Please select or paste the backup JSON',
     'dataTransfer.importInvalidJson': 'Invalid JSON, please check the file content',
     'dataTransfer.importDone': 'Import completed',
-    'dataTransfer.downloadDone': 'File downloaded'
+    'dataTransfer.downloadDone': 'File downloaded',
+
+    // ===== System Settings (SystemSettings.vue) =====
+    'nav.systemSettings': 'System Settings',
+    'systemSettings.title': 'System Settings',
+    'systemSettings.subtitle': 'Maintained by admins; changes take effect on the user\u2019s next operation',
+    'systemSettings.colKey': 'Key',
+    'systemSettings.colValue': 'Current value',
+    'systemSettings.colDescription': 'Description',
+    'systemSettings.actionEdit': 'Edit',
+    'systemSettings.editTitle': 'Edit setting',
+    'systemSettings.save': 'Save',
+    'systemSettings.invalid': 'Validation failed, please re-enter',
+    'systemSettings.unitBytes': '(bytes)',
+    'systemSettings.unitCount': '(count)',
+    'systemSettings.editQuotaPrompt': 'Personal document quota (bytes), current {current}, range 50 MB ~ 5 GB',
+    'systemSettings.editFileBytesPrompt': 'Per-file size limit (bytes), current {current}, range 1 MB ~ 100 MB',
+    'systemSettings.editFileCountPrompt': 'Per-user file count limit, current {current}, range 1 ~ 5000',
+    'systemSettings.editGenericPrompt': 'Edit {key}, current {current}',
+    'systemSettings.quotaRange': 'Must be between 50 MB and 5 GB',
+    'systemSettings.fileBytesRange': 'Must be between 1 MB and 100 MB',
+    'systemSettings.fileCountRange': 'Must be between 1 and 5000',
+    'systemSettings.tip1': '\u00b7 Personal quota: max total storage per user. Default 500 MB, range 50 MB ~ 5 GB.',
+    'systemSettings.tip2': '\u00b7 Per-file and per-user counts are also configurable. Lowering a quota does NOT delete existing files, but future uploads above the new limit will be rejected.'
   }
 }

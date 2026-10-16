@@ -78,3 +78,24 @@ export const restoreDocVersion = (id, name) =>
 
 /** 拿 OnlyOffice 编辑器入口信息(URL + access token) */
 export const fetchEditorInfo = (id) => request({ url: `/my-docs/oo/${id}/info`, method: 'get' })
+
+// ==================== 在线预览 ====================
+
+/**
+ * 在线预览图片 / PDF / Markdown / 文本 / HTML 等(走 blob URL, 配合 FilePreview 组件用)。
+ * Office 三件套走 OnlyOffice, 不走此端点。
+ */
+export const previewDocFile = (id) =>
+  request({
+    url: `/my-docs/files/${id}/preview`,
+    method: 'get',
+    responseType: 'blob',
+    silent: true
+  })
+
+// ==================== 系统设置 / 配额 ====================
+
+export const getPublicSettings = () => request({ url: '/system-settings', method: 'get' })
+export const listAllSettings = () => request({ url: '/system-settings/all', method: 'get' })
+export const updateSetting = (key, value) =>
+  request({ url: `/system-settings/${encodeURIComponent(key)}`, method: 'put', data: { value } })

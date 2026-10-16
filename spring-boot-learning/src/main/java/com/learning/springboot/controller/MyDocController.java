@@ -164,6 +164,56 @@ public class MyDocController {
         return fileResponse(f.getName() + "." + f.getExt(), f.getDocType(), bytes, false);
     }
 
+    /**
+     * 在线预览(按 docType 走不同 MIME, 全部 inline)。
+     * <ul>
+     *   <li>image/* → image/jpeg/png/...</li>
+     *   <li>pdf     → application/pdf</li>
+     *   <li>md/txt  → text/plain; charset=utf-8</li>
+     *   <li>html    → text/html; charset=utf-8</li>
+     *   <li>其它 code → text/plain</li>
+     * </ul>
+     * Office 三件套走 OO iframe 预览(由前端 OnlyOfficeEditor 接管), 本端点不支持 office。
+     */
+    @GetMapping("/files/{id}/preview")
+    public ResponseEntity<byte[]> preview(@PathVariable Long id, @CurrentUser Long userId) {
+        MyDocFile f = myDocService.own(userId, id);
+        MyDocType type = MyDocType.ofCode(f.getDocType());
+        if (type.mode() == MyDocType.Mode.OFFICE) {
+            throw new BusinessException("Office 文档请使用 OnlyOffice 编辑器预览");
+        }
+        byte[] bytes = myDocService.download(userId, id);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(previewMediaType(type));
+        headers.setContentLength(bytes.length);
+        String fname = f.getName() + "." + f.getExt();
+        String safe = fname.replaceAll("[\\r\\n\"]", "_");
+        String ascii = safe.replaceAll("[^\\x20-\\x7e]", "_");
+        String encoded = URLEncoder.encode(safe, StandardCharsets.UTF_8).replace("+", "%20");
+        headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + ascii + "\"; filename*=UTF-8''" + encoded);
+        headers.setCacheControl("private, max-age=300");
+        return new ResponseEntity<>(bytes, headers, org.springframework.http.HttpStatus.OK);
+    }
+
+    private MediaType previewMediaType(MyDocType type) {
+        switch (type) {
+            case IMAGE:
+                // 已知图片格式直接给精确 MIME, 后端无法识别时给 octet-stream
+                return MediaType.IMAGE_PNG;
+            case PDF:
+                return MediaType.APPLICATION_PDF;
+            case MARKDOWN:
+            case TEXT:
+            case CODE:
+                return MediaType.parseMediaType("text/plain;charset=UTF-8");
+            case HTML:
+            case RICHTEXT:
+                return MediaType.parseMediaType("text/html;charset=UTF-8");
+            default:
+                return MediaType.APPLICATION_OCTET_STREAM;
+        }
+    }
+
     // ==================== 在线编辑 ====================
 
     /** 读取编辑器模型 */

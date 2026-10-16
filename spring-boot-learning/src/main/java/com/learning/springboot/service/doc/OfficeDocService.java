@@ -44,10 +44,12 @@ public class OfficeDocService {
      */
     public Map<String, Object> parse(MyDocType type, byte[] bytes, Path imageDir, String imageUrlBase) {
         if (bytes == null || bytes.length == 0) throw new BusinessException("文件内容为空");
+        if (type.mode() != MyDocType.Mode.OFFICE) throw new BusinessException("该类型不支持 Office 编辑器: " + type.label());
         return switch (type) {
             case WORD -> docxCodec.parse(bytes, imageDir, imageUrlBase);
             case EXCEL -> xlsxCodec.parse(bytes);
             case PPT -> pptxCodec.parse(bytes);
+            default -> throw new BusinessException("不支持的 Office 类型: " + type);
         };
     }
 
@@ -61,6 +63,7 @@ public class OfficeDocService {
      */
     public byte[] save(MyDocType type, byte[] original, Map<String, Object> model, Path imageBase) {
         if (model == null) throw new BusinessException("保存内容为空");
+        if (type.mode() != MyDocType.Mode.OFFICE) throw new BusinessException("该类型不支持 Office 保存: " + type.label());
         if (original == null || original.length == 0) {
             throw new BusinessException("原文件缺失, 无法就地保存; 请重新上传该文档");
         }
@@ -68,6 +71,7 @@ public class OfficeDocService {
             case WORD -> docxCodec.save(original, model, imageBase);
             case EXCEL -> xlsxCodec.save(original, model);
             case PPT -> pptxCodec.save(original, model);
+            default -> throw new BusinessException("不支持的 Office 类型: " + type);
         };
     }
 
@@ -77,6 +81,10 @@ public class OfficeDocService {
      */
     public void validate(MyDocType type, byte[] bytes) {
         if (bytes == null || bytes.length == 0) throw new BusinessException("文件内容为空");
+        if (type.mode() != MyDocType.Mode.OFFICE) {
+            // 非 Office 类型由 MyDocService.importFile 跳过此校验, 此处兜底抛错
+            throw new BusinessException("非 Office 类型不应走 Office 校验: " + type.label());
+        }
         try {
             switch (type) {
                 case WORD -> {
@@ -89,11 +97,12 @@ public class OfficeDocService {
                         wb.getNumberOfSheets();
                     }
                 }
-                default -> {
+                case PPT -> {
                     try (XMLSlideShow ppt = new XMLSlideShow(new java.io.ByteArrayInputStream(bytes))) {
                         ppt.getSlides();
                     }
                 }
+                default -> throw new BusinessException("不支持的 Office 类型: " + type);
             }
         } catch (IOException | RuntimeException e) {
             throw new BusinessException("文件无法解析, 请确认是有效的 " + type.label()
@@ -101,48 +110,50 @@ public class OfficeDocService {
         }
     }
 
-    /** 新建空白文档 */
-    public byte[] createBlank(MyDocType type) {        try {
-            switch (type) {
-                case WORD: {
-                    // 空白模板自带 numbering.xml(项目符号 + 编号列表), 后续所有保存都在这份文件上就地补丁
-                    byte[] blank = docxCodec.blankDocx();
-                    Map<String, Object> model = new LinkedHashMap<>();
-                    Map<String, Object> h = new LinkedHashMap<>();
-                    h.put("type", "heading");
-                    h.put("level", 1);
-                    h.put("text", "标题");
-                    Map<String, Object> p = new LinkedHashMap<>();
-                    p.put("type", "paragraph");
-                    p.put("text", "开始输入正文…");
-                    p.put("align", "left");
-                    model.put("blocks", List.of(h, p));
-                    return docxCodec.save(blank, model, Path.of("data", "uploads"));
-                }
-                case EXCEL: {
-                    try (XSSFWorkbook wb = new XSSFWorkbook()) {
-                        var sheet = wb.createSheet("Sheet1");
-                        sheet.createRow(0).createCell(0);
-                        ByteArrayOutputStream out = new ByteArrayOutputStream();
-                        wb.write(out);
-                        return out.toByteArray();
-                    }
-                }
-                default: {
-                    try (XMLSlideShow ppt = new XMLSlideShow()) {
-                        XSLFSlide slide = ppt.createSlide();
-                        XSLFTextBox title = slide.createTextBox();
-                        title.setAnchor(new Rectangle2D.Double(40, 30, 640, 80));
-                        title.addNewTextParagraph().addNewTextRun().setText("标题");
-                        XSLFTextBox body = slide.createTextBox();
-                        body.setAnchor(new Rectangle2D.Double(40, 130, 640, 360));
-                        body.addNewTextParagraph().addNewTextRun().setText("开始输入内容…");
-                        ByteArrayOutputStream out = new ByteArrayOutputStream();
-                        ppt.write(out);
-                        return out.toByteArray();
-                    }
+    /** 新建空白文档(仅 Office 三件套, 其它类型由 MyDocService.createFile 自行生成文本) */
+    public byte[] createBlank(MyDocType type) {
+        if (type.mode() != MyDocType.Mode.OFFICE) {
+            throw new BusinessException("该类型不支持 Office 空白模板: " + type.label());
+        }
+        try {
+            if (type == MyDocType.WORD) {
+                byte[] blank = docxCodec.blankDocx();
+                Map<String, Object> model = new LinkedHashMap<>();
+                Map<String, Object> h = new LinkedHashMap<>();
+                h.put("type", "heading");
+                h.put("level", 1);
+                h.put("text", "标题");
+                Map<String, Object> p = new LinkedHashMap<>();
+                p.put("type", "paragraph");
+                p.put("text", "开始输入正文…");
+                p.put("align", "left");
+                model.put("blocks", List.of(h, p));
+                return docxCodec.save(blank, model, Path.of("data", "uploads"));
+            }
+            if (type == MyDocType.EXCEL) {
+                try (XSSFWorkbook wb = new XSSFWorkbook()) {
+                    var sheet = wb.createSheet("Sheet1");
+                    sheet.createRow(0).createCell(0);
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    wb.write(out);
+                    return out.toByteArray();
                 }
             }
+            if (type == MyDocType.PPT) {
+                try (XMLSlideShow ppt = new XMLSlideShow()) {
+                    XSLFSlide slide = ppt.createSlide();
+                    XSLFTextBox title = slide.createTextBox();
+                    title.setAnchor(new Rectangle2D.Double(40, 30, 640, 80));
+                    title.addNewTextParagraph().addNewTextRun().setText("标题");
+                    XSLFTextBox body = slide.createTextBox();
+                    body.setAnchor(new Rectangle2D.Double(40, 130, 640, 360));
+                    body.addNewTextParagraph().addNewTextRun().setText("开始输入内容…");
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    ppt.write(out);
+                    return out.toByteArray();
+                }
+            }
+            throw new BusinessException("不支持的 Office 类型: " + type);
         } catch (IOException e) {
             throw new BusinessException("模板文件生成失败: " + e.getMessage());
         }

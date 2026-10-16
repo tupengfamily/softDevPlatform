@@ -123,7 +123,8 @@ const menuGroups = computed(() => {
         { path: '/roles',     titleKey: 'nav.roles', icon: 'UserFilled' },
         { path: '/dicts',     titleKey: 'nav.dicts', icon: 'Collection' },
         { path: '/logs',      titleKey: 'nav.logs', icon: 'Document' },
-        { path: '/learning-config', titleKey: 'nav.learningConfig', icon: 'Setting' }
+        { path: '/learning-config', titleKey: 'nav.learningConfig', icon: 'Setting' },
+        { path: '/system-settings', titleKey: 'nav.systemSettings', icon: 'Tools' }
       ]
     })
     // 运营管理独立顶级分组(仅管理员可见, 含 6 个子模块)

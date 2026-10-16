@@ -11,7 +11,6 @@ import com.learning.springboot.service.doc.OfficeDocService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -24,23 +23,20 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 个人文档服务: 目录树 + 文件(Word/Excel/PPT)的增删改查 + 在线编辑模型读写 + 导入导出。
+ * 个人文档服务: 目录树 + 文件(Office/Markdown/RichText/Image/PDF/Text/Code)增删改查 + 在线编辑模型读写 + 导入导出。
  * <p>
  * 设计要点:
  * <ul>
  *   <li>二进制落盘、元数据入库(SQLite 不吃大 BLOB)</li>
  *   <li>所有查询强制带 userId, 天然的用户隔离</li>
  *   <li>文件名只入库不落盘(UUID 落盘), 名称做长度/非法字符/同名去重处理</li>
- *   <li>保存前自动留历史版本(Word 是重建式保存, 需要可回退)</li>
+ *   <li>配额/单文件上限/文件数上限 走 {@link SystemSettingService}, 管理员可调</li>
+ *   <li>Office 重建式保存前自动留历史版本</li>
  * </ul>
  */
 @Service
 public class MyDocService {
 
-    /** 单用户文件数上限 */
-    private static final int MAX_FILES_PER_USER = 300;
-    /** 单用户占用空间上限 200MB */
-    private static final long MAX_TOTAL_BYTES = 200L * 1024 * 1024;
     /** 名称长度上限 */
     private static final int MAX_NAME_LEN = 100;
 
@@ -48,13 +44,15 @@ public class MyDocService {
     private final MyDocFileRepository fileRepo;
     private final MyDocStorage storage;
     private final OfficeDocService office;
+    private final SystemSettingService settings;
 
     public MyDocService(MyDocDirectoryRepository dirRepo, MyDocFileRepository fileRepo,
-                        MyDocStorage storage, OfficeDocService office) {
+                        MyDocStorage storage, OfficeDocService office, SystemSettingService settings) {
         this.dirRepo = dirRepo;
         this.fileRepo = fileRepo;
         this.storage = storage;
         this.office = office;
+        this.settings = settings;
     }
 
     // ======================================================================
@@ -96,11 +94,24 @@ public class MyDocService {
         m.put("fileCount", all.size());
         m.put("totalBytes", bytes);
         m.put("totalText", humanSize(bytes));
+        // 配额 / 上限 (用系统设置)
+        long quotaBytes = settings.getMyDocQuotaBytes();
+        m.put("maxQuotaBytes", quotaBytes);
+        m.put("maxQuotaText", humanSize(quotaBytes));
+        m.put("remainingBytes", Math.max(0, quotaBytes - bytes));
+        m.put("remainingText", humanSize(Math.max(0, quotaBytes - bytes)));
         m.put("wordCount", byType.getOrDefault(MyDocType.WORD.code(), 0));
         m.put("excelCount", byType.getOrDefault(MyDocType.EXCEL.code(), 0));
         m.put("pptCount", byType.getOrDefault(MyDocType.PPT.code(), 0));
+        m.put("markdownCount", byType.getOrDefault(MyDocType.MARKDOWN.code(), 0));
+        m.put("richtextCount", byType.getOrDefault(MyDocType.RICHTEXT.code(), 0));
+        m.put("imageCount", byType.getOrDefault(MyDocType.IMAGE.code(), 0));
+        m.put("pdfCount", byType.getOrDefault(MyDocType.PDF.code(), 0));
+        m.put("textCount", byType.getOrDefault(MyDocType.TEXT.code(), 0));
+        m.put("codeCount", byType.getOrDefault(MyDocType.CODE.code(), 0));
         m.put("maxNameLen", MAX_NAME_LEN);
-        m.put("maxFileBytes", MyDocStorage.MAX_FILE_BYTES);
+        m.put("maxFileBytes", settings.getMyDocMaxFileBytes());
+        m.put("maxFileCount", settings.getMyDocMaxFileCount());
         return m;
     }
 
@@ -188,7 +199,14 @@ public class MyDocService {
         return fileVOList(userId, directoryId);
     }
 
-    /** 新建空白文档(由后端生成模板文件, 保证是合法 Office 文件) */
+    /**
+     * 新建空白文档: name + docType + directoryId
+     * <ul>
+     *   <li>Office(word/excel/ppt): 后端生成空白模板</li>
+     *   <li>Markdown / RichText: 后端写入 "Untitled" 占位文本</li>
+     *   <li>其它类型: 抛业务异常(应该走导入, 不要走"新建空白")</li>
+     * </ul>
+     */
     @Transactional
     public MyDocFile createFile(Long userId, String name, String docTypeCode, Long directoryId) {
         MyDocType type = MyDocType.ofCode(docTypeCode);
@@ -207,29 +225,47 @@ public class MyDocService {
         f.setSizeBytes(0L);
         f.setVersion(1);
 
-        byte[] bytes = office.createBlank(type);
+        byte[] bytes;
+        switch (type.mode()) {
+            case OFFICE -> bytes = office.createBlank(type);
+            case MD_RT -> bytes = defaultMdOrRt(type).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            default -> throw new BusinessException("该类型不支持新建空白文档, 请用「导入」上传文件");
+        }
         storage.write(userId, f.getStorageKey(), bytes);
         f.setSizeBytes((long) bytes.length);
         return fileRepo.save(f);
     }
 
-    /** 导入(上传)Office 文件 */
+    /**
+     * 导入上传文件: 支持 Office 三件套 + 图片 + PDF + Markdown + HTML + 纯文本 + 代码片段
+     * <p>
+     * 规则:
+     * <ul>
+     *   <li>扩展名 → 推断 docType</li>
+     *   <li>Office 必须能解析(否则抛业务异常)</li>
+     *   <li>其它类型: 不做内容校验, 落盘即可(图片/PDF 等二进制无法轻量校验)</li>
+     * </ul>
+     */
     @Transactional
     public MyDocFile importFile(Long userId, String originalFilename, byte[] bytes, Long directoryId) {
         if (bytes == null || bytes.length == 0) throw new BusinessException("文件内容为空");
-        if (bytes.length > MyDocStorage.MAX_FILE_BYTES) {
-            throw new BusinessException("文件过大, 单个文件最大 " + humanSize(MyDocStorage.MAX_FILE_BYTES));
+        long maxFile = settings.getMyDocMaxFileBytes();
+        if (bytes.length > maxFile) {
+            throw new BusinessException("文件过大, 单个文件最大 " + humanSize(maxFile));
         }
         String filename = originalFilename == null ? "" : originalFilename.trim();
         int dot = filename.lastIndexOf('.');
         String ext = dot < 0 ? "" : filename.substring(dot + 1).toLowerCase(Locale.ROOT);
         MyDocType type = MyDocType.ofExt(ext);
-        // 内容校验: 必须是能解析的真实 Office 文件
-        office.validate(type, bytes);
+
+        // 仅对 Office 三件套做内容校验(其它二进制无法轻量校验)
+        if (type.mode() == MyDocType.Mode.OFFICE) {
+            office.validate(type, bytes);
+        }
         checkQuota(userId, bytes.length);
 
         String base = stripExt(filename);
-        if (base.isEmpty()) base = "导入文档";
+        if (base.isEmpty()) base = defaultName(type);
         MyDocFile f = new MyDocFile();
         f.setUserId(userId);
         f.setDirectoryId(resolveDir(userId, directoryId));
@@ -308,11 +344,24 @@ public class MyDocService {
         MyDocFile f = own(userId, id);
         MyDocType type = MyDocType.ofCode(f.getDocType());
         byte[] bytes = storage.read(userId, f.getStorageKey());
-        Map<String, Object> model;
-        if (type == MyDocType.WORD) {
-            model = office.parse(type, bytes, storage.imageDir(f.getId()), storage.imageUrlBase(f.getId()));
-        } else {
-            model = office.parse(type, bytes, null, null);
+        Map<String, Object> model = new LinkedHashMap<>();
+        switch (type.mode()) {
+            case OFFICE -> {
+                if (type == MyDocType.WORD) {
+                    model = office.parse(type, bytes, storage.imageDir(f.getId()), storage.imageUrlBase(f.getId()));
+                } else {
+                    model = office.parse(type, bytes, null, null);
+                }
+            }
+            case MD_RT -> {
+                String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                model.put("content", text);
+            }
+            case PREVIEW_ONLY -> {
+                // 预览类文件不提供编辑模型(只读)
+                model.put("readonly", true);
+                model.put("size", bytes.length);
+            }
         }
         model.put("fileId", f.getId());
         model.put("name", f.getName());
@@ -332,14 +381,43 @@ public class MyDocService {
         } catch (BusinessException ignore) {
             // 文件缺失(磁盘被清理)时按模型直接重建
         }
-        storage.snapshot(userId, f, current);
-
-        byte[] bytes = office.save(type, current == null ? new byte[0] : current, model, storage.uploadRoot());
-        if (bytes == null || bytes.length == 0) throw new BusinessException("保存失败: 生成的文件为空");
-        if (bytes.length > MyDocStorage.MAX_FILE_BYTES) {
-            // 超限时回滚本次留档写入的空文件风险: 直接抛错, 原文件未被改动
-            throw new BusinessException("保存后文件过大(" + humanSize(bytes.length) + "), 超出单文件上限");
+        // 仅 Office 三件套重建式保存才需要留历史版本(其它类型原字节回写, 无损)
+        if (type.mode() == MyDocType.Mode.OFFICE) {
+            storage.snapshot(userId, f, current);
         }
+
+        byte[] bytes;
+        if (type.mode() == MyDocType.Mode.MD_RT) {
+            // Markdown / RichText: model.content 是纯文本 / HTML
+            Object content = model == null ? null : model.get("content");
+            String text = content == null ? "" : String.valueOf(content);
+            // 限制大小: 单文件 20MB(留余量)
+            if (text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > settings.getMyDocMaxFileBytes()) {
+                throw new BusinessException("保存后内容过大, 超出单文件上限 " + humanSize(settings.getMyDocMaxFileBytes()));
+            }
+            bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        } else {
+            bytes = office.save(type, current == null ? new byte[0] : current, model, storage.uploadRoot());
+        }
+
+        if (bytes == null || bytes.length == 0) throw new BusinessException("保存失败: 生成的文件为空");
+        long maxFile = settings.getMyDocMaxFileBytes();
+        if (bytes.length > maxFile) {
+            throw new BusinessException("保存后文件过大(" + humanSize(bytes.length) + "), 超出单文件上限 " + humanSize(maxFile));
+        }
+        // 配额检查(替换后是否会超)
+        long currentBytes = f.getSizeBytes() == null ? 0 : f.getSizeBytes();
+        long newBytes = bytes.length;
+        long quota = settings.getMyDocQuotaBytes();
+        long otherBytes = 0;
+        for (MyDocFile other : fileRepo.findByUserIdOrderBySortNoAscIdAsc(userId)) {
+            if (other.getId().equals(f.getId())) continue;
+            otherBytes += other.getSizeBytes() == null ? 0 : other.getSizeBytes();
+        }
+        if (otherBytes + newBytes > quota) {
+            throw new BusinessException("保存后占用空间将超出个人配额(已用 " + humanSize(otherBytes + newBytes) + ", 上限 " + humanSize(quota) + ")");
+        }
+
         storage.write(userId, f.getStorageKey(), bytes);
         f.setSizeBytes((long) bytes.length);
         f.setVersion((f.getVersion() == null ? 1 : f.getVersion()) + 1);
@@ -353,7 +431,7 @@ public class MyDocService {
     }
 
     // ======================================================================
-    //  历史版本
+    //  历史版本(只对 Office 有意义)
     // ======================================================================
 
     public List<Map<String, Object>> versions(Long userId, Long id) {
@@ -458,10 +536,15 @@ public class MyDocService {
         int dot = name.lastIndexOf('.');
         if (dot <= 0) return name;
         String ext = name.substring(dot + 1).toLowerCase(Locale.ROOT);
-        for (MyDocType t : MyDocType.values()) {
-            if (t.ext().equals(ext)) return name.substring(0, dot).trim();
-        }
-        return name;
+        // 仅剥离已知扩展名, 避免误剥(例如 "1.0" 中的点)
+        Set<String> known = new HashSet<>(Set.of("docx", "xlsx", "pptx", "md", "html", "htm", "pdf",
+                "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg",
+                "txt", "log", "csv", "json", "xml", "yml", "yaml",
+                "java", "py", "js", "ts", "jsx", "tsx", "vue", "css", "scss", "less",
+                "sh", "bash", "sql", "go", "rs", "c", "cpp", "h", "hpp", "kt", "rb", "php", "swift", "dart",
+                "ini", "conf", "properties"));
+        if (!known.contains(ext)) return name;
+        return name.substring(0, dot).trim();
     }
 
     /** 同目录目录重名 -> "名称 (2)" */
@@ -498,18 +581,26 @@ public class MyDocService {
         return base + " " + System.currentTimeMillis();
     }
 
+    /**
+     * 配额/文件数上限校验
+     * <p>
+     * 配置来自 {@link SystemSettingService}: 管理员可在 t_system_setting 中调整
+     */
     private void checkQuota(Long userId, long extraBytes) {
         long count = fileRepo.countByUserId(userId);
-        if (count >= MAX_FILES_PER_USER) {
-            throw new BusinessException("文档数量已达上限(" + MAX_FILES_PER_USER + " 个), 请先清理");
+        int maxCount = settings.getMyDocMaxFileCount();
+        if (count >= maxCount) {
+            throw new BusinessException("文档数量已达上限(" + maxCount + " 个), 请先清理");
         }
         long used = 0;
         for (MyDocFile f : fileRepo.findByUserIdOrderBySortNoAscIdAsc(userId)) {
             used += f.getSizeBytes() == null ? 0 : f.getSizeBytes();
         }
-        if (used + extraBytes > MAX_TOTAL_BYTES) {
+        long quota = settings.getMyDocQuotaBytes();
+        if (used + extraBytes > quota) {
             throw new BusinessException("个人文档空间不足(已用 " + humanSize(used)
-                    + ", 上限 " + humanSize(MAX_TOTAL_BYTES) + ")");
+                    + ", 拟添加 " + humanSize(extraBytes)
+                    + ", 上限 " + humanSize(quota) + ")。如需更多空间请联系管理员。");
         }
     }
 
@@ -524,5 +615,28 @@ public class MyDocService {
         double mb = kb / 1024.0;
         if (mb < 1024) return String.format("%.1f MB", mb);
         return String.format("%.2f GB", mb / 1024.0);
+    }
+
+    private static String defaultMdOrRt(MyDocType type) {
+        if (type == MyDocType.MARKDOWN) {
+            return "# 新建 Markdown\n\n开始书写…\n";
+        }
+        if (type == MyDocType.RICHTEXT) {
+            return "<h1>新建富文本</h1>\n<p>开始书写…</p>\n";
+        }
+        return "";
+    }
+
+    private static String defaultName(MyDocType type) {
+        return switch (type) {
+            case IMAGE -> "图片";
+            case PDF -> "PDF 文档";
+            case MARKDOWN -> "Markdown";
+            case RICHTEXT -> "富文本";
+            case HTML -> "HTML";
+            case TEXT -> "文本";
+            case CODE -> "代码片段";
+            default -> "导入文档";
+        };
     }
 }
