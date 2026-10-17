@@ -191,7 +191,9 @@ public class MyDocController {
         }
         byte[] bytes = myDocService.download(userId, id);
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(previewMediaType(type));
+        // 修复: 图片的 MIME 按实际扩展名推断, 不再统一发 image/png(否则 jpg/gif/svg/webp/bmp 会被
+        // 标错 MIME → 浏览器解码失败)
+        headers.setContentType(previewMediaType(type, f.getExt()));
         headers.setContentLength(bytes.length);
         String fname = f.getName() + "." + f.getExt();
         String safe = fname.replaceAll("[\\r\\n\"]", "_");
@@ -202,11 +204,11 @@ public class MyDocController {
         return new ResponseEntity<>(bytes, headers, org.springframework.http.HttpStatus.OK);
     }
 
-    private MediaType previewMediaType(MyDocType type) {
+    private MediaType previewMediaType(MyDocType type, String ext) {
         switch (type) {
             case IMAGE:
-                // 已知图片格式直接给精确 MIME, 后端无法识别时给 octet-stream
-                return MediaType.IMAGE_PNG;
+                // 按实际扩展名推断 MIME, 不再统一 image/png(jpg/gif/svg/webp/bmp 等会被错认)
+                return imageMediaType(ext);
             case PDF:
                 return MediaType.APPLICATION_PDF;
             case MARKDOWN:
@@ -218,6 +220,22 @@ public class MyDocController {
                 return MediaType.parseMediaType("text/html;charset=UTF-8");
             default:
                 return MediaType.APPLICATION_OCTET_STREAM;
+        }
+    }
+
+    /** 按图片扩展名推断精确 MIME, 未知扩展名兜底 octet-stream(浏览器按文件名查表渲染) */
+    private MediaType imageMediaType(String ext) {
+        if (ext == null) return MediaType.APPLICATION_OCTET_STREAM;
+        switch (ext.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "png":  return MediaType.IMAGE_PNG;
+            case "jpg":
+            case "jpeg": return MediaType.IMAGE_JPEG;
+            case "gif":  return MediaType.IMAGE_GIF;
+            case "webp": return MediaType.parseMediaType("image/webp");
+            case "bmp":  return MediaType.parseMediaType("image/bmp");
+            case "svg":
+            case "svg+xml": return MediaType.parseMediaType("image/svg+xml");
+            default:     return MediaType.APPLICATION_OCTET_STREAM;
         }
     }
 

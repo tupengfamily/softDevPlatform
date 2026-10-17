@@ -29,6 +29,22 @@ request.interceptors.request.use(
     if (userStore.token) {
       config.headers.Authorization = `Bearer ${userStore.token}`
     }
+    // 修复: axios 1.x + FormData 时不会自动重置 Content-Type, 仍带着
+    // request.js 里的默认 'application/json'. 上传文件时浏览器拿到错误的
+    // Content-Type, vite 代理转发到后端 java, java 在 @RequestParam MultipartFile
+    // 解析时发现 Content-Type != multipart/, 抛 MultipartException → 500.
+    // 解决: FormData 时显式删除 Content-Type, 让浏览器 fetch/XHR 重新生成正确的
+    // multipart/form-data; boundary=... 头.
+    // (FormData 的 Content-Type 必须由浏览器生成, 不能手动指定 boundary)
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      if (config.headers && typeof config.headers.delete === 'function') {
+        config.headers.delete('Content-Type')
+        config.headers.delete('content-type')
+      } else if (config.headers) {
+        delete config.headers['Content-Type']
+        delete config.headers['content-type']
+      }
+    }
     return config
   },
   (error) => {

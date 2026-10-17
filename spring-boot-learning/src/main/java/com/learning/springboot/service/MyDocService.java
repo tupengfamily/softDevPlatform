@@ -273,9 +273,11 @@ public class MyDocService {
         f.setUserId(userId);
         f.setDirectoryId(resolveDir(userId, directoryId));
         f.setDocType(type.code());
-        f.setExt(type.ext());
-        f.setName(uniqueFileName(userId, f.getDirectoryId(), cleanName(base, "文档名称"), type.ext(), null));
-        f.setStorageKey(newKey(type.ext()));
+        // 修复: 用原扩展名, 不要再用 type.ext()(否则所有图片被强制存为 .png, 预览时浏览器拿到
+        // image/png MIME 但内容是 jpg/gif/svg/webp 等 → 解码失败 = "导入报错")
+        f.setExt(ext);
+        f.setName(uniqueFileName(userId, f.getDirectoryId(), cleanName(base, "文档名称"), ext, null));
+        f.setStorageKey(newKey(ext));
         f.setSortNo(nextSortFile(userId, f.getDirectoryId()));
         f.setSizeBytes((long) bytes.length);
         f.setVersion(1);
