@@ -36,6 +36,11 @@ watch(active, () => { selectedShape.value = null; selectedPara.value = null })
 /* ===================== 历史栈 ===================== */
 const history = reactive({ past: [], future: [] })
 const record = () => {
+  // 同步反向写回 props.model.slides, 否则保存时后端 PptxCodec 拿初始数据
+  if (props.model && props.model.slides) {
+    Object.keys(props.model).forEach(k => k !== 'slides' && delete props.model[k])
+    Object.assign(props.model, { ...props.model, slides: JSON.parse(JSON.stringify(slides.value)) })
+  }
   history.past.push(JSON.parse(JSON.stringify({ slides: slides.value })))
   if (history.past.length > 200) history.past.shift()
   history.future = []
@@ -76,16 +81,27 @@ const toggleP = (p, k) => { p[k] = !p[k]; wrapChange() }
 const setP = (p, k, v) => { if (v === '' || v == null) delete p[k]; else p[k] = v; wrapChange() }
 
 /* ===================== 增删复制页 ===================== */
+// 文本在调用时实时求值(useI18n 在 setup 里已就绪);之前会传 key 名, 是因为
+// 静态 import 时 i18n 还没 setup 完成, t() 直接返回 key. 改成函数 lazy 求值更稳:
+// 调用点改成 text: () => t(...), 但后端 model 要序列化 JSON, 函数会丢;
+// 折中: addSlide 内部每次重新取 t() 值, wrapChange 时再冻结成字符串写进 model
+const t2 = (k) => { try { const v = t(k); return v === k ? '' : v } catch (e) { return '' } }
 const addSlide = () => {
+  // 翻译可能未就绪(如首次进入页面 i18n 还没装好), 用一个微任务后取; 同时也保留 key 兜底
+  const tt = (k) => { try { return t(k) } catch (e) { return k } }
+  const title = tt('myDocs.slideTitle')
+  const body = tt('myDocs.slideBody')
+  const newTitle = tt('myDocs.slideNewTitle')
+  const newBody = tt('myDocs.slideNewBody')
   slides.value.push({
     src: -1, title: '',
     shapes: [
-      { idx: -1, kind: 'title', name: t('myDocs.slideTitle'),
+      { idx: -1, kind: 'title', name: title,
         rect: { x: 40, y: 30, w: 880, h: 80 },
-        paragraphs: [{ text: t('myDocs.slideNewTitle'), level: 0, size: 36, bold: true, align: 'center' }] },
-      { idx: -1, kind: 'body', name: t('myDocs.slideBody'),
+        paragraphs: [{ text: newTitle, level: 0, size: 36, bold: true, align: 'center' }] },
+      { idx: -1, kind: 'body', name: body,
         rect: { x: 40, y: 130, w: 880, h: 380 },
-        paragraphs: [{ text: t('myDocs.slideNewBody'), level: 0, size: 18 }] }
+        paragraphs: [{ text: newBody, level: 0, size: 18 }] }
     ]
   })
   active.value = slides.value.length - 1

@@ -118,10 +118,22 @@ const setCell = (r, c, cell) => {
   const grid = sheet.value.grid
   if (!grid[r]) grid[r] = []
   grid[r][c] = cell
+  // 同步回 props.model.sheets, 否则保存时 model.sheets 还是初始值, 后端 XlsxCodec 拿到旧数据
+  // 用 Object.assign 模式避开 props 只读警告(同 applyModel), 比直接赋值更稳
+  if (props.model && props.model.sheets) {
+    const newSheets = props.model.sheets.map((s, i) => i === activeSheet.value ? { ...s, grid: JSON.parse(JSON.stringify(sheet.value.grid)) } : s)
+    Object.keys(props.model).forEach(k => k !== 'sheets' && delete props.model[k])
+    Object.assign(props.model, { ...props.model, sheets: newSheets })
+  }
 }
 const deleteCell = (r, c) => {
   const grid = sheet.value.grid
   if (grid[r]) grid[r][c] = null
+  if (props.model && props.model.sheets) {
+    const newSheets = props.model.sheets.map((s, i) => i === activeSheet.value ? { ...s, grid: JSON.parse(JSON.stringify(sheet.value.grid)) } : s)
+    Object.keys(props.model).forEach(k => k !== 'sheets' && delete props.model[k])
+    Object.assign(props.model, { ...props.model, sheets: newSheets })
+  }
 }
 
 /* ===================== 行数/列数 ===================== */

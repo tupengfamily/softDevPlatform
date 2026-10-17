@@ -91,6 +91,64 @@ let editor = null
 const isReady = ref(false)
 const stats = reactive({ chars: 0, words: 0, lines: 0, selected: 0 })
 
+/**
+ * 把 Tiptap JSON 转换成后端 OfficeDocService 期望的 blocks 格式
+ * <p>
+ * Bug 修复: 之前 onUpdate 只写 props.model.html, 保存时 model.blocks 还是初始值,
+ * 后端 docxCodec.save 拿原始 blocks 重建 docx, 等于"没保存"。这里在每次 onUpdate 时
+ * 同步把当前 Tiptap 状态转成 blocks 写回 model, 保存接口直接拿同步后的数据。
+ * <p>
+ * 覆盖常见块类型: heading / paragraph / bulletList / orderedList / listItem / 其他走 fallback
+ */
+const syncBlocks = (ed) => {
+  if (!ed || !props.model) return
+  const json = ed.getJSON()
+  const blocks = []
+  const styles = props.model.styles || []
+  let anchor = 0
+  const walk = (node, listStyle) => {
+    if (!node) return
+    if (node.type === 'heading') {
+      const lvl = node.attrs?.level || 1
+      const text = (node.content || []).map(c => c.text || '').join('')
+      const styleId = `Heading${lvl}`
+      const styleName = `heading ${lvl}`
+      // styles 数组里没的补一条(后端 DocxCodec 会按 styleId 查表)
+      if (!styles.find(s => s.id === styleId)) {
+        styles.push({ id: styleId, level: lvl, name: styleName })
+      }
+      blocks.push({ anchor: anchor++, type: 'heading', level: lvl, text, styleId, styleName })
+    } else if (node.type === 'paragraph') {
+      const text = (node.content || []).map(c => c.text || '').join('')
+      const align = node.attrs?.textAlign || 'left'
+      blocks.push({ anchor: anchor++, type: 'paragraph', text, align })
+    } else if (node.type === 'bulletList' || node.type === 'orderedList') {
+      const ls = node.type === 'orderedList' ? 'decimal' : 'bullet'
+      ;(node.content || []).forEach(li => {
+        if (li.type === 'listItem') {
+          ;(li.content || []).forEach(child => {
+            if (child.type === 'paragraph') {
+              const text = (child.content || []).map(c => c.text || '').join('')
+              const prefix = ls === 'decimal' ? `${blocks.filter(b => b.type === 'list').length + 1}.` : '•'
+              blocks.push({ anchor: anchor++, type: 'paragraph', text: `${prefix} ${text}`, align: 'left' })
+            } else {
+              walk(child, ls)
+            }
+          })
+        }
+      })
+    } else {
+      // 其他类型(table / image / codeBlock): 内容压成 paragraph 兜底, 不丢
+      const text = node.text || (node.content || []).map(c => c.text || '').join('')
+      if (text) blocks.push({ anchor: anchor++, type: 'paragraph', text, align: 'left' })
+    }
+  }
+  ;(json.content || []).forEach(n => walk(n))
+  props.model.blocks = blocks
+  props.model.styles = styles
+  props.model.hasNumbering = blocks.some(b => b.type === 'list') || !!props.model.hasNumbering
+}
+
 const fileInput = ref(null)
 const findOpen = ref(false)
 const findQuery = ref('')
@@ -406,6 +464,9 @@ onMounted(() => {
         content: getInitialHtml() || '',
         onUpdate: ({ editor: ed }) => {
           props.model.html = ed.getHTML()
+          // 关键: 把 Tiptap 状态转成后端 OfficeDocService 期望的 blocks 格式
+          // 否则保存时 model.blocks 还是 readModel 的初始值, 用户的编辑"看着保存了"实际没生效
+          syncBlocks(ed)
           emit('change')
           recalc()
         },

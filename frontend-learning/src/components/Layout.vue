@@ -65,6 +65,42 @@ const onLangChange = async (sid) => {
 const collapsed = ref(localStorage.getItem('menuCollapsed') === '1')
 watch(collapsed, v => localStorage.setItem('menuCollapsed', v ? '1' : '0'))
 
+// ============== 新手指引(非阻塞 banner) ==============
+// 之前: onMounted 直接 router.push('/onboarding') → 每次刷新都被硬推, 体验差
+// 现在: 顶部展示一个可关闭的引导 banner, 用户可以主动 "去完成" 或 "稍后再说",
+//       关闭后写 localStorage 标记, 同一用户同一浏览器不再展示(直到 DB 里标为已 skip/完成)
+// 真正的"未完成"状态仍以服务端为准(防 localStorage 失效后又被骚扰)
+const onboardBannerVisible = ref(false)
+const onboardBannerDismissed = ref(false)  // 本会话已手动关闭过
+const ONBOARD_DISMISS_KEY = 'onboardBannerDismissed'  // 跨会话记忆(per userId)
+
+const refreshOnboard = async () => {
+  if (!userStore.isLogin) { onboardBannerVisible.value = false; return }
+  if (route.path === '/onboarding') { onboardBannerVisible.value = false; return }  // 在引导页本身不弹
+  try {
+    const { getOnboardingMe } = await import('../api/onboarding')
+    const r = await getOnboardingMe()
+    if (r.data && r.data.needsOnboarding) {
+      // 用户本会话已手动关闭过 → 不再展示
+      if (onboardBannerDismissed.value) { onboardBannerVisible.value = false; return }
+      // 跨会话已 dismissed(per userId) → 不再展示
+      const dismissedUid = localStorage.getItem(ONBOARD_DISMISS_KEY)
+      if (dismissedUid && Number(dismissedUid) === userStore.userId) { onboardBannerVisible.value = false; return }
+      onboardBannerVisible.value = true
+    } else {
+      onboardBannerVisible.value = false
+    }
+  } catch (e) { /* 静默 */ }
+}
+
+const goOnboard = () => router.push({ path: '/onboarding', query: { redirect: route.fullPath } })
+const dismissOnboardBanner = () => {
+  onboardBannerVisible.value = false
+  onboardBannerDismissed.value = true
+  // 跨会话记忆(per userId), 避免用户每次都看到 banner
+  if (userStore.userId) localStorage.setItem(ONBOARD_DISMISS_KEY, String(userStore.userId))
+}
+
 // ============== 移动端适配 ==============
 // <=768px 时侧栏改为 off-canvas 抽屉:汉堡按钮唤出,遮罩点击/选中菜单即收起
 const isMobile = ref(false)
@@ -269,17 +305,9 @@ onMounted(async () => {
   subjectStore.load()   // 科目列表 + 学习语言偏好(异步即可,不阻塞公告;游客仅拉科目列表)
   dictStore.load()      // 数据字典标签映射(游客可读,业务页文案统一从这取)
   localeStore.pullFromServer()   // 登录用户拉取服务端界面语言偏好
-  // 新手指引: 已登录但未完成 onboarding → 推到 /onboarding (仅在不是 onboarding 自身页时)
-  if (userStore.isLogin && route.path !== '/onboarding') {
-    try {
-      const { getOnboardingMe } = await import('../api/onboarding')
-      const r = await getOnboardingMe()
-      if (r.data && r.data.needsOnboarding) {
-        router.push({ path: '/onboarding', query: { redirect: route.fullPath } })
-        return
-      }
-    } catch (e) { /* 静默, 不阻塞 Layout 加载 */ }
-  }
+  // 新手指引: 已登录但未完成 onboarding → 顶部 banner 提示(非阻塞,用户可关)
+  // 之前用 router.push 每次刷新都跳 onboarding,体验差;改成 banner + 主动按钮
+  refreshOnboard()
   if (userStore.isLogin) {
     notifStore.fetchUnread()
     msgTimer = setInterval(() => notifStore.fetchUnread(), 60000)   // 未读数轮询
@@ -441,6 +469,25 @@ const onCommand = async (cmd) => {
     </button>
 
     <el-container class="main-wrap">
+      <!-- 新手指引 banner: 非阻塞, 用户可关闭;关闭后写 localStorage 跨会话记忆 -->
+      <el-alert
+        v-if="onboardBannerVisible"
+        class="onboard-banner"
+        type="info"
+        show-icon
+        :closable="false"
+        :title="$t('onboarding.bannerTitle')"
+      >
+        <template #default>
+          <div class="onboard-banner-row">
+            <span>{{ $t('onboarding.bannerDesc') }}</span>
+            <span class="grow"></span>
+            <el-button size="small" type="primary" @click="goOnboard">{{ $t('onboarding.bannerGo') }}</el-button>
+            <el-button size="small" link @click="dismissOnboardBanner">{{ $t('common.close') }}</el-button>
+          </div>
+        </template>
+      </el-alert>
+
       <!-- 顶部 -->
       <el-header class="header">
         <div class="header-left">
@@ -654,6 +701,17 @@ const onCommand = async (cmd) => {
   position: fixed; inset: 0; z-index: 90;
   background: rgba(15, 23, 42, .45); backdrop-filter: blur(2px);
 }
+/* 新手指引 banner: 固定在顶部 header 之下, 不挡内容滚动 */
+.onboard-banner {
+  flex: 0 0 auto;
+  border-radius: 0;
+  border-left: none; border-right: none;
+  padding: 8px 24px;
+  background: var(--c-primary-bg, #ecf5ff);
+}
+.onboard-banner :deep(.el-alert__title) { font-weight: 600; }
+.onboard-banner-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.onboard-banner-row .grow { flex: 1; }
 .burger {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; padding: 0; flex: none;

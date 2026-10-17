@@ -18,6 +18,9 @@ import OnlyOfficeEditor from '../components/doc/OnlyOfficeEditor.vue'
 import MarkdownEditor from '../components/doc/MarkdownEditor.vue'
 import RichTextEditor from '../components/doc/RichTextEditor.vue'
 import FilePreview from '../components/doc/FilePreview.vue'
+import WordPreview from '../components/doc/WordPreview.vue'
+import SheetPreview from '../components/doc/SheetPreview.vue'
+import SlidePreview from '../components/doc/SlidePreview.vue'
 
 const { t } = useI18n()
 const userStore = useUserStore()
@@ -404,7 +407,7 @@ const doDelete = async (row) => {
     await deleteDocFile(row.id)
     ElMessage.success(t('myDocs.delOk'))
     // 预览的就是这个文件 -> 退回详情区
-    if (previewNode.value && previewNode.value.id === row.id) previewNode.value = null
+    if (previewNode.value && previewNode.value.id === row.id) { previewNode.value = null; previewModel.value = null }
     await loadTree()
   } catch (e) { /* 统一弹错 */ }
 }
@@ -452,12 +455,21 @@ const checkOO = async (row) => {
 }
 
 /** 在右侧详情区预览: 非弹窗, 切换右栏内容 */
-const openPreview = (row) => {
+const previewModel = ref(null)   // 预览用的 readModel 数据(blocks/sheets/slides);Office 简易预览用
+const openPreview = async (row) => {
   if (!row) return
   previewNode.value = row
-  if (isOffice(row.docType)) checkOO(row)
+  previewModel.value = null
+  if (isOffice(row.docType)) {
+    checkOO(row)
+    // 没启 OnlyOffice 时也要能预览: 主动拉 readModel, pv-body 用 blocks/sheets/slides 渲染简易预览
+    try {
+      const r = await getDocModel(row.id)
+      previewModel.value = r.data
+    } catch (e) { /* 静默, 走 fallback */ }
+  }
 }
-const closePreview = () => { previewNode.value = null }
+const closePreview = () => { previewNode.value = null; previewModel.value = null }
 
 // ==================== 在线编辑 ====================
 
@@ -690,7 +702,7 @@ const quotaPercent = computed(() => {
                 <el-icon v-else :class="`ficon ${colorOf(data.docType)}`">
                   <component :is="iconOf(data.docType)" />
                 </el-icon>
-                <span class="t-name" @click.stop="data.kind === 'file' && openPreview(findFileRow(data.id))">
+                <span class="t-name" @click.stop="onTreeClick(data)">
                   {{ data.name }}<span v-if="data.kind === 'file' && data.ext" class="ext">.{{ data.ext }}</span>
                 </span>
                 <em v-if="data.kind === 'dir' && data.raw?.files?.length" class="count">{{ data.raw.files.length }}</em>
@@ -704,8 +716,8 @@ const quotaPercent = computed(() => {
                     </el-button>
                   </el-tooltip>
                 </template>
-                <el-dropdown v-if="buildTreeOps(data).length > TREE_OPS_INLINE_MAX" trigger="click" @click.stop>
-                  <el-button link size="small">
+                <el-dropdown v-if="buildTreeOps(data).length > TREE_OPS_INLINE_MAX" trigger="click">
+                  <el-button link size="small" @click.stop>
                     <el-icon><More /></el-icon>
                   </el-button>
                   <template #dropdown>
@@ -775,8 +787,8 @@ const quotaPercent = computed(() => {
               <span class="grow"></span>
               <el-button v-if="isOffice(row.docType) || !isEditable(row.docType)" link size="small" @click.stop="openPreview(row)">{{ $t('myDocs.actionPreview') }}</el-button>
               <el-button v-if="isEditable(row.docType)" link size="small" type="primary" @click.stop="openEditor(row)">{{ $t('myDocs.actionEdit') }}</el-button>
-              <el-dropdown trigger="click" @click.stop>
-                <el-button link size="small">{{ $t('myDocs.more') }} ▾</el-button>
+              <el-dropdown trigger="click">
+                <el-button link size="small" @click.stop>{{ $t('myDocs.more') }} ▾</el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item @click="doDownload(row)">{{ $t('myDocs.actionDownload') }}</el-dropdown-item>
@@ -827,6 +839,17 @@ const quotaPercent = computed(() => {
               :username="currentUsername"
             />
             <FilePreview v-else-if="!isOffice(previewNode.docType)" :file="previewNode" />
+            <!-- Office 三件套的简易内联预览: OO 启用 → OO 真预览;OO 未启 → 用 readModel 数据渲染 -->
+            <div v-else-if="previewModel" class="pv-inline-preview">
+              <WordPreview v-if="previewNode.docType === 'word'" :model="previewModel" />
+              <SheetPreview v-else-if="previewNode.docType === 'excel'" :model="previewModel" />
+              <SlidePreview v-else-if="previewNode.docType === 'ppt'" :model="previewModel" />
+              <div v-else class="pv-fallback">
+                <el-empty :description="$t('myDocs.previewOfficeHint')" :image-size="80">
+                  <el-button type="primary" @click="openEditor(previewNode)">{{ $t('myDocs.actionEdit') }}</el-button>
+                </el-empty>
+              </div>
+            </div>
             <div v-else class="pv-fallback">
               <el-empty :description="$t('myDocs.previewOfficeHint')" :image-size="80">
                 <el-button type="primary" @click="openEditor(previewNode)">{{ $t('myDocs.actionEdit') }}</el-button>
@@ -1075,7 +1098,8 @@ const quotaPercent = computed(() => {
 .preview-card .pv-head .pv-name { font-size: 15px; font-weight: 600; color: var(--c-text-1); max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .preview-card .pv-head .pv-meta { font-size: 12px; }
 .preview-card .pv-head .grow { flex: 1; }
-.preview-card .pv-body { height: min(70vh, 680px); min-height: 420px; background: var(--c-bg-page, #f7f8fb); }
+.preview-card .pv-body { height: min(70vh, 680px); min-height: 420px; background: var(--c-bg-page, #f7f8fb); overflow: auto; }
+.pv-inline-preview { width: 100%; height: 100%; }
 .preview-card .pv-fallback { height: 100%; display: flex; align-items: center; justify-content: center; }
 .flip { transform: rotate(180deg); }
 

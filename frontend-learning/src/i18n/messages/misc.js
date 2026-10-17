@@ -322,6 +322,10 @@ export default {
     'onboarding.recommendSubject': '推荐起始学科',
     'onboarding.viewAllCourses': '进入学科全部课程',
     'onboarding.skipToHome': '直接进入主页',
+    // 顶部 banner(替代之前的硬推 /onboarding): 不阻挡用户使用功能,只做非阻塞提醒
+    'onboarding.bannerTitle': '还没完成新手指引',
+    'onboarding.bannerDesc': '花 30 秒告诉我们你的学习目标,我们会推荐适合你的课程。',
+    'onboarding.bannerGo': '去完成',
 
     // ===== WikiShare.vue =====
     'wikiShare.badge': '📖 来自「通用学习平台」的 Wiki 分享',
@@ -748,6 +752,10 @@ export default {
     'onboarding.recommendSubject': 'Recommended starting subject',
     'onboarding.viewAllCourses': 'See all courses',
     'onboarding.skipToHome': 'Skip to home',
+    // 顶部 banner(替代之前的硬推 /onboarding): 不阻挡用户使用功能,只做非阻塞提醒
+    'onboarding.bannerTitle': 'Onboarding not finished yet',
+    'onboarding.bannerDesc': 'Tell us your learning goal in 30s, we will recommend courses for you.',
+    'onboarding.bannerGo': 'Start now',
 
     // ===== WikiShare.vue =====
     'wikiShare.badge': '📖 A Wiki share from "Learning Platform"',
