@@ -78,6 +78,9 @@ replay_pid*.log
 # 本地工具工作区(token / 截图 / 临时脚本)
 /.workbuddy/
 
+# hsk-cli(花生壳)本地缓存:含 account_id / claim token / publicUrl 等账号信息
+.hsk/
+
 # java-learning IO 流等示例的运行产物
 /note.txt
 /demo.bin

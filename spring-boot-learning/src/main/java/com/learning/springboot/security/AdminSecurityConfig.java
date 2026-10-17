@@ -82,10 +82,15 @@ public class AdminSecurityConfig implements WebMvcConfigurer {
             .toList());
         // 2) 兜底模式: 本地开发常见端口都允许(Vite 默认 5173, 但沙箱 / 端口冲突时可能被映射到 5174/5175/...)
         //    生产环境如部署到正式域名,白名单已经覆盖,本地模式不影响
+        // 3) hsk-cli(Oray 花生壳)公网子域放行:每次新建 tunnel 会换随机子域
+        //    `*.aicp.space` 是 hsk-cli 自动分配,`*.kicp.fun` 是 Oray 提供的免费壳域名
+        //    都不放行则 CORS 403,页面无法登录;只放 https(避免被 http 中间人劫持)
         config.setAllowedOriginPatterns(List.of(
             "http://localhost:*",
             "http://127.0.0.1:*",
-            "http://[::1]:*"
+            "http://[::1]:*",
+            "https://*.aicp.space",
+            "https://*.kicp.fun"
         ));
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
