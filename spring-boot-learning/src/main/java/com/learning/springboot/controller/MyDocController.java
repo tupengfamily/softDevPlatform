@@ -65,6 +65,13 @@ public class MyDocController {
         return Result.ok(myDocService.stats(userId));
     }
 
+    /** 最近访问过的文档(右侧内容区默认展示), limit 默认 8 */
+    @GetMapping("/recent")
+    public ResponseEntity<?> recent(@CurrentUser Long userId,
+                                    @RequestParam(value = "limit", defaultValue = "8") Integer limit) {
+        return Result.ok(myDocService.recent(userId, limit == null ? 8 : limit));
+    }
+
     @PostMapping("/directories")
     @OperationLog(module = "个人文档", action = "新建目录")
     public ResponseEntity<?> createDirectory(@RequestBody Map<String, Object> body, @CurrentUser Long userId) {

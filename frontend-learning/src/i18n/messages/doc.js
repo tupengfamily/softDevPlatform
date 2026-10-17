@@ -32,6 +32,8 @@ export default {
     'myDocs.autoSaved': '已自动保存',
     'myDocs.readonlyHint': '该类型为只读文件, 暂不支持在线编辑(请下载后用对应软件编辑再上传)',
     'myDocs.more': '更多',
+    'myDocs.backToDetail': '返回详情',
+    'myDocs.previewOfficeHint': '该文档需要在编辑器中打开才能查看',
 
     'myDocs.allFiles': '全部文档',
     'myDocs.rootDir': '根目录',
@@ -293,6 +295,8 @@ export default {
     'myDocs.autoSaved': 'Auto-saved',
     'myDocs.readonlyHint': 'This file type is read-only; edit it locally then upload again.',
     'myDocs.more': 'More',
+    'myDocs.backToDetail': 'Back to details',
+    'myDocs.previewOfficeHint': 'Open this document in the editor to view it',
 
     'myDocs.allFiles': 'All documents',
     'myDocs.rootDir': 'Root',

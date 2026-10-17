@@ -28,7 +28,9 @@ const props = defineProps({
   fileId: { type: Number, required: true },
   docType: { type: String, required: true },
   userId: { type: Number, required: true },
-  username: { type: String, default: '' }
+  username: { type: String, default: '' },
+  /** 'edit' = 可编辑(带工具栏) | 'view' = 只读预览(隐藏工具栏) */
+  mode: { type: String, default: 'edit' }
 })
 const emit = defineEmits(['save', 'saved', 'ready', 'error'])
 const { t } = useI18n()
@@ -78,7 +80,7 @@ const loadApiJs = () => {
 /** 调用后端 /api/my-docs/oo/{id}/info 拿 editorUrl + accessToken */
 const loadInfo = async () => {
   try {
-    const r = await fetchEditorInfo(props.fileId)
+    const r = await fetchEditorInfo(props.fileId, props.mode)
     editorInfo.value = r
     emit('ready', r)
     // 等 editorInfo 设置 + apijs 加载 + 挂载
@@ -176,6 +178,9 @@ onBeforeUnmount(() => {
 watch(() => props.fileId, (v) => {
   if (v) loadInfo()
 })
+
+// 预览 <-> 编辑切换: 重新拉不同模式的 config(mode 决定是否有工具栏)
+watch(() => props.mode, () => loadInfo())
 </script>
 
 <style scoped>

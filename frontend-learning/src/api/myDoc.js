@@ -50,6 +50,12 @@ export const deleteDocFile = (id) => request({ url: `/my-docs/files/${id}`, meth
 export const downloadDocFile = (id) =>
   request({ url: `/my-docs/files/${id}/download`, method: 'get', responseType: 'blob', silent: true })
 
+// ==================== 最近访问 ====================
+
+/** 最近访问过的文档(右侧内容区默认视图) */
+export const getRecentDocs = (limit = 8) =>
+  request({ url: '/my-docs/recent', method: 'get', params: { limit } })
+
 // ==================== 在线编辑 ====================
 
 /** 读取编辑器模型 */
@@ -76,8 +82,12 @@ export const restoreDocVersion = (id, name) =>
 
 // ==================== OnlyOffice 集成 ====================
 
-/** 拿 OnlyOffice 编辑器入口信息(URL + access token) */
-export const fetchEditorInfo = (id) => request({ url: `/my-docs/oo/${id}/info`, method: 'get' })
+/**
+ * 拿 OnlyOffice 编辑器入口信息(URL + access token)
+ * mode: 'edit' = 可编辑(带工具栏) | 'view' = 只读预览(隐藏工具栏)
+ */
+export const fetchEditorInfo = (id, mode = 'edit') =>
+  request({ url: `/my-docs/oo/${id}/info`, method: 'get', params: { mode } })
 
 // ==================== 在线预览 ====================
 

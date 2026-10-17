@@ -21,6 +21,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.time.LocalDateTime;
+
+import org.springframework.data.domain.PageRequest;
 
 /**
  * 个人文档服务: 目录树 + 文件(Office/Markdown/RichText/Image/PDF/Text/Code)增删改查 + 在线编辑模型读写 + 导入导出。
@@ -325,8 +328,11 @@ public class MyDocService {
     }
 
     /** 导出(下载)用字节 */
+    @Transactional
     public byte[] download(Long userId, Long id) {
         MyDocFile f = own(userId, id);
+        f.setLastAccessTime(LocalDateTime.now());
+        fileRepo.save(f);
         return storage.read(userId, f.getStorageKey());
     }
 
@@ -340,8 +346,11 @@ public class MyDocService {
     // ======================================================================
 
     /** 读取编辑器模型 */
+    @Transactional
     public Map<String, Object> readModel(Long userId, Long id) {
         MyDocFile f = own(userId, id);
+        f.setLastAccessTime(LocalDateTime.now());
+        fileRepo.save(f);
         MyDocType type = MyDocType.ofCode(f.getDocType());
         byte[] bytes = storage.read(userId, f.getStorageKey());
         Map<String, Object> model = new LinkedHashMap<>();
@@ -484,7 +493,49 @@ public class MyDocService {
         m.put("sortNo", f.getSortNo());
         m.put("createTime", f.getCreateTime());
         m.put("updateTime", f.getUpdateTime());
+        m.put("lastAccessTime", f.getLastAccessTime());
         return m;
+    }
+
+    // ======================================================================
+    //  最近访问
+    // ======================================================================
+
+    /**
+     * 最近访问过的文档(倒序取前 limit 条)。
+     * <p>没有 lastAccessTime 的老数据排在后面: JPA 派生查询只取非空记录,
+     * 不足 limit 时用「最近更新」补齐, 避免列表空白。
+     */
+    public List<Map<String, Object>> recent(Long userId, int limit) {
+        int size = Math.max(1, Math.min(limit, 50));
+        List<MyDocFile> list = new ArrayList<>(
+                fileRepo.findByUserIdAndLastAccessTimeIsNotNullOrderByLastAccessTimeDesc(
+                        userId, PageRequest.of(0, size)));
+        if (list.size() < size) {
+            Set<Long> seen = new HashSet<>();
+            for (MyDocFile f : list) seen.add(f.getId());
+            for (MyDocFile f : fileRepo.findByUserIdOrderBySortNoAscIdAsc(userId)) {
+                if (list.size() >= size) break;
+                if (seen.add(f.getId())) list.add(f);
+            }
+        }
+        List<Map<String, Object>> out = new ArrayList<>(list.size());
+        for (MyDocFile f : list) {
+            Map<String, Object> m = fileVO(f);
+            m.put("directoryName", f.getDirectoryId() == null
+                    ? null : dirRepo.findByIdAndUserId(f.getDirectoryId(), userId)
+                            .map(MyDocDirectory::getName).orElse(null));
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** 记录一次访问(预览 / 打开编辑 / 下载) */
+    @Transactional
+    public void touchAccess(Long userId, Long id) {
+        MyDocFile f = own(userId, id);
+        f.setLastAccessTime(LocalDateTime.now());
+        fileRepo.save(f);
     }
 
     private List<MyDocDirectory> childDirs(Long userId, Long parentId) {

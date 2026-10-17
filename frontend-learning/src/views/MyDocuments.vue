@@ -1,6 +1,6 @@
 <script setup>
 // 个人文档: 树形(目录+文件) + 在线预览 + Word/Excel/PPT/MD/富文本编辑 + 导入导出 + 历史版本
-import { computed, onBeforeUnmount, onMounted, ref, h } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '../store/user'
@@ -24,7 +24,10 @@ const userStore = useUserStore()
 const currentUserId = computed(() => userStore.userId || 0)
 const currentUsername = computed(() => userStore.username || 'anon')
 
-import { Folder, FolderAdd, Document, DocumentAdd, Grid, Picture, Plus, Upload, UploadFilled, Refresh, View, Edit, VideoPlay, ChatLineRound, Tickets } from '@element-plus/icons-vue'
+import {
+  Folder, FolderAdd, Document, DocumentAdd, Grid, Picture, Plus, Upload, UploadFilled,
+  Refresh, View, Edit, VideoPlay, ChatLineRound, Tickets, Download, ArrowRight, Delete, More
+} from '@element-plus/icons-vue'
 
 const ROOT = 0  // 0 = 全部文档(根视图); 目录 id 为正整数; 文件不在 currentKey 范围
 
@@ -57,6 +60,11 @@ const loadTree = async (keepKey = true) => {
     if (!keepKey) currentKey.value = ROOT
     if (currentKey.value !== ROOT && !directories.value.some(d => d.id === currentKey.value)) {
       currentKey.value = ROOT
+    }
+    // 文件被改名/移走/删除时, 同步右栏预览的数据
+    if (previewNode.value) {
+      const fresh = findFileRow(previewNode.value.id)
+      previewNode.value = fresh || null
     }
   } catch (e) { /* 统一弹错 */ } finally {
     loading.value = false
@@ -215,17 +223,17 @@ const findFileRow = (id) => {
 }
 
 /**
- * 节点点击 -> 在线预览弹窗(只读, 不进入编辑)
- * 编辑必须走工具栏的"编辑"按钮(打开全屏编辑器)
+ * 节点点击 -> 右侧详情区切换:
+ *   文件 = 内联预览 / 目录 = 该目录详情(含文件列表)
  */
 const onTreeClick = (node) => {
   if (node.kind === 'file') {
-    const row = findFileRow(node.id)
-    if (row) openPreview(row)
+    openPreview(findFileRow(node.id))
     return
   }
   currentKey.value = node.key
   keyword.value = ''
+  previewNode.value = null
 }
 
 // ==================== 目录操作 ====================
@@ -395,6 +403,8 @@ const doDelete = async (row) => {
   try {
     await deleteDocFile(row.id)
     ElMessage.success(t('myDocs.delOk'))
+    // 预览的就是这个文件 -> 退回详情区
+    if (previewNode.value && previewNode.value.id === row.id) previewNode.value = null
     await loadTree()
   } catch (e) { /* 统一弹错 */ }
 }
@@ -418,16 +428,36 @@ const doDownload = async (row) => {
   } catch (e) { /* 统一弹错 */ }
 }
 
-// ==================== 预览弹窗 ====================
+// ==================== 内联预览(点文件名 -> 右侧详情区切换成预览) ====================
 
-const previewVisible = ref(false)
-const previewFile = ref(null)
+const previewNode = ref(null)
 
-const openPreview = (row) => {
-  previewFile.value = row
-  previewVisible.value = true
+/** Office 三件套(word/excel/ppt) */
+const isOffice = (docType) => ['word', 'excel', 'ppt'].includes(docType)
+/** 可在线编辑的类型(图片/pdf/文本/代码/HTML 只读) */
+const isEditable = (docType) => !['image', 'pdf', 'text', 'code', 'html'].includes(docType)
+
+/** OnlyOffice 是否可用于内联预览(首次用到时探测一次并缓存) */
+const ooReady = ref(false)
+const ooChecked = ref(false)
+const checkOO = async (row) => {
+  if (ooChecked.value) return
+  ooChecked.value = true
+  try {
+    const info = await fetchEditorInfo(row.id, 'view')
+    ooReady.value = !!info?.enabled
+  } catch (e) {
+    ooReady.value = false
+  }
 }
-const closePreview = () => { previewVisible.value = false }
+
+/** 在右侧详情区预览: 非弹窗, 切换右栏内容 */
+const openPreview = (row) => {
+  if (!row) return
+  previewNode.value = row
+  if (isOffice(row.docType)) checkOO(row)
+}
+const closePreview = () => { previewNode.value = null }
 
 // ==================== 在线编辑 ====================
 
@@ -446,6 +476,28 @@ const ooEnabled = ref(false)
  * - Markdown / RichText: 走应用内编辑器
  * - Image / PDF / HTML / Text / Code: 不允许进入编辑(只能预览)
  */
+/**
+ * 树节点右侧操作按钮配置。
+ * - 直接返回结构化列表,模板统一渲染,不再每种 case 写一份按钮
+ * - 点击文件名本身就是预览,所以不再单独给"查看"按钮
+ * - 列表超 3 个时,前面的直接显示,剩余的塞进 "..." 下拉(便于以后加操作)
+ */
+const TREE_OPS_INLINE_MAX = 3
+const buildTreeOps = (data) => {
+  const ops = []
+  if (data.kind === 'dir') {
+    ops.push({ key: 'rename', icon: Edit, type: '',      tipKey: 'actionRename', handler: () => openRenameDir(data) })
+    ops.push({ key: 'delete', icon: Delete, type: 'danger', tipKey: 'actionDelete', handler: () => removeDir(data) })
+  } else {
+    // 文档:可编辑才显示编辑;删除永远有(预览/编辑都点文件名直达,删除只能从树节点触发)
+    if (!['image', 'pdf', 'text', 'code', 'html'].includes(data.docType)) {
+      ops.push({ key: 'edit', icon: Edit, type: 'primary', tipKey: 'actionEdit', handler: () => openEditor(data) })
+    }
+    ops.push({ key: 'delete', icon: Delete, type: 'danger', tipKey: 'actionDelete', handler: () => doDelete(data) })
+  }
+  return ops
+}
+
 const openEditor = async (row) => {
   editing.value = row
   model.value = null
@@ -462,11 +514,16 @@ const openEditor = async (row) => {
       return
     }
     if (['word', 'excel', 'ppt'].includes(row.docType)) {
-      const oo = await fetchEditorInfo(row.id)
-      if (oo?.enabled) {
-        ooEnabled.value = true
-        editorLoading.value = false
-        return
+      // OnlyOffice 探测: 失败时降级到 v5 自绘编辑器, 不弹错误(常见原因: 后端未启用 OO、容器未启动、JWT 未配)
+      try {
+        const oo = await fetchEditorInfo(row.id)
+        if (oo?.enabled) {
+          ooEnabled.value = true
+          editorLoading.value = false
+          return
+        }
+      } catch (ooErr) {
+        console.warn('[MyDocuments] OnlyOffice info 探测失败, 降级到内置编辑器:', ooErr?.message || ooErr)
       }
     }
     const res = await getDocModel(row.id)
@@ -539,6 +596,9 @@ const onKeydown = (e) => {
   }
 }
 
+/** 搜索时自动退出预览, 让结果列表可见 */
+watch(keyword, (v) => { if (v && previewNode.value) previewNode.value = null })
+
 // ==================== 历史版本 ====================
 
 const versionDialog = ref(false)
@@ -596,54 +656,20 @@ const quotaPercent = computed(() => {
 
 <template>
   <div class="page">
-    <div class="hero">
-      <div>
-        <h1>{{ $t('myDocs.title') }}</h1>
-        <p>{{ $t('myDocs.subtitle') }}</p>
-      </div>
-      <div class="hero-actions">
-        <el-button @click="openNewDir()">
-          <el-icon style="margin-right:4px"><FolderAdd /></el-icon>{{ $t('myDocs.newDir') }}
-        </el-button>
-        <el-button type="primary" @click="openNewDoc">
-          <el-icon style="margin-right:4px"><DocumentAdd /></el-icon>{{ $t('myDocs.newDoc') }}
-        </el-button>
-        <el-button @click="openImport">
-          <el-icon style="margin-right:4px"><Upload /></el-icon>{{ $t('myDocs.importDoc') }}
-        </el-button>
-        <el-button :loading="loading" @click="loadTree()">
-          <el-icon style="margin-right:4px"><Refresh /></el-icon>{{ $t('myDocs.refresh') }}
-        </el-button>
-      </div>
-    </div>
-
-    <div class="stats">
-      <div class="stat"><span class="num">{{ stats.dirCount ?? 0 }}</span><span class="lab">{{ $t('myDocs.statDirs') }}</span></div>
-      <div class="stat"><span class="num">{{ stats.fileCount ?? 0 }}</span><span class="lab">{{ $t('myDocs.statFiles') }}</span></div>
-      <div class="stat"><span class="num">{{ stats.totalText ?? '0 B' }}</span><span class="lab">{{ $t('myDocs.statSize') }}</span></div>
-      <div class="stat quota-stat" :class="{ 'warn': quotaPercent > 80, 'danger': quotaPercent >= 95 }">
-        <div class="quota-row">
-          <span class="num">{{ stats.totalText }} / {{ stats.maxQuotaText || '500 MB' }}</span>
-          <span class="lab">{{ $t('myDocs.statQuota') }}</span>
-        </div>
-        <div class="quota-bar"><div class="quota-fill" :style="{ width: quotaPercent + '%' }"></div></div>
-        <div class="quota-sub">{{ $t('myDocs.statRemaining', { size: stats.remainingText }) }}</div>
-      </div>
-      <div class="stat wide">
-        <span class="lab">{{ $t('myDocs.statDetail', {
-          word: stats.wordCount ?? 0, excel: stats.excelCount ?? 0, ppt: stats.pptCount ?? 0,
-          md: stats.markdownCount ?? 0, rt: stats.richtextCount ?? 0,
-          img: stats.imageCount ?? 0, pdf: stats.pdfCount ?? 0,
-          txt: stats.textCount ?? 0, code: stats.codeCount ?? 0
-        }) }}</span>
-      </div>
-    </div>
-
     <div class="body">
       <aside class="tree-pane">
         <div class="pane-head">
-          <span>{{ $t('myDocs.allFiles') }}</span>
-          <el-button link size="small" @click="openNewDir()">{{ $t('myDocs.newDir') }}</el-button>
+          <span class="root-title" @click="previewNode = null">
+            <el-icon><Document /></el-icon>{{ $t('myDocs.allFiles') }}
+          </span>
+          <span class="head-tools">
+            <el-tooltip :content="$t('myDocs.refresh')" placement="top">
+              <el-button link size="small" :loading="loading" @click="loadTree()"><el-icon><Refresh /></el-icon></el-button>
+            </el-tooltip>
+            <el-tooltip :content="$t('myDocs.newDir')" placement="top">
+              <el-button link size="small" @click="openNewDir()"><el-icon><FolderAdd /></el-icon></el-button>
+            </el-tooltip>
+          </span>
         </div>
         <el-tree
           :data="treeData"
@@ -670,22 +696,27 @@ const quotaPercent = computed(() => {
                 <em v-if="data.kind === 'dir' && data.raw?.files?.length" class="count">{{ data.raw.files.length }}</em>
                 <em v-else-if="data.kind === 'file'" class="meta">{{ data.sizeText }}</em>
               </span>
-              <span v-if="data.kind === 'dir'" class="tree-ops">
-                <el-button link size="small" @click.stop="openRenameDir(data)">{{ $t('myDocs.actionRename') }}</el-button>
-                <el-button link size="small" type="danger" @click.stop="removeDir(data)">{{ $t('myDocs.actionDelete') }}</el-button>
-              </span>
-              <span v-else class="tree-ops">
-                <el-tooltip :content="$t('myDocs.actionPreview')" placement="top">
-                  <el-button link size="small" @click.stop="openPreview(findFileRow(data.id))">
-                    <el-icon><View /></el-icon>
+              <span class="tree-ops">
+                <template v-for="(op, i) in buildTreeOps(data).slice(0, TREE_OPS_INLINE_MAX)" :key="op.key">
+                  <el-tooltip :content="$t('myDocs.' + op.tipKey)" placement="top">
+                    <el-button link size="small" :type="op.type" @click.stop="op.handler">
+                      <el-icon><component :is="op.icon" /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                </template>
+                <el-dropdown v-if="buildTreeOps(data).length > TREE_OPS_INLINE_MAX" trigger="click" @click.stop>
+                  <el-button link size="small">
+                    <el-icon><More /></el-icon>
                   </el-button>
-                </el-tooltip>
-                <el-tooltip v-if="!['image','pdf','text','code','html'].includes(data.docType)" :content="$t('myDocs.actionEdit')" placement="top">
-                  <el-button link size="small" type="primary" @click.stop="openEditor(data)">
-                    <el-icon><Edit /></el-icon>
-                  </el-button>
-                </el-tooltip>
-                <el-button link size="small" type="danger" @click.stop="doDelete(data)">{{ $t('myDocs.actionDelete') }}</el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item v-for="op in buildTreeOps(data).slice(TREE_OPS_INLINE_MAX)" :key="op.key" @click="op.handler">
+                        <el-icon style="margin-right:6px;vertical-align:-2px"><component :is="op.icon" /></el-icon>
+                        {{ $t('myDocs.' + op.tipKey) }}
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </span>
             </span>
           </template>
@@ -694,19 +725,32 @@ const quotaPercent = computed(() => {
 
       <section class="list-pane">
         <div class="pane-head">
-          <span class="cur">{{ currentName }}</span>
+          <span class="cur">{{ previewNode ? previewNode.fullName : currentName }}</span>
           <el-input v-model="keyword" :placeholder="$t('myDocs.searchPlaceholder')" size="small" clearable style="width:200px" />
         </div>
 
-        <div class="info-card" v-if="currentDirInfo">
+        <!-- ---------- 文档详情区(默认视图) ---------- -->
+        <div class="info-card" v-if="!previewNode && currentDirInfo">
           <div class="info-row">
             <el-icon class="info-icon"><Folder /></el-icon>
             <span class="info-name">{{ currentDirInfo.name }}</span>
           </div>
-          <div class="info-stats">
-            <div class="info-stat"><span class="num">{{ currentDirInfo.dirCount }}</span><span class="lab">{{ $t('myDocs.statDirs') }}</span></div>
-            <div class="info-stat"><span class="num">{{ currentDirInfo.fileCount }}</span><span class="lab">{{ $t('myDocs.statFiles') }}</span></div>
-            <div class="info-stat"><span class="num">{{ currentDirInfo.sizeText }}</span><span class="lab">{{ $t('myDocs.statSize') }}</span></div>
+          <div class="info-body">
+            <div class="info-stats">
+              <div class="info-stat"><span class="num">{{ currentDirInfo.dirCount }}</span><span class="lab">{{ $t('myDocs.statDirs') }}</span></div>
+              <div class="info-stat"><span class="num">{{ currentDirInfo.fileCount }}</span><span class="lab">{{ $t('myDocs.statFiles') }}</span></div>
+              <div class="info-stat"><span class="num">{{ currentDirInfo.sizeText }}</span><span class="lab">{{ $t('myDocs.statSize') }}</span></div>
+            </div>
+
+            <!-- 个人配额 -->
+            <div class="info-quota" :class="{ 'warn': quotaPercent > 80, 'danger': quotaPercent >= 95 }">
+              <div class="quota-row">
+                <span class="lab">{{ $t('myDocs.statQuota') }}</span>
+                <span class="num">{{ stats.totalText || '0 B' }} / {{ stats.maxQuotaText || '500 MB' }}</span>
+              </div>
+              <div class="quota-bar"><div class="quota-fill" :style="{ width: quotaPercent + '%' }"></div></div>
+              <div class="quota-sub">{{ $t('myDocs.statRemaining', { size: stats.remainingText || '0 B' }) }}</div>
+            </div>
           </div>
           <div class="info-actions">
             <el-button size="small" @click="openNewDoc">
@@ -720,17 +764,17 @@ const quotaPercent = computed(() => {
             </el-button>
           </div>
 
-          <!-- 当前目录下的文件列表: 行内有预览 / 编辑按钮 -->
-          <div v-if="currentDirInfo.files.length" class="file-rows">
-            <div v-for="row in currentDirInfo.files" :key="row.id" class="file-row" @click="openPreview(row)">
+          <!-- 当前目录下的文件列表: 点文件名在右侧预览 -->
+          <div v-if="currentFiles.length" class="file-rows">
+            <div v-for="row in currentFiles" :key="row.id" class="file-row" @click="openPreview(row)">
               <el-icon :class="`ficon ${colorOf(row.docType)}`"><component :is="iconOf(row.docType)" /></el-icon>
-              <span class="fname">{{ row.name }}<span class="ext">.{{ row.ext }}</span></span>
+              <span class="fname" :title="row.fullName">{{ row.name }}<span class="ext">.{{ row.ext }}</span></span>
               <el-tag :type="tagOf(row.docType)" size="small" effect="plain">{{ typeLabel(row.docType) }}</el-tag>
               <span class="meta">{{ row.sizeText }}</span>
               <span class="meta dim">v{{ row.version }}</span>
               <span class="grow"></span>
-              <el-button link size="small" @click.stop="openPreview(row)">{{ $t('myDocs.actionPreview') }}</el-button>
-              <el-button v-if="!['image','pdf','text','code','html'].includes(row.docType)" link size="small" type="primary" @click.stop="openEditor(row)">{{ $t('myDocs.actionEdit') }}</el-button>
+              <el-button v-if="isOffice(row.docType) || !isEditable(row.docType)" link size="small" @click.stop="openPreview(row)">{{ $t('myDocs.actionPreview') }}</el-button>
+              <el-button v-if="isEditable(row.docType)" link size="small" type="primary" @click.stop="openEditor(row)">{{ $t('myDocs.actionEdit') }}</el-button>
               <el-dropdown trigger="click" @click.stop>
                 <el-button link size="small">{{ $t('myDocs.more') }} ▾</el-button>
                 <template #dropdown>
@@ -739,14 +783,58 @@ const quotaPercent = computed(() => {
                     <el-dropdown-item @click="openRename(row)">{{ $t('myDocs.actionRename') }}</el-dropdown-item>
                     <el-dropdown-item @click="openMove(row)">{{ $t('myDocs.actionMove') }}</el-dropdown-item>
                     <el-dropdown-item @click="doCopy(row)">{{ $t('myDocs.actionCopy') }}</el-dropdown-item>
-                    <el-dropdown-item v-if="['word','excel','ppt'].includes(row.docType)" @click="openVersions(row)">{{ $t('myDocs.actionVersions') }}</el-dropdown-item>
+                    <el-dropdown-item v-if="isOffice(row.docType)" @click="openVersions(row)">{{ $t('myDocs.actionVersions') }}</el-dropdown-item>
                     <el-dropdown-item divided @click="doDelete(row)"><span style="color:#e85d5d">{{ $t('myDocs.actionDelete') }}</span></el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
             </div>
           </div>
+          <el-empty v-else :description="keyword ? $t('myDocs.emptySearch') : $t('myDocs.emptyFiles')" :image-size="80">
+            <p class="empty-hint">{{ $t('myDocs.emptyHint') }}</p>
+          </el-empty>
         </div>
+
+        <!-- ---------- 内联预览区(点文件名进这里, 不再是弹窗) ---------- -->
+        <div v-else-if="previewNode" class="preview-card">
+          <div class="pv-head">
+            <el-icon :class="`ficon ${colorOf(previewNode.docType)}`"><component :is="iconOf(previewNode.docType)" /></el-icon>
+            <span class="pv-name" :title="previewNode.fullName">{{ previewNode.fullName }}</span>
+            <el-tag :type="tagOf(previewNode.docType)" size="small" effect="plain">{{ typeLabel(previewNode.docType) }}</el-tag>
+            <span class="pv-meta dim">{{ previewNode.sizeText }} · v{{ previewNode.version }}</span>
+            <span class="grow"></span>
+            <el-button size="small" @click="previewNode = null">
+              <el-icon style="margin-right:4px"><ArrowRight class="flip" /></el-icon>{{ $t('myDocs.backToDetail') }}
+            </el-button>
+            <el-button v-if="isEditable(previewNode.docType)" size="small" type="primary" @click="openEditor(previewNode)">
+              <el-icon style="margin-right:4px"><Edit /></el-icon>{{ $t('myDocs.actionEdit') }}
+            </el-button>
+            <el-button size="small" @click="doDownload(previewNode)">
+              <el-icon style="margin-right:4px"><Download /></el-icon>{{ $t('myDocs.actionDownload') }}
+            </el-button>
+            <el-button v-if="isOffice(previewNode.docType)" size="small" @click="openVersions(previewNode)">
+              {{ $t('myDocs.actionVersions') }}
+            </el-button>
+          </div>
+          <div class="pv-body">
+            <OnlyOfficeEditor
+              v-if="isOffice(previewNode.docType) && ooReady"
+              :key="previewNode.id"
+              mode="view"
+              :file-id="previewNode.id"
+              :doc-type="previewNode.docType"
+              :user-id="currentUserId"
+              :username="currentUsername"
+            />
+            <FilePreview v-else-if="!isOffice(previewNode.docType)" :file="previewNode" />
+            <div v-else class="pv-fallback">
+              <el-empty :description="$t('myDocs.previewOfficeHint')" :image-size="80">
+                <el-button type="primary" @click="openEditor(previewNode)">{{ $t('myDocs.actionEdit') }}</el-button>
+              </el-empty>
+            </div>
+          </div>
+        </div>
+
         <el-empty v-else :description="keyword ? $t('myDocs.emptySearch') : $t('myDocs.emptyFiles')" :image-size="80">
           <p class="empty-hint">{{ $t('myDocs.emptyHint') }}</p>
         </el-empty>
@@ -864,27 +952,6 @@ const quotaPercent = computed(() => {
       </template>
     </el-dialog>
 
-    <!-- ============== 在线预览弹窗 ============== -->
-    <el-dialog
-      v-model="previewVisible"
-      :title="previewFile ? `${$t('myDocs.previewTitle', { name: previewFile.fullName })}` : ''"
-      width="80%"
-      top="5vh"
-      :close-on-click-modal="false"
-      class="preview-dialog"
-    >
-      <div v-if="previewFile" class="preview-body">
-        <FilePreview :file="previewFile" />
-      </div>
-      <template #footer>
-        <el-button v-if="previewFile && !['image','pdf','text','code','html'].includes(previewFile.docType)" type="primary" @click="openEditor(previewFile); previewVisible = false;">
-          <el-icon style="margin-right:4px"><Edit /></el-icon>{{ $t('myDocs.actionEdit') }}
-        </el-button>
-        <el-button v-if="previewFile" @click="doDownload(previewFile)">{{ $t('myDocs.actionDownload') }}</el-button>
-        <el-button @click="closePreview">{{ $t('myDocs.closeBtn') }}</el-button>
-      </template>
-    </el-dialog>
-
     <!-- ============== 全屏编辑器 ============== -->
     <el-dialog
       v-model="editorVisible"
@@ -943,42 +1010,38 @@ const quotaPercent = computed(() => {
 </style>
 
 <style scoped>
-.page { padding: 24px 32px; }
-.hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.hero h1 { margin: 0 0 4px; font-size: var(--fs-xl); font-weight: 600; color: var(--c-text-1); }
-.hero p { margin: 0; color: var(--c-text-2); font-size: var(--fs-base); }
-.hero-actions { display: flex; gap: 10px; flex-wrap: wrap; flex-shrink: 0; }
-
-.stats { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-.stat { background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m); padding: 10px 18px; display: flex; align-items: baseline; gap: 8px; box-shadow: 0 2px 6px rgba(20,30,60,.04); }
-.stat .num { font-size: 20px; font-weight: 600; color: var(--c-primary); }
-.stat .lab { font-size: 12px; color: var(--c-text-2); }
-.stat.wide { flex: 1; justify-content: flex-end; }
-.quota-stat { min-width: 240px; flex-direction: column; align-items: stretch; gap: 4px; }
-.quota-stat .quota-row { display: flex; align-items: baseline; gap: 8px; }
-.quota-stat .num { font-size: 14px; color: var(--c-text-1); }
-.quota-stat .lab { font-size: 12px; color: var(--c-text-2); }
-.quota-bar { height: 4px; background: var(--c-bg-3, #f3f4f8); border-radius: 2px; overflow: hidden; }
-.quota-fill { height: 100%; background: var(--c-primary); transition: width .3s; }
-.quota-stat.warn .quota-fill { background: #f59e0b; }
-.quota-stat.danger .quota-fill { background: #e85d5d; }
-.quota-sub { font-size: 11px; color: var(--c-text-4); }
-
+.page { padding: 16px 32px 24px; }
 .body { display: flex; gap: 16px; align-items: flex-start; }
-.tree-pane { width: 280px; min-width: 240px; flex: none; background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m); padding: 10px 8px 14px; box-shadow: 0 2px 6px rgba(20,30,60,.04); max-height: calc(100vh - 220px); overflow: auto; align-self: flex-start; }
+.tree-pane { width: 280px; min-width: 240px; flex: none; background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m); padding: 10px 8px 14px; box-shadow: 0 2px 6px rgba(20,30,60,.04); max-height: calc(100vh - 220px); overflow-x: visible; overflow-y: auto; align-self: flex-start; }
 .tree-pane .el-tree { background: transparent; }
+.tree-pane .pane-head .head-tools { display: inline-flex; align-items: center; gap: 2px; }
+.tree-pane .pane-head .root-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--c-text-1); font-size: 14px; cursor: pointer; }
+.tree-pane .pane-head .root-title:hover { color: var(--c-primary); }
+/* 悬浮操作按钮要能完整显示, 不能被节点宽度裁掉 */
+.tree-pane :deep(.el-tree-node__content) { position: relative; overflow: visible; min-height: 36px; }
 .tree-pane :deep(.el-tree-node__content):hover { background: var(--c-primary-bg); border-radius: 4px; }
 .tree-pane :deep(.el-tree-node.is-current > .el-tree-node__content) { background: var(--c-primary-bg); border-radius: 4px; color: var(--c-primary); }
-.tree-node { display: flex; align-items: center; justify-content: space-between; width: 100%; padding-right: 4px; min-height: 26px; }
-.tree-node .tree-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--c-text-1); flex: 1; min-width: 0; }
+/* 行高需要装下 el-button--small(32px) + 2px 上下 padding = 36px, 否则 hover 时按钮会向上下溢出 5px, 蓝色高亮也比按钮矮一截 */
+.tree-node { display: flex; align-items: center; justify-content: space-between; width: 100%; padding-right: 4px; min-height: 36px; position: relative; }
+/* 悬浮时给右侧按钮组留出空间, 名称用省略号收缩而不是把按钮挤出去 */
+/* 留 90px:可装下 3 个紧凑图标按钮 (~22px each) + "..." 溢出菜单 (24px) + 容器内边距 */
+.tree-node:hover .tree-label { padding-right: 90px; }
+.tree-node .tree-ops {
+  position: absolute; right: 2px; top: 0; bottom: 0;
+  display: none; align-items: center; gap: 0; flex-wrap: nowrap; white-space: nowrap;
+  background: var(--c-primary-bg); padding: 0 4px; border-radius: 4px; z-index: 2;
+}
+.tree-node:hover .tree-ops { display: inline-flex; }
+/* 缩小图标按钮的左右 padding, 让操作按钮更紧凑(默认 2px 是 el-button--small 的内置值) */
+.tree-node .tree-ops .el-button { padding: 0 4px; }
+.tree-node .tree-ops .el-button .el-icon { font-size: 14px; }
 .tree-node .tree-label .t-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .tree-node .tree-label .t-name:hover { color: var(--c-primary); }
 .tree-node .tree-label .ext { color: var(--c-text-4); font-size: 12px; }
 .tree-node .tree-label .count, .tree-node .tree-label .meta { font-style: normal; font-size: 11px; color: var(--c-text-4); background: var(--c-bg-3, #f3f4f8); border-radius: 8px; padding: 0 6px; flex: 0 0 auto; }
+.tree-node .tree-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--c-text-1); flex: 1; min-width: 0; }
 .tree-node.is-file .tree-label { color: var(--c-text-2); }
 .tree-node.is-file .tree-label .ficon { font-size: 14px; }
-.tree-node .tree-ops { display: none; gap: 2px; }
-.tree-node:hover .tree-ops { display: inline-flex; }
 .list-pane { flex: 1; min-width: 0; background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m); padding: 10px 14px 16px; box-shadow: 0 2px 6px rgba(20,30,60,.04); }
 .pane-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 6px 10px; border-bottom: 1px solid var(--c-border); margin-bottom: 10px; }
 .pane-head .cur { font-weight: 600; color: var(--c-text-1); font-size: 14px; }
@@ -987,11 +1050,34 @@ const quotaPercent = computed(() => {
 .info-card .info-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
 .info-card .info-row .info-icon { font-size: 28px; color: var(--c-primary); }
 .info-card .info-row .info-name { font-size: 18px; font-weight: 600; color: var(--c-text-1); }
-.info-card .info-stats { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+/* 详情区: 左侧三项统计 + 右侧配额 */
+.info-card .info-body { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
+.info-card .info-stats { display: flex; gap: 12px; flex-wrap: wrap; }
 .info-card .info-stat { background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-s); padding: 10px 18px; display: flex; align-items: baseline; gap: 6px; min-width: 120px; }
 .info-card .info-stat .num { font-size: 20px; font-weight: 600; color: var(--c-primary); }
 .info-card .info-stat .lab { font-size: 12px; color: var(--c-text-2); }
-.info-card .info-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.info-card .info-quota { flex: 1; min-width: 240px; background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-s); padding: 10px 16px; display: flex; flex-direction: column; gap: 4px; }
+.info-card .info-quota .quota-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.info-card .info-quota .quota-row .lab { font-size: 12px; color: var(--c-text-2); }
+.info-card .info-quota .quota-row .num { font-size: 13px; font-weight: 600; color: var(--c-text-1); }
+.info-card .info-quota .quota-bar { height: 4px; background: var(--c-bg-3, #eceef3); border-radius: 2px; overflow: hidden; }
+.info-card .info-quota .quota-fill { height: 100%; background: var(--c-primary); transition: width .3s; }
+.info-card .info-quota.warn .quota-fill { background: #f59e0b; }
+.info-card .info-quota.danger .quota-fill { background: #e85d5d; }
+.info-card .info-quota.warn .quota-row .num { color: #b45309; }
+.info-card .info-quota.danger .quota-row .num { color: #c0392b; }
+.info-card .info-quota .quota-sub { font-size: 11px; color: var(--c-text-4); }
+.info-card .info-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+
+/* 内联预览区(替代原弹窗) */
+.preview-card { border: 1px solid var(--c-border); border-radius: var(--r-m); background: #fff; overflow: hidden; }
+.preview-card .pv-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--c-border); flex-wrap: wrap; }
+.preview-card .pv-head .pv-name { font-size: 15px; font-weight: 600; color: var(--c-text-1); max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview-card .pv-head .pv-meta { font-size: 12px; }
+.preview-card .pv-head .grow { flex: 1; }
+.preview-card .pv-body { height: min(70vh, 680px); min-height: 420px; background: var(--c-bg-page, #f7f8fb); }
+.preview-card .pv-fallback { height: 100%; display: flex; align-items: center; justify-content: center; }
+.flip { transform: rotate(180deg); }
 
 .file-rows { margin-top: 14px; border-top: 1px dashed var(--c-border); padding-top: 12px; display: flex; flex-direction: column; gap: 4px; }
 .file-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
@@ -1034,8 +1120,9 @@ const quotaPercent = computed(() => {
 @media (max-width: 768px) {
   .page { padding: 16px; }
   .body { flex-direction: column; }
-  .tree-pane { width: 100%; max-height: 240px; }
-  .hero { flex-direction: column; }
-  .stat.wide { justify-content: flex-start; }
+  .tree-pane { width: 100%; max-height: 260px; }
+  .info-card .info-body { flex-direction: column; }
+  .preview-card .pv-body { height: calc(100vh - 220px); min-height: 340px; }
+  .preview-card .pv-head .pv-name { max-width: 100%; }
 }
 </style>

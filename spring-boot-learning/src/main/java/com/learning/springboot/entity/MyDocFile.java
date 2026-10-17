@@ -68,10 +68,19 @@ public class MyDocFile {
     @Column(name = "update_time")
     private LocalDateTime updateTime;
 
+    /**
+     * 最近一次被访问(预览 / 打开编辑 / 下载)的时间, 供「最近访问」列表使用。
+     * <p>列由 {@code MyDocSchemaPatch} 幂等补建(SQLite 上 ddl-auto 不一定会补列),
+     * 所以新库老库都能直接用。
+     */
+    @Column(name = "last_access_time")
+    private LocalDateTime lastAccessTime;
+
     @PrePersist
     public void prePersist() {
         this.createTime = LocalDateTime.now();
         this.updateTime = this.createTime;
+        if (this.lastAccessTime == null) this.lastAccessTime = this.createTime;
         if (this.sizeBytes == null) this.sizeBytes = 0L;
         if (this.sortNo == null) this.sortNo = 0;
         if (this.version == null) this.version = 1;
@@ -119,4 +128,7 @@ public class MyDocFile {
 
     public LocalDateTime getUpdateTime() { return updateTime; }
     public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
+
+    public LocalDateTime getLastAccessTime() { return lastAccessTime; }
+    public void setLastAccessTime(LocalDateTime lastAccessTime) { this.lastAccessTime = lastAccessTime; }
 }

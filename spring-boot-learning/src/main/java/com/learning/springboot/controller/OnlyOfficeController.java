@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
@@ -40,10 +41,28 @@ public class OnlyOfficeController {
     @Value("${server.servlet.context-path:}")
     private String ctxPath;
 
-    /** 给前端组装 OnlyOffice iframe src + access token */
+    /**
+     * 给前端组装 OnlyOffice iframe src + access token.
+     * <p>
+     * mode=view 用于"只读预览": 后端下发 view 模式 + 隐藏工具栏 + 关闭文档级编辑权限,
+     * 此时用户不可能误改内容, 也不会触发保存回调。
+     */
     @GetMapping("/{id}/info")
-    public ResponseEntity<?> editorInfo(@PathVariable Long id, @CurrentUser Long userId) throws Exception {
+    public ResponseEntity<?> editorInfo(@PathVariable Long id,
+                                        @CurrentUser Long userId,
+                                        @RequestParam(defaultValue = "edit") String mode) throws Exception {
+        // 前端打开 Word/Excel/PPT 之前都会先探一下: 看 OO 启用了没。
+        // 如果整个 OnlyOffice 集成是关的, 没必要走 JWT 流程(也走不通: jwt-secret 没配时会抛 IllegalStateException)
+        // 这里直接短返 {enabled: false}, 让前端直接走 v5 自绘编辑器, 避免给用户弹一个莫名其妙的 500。
+        if (!ooProps.isEnabled()) {
+            Map<String, Object> disabled = new LinkedHashMap<>();
+            disabled.put("enabled", false);
+            disabled.put("fileId", id);
+            return ResponseEntity.ok(disabled);
+        }
+        boolean readOnly = "view".equalsIgnoreCase(mode);
         MyDocFile f = myDocService.own(userId, id);
+        myDocService.touchAccess(userId, id);
         String username = userRepo.findById(userId).map(u -> u.getUsername()).orElse("anon");
 
         // 给前端 iframe src 用的 access_token
@@ -67,21 +86,29 @@ public class OnlyOfficeController {
         document.put("key", "u" + userId + "-f" + f.getId() + "-v" + f.getVersion() + "-" + Instant.now().getEpochSecond());
         document.put("title", f.getName() + "." + f.getExt());
         document.put("url", joinUrl(ooProps.getInternalUrl(), "wopi/files/" + id + "/contents?access_token=" + accessToken));
+        // 文档级权限: 只读预览时连 Document Server 内部的编辑入口一起关掉
+        Map<String, Object> docPerm = new LinkedHashMap<>();
+        docPerm.put("edit", !readOnly);
+        docPerm.put("comment", !readOnly);
+        docPerm.put("review", !readOnly);
+        docPerm.put("download", true);
+        docPerm.put("print", true);
+        document.put("permissions", docPerm);
         editorPayload.put("document", document);
 
         Map<String, Object> userInfo = new LinkedHashMap<>();
         userInfo.put("id", "u-" + userId);
         userInfo.put("name", username);
         Map<String, Object> permissions = new LinkedHashMap<>();
-        permissions.put("edit", true);
+        permissions.put("edit", !readOnly);
         permissions.put("download", true);
         permissions.put("print", true);
         userInfo.put("permissions", permissions);
         Map<String, Object> editorConfig = new LinkedHashMap<>();
-        editorConfig.put("mode", "edit");
+        editorConfig.put("mode", readOnly ? "view" : "edit");
         editorConfig.put("lang", "zh-CN");
         editorConfig.put("user", userInfo);
-        editorConfig.put("customization", customization());
+        editorConfig.put("customization", customization(readOnly));
         editorPayload.put("editorConfig", editorConfig);
 
         // OO 9.x 的官方集成方式: 把整个 config 用 base64 编码后作为 ?config= 参数
@@ -129,11 +156,25 @@ public class OnlyOfficeController {
         return ResponseEntity.ok(resp);
     }
 
-    /** 紧凑工具栏 + 关闭协作评论 UI */
-    private Map<String, Object> customization() {
+    /**
+     * 编辑器 UI 定制.
+     * <p>
+     * readOnly=true(预览态) 时把整个工具栏 / 左侧面板隐藏掉, 只留文档内容本身。
+     */
+    private Map<String, Object> customization() { return customization(false); }
+
+    private Map<String, Object> customization(boolean readOnly) {
         Map<String, Object> u = new LinkedHashMap<>();
         u.put("compact", true);
-        u.put("toolbar", true);
+        u.put("toolbar", !readOnly);
+        // 隐藏顶部深色 header(文件标题栏) 与左侧导航/搜索/评论面板
+        u.put("compactHeader", readOnly);
+        u.put("hideNotes", readOnly);
+        u.put("chat", false);
+        u.put("feedback", false);
+        u.put("about", false);
+        u.put("help", false);
+        u.put("reviewDisplay", readOnly ? "hidden" : "markup");
         // 关闭 OO 默认评论面板(避免与我们的批注冲突,可后续单独接)
         Map<String, Object> comments = new LinkedHashMap<>();
         comments.put("visible", false);

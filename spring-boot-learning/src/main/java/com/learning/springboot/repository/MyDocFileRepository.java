@@ -1,6 +1,7 @@
 package com.learning.springboot.repository;
 
 import com.learning.springboot.entity.MyDocFile;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -20,6 +21,9 @@ public interface MyDocFileRepository extends JpaRepository<MyDocFile, Long> {
     Optional<MyDocFile> findByIdAndUserId(Long id, Long userId);
 
     long countByUserId(Long userId);
+
+    /** 最近访问: 有访问记录的排前面(取前 N 条由 Pageable 控制) */
+    List<MyDocFile> findByUserIdAndLastAccessTimeIsNotNullOrderByLastAccessTimeDesc(Long userId, Pageable pageable);
 
     long countByDirectoryId(Long directoryId);
 
