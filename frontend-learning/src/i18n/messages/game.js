@@ -301,7 +301,8 @@ export default {
     'gameHistory.extAi': 'AI {v}',
     'gameHistory.extLevel': '关卡 {v}',
     'gameHistory.extStreak': '连胜 {n}',
-    'gameHistory.dash': '—'
+    'gameHistory.dash': '—',
+    'gameHistory.emptyHint': '尚无对局记录'
   },
   'en-US': {
     // ===== Menu =====
@@ -604,6 +605,7 @@ export default {
     'gameHistory.extAi': 'AI {v}',
     'gameHistory.extLevel': 'Level {v}',
     'gameHistory.extStreak': '{n} streak',
-    'gameHistory.dash': '—'
+    'gameHistory.dash': '—',
+    'gameHistory.emptyHint': 'No plays yet'
   }
 }

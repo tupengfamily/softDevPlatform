@@ -11,6 +11,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { Document } from '@element-plus/icons-vue'
 import { getGamesOverview } from '../../api/game'
 
 const router = useRouter()
@@ -305,22 +306,30 @@ onMounted(load)
             <span class="pl-time">{{ fmtRelative(card.progressUpdatedAt) }}</span>
           </div>
 
+          <!-- 主按钮:开始 / 再玩一局 / 继续 — 跟"对局记录"语义一致(都是该游戏相关动作) -->
           <el-button
-            class="gcard-btn"
+            class="gcard-btn gcard-btn-primary"
             :type="card.hasProgress ? 'primary' : 'default'"
             @click.stop="open(card)"
           >
             {{ card.hasProgress ? $t('games.resume') : (card.playedCount ? $t('games.playAgain2') : $t('games.start')) }}
           </el-button>
-          <el-button
+
+          <!-- 次按钮:对局记录 — 只在玩过该游戏时显示,与 playedCount 严格对齐 -->
+          <button
             v-if="card.playedCount"
-            class="gcard-btn gcard-btn-secondary"
-            size="small"
-            plain
+            class="gcard-btn history-link"
+            type="button"
             @click.stop="openHistory(card, $event)"
           >
-            📊 {{ $t('gameHistory.title') }} · {{ card.playedCount }}
-          </el-button>
+            <el-icon class="history-icon"><Document /></el-icon>
+            <span class="history-text">{{ $t('gameHistory.title') }}</span>
+            <span class="history-badge">{{ card.playedCount }}</span>
+          </button>
+          <!-- 0 局时给个占位以保持卡片视觉对齐(右侧卡片宽度一致) -->
+          <div v-else class="gcard-btn history-link history-link-empty" aria-hidden="true">
+            <span class="history-text-muted">{{ $t('gameHistory.emptyHint') }}</span>
+          </div>
         </div>
       </article>
     </div>
@@ -466,7 +475,47 @@ onMounted(load)
 .progress-line .pl-time { margin-left: auto; color: var(--c-text-3); }
 
 .gcard-btn { margin-top: auto; width: 100%; }
-.gcard-btn-secondary { margin-top: 6px; color: var(--c-text-2); }
+.gcard-btn-primary { /* 主按钮: 跳转到游戏 */ }
+.history-link {
+  margin-top: 8px;
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px;
+  height: 32px; line-height: 1;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px dashed var(--c-border, #e5e7eb);
+  border-radius: var(--r-m, 8px);
+  color: var(--c-text-2, #4b5563);
+  font-size: var(--fs-xs, 12px);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.history-link:hover {
+  background: var(--c-primary-bg, #ecf5ff);
+  border-color: var(--c-primary, #2563eb);
+  border-style: solid;
+  color: var(--c-primary, #2563eb);
+}
+.history-icon { font-size: 14px; }
+.history-text { font-weight: 500; }
+.history-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 16px; padding: 0 5px;
+  font-size: 11px; font-weight: 700;
+  background: var(--c-fill-2, #f1f5f9); color: var(--c-text-2, #4b5563);
+  border-radius: 9px;
+  font-variant-numeric: tabular-nums;
+}
+.history-link:hover .history-badge {
+  background: var(--c-primary, #2563eb); color: #fff;
+}
+/* 0 局占位 — 仅保持卡片视觉对齐,不响应点击 */
+.history-link-empty {
+  cursor: default; border-style: dotted; pointer-events: none;
+  height: 32px; opacity: 0.55;
+}
+.history-link-empty:hover { background: transparent; border-color: var(--c-border); color: var(--c-text-2); }
+.history-text-muted { font-size: var(--fs-xs, 12px); color: var(--c-text-3, #9ca3af); }
 
 /* ============ 响应式 ============ */
 @media (max-width: 768px) {
