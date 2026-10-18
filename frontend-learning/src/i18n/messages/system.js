@@ -14,6 +14,44 @@ export default {
     'dashboard.statusDist.count': '人数',
     'dashboard.status.enabled': '启用',
     'dashboard.status.disabled': '禁用',
+    'dashboard.status.readonly': '只读',
+
+    // 业务模块指标
+    'dashboard.stat.gamePlays': '游戏总对局',
+    'dashboard.stat.gameUsers': '玩家',
+    'dashboard.stat.activeGames': '款游戏',
+    'dashboard.stat.learning': '学习完成数',
+    'dashboard.stat.subjects': '个科目',
+    'dashboard.stat.lessons': '个课时',
+    'dashboard.stat.feedback': '反馈总数',
+    'dashboard.stat.pending': '待处理',
+    'dashboard.stat.allHandled': '全部已处理',
+    'dashboard.stat.total': '总',
+    'dashboard.stat.users': '用户',
+    'dashboard.stat.disabledUsers': '禁用用户',
+    'dashboard.stat.readonlyUsers': '只读用户',
+    'dashboard.stat.totalRoles': '角色',
+    'dashboard.stat.totalPermissions': '权限',
+
+    // 趋势图
+    'dashboard.chart.gamePlays': '最近 7 天 - 游戏对局',
+    'dashboard.chart.learning': '最近 7 天 - 学习完成',
+    'dashboard.chart.feedbackTrend': '最近 7 天 - 反馈',
+    'dashboard.chart.operations': '最近 7 天 - 操作次数',
+
+    // 状态分布
+    'dashboard.statusDist.users': '位用户',
+
+    // 最近活动
+    'dashboard.recent.recentFeedback': '最近反馈',
+    'dashboard.recent.recentGames': '最近对局',
+    'dashboard.recent.viewAll': '查看全部',
+    'dashboard.recent.emptyFeedback': '暂无反馈',
+    'dashboard.recent.emptyGames': '暂无对局',
+    'dashboard.recent.score': '得分',
+
+    // 系统汇总
+    'dashboard.summary.title': '后台账户汇总',
 
     // ===== UserManagement =====
     'userManagement.title': '用户管理',
@@ -135,6 +173,34 @@ export default {
     'dashboard.statusDist.count': 'Count',
     'dashboard.status.enabled': 'Enabled',
     'dashboard.status.disabled': 'Disabled',
+    'dashboard.status.readonly': 'Read-only',
+    'dashboard.stat.gamePlays': 'Total Game Plays',
+    'dashboard.stat.gameUsers': 'players',
+    'dashboard.stat.activeGames': 'games',
+    'dashboard.stat.learning': 'Lessons Completed',
+    'dashboard.stat.subjects': 'subjects',
+    'dashboard.stat.lessons': 'lessons',
+    'dashboard.stat.feedback': 'Total Feedback',
+    'dashboard.stat.pending': 'pending',
+    'dashboard.stat.allHandled': 'All handled',
+    'dashboard.stat.total': 'Total',
+    'dashboard.stat.users': 'users',
+    'dashboard.stat.disabledUsers': 'Disabled',
+    'dashboard.stat.readonlyUsers': 'Read-only',
+    'dashboard.stat.totalRoles': 'Roles',
+    'dashboard.stat.totalPermissions': 'Permissions',
+    'dashboard.chart.gamePlays': 'Last 7 Days - Game Plays',
+    'dashboard.chart.learning': 'Last 7 Days - Lessons Completed',
+    'dashboard.chart.feedbackTrend': 'Last 7 Days - Feedback',
+    'dashboard.chart.operations': 'Last 7 Days - Operations',
+    'dashboard.statusDist.users': 'users',
+    'dashboard.recent.recentFeedback': 'Recent Feedback',
+    'dashboard.recent.recentGames': 'Recent Plays',
+    'dashboard.recent.viewAll': 'View all',
+    'dashboard.recent.emptyFeedback': 'No feedback yet',
+    'dashboard.recent.emptyGames': 'No plays yet',
+    'dashboard.recent.score': 'Score',
+    'dashboard.summary.title': 'System Summary',
 
     // ===== UserManagement =====
     'userManagement.title': 'User Management',

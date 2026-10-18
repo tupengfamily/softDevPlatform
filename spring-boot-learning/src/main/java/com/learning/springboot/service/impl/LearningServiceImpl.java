@@ -7,6 +7,7 @@ import com.learning.springboot.entity.LearningSubject;
 import com.learning.springboot.entity.LessonProgress;
 import com.learning.springboot.entity.User;
 import com.learning.springboot.entity.UserPreference;
+import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.repository.LearningChapterRepository;
 import com.learning.springboot.repository.LearningLessonRepository;
 import com.learning.springboot.repository.LearningSubjectRepository;
@@ -489,7 +490,7 @@ public class LearningServiceImpl implements LearningService {
     @Transactional(rollbackFor = Exception.class)
     public void savePreferredLocale(Long userId, String locale) {
         if (locale != null && !locale.isBlank() && !com.learning.springboot.common.I18nConstants.SUPPORTED_LOCALES.contains(locale)) {
-            throw new IllegalArgumentException("不支持的界面语言: " + locale + " (支持: " + I18nConstants.SUPPORTED_LOCALES + ")");
+            throw new IllegalArgumentException("不支持的界面语言: " + locale + " (支持: " + com.learning.springboot.common.I18nConstants.SUPPORTED_LOCALES + ")");
         }
         UserPreference pref = preferenceRepository.findByUserId(userId)
             .orElseGet(() -> new UserPreference(userId, null));

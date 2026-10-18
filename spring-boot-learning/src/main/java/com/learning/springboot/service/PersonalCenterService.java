@@ -440,8 +440,11 @@ public class PersonalCenterService {
         for (LessonProgress p : progressRepository.findByUserId(userId)) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("lessonId", p.getLessonId());
-            m.put("status", p.getStatus());
+            // LessonProgress.status 已删除,改用 progressPercent(>=80 视为已学完) + learnedAt 是否非空
+            m.put("progressPercent", p.getProgressPercent());
+            m.put("learned", p.getLearnedAt() != null);
             m.put("learnedAt", p.getLearnedAt());
+            m.put("updateTime", p.getUpdateTime());
             progress.add(m);
         }
         data.put("lessonProgress", progress);
