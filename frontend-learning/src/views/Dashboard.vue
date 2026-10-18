@@ -65,7 +65,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-container">
+  <div class="db-page">
     <div class="page-header">
       <div class="page-title">{{ $t('dashboard.title') }}</div>
       <div class="page-subtitle">Spring Boot 3 + Vue 3 + Element Plus + SQLite + JWT</div>
@@ -238,6 +238,10 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* 页面外层布局(与其他页面一致:padding 24 32 40,无 max-width) */
+.db-page { padding: 24px 32px 40px; }
+.db-page .page-header { margin-bottom: 18px; }
+
 .stat-card { text-align: center; }
 .stat-card .stat-label { font-size: 13px; color: #6b7280; }
 .stat-card .stat-num { font-size: 30px; font-weight: 700; color: #303133; padding: 6px 0; }

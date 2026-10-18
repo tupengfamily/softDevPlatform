@@ -431,8 +431,8 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* ============ 基础布局 ============ */
-.lb-page { padding: 24px 32px 48px; max-width: 1200px; margin: 0 auto; }
+/* ============ 基础布局(与 LearningCenter / Dashboard 一致:无 max-width,撑满容器) ============ */
+.lb-page { padding: 24px 32px 40px; }
 
 /* ============ Hero (管理员/普通用户通用) ============ */
 .lb-hero {

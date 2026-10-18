@@ -238,7 +238,7 @@ onMounted(loadStats)
 </script>
 
 <style scoped>
-.gh-page { padding: 20px 24px 40px; max-width: 1100px; margin: 0 auto; }
+.gh-page { padding: 24px 32px 40px; }
 .gh-head { margin-bottom: 18px; }
 .back-link {
   display: inline-flex; align-items: center; gap: 4px;

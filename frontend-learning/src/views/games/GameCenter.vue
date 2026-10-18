@@ -337,7 +337,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.game-center { padding: 24px 24px 48px; max-width: 1120px; margin: 0 auto; }
+.game-center { padding: 24px 32px 40px; }
 
 /* ============ 页头 ============ */
 .gc-head {
