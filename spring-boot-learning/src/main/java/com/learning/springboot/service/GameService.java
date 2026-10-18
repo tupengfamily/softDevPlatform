@@ -34,6 +34,12 @@ public class GameService {
     private static final Set<String> SUPPORTED_GAMES = Set.of("2048", "gomoku", "guess", "sudoku", "one-stroke");
     /** 单局得分的合理上限(纯防御: 2048 理论上限远低于此, 拦住前端误传/刷分) */
     private static final int MAX_SCORE = 10_000_000;
+    /** 最大方块值上限(理论 2^24 ≈ 16M 已足够) */
+    private static final int MAX_MAX_TILE = 1 << 24;
+    /** 移动步数上限(单局正常人玩 1 万步够多了) */
+    private static final int MAX_MOVES = 100_000;
+    /** 单局用时上限(24 小时, 异常防御) */
+    private static final int MAX_PLAY_SECONDS = 24 * 3600;
     private static final int MAX_BOARD_LEN = 4000;
     /** 单个用户对某游戏的最近对局保留上限(超出按 id 倒序裁剪) */
     private static final int MAX_RECENT_PER_GAME = 100;
@@ -160,15 +166,21 @@ public class GameService {
                                          Integer maxTile, Integer moves, Integer playSeconds,
                                          Integer finished, String extraJson) {
         String code = checkCode(gameCode);
-        int sc = score == null ? 0 : Math.max(0, Math.min(score, MAX_SCORE));
+        int sc = clampInt(score, 0, MAX_SCORE);
+        int tile = clampInt(maxTile, 0, MAX_MAX_TILE);
+        int mv = clampInt(moves, 0, MAX_MOVES);
+        int secs = clampInt(playSeconds, 0, MAX_PLAY_SECONDS);
+
+        // 取写入前的历史最高分(判断 isNewBest 用)
+        int oldBest = scoreRepo.findBestScore(userId, code);
 
         GameScore s = new GameScore();
         s.setUserId(userId);
         s.setGameCode(code);
         s.setScore(sc);
-        s.setMaxTile(maxTile == null ? 0 : Math.max(0, maxTile));
-        s.setMoves(moves == null ? 0 : Math.max(0, moves));
-        s.setPlaySeconds(playSeconds == null ? 0 : Math.max(0, playSeconds));
+        s.setMaxTile(tile);
+        s.setMoves(mv);
+        s.setPlaySeconds(secs);
         s.setFinished(finished == null ? 1 : finished);
         if (extraJson != null) {
             String trimmed = extraJson.length() > MAX_EXTRA_LEN ? extraJson.substring(0, MAX_EXTRA_LEN) : extraJson;
@@ -179,7 +191,7 @@ public class GameService {
         // 一局结束 → 进度存档作废
         progressRepo.findByUserIdAndGameCode(userId, code).ifPresent(progressRepo::delete);
 
-        // 裁剪超出 100 的旧记录 (按 id 倒序, 删 tail)
+        // 裁剪超出 100 的旧记录 (按 id 倒序, 删 tail) — 只在确实超出时才删
         List<GameScore> all = scoreRepo.findTop100ByUserIdAndGameCodeOrderByIdDesc(userId, code);
         if (all.size() > MAX_RECENT_PER_GAME) {
             List<GameScore> toDelete = all.subList(MAX_RECENT_PER_GAME, all.size());
@@ -187,12 +199,20 @@ public class GameService {
         }
 
         int best = scoreRepo.findBestScore(userId, code);
+        // isNewBest: 严格 > 历史最高才算新纪录(平局不算, 0 分不算)
+        boolean isNewBest = sc > 0 && sc > oldBest;
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", saved.getId());
         out.put("score", saved.getScore());
         out.put("bestScore", best);
-        out.put("isNewBest", saved.getScore() >= best && saved.getScore() > 0);
+        out.put("isNewBest", isNewBest);
         return out;
+    }
+
+    /** 整数钳制到 [min, max]; null 视为 min */
+    private static int clampInt(Integer v, int min, int max) {
+        if (v == null) return min;
+        return Math.max(min, Math.min(v, max));
     }
 
     // ==================================================================
@@ -232,10 +252,10 @@ public class GameService {
             return np;
         });
         p.setBoardJson(boardJson);
-        p.setScore(score == null ? 0 : Math.max(0, Math.min(score, MAX_SCORE)));
-        p.setMaxTile(maxTile == null ? 0 : Math.max(0, maxTile));
-        p.setMoves(moves == null ? 0 : Math.max(0, moves));
-        p.setPlaySeconds(playSeconds == null ? 0 : Math.max(0, playSeconds));
+        p.setScore(clampInt(score, 0, MAX_SCORE));
+        p.setMaxTile(clampInt(maxTile, 0, MAX_MAX_TILE));
+        p.setMoves(clampInt(moves, 0, MAX_MOVES));
+        p.setPlaySeconds(clampInt(playSeconds, 0, MAX_PLAY_SECONDS));
         p.setFinished(finished == null ? 0 : finished);
         progressRepo.save(p);
 

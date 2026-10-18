@@ -99,7 +99,7 @@ const bestScore = ref(0)
 const currentLabel = computed(() => GAME_OPTIONS.find(g => g.code === code.value)?.label || code.value)
 
 const winRate = computed(() => {
-  if (!entries.value.length) return '—'
+  if (!entries.value.length) return t('gameHistory.dash')
   const wins = entries.value.filter(e => {
     if (code.value === 'gomoku' || code.value === 'guess') {
       const extra = parseExtra(e.extra)
@@ -111,7 +111,7 @@ const winRate = computed(() => {
     }
     return false // 2048 / one-stroke 不算胜负
   }).length
-  if (code.value === '2048' || code.value === 'one-stroke') return '—'
+  if (code.value === '2048' || code.value === 'one-stroke') return t('gameHistory.dash')
   return Math.round((wins / entries.value.length) * 100) + '%'
 })
 
@@ -211,7 +211,7 @@ function formatExtra (raw) {
 }
 
 function fmtTime (s) {
-  if (!s) return '—'
+  if (!s) return t('gameHistory.dash')
   // 后端返回 ISO 字符串或时间戳
   const d = typeof s === 'string' ? new Date(s) : new Date(s)
   if (Number.isNaN(d.getTime())) return String(s)

@@ -457,10 +457,12 @@ onBeforeUnmount(() => {
 }
 .num-btn {
   background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m);
-  padding: 8px 0;
+  padding: 12px 0;
+  min-height: 44px;          /* 高于 44px 触摸目标(HIG/WCAG) */
   cursor: pointer; transition: background .12s, border-color .12s;
   font-family: ui-monospace, Menlo, monospace;
   font-size: 22px; font-weight: 700; color: var(--c-primary);
+  -webkit-tap-highlight-color: transparent;
 }
 .num-btn:hover:not(:disabled) { background: #f8fafc; border-color: var(--c-primary); }
 .num-btn:disabled { opacity: .4; cursor: not-allowed; }

@@ -138,16 +138,33 @@ public class GomokuService {
         return toState(room, userId, winLineVersion);
     }
 
-    /** 主动离开房间(用于 dispose / 关闭页面) */
+    /**
+     * 主动离开房间(用于 dispose / 关闭页面)
+     * <p>
+     * 三种情况:
+     *   1. 房主(黑方)离开 — 直接关闭房间(白方也算负)
+     *   2. 白方离开 — 清掉 whiteUserId, 房间回到等待态(允许新人加入; 不关闭避免房主落空)
+     *   3. 已结束的房间 — 啥也不做
+     */
     @Transactional
     public Map<String, Object> leaveRoom(Long userId, String roomCode) {
         if (roomCode == null || roomCode.isBlank()) return Map.of("ok", true);
         GomokuRoom room = roomRepo.findByRoomCode(roomCode.trim().toUpperCase()).orElse(null);
         if (room == null) return Map.of("ok", true);
-        if (room.getStatus() == 1 && userId.equals(room.getCreatorId()) && userId.equals(room.getBlackUserId())) {
-            // 房主离开 → 关闭房间
+        if (room.getStatus() != 1) return Map.of("ok", true);
+
+        boolean isCreator = userId.equals(room.getCreatorId());
+        boolean isBlack = userId.equals(room.getBlackUserId());
+        boolean isWhite = userId.equals(room.getWhiteUserId());
+
+        if (isCreator && isBlack) {
+            // 房主/黑方离开 → 关闭
             room.setStatus(2);
-            room.setWinnerColor(0);
+            room.setWinnerColor(2); // 白方胜
+            room.setUpdateTime(LocalDateTime.now());
+        } else if (isWhite) {
+            // 白方离开 → 回到等待态, 清掉 whiteUserId 让新人能补位
+            room.setWhiteUserId(null);
             room.setUpdateTime(LocalDateTime.now());
         }
         return Map.of("ok", true);
@@ -162,13 +179,17 @@ public class GomokuService {
         return toState(room, userId, sinceVersion);
     }
 
-    /** 大厅列表: 等待中的房间(供加入) */
+    /** 大厅列表: 等待中的房间(供加入) — 已鉴权, 过滤掉当前用户自己的房间 */
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> listWaiting() {
+    public List<Map<String, Object>> listWaiting(Long currentUserId) {
         return roomRepo.findByStatusInOrderByIdDesc(
                 java.util.List.of(0),
                 org.springframework.data.domain.PageRequest.of(0, 30)
-        ).stream().map(r -> toState(r, null, null)).toList();
+        ).stream()
+                // 不显示当前用户自己创建的房间(避免用户在大厅看到自己的房间然后再加入)
+                .filter(r -> currentUserId == null || !currentUserId.equals(r.getBlackUserId()))
+                .map(r -> toState(r, currentUserId, null))
+                .toList();
     }
 
     /** 定期清理超时房间(可挂定时任务, 本期先手动调用) */
@@ -215,7 +236,7 @@ public class GomokuService {
             for (int[] p : moves) {
                 if (p != null && p.length >= 3
                         && GomokuRules.inBounds(board, p[0], p[1])
-                        && p[2] == GomokuRules.BLACK || p[2] == GomokuRules.WHITE) {
+                        && (p[2] == GomokuRules.BLACK || p[2] == GomokuRules.WHITE)) {
                     board[p[0]][p[1]] = p[2];
                 }
             }

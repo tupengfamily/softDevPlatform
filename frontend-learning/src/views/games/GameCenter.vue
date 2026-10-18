@@ -276,7 +276,7 @@ onMounted(load)
         <!-- 信息区 -->
         <div class="gcard-body">
           <div class="gcard-name">
-            <h3>{{ card.name }}</h3>
+            <h3>{{ card.nameKey ? $t(card.nameKey) : card.name }}</h3>
             <el-icon class="go-arrow"><ArrowRight /></el-icon>
           </div>
           <p class="gcard-desc">{{ $t(card.descKey) }}</p>

@@ -332,14 +332,24 @@ function flashWin () {
 // ==================== 战绩上报 ====================
 async function recordResult (result) {
   const diffCode = { easy: 0, normal: 1, hard: 2 }
+  // 用当前 history 的时间戳之和作为总用时(避免引入新 ref)
+  let secs = 0
+  for (const h of history.value) secs += (h.t || 0)
+  // 简化: 用 history 长度推算近似用时(秒/回合 ≈ 8s)
+  const playSeconds = history.value.length * 8
   try {
-    await saveGameScore({
-      gameCode: 'guess',
+    await saveGameScore('guess', {
       score: result === 'win' ? Math.max(100, 1000 - (history.value.length - 1) * 80) : 0,
       maxTile: diffCode[difficulty.value] ?? 0,
       moves: history.value.length,
-      playSeconds: 0,
-      finished: 1
+      playSeconds,
+      finished: result === 'win' ? 4 : 5,
+      extra: JSON.stringify({
+        difficulty: difficulty.value,
+        length: length.value,
+        attempts: history.value.length,
+        result
+      })
     })
   } catch (e) { /* 静默 */ }
 }

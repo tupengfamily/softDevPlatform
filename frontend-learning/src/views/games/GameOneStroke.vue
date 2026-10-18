@@ -151,7 +151,6 @@ const hintsLeft = ref(DIFFICULTY.easy.maxHints)
 const elapsedSec = ref(0)
 const over = ref(false)
 const showRules = ref(false)
-const currentSolution = ref(null)
 const walking = computed(() => walked.value.length > 0 && !over.value)
 const currentNodeId = computed(() => walked.value.length ? walked.value[walked.value.length - 1].nodeId : null)
 const usedEdgeCount = computed(() => walked.value.length ? walked.value.length : 0)
@@ -339,10 +338,11 @@ watch(difficulty, (code) => {
 onMounted(() => {
   hintsLeft.value = DIFFICULTY[difficulty.value].maxHints
   startTimer()
-  // 静默诊断: 此关卡若不可解, 后台 warn
-  const info = analyze(currentLevel.value.nodes, currentLevel.value.edges)
-  if (!info.solvable) console.warn('[oneStroke] current level is unsolvable!')
-  currentSolution.value = findEulerPath(currentLevel.value.nodes, currentLevel.value.edges, currentLevel.value.nodes[0].id)
+  // 开发期诊断: 关卡若不可解, 后台 warn (生产构建会被移除)
+  if (import.meta.env.DEV) {
+    const info = analyze(currentLevel.value.nodes, currentLevel.value.edges)
+    if (!info.solvable) console.warn('[oneStroke] current level is unsolvable!')
+  }
 })
 onBeforeUnmount(() => {
   stopTimer()

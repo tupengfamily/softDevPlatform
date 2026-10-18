@@ -19,7 +19,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { BLACK, EMPTY, SIZE, WHITE, checkRenju, cloneBoard, findWinLine, makeBoard, opposite, pickMove } from '../../utils/gomoku'
 import {
-  createGomokuRoom, getGomokuState, joinGomokuRoom, leaveGomokuRoom, placeGomokuMove
+  createGomokuRoom, getGomokuState, joinGomokuRoom, leaveGomokuRoom, listGomokuRooms, placeGomokuMove
 } from '../../api/gomoku'
 import { confirmOngoingGame, hasOngoingGame } from '../../utils/gameConfirm'
 

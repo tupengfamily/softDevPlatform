@@ -28,11 +28,13 @@ public class GomokuController {
 
     @Autowired private GomokuService gomokuService;
 
-    /** 创建房间(boardSize 可选, 默认 15) */
+    /** 创建房间(boardSize 可选, 默认 15; 限定白名单 13/15/19) */
     @PostMapping
     public ResponseEntity<?> create(@RequestBody(required = false) Map<String, Object> body,
                                     @CurrentUser Long userId) {
         Integer size = body == null ? null : (body.get("boardSize") instanceof Number n ? n.intValue() : null);
+        // boardSize 白名单: 13 / 15 / 19; 其他值回落 15
+        if (size != null && size != 13 && size != 15 && size != 19) size = 15;
         Map<String, Object> data = gomokuService.createRoom(userId, size);
         return Result.created("房间已创建", data);
     }
@@ -75,10 +77,10 @@ public class GomokuController {
         return Result.ok(data);
     }
 
-    /** 大厅列表: 等待中的房间 */
+    /** 大厅列表: 等待中的房间(任意登录用户可看; 房主可撤回待加入前隐藏) */
     @GetMapping
-    public ResponseEntity<?> listWaiting() {
-        return Result.ok(gomokuService.listWaiting());
+    public ResponseEntity<?> listWaiting(@CurrentUser Long userId) {
+        return Result.ok(gomokuService.listWaiting(userId));
     }
 
     private Integer intOrNull(Object o) {

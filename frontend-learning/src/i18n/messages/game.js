@@ -300,7 +300,8 @@ export default {
     'gameHistory.extMode': '模式 {v}',
     'gameHistory.extAi': 'AI {v}',
     'gameHistory.extLevel': '关卡 {v}',
-    'gameHistory.extStreak': '连胜 {n}'
+    'gameHistory.extStreak': '连胜 {n}',
+    'gameHistory.dash': '—'
   },
   'en-US': {
     // ===== Menu =====
@@ -602,6 +603,7 @@ export default {
     'gameHistory.extMode': 'Mode {v}',
     'gameHistory.extAi': 'AI {v}',
     'gameHistory.extLevel': 'Level {v}',
-    'gameHistory.extStreak': '{n} streak'
+    'gameHistory.extStreak': '{n} streak',
+    'gameHistory.dash': '—'
   }
 }
