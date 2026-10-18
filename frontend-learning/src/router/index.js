@@ -117,6 +117,30 @@ const routes = [
         meta: { title: '关于', titleKey: 'nav.about', icon: 'InfoFilled' }
       },
       {
+        path: 'games',
+        name: 'GameCenter',
+        component: () => import('../views/games/GameCenter.vue'),
+        meta: { title: '游戏', titleKey: 'nav.games', icon: 'Grid' }
+      },
+      {
+        path: 'games/2048',
+        name: 'Game2048',
+        component: () => import('../views/games/Game2048.vue'),
+        meta: { title: '2048', titleKey: 'nav.game2048', icon: 'Aim' }
+      },
+      {
+        path: 'games/gomoku',
+        name: 'GameGomoku',
+        component: () => import('../views/games/GameGomoku.vue'),
+        meta: { title: '五子棋', titleKey: 'gomoku.title', icon: 'Grid' }
+      },
+      {
+        path: 'games/guess',
+        name: 'GameGuessNumber',
+        component: () => import('../views/games/GameGuessNumber.vue'),
+        meta: { title: '猜数字', titleKey: 'guess.title', icon: 'MagicStick' }
+      },
+      {
         path: 'operation',
         component: () => import('../views/operation/OperationLayout.vue'),
         meta: { title: '运营管理', titleKey: 'nav.operation', icon: 'TrendCharts', roles: ['ADMIN'] },
