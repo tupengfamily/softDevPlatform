@@ -3,6 +3,7 @@ package com.learning.springboot.repository;
 import com.learning.springboot.entity.LessonProgress;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,5 +28,15 @@ public interface LessonProgressRepository extends JpaRepository<LessonProgress, 
     void deleteByUserIdAndLessonId(Long userId, Long lessonId);
 
     /** 批量删除某些课时的全部进度(删除章节时级联清理) */
-    void deleteByLessonIdIn(java.util.Collection<Long> lessonIds);
+    void deleteByLessonIdIn(Collection<Long> lessonIds);
+
+    /**
+     * 限定到某批课时内的全部进度(看板统计用,避免全表加载)
+     * <p>
+     * 配合 idx_lesson 索引,即使总进度表很大,按 lesson_id IN (...) 也能快速命中。
+     */
+    List<LessonProgress> findByLessonIdIn(Collection<Long> lessonIds);
+
+    /** 某用户限定到某批课时的进度 */
+    List<LessonProgress> findByUserIdAndLessonIdIn(Long userId, Collection<Long> lessonIds);
 }

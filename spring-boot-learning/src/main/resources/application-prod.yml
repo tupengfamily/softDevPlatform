@@ -1,0 +1,12 @@
+# 生产环境配置(profile=prod 时加载)
+# 与 application.yml 互补 — 这里只覆盖 prod 专属的值
+spring:
+  jpa:
+    show-sql: false           # 生产关闭,避免 schema/数据泄漏到日志
+    properties:
+      hibernate:
+        format_sql: false
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: WARN     # 同时关掉 Hibernate SQL DEBUG 日志

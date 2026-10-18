@@ -25,4 +25,16 @@ public interface LearningLessonRepository extends JpaRepository<LearningLesson, 
 
     /** 删除章节时级联删除课时 */
     void deleteByChapterId(Long chapterId);
+
+    /**
+     * 指定 subject 内全部课时(已按 chapterNo, lessonNo 排序;只含未归档章节)
+     * <p>
+     * 跨章节的 prev/next 导航用 — 替代 N+1 的循环按 chapter 取 lesson
+     */
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT l FROM LearningLesson l, LearningChapter c " +
+        "WHERE l.chapterId = c.id AND c.subjectId = :subjectId AND c.archived = false " +
+        "ORDER BY c.chapterNo ASC, l.lessonNo ASC"
+    )
+    List<LearningLesson> findBySubjectIdOrdered(Long subjectId);
 }

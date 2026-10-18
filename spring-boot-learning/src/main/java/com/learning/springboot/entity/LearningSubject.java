@@ -5,7 +5,13 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+
+import java.time.LocalDateTime;
 
 /**
  * 学习科目(语言)实体 — 通用学习平台的"课程维度"
@@ -15,7 +21,15 @@ import jakarta.persistence.Table;
  * 启用的科目会出现在学习中心顶部切换与学习看板的维度筛选中。
  */
 @Entity
-@Table(name = "t_learning_subject")
+@Table(name = "t_learning_subject",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_code", columnNames = "code")
+    },
+    indexes = {
+        // 学习中心取 (enabled, sort_no) 排序列表
+        @Index(name = "idx_enabled_sort", columnList = "enabled, sort_no")
+    }
+)
 public class LearningSubject {
 
     @Id
@@ -46,7 +60,30 @@ public class LearningSubject {
     @Column(nullable = false)
     private Boolean builtin = false;
 
+    /** 创建时间 */
+    @Column(name = "create_time", nullable = false, updatable = false)
+    private LocalDateTime createTime;
+
+    /** 最后更新时间 */
+    @Column(name = "update_time", nullable = false)
+    private LocalDateTime updateTime;
+
     public LearningSubject() {}
+
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createTime == null) createTime = now;
+        updateTime = now;
+        if (enabled == null) enabled = true;
+        if (builtin == null) builtin = false;
+        if (sortNo == null) sortNo = 0;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updateTime = LocalDateTime.now();
+    }
 
     // ============== Getter / Setter ==============
 
@@ -70,6 +107,12 @@ public class LearningSubject {
 
     public Boolean getBuiltin() { return builtin; }
     public void setBuiltin(Boolean builtin) { this.builtin = builtin; }
+
+    public LocalDateTime getCreateTime() { return createTime; }
+    public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
+
+    public LocalDateTime getUpdateTime() { return updateTime; }
+    public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
 
     @Override
     public String toString() {

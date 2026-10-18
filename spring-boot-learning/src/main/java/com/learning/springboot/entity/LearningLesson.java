@@ -5,7 +5,12 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+
+import java.time.LocalDateTime;
 
 /**
  * 课时实体(课程树的叶子节点,即"一节课")
@@ -14,7 +19,12 @@ import jakarta.persistence.Table;
  * "## " 开头为小标题, "- " 开头为列表项, 其余为段落。
  */
 @Entity
-@Table(name = "t_learning_lesson")
+@Table(name = "t_learning_lesson", indexes = {
+    // 章节内课时排序: WHERE chapter_id=? ORDER BY lesson_no
+    @Index(name = "idx_chapter_lessonNo", columnList = "chapter_id, lesson_no"),
+    // 全量课程树按章节排序
+    @Index(name = "idx_chapter", columnList = "chapter_id")
+})
 public class LearningLesson {
 
     @Id
@@ -37,13 +47,21 @@ public class LearningLesson {
     @Column(length = 300)
     private String summary;
 
-    /** 课时正文(轻量 Markdown) */
+    /** 课时正文(轻量 Markdown,中文为主) */
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
+
+    /** 课时英文正文(可为空;为空时前端回落到 content) */
+    @Column(name = "content_en", columnDefinition = "TEXT")
+    private String contentEn;
 
     /** 示例代码(可为空) */
     @Column(columnDefinition = "TEXT")
     private String codeExample;
+
+    /** 示例代码英文版(可为空;前端按 locale 切换) */
+    @Column(name = "code_example_en", columnDefinition = "TEXT")
+    private String codeExampleEn;
 
     /** 示例代码类型: java(Java 沙箱) / sql(SQL 沙箱), 默认 java */
     private String codeType;
@@ -56,7 +74,27 @@ public class LearningLesson {
     @Column(name = "duration_minutes", nullable = false)
     private Integer durationMinutes = 15;
 
+    /** 创建时间 */
+    @Column(name = "create_time", nullable = false, updatable = false)
+    private LocalDateTime createTime;
+
+    /** 最后更新时间(用于审计) */
+    @Column(name = "update_time", nullable = false)
+    private LocalDateTime updateTime;
+
     public LearningLesson() {}
+
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createTime == null) createTime = now;
+        updateTime = now;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updateTime = LocalDateTime.now();
+    }
 
     // ============== Getter / Setter ==============
 
@@ -78,8 +116,14 @@ public class LearningLesson {
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
 
+    public String getContentEn() { return contentEn; }
+    public void setContentEn(String contentEn) { this.contentEn = contentEn; }
+
     public String getCodeExample() { return codeExample; }
     public void setCodeExample(String codeExample) { this.codeExample = codeExample; }
+
+    public String getCodeExampleEn() { return codeExampleEn; }
+    public void setCodeExampleEn(String codeExampleEn) { this.codeExampleEn = codeExampleEn; }
     public String getCodeType() { return codeType; }
     public void setCodeType(String codeType) { this.codeType = codeType; }
 
@@ -88,6 +132,12 @@ public class LearningLesson {
 
     public Integer getDurationMinutes() { return durationMinutes; }
     public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
+
+    public LocalDateTime getCreateTime() { return createTime; }
+    public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
+
+    public LocalDateTime getUpdateTime() { return updateTime; }
+    public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
 
     @Override
     public String toString() {

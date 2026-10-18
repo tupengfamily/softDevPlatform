@@ -16,9 +16,11 @@ import { renderMarkdown } from '../utils/markdown'
 import { renderHighlighted } from '../utils/highlight'
 // 引入 highlight.js 主题 CSS(github 浅色主题, 避免全黑对眼睛刺激)
 import 'highlight.js/styles/github.css'
-import CodeEditor from '../components/CodeEditor.vue'
-import SqlConsole from '../components/SqlConsole.vue'
-import SupplementTree from '../components/SupplementTree.vue'
+// CodeEditor 含 monaco-editor,体积 ~3MB,改为异步加载避免首屏阻塞
+import { defineAsyncComponent } from 'vue'
+const CodeEditor = defineAsyncComponent(() => import('../components/CodeEditor.vue'))
+const SqlConsole = defineAsyncComponent(() => import('../components/SqlConsole.vue'))
+const SupplementTree = defineAsyncComponent(() => import('../components/SupplementTree.vue'))
 
 const route = useRoute()
 const router = useRouter()

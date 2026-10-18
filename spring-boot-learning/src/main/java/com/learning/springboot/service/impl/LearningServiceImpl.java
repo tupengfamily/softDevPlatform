@@ -177,6 +177,12 @@ public class LearningServiceImpl implements LearningService {
         LearningChapter chapter = chapterRepository.findById(lesson.getChapterId())
             .orElseThrow(() -> new NoSuchElementException("章节不存在: " + lesson.getChapterId()));
 
+        // 服务端强制 locked 校验: 即便前端只展示锁定, 用户拼 id 也能拿到内容时也不能绕过
+        // 未登录访问默认放行(游客浏览);登录用户必须满足 prerequisites
+        if (userId != null && isChapterLocked(chapter.getId(), userId)) {
+            throw new BusinessException(403, "章节未解锁, 请先完成前置: " + chapter.getTitle());
+        }
+
         LearningVO.LessonDetailVO vo = new LearningVO.LessonDetailVO();
         vo.id = lesson.getId();
         vo.chapterId = lesson.getChapterId();
@@ -195,20 +201,8 @@ public class LearningServiceImpl implements LearningService {
         vo.durationMinutes = lesson.getDurationMinutes();
         vo.learned = userId != null && progressRepository.existsByUserIdAndLessonId(userId, lessonId);
 
-        // 前后课时导航:按 "章节 chapterNo + 课时 lessonNo" 的全局学习序列定位
-        // (同一科目内导航,避免跳到其他语言的课程)
-        Map<Long, Integer> chapterNoById = new HashMap<>();
-        List<LearningChapter> navChapters = chaptersOf(chapter.getSubjectId());
-        for (LearningChapter c : navChapters) {
-            chapterNoById.put(c.getId(), c.getChapterNo());
-        }
-        List<LearningLesson> ordered = new ArrayList<>();
-        for (LearningChapter c : navChapters) {
-            ordered.addAll(lessonRepository.findByChapterIdOrderByLessonNoAsc(c.getId()));
-        }
-        ordered.sort(Comparator
-            .comparingInt((LearningLesson l) -> chapterNoById.getOrDefault(l.getChapterId(), 0))
-            .thenComparingInt(LearningLesson::getLessonNo));
+        // 前后课时导航:一次 SQL 取该 subject 内全部已排序的课时(替代原 N+1 的逐章拉)
+        List<LearningLesson> ordered = lessonRepository.findBySubjectIdOrdered(chapter.getSubjectId());
         int idx = -1;
         for (int i = 0; i < ordered.size(); i++) {
             if (ordered.get(i).getId().equals(lessonId)) { idx = i; break; }
@@ -349,9 +343,14 @@ public class LearningServiceImpl implements LearningService {
         }
         long totalLessons = scopeLessonIds.size();
 
-        // 一次取全部进度并按用户分组,避免逐个用户查库(N+1)
-        Map<Long, List<LessonProgress>> progressByUser = progressRepository.findAll().stream()
-            .collect(Collectors.groupingBy(LessonProgress::getUserId));
+        // 限定到本次统计范围的进度(避免全表加载);按用户分组
+        Map<Long, List<LessonProgress>> progressByUser;
+        if (scopeLessonIds.isEmpty()) {
+            progressByUser = Map.of();
+        } else {
+            progressByUser = progressRepository.findByLessonIdIn(scopeLessonIds).stream()
+                .collect(Collectors.groupingBy(LessonProgress::getUserId));
+        }
 
         List<User> users;
         if (admin) {
@@ -489,8 +488,8 @@ public class LearningServiceImpl implements LearningService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void savePreferredLocale(Long userId, String locale) {
-        if (locale != null && !locale.equals("zh-CN") && !locale.equals("en-US")) {
-            throw new IllegalArgumentException("不支持的界面语言: " + locale);
+        if (locale != null && !locale.isBlank() && !com.learning.springboot.common.I18nConstants.SUPPORTED_LOCALES.contains(locale)) {
+            throw new IllegalArgumentException("不支持的界面语言: " + locale + " (支持: " + I18nConstants.SUPPORTED_LOCALES + ")");
         }
         UserPreference pref = preferenceRepository.findByUserId(userId)
             .orElseGet(() -> new UserPreference(userId, null));
@@ -509,6 +508,43 @@ public class LearningServiceImpl implements LearningService {
             ids.add(p.getLessonId());
         }
         return ids;
+    }
+
+    /**
+     * 章节是否对当前用户锁定(prerequisites 中有未完成的章节)
+     * <p>
+     * 与 getCurriculum 的 locked 计算语义保持一致:
+     *   - 无 prerequisites → 解锁
+     *   - prerequisites 是该 chapter 本身的 id → 忽略(防自引用死锁)
+     *   - prerequisites 章节下所有课时都已完成 → 解锁
+     *   - 否则 → 锁定
+     */
+    private boolean isChapterLocked(Long chapterId, Long userId) {
+        LearningChapter chapter = chapterRepository.findById(chapterId).orElse(null);
+        if (chapter == null) return false;
+        String raw = chapter.getPrerequisites();
+        if (raw == null || raw.isBlank()) return false;
+
+        List<Long> prereqIds;
+        try {
+            prereqIds = objectMapper.readValue(raw, new TypeReference<List<Long>>() {});
+        } catch (Exception e) {
+            log.warn("解析 prerequisites 失败, chapterId={}, raw={}", chapterId, raw);
+            return false;
+        }
+        if (prereqIds == null || prereqIds.isEmpty()) return false;
+
+        Set<Long> learnedIds = findLearnedIds(userId);
+        // 学完 = prereq 章节下所有课时都已完成
+        for (Long prereqId : prereqIds) {
+            if (prereqId.equals(chapterId)) continue;  // 自引用忽略
+            List<LearningLesson> lessons = lessonRepository.findByChapterIdOrderByLessonNoAsc(prereqId);
+            if (lessons.isEmpty()) continue;            // 空章节视为已完成(避免死锁)
+            for (LearningLesson l : lessons) {
+                if (!learnedIds.contains(l.getId())) return true;
+            }
+        }
+        return false;
     }
 
     /** 科目筛选下的章节(subjectId 为空=全部);归档章节不进入课程树与统计 */

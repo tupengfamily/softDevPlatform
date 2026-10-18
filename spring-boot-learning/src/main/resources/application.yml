@@ -59,11 +59,12 @@ spring:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
     hibernate:
       ddl-auto: update          # 首次启动建表,后续启动保留数据
-    show-sql: true              # 打印 SQL
+    # show-sql 仅 dev 启用(prod 由 application-prod.yml 关闭,避免泄漏 schema)
+    show-sql: ${JPA_SHOW_SQL:true}
     open-in-view: false         # 关闭 OSIV,避免事务边界混淆
     properties:
       hibernate:
-        format_sql: true
+        format_sql: ${JPA_FORMAT_SQL:true}
         jdbc:
           batch_size: 30
         order_inserts: true
@@ -106,3 +107,11 @@ onlyoffice:
   jwt-secret: ${OO_JWT_SECRET:}
   jwt-enabled: ${OO_JWT_ENABLED:true}
   jwt-header: ${OO_JWT_HEADER:Authorization}
+
+# ============== 缓存 (Caffeine 本地内存) ==============
+# 读多写少的接口(字典/课程树/系统设置)在 service 方法上用 @Cacheable
+# 多实例部署需换成 Redis; 单实例 Caffeine 性能最优
+spring.cache:
+  type: caffeine
+  caffeine:
+    spec: maximumSize=2000,expireAfterWrite=5m,recordStats

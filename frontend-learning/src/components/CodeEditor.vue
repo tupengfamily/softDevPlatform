@@ -1,11 +1,10 @@
 <script setup>
 // Java 代码编辑器(基于 Monaco Editor / VS Code 内核)
 // 用法: <CodeEditor v-model="code" @run="onRun" :markers="markers" />
+//
+// 性能优化: Monaco 体积 ~3MB,改用异步 import 避免首屏阻塞
+// 父组件也应通过 defineAsyncComponent 异步加载本组件,效果更好
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import * as monaco from 'monaco-editor'
-
-// 配置 worker: Monaco 在浏览器需要 editor worker 来支持 IntelliSense / 格式化等
-import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -15,23 +14,28 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue', 'run', 'reset'])
 
-// 全局 Monaco 环境只配置一次
-if (typeof window !== 'undefined' && !window.__MONACO_ENV__) {
-  self.MonacoEnvironment = {
-    getWorker() {
-      // Java 等基础语言不需要 worker; 统一返回 editor worker
-      return new EditorWorker()
-    }
-  }
-  window.__MONACO_ENV__ = true
-}
-
 const editorRef = ref(null)
 let editor = null
+let monaco = null   // 异步 import 后的 monaco 实例
 let suppressNextChange = false
 
-const initEditor = () => {
+const initEditor = async () => {
   if (!editorRef.value) return
+  // 异步加载 Monaco(~3MB)与 worker,避免首屏阻塞
+  if (!monaco) {
+    const [m, workerMod] = await Promise.all([
+      import('monaco-editor'),
+      import('monaco-editor/esm/vs/editor/editor.worker?worker')
+    ])
+    monaco = m
+    if (typeof window !== 'undefined' && !window.__MONACO_ENV__) {
+      const EditorWorker = workerMod.default
+      self.MonacoEnvironment = {
+        getWorker() { return new EditorWorker() }
+      }
+      window.__MONACO_ENV__ = true
+    }
+  }
   editor = monaco.editor.create(editorRef.value, {
     value: props.modelValue,
     language: props.language,

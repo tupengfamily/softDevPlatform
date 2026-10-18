@@ -5,7 +5,12 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+
+import java.time.LocalDateTime;
 
 /**
  * 学习章节实体(课程树的中间层: 阶段 -> 章节 -> 课时)
@@ -14,7 +19,12 @@ import jakarta.persistence.Table;
  * 一个章节包含多个课时(LearningLesson)。
  */
 @Entity
-@Table(name = "t_learning_chapter")
+@Table(name = "t_learning_chapter", indexes = {
+    // 课程树按 (subject_id, stage_no, chapter_no) 排序: 学习中心/看板
+    @Index(name = "idx_subject_stage_chapter", columnList = "subject_id, stage_no, chapter_no"),
+    // 按科目取章节
+    @Index(name = "idx_subject", columnList = "subject_id")
+})
 public class LearningChapter {
 
     @Id
@@ -68,7 +78,28 @@ public class LearningChapter {
     @Column(name = "prerequisites", columnDefinition = "text")
     private String prerequisites;
 
+    /** 创建时间 */
+    @Column(name = "create_time", nullable = false, updatable = false)
+    private LocalDateTime createTime;
+
+    /** 最后更新时间 */
+    @Column(name = "update_time", nullable = false)
+    private LocalDateTime updateTime;
+
     public LearningChapter() {}
+
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createTime == null) createTime = now;
+        updateTime = now;
+        if (archived == null) archived = false;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updateTime = LocalDateTime.now();
+    }
 
     // ============== Getter / Setter ==============
 
@@ -104,6 +135,12 @@ public class LearningChapter {
 
     public String getPrerequisites() { return prerequisites; }
     public void setPrerequisites(String prerequisites) { this.prerequisites = prerequisites; }
+
+    public LocalDateTime getCreateTime() { return createTime; }
+    public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
+
+    public LocalDateTime getUpdateTime() { return updateTime; }
+    public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
 
     @Override
     public String toString() {

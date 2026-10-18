@@ -33,17 +33,27 @@ public class JwtUtil {
     @Autowired
     private JwtProperties props;
 
+    /** 当前 profile,用于判断是否要求 JWT_SECRET 必须显式配置 */
+    @org.springframework.beans.factory.annotation.Value("${spring.profiles.active:dev}")
+    private String activeProfile;
+
     private SecretKey key;
 
     @PostConstruct
     public void init() {
         String secret = props.getSecret();
+        boolean requireExplicit = "prod".equalsIgnoreCase(activeProfile) || "production".equalsIgnoreCase(activeProfile);
         if (secret == null || secret.isBlank()) {
-            // JWT_SECRET 未配置: 生成临时随机密钥(每次重启变化, 仅限本地开发)
+            if (requireExplicit) {
+                // 生产环境强制要求 JWT_SECRET — 启动失败
+                throw new IllegalStateException(
+                    "生产环境必须显式配置 JWT_SECRET 环境变量(Base64 编码且 >= 32 字节), 当前 profile=" + activeProfile);
+            }
+            // 本地开发: 临时随机密钥(每次重启变化)
             byte[] raw = new byte[32];
             new java.security.SecureRandom().nextBytes(raw);
             secret = Base64.getEncoder().encodeToString(raw);
-            log.warn("JWT_SECRET 未配置,已生成临时随机密钥,重启后 token 失效,生产环境务必配置 JWT_SECRET");
+            log.warn("[JWT] 未配置 JWT_SECRET, 已生成临时随机密钥 (重启后所有 token 失效; 仅限 dev profile)");
         }
         try {
             byte[] bytes = Base64.getDecoder().decode(secret);

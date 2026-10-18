@@ -5,6 +5,7 @@ import com.learning.springboot.config.OnlyOfficeProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.io.File;
@@ -22,6 +23,7 @@ import java.io.File;
 @SpringBootApplication
 @EnableConfigurationProperties({JwtProperties.class, OnlyOfficeProperties.class})
 @EnableScheduling   // 启用定时任务(操作日志超期清理等)
+@EnableCaching      // 启用 Caffeine 本地缓存(@Cacheable/@CacheEvict)
 public class SpringBootLearningApplication {
 
     public static void main(String[] args) {

@@ -56,6 +56,16 @@
             <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
 
+        <!-- 缓存: 注解式缓存 (@Cacheable / @CacheEvict),用 Caffeine 本地内存实现 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- SQLite 驱动: 文件型数据库,持久化到 ./data/admin.db -->
         <dependency>
             <groupId>org.xerial</groupId>
