@@ -141,6 +141,24 @@ const routes = [
         meta: { title: '猜数字', titleKey: 'guess.title', icon: 'MagicStick' }
       },
       {
+        path: 'games/sudoku',
+        name: 'GameSudoku',
+        component: () => import('../views/games/GameSudoku.vue'),
+        meta: { title: '数独', titleKey: 'sudoku.title', icon: 'Grid' }
+      },
+      {
+        path: 'games/one-stroke',
+        name: 'GameOneStroke',
+        component: () => import('../views/games/GameOneStroke.vue'),
+        meta: { title: '一笔画完', titleKey: 'oneStroke.title', icon: 'EditPen' }
+      },
+      {
+        path: 'games/history',
+        name: 'GameHistory',
+        component: () => import('../views/games/GameHistory.vue'),
+        meta: { title: '对局记录', titleKey: 'gameHistory.title', icon: 'DataLine' }
+      },
+      {
         path: 'operation',
         component: () => import('../views/operation/OperationLayout.vue'),
         meta: { title: '运营管理', titleKey: 'nav.operation', icon: 'TrendCharts', roles: ['ADMIN'] },

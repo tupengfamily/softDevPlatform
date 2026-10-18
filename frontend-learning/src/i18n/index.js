@@ -7,6 +7,7 @@ import admin from './messages/admin'
 import social from './messages/social'
 import misc from './messages/misc'
 import doc from './messages/doc'
+import game from './messages/game'
 
 /**
  * 国际化(i18n)入口 — 中文(zh-CN)/英文(en-US)双语
@@ -35,7 +36,7 @@ function merge(...parts) {
   return { 'zh-CN': zh, 'en-US': en }
 }
 
-export const messages = merge(common, learning, lesson, system, admin, social, misc, doc)
+export const messages = merge(common, learning, lesson, system, admin, social, misc, doc, game)
 
 export const LOCALE_KEY = 'appLocale'
 

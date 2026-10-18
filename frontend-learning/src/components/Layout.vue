@@ -123,10 +123,16 @@ watch(() => route.path, () => { if (isMobile.value) drawerOpen.value = false })
 
 // 菜单分组: 学习 -> 交流 -> 个人中心 -> 系统管理(仅管理员) -> 其他
 // 标题存 i18n key(渲染时 $t 翻译);分组展开状态用 key 做标识,切换语言不丢记忆
+// 收起态: 展开组直接列二级图标, 折叠组显示一级图标 + hover popup
+// 图标约定: 31 个 icon 互不重复(收起态只显示图标, 雷同就无法分辨), 同类语义刻意错开:
+//   用户管理 User(线框人) / 角色管理 Stamp(印章=身份授权) / 个人中心 Avatar(头像)
+//   我的文档 Folder(文件夹) / 操作日志 Tickets(票据) / 页面清单 Grid(网格)
+//   学习配置 SetUp(调节滑块) / 系统设置 Tools(扳手) / 系统管理 Setting(齿轮)
 const menuGroups = computed(() => {
   const groups = [
     {
       titleKey: 'layout.group.learning',
+      icon: 'School',
       items: [
         { path: '/learning', titleKey: 'nav.learningCenter', icon: 'Reading' },
         { path: '/board',    titleKey: 'nav.learningBoard', icon: 'TrendCharts' }
@@ -134,58 +140,117 @@ const menuGroups = computed(() => {
     },
     {
       titleKey: 'layout.group.social',
+      icon: 'ChatLineSquare',
       items: [
-        { path: '/forum', titleKey: 'nav.forum', icon: 'ChatLineRound' }
+        { path: '/forum', titleKey: 'nav.forum', icon: 'ChatDotRound' }
       ]
     },
     {
       titleKey: 'layout.group.personal',
+      icon: 'Avatar',
       items: [
         { path: '/todos',         titleKey: 'nav.todos', icon: 'Memo' },
         { path: '/notifications', titleKey: 'nav.notifications', icon: 'Bell' },
         { path: '/favorites',     titleKey: 'nav.favorites', icon: 'Star' },
         { path: '/wiki',          titleKey: 'nav.wiki', icon: 'Notebook' },
-        { path: '/my-docs',       titleKey: 'nav.myDocs', icon: 'Files' },
-        { path: '/data-transfer', titleKey: 'nav.dataTransfer', icon: 'Download' }
+        { path: '/my-docs',       titleKey: 'nav.myDocs', icon: 'Folder' },
+        { path: '/data-transfer', titleKey: 'nav.dataTransfer', icon: 'Switch' }
+      ]
+    },
+    {
+      // 娱乐板块: 入口指向游戏中心列表页, 具体游戏在 /games/{code}
+      titleKey: 'layout.group.fun',
+      icon: 'Trophy',
+      items: [
+        { path: '/games', titleKey: 'nav.games', icon: 'Aim' }
       ]
     }
   ]
   if (isAdmin.value) {
     groups.push({
       titleKey: 'layout.group.system',
+      icon: 'Setting',
       items: [
-        { path: '/dashboard', titleKey: 'nav.dashboard',   icon: 'DataAnalysis' },
+        { path: '/dashboard', titleKey: 'nav.dashboard',   icon: 'Odometer' },
         { path: '/users',     titleKey: 'nav.users', icon: 'User' },
-        { path: '/roles',     titleKey: 'nav.roles', icon: 'UserFilled' },
+        { path: '/roles',     titleKey: 'nav.roles', icon: 'Stamp' },
         { path: '/dicts',     titleKey: 'nav.dicts', icon: 'Collection' },
-        { path: '/logs',      titleKey: 'nav.logs', icon: 'Document' },
-        { path: '/learning-config', titleKey: 'nav.learningConfig', icon: 'Setting' },
+        { path: '/logs',      titleKey: 'nav.logs', icon: 'Tickets' },
+        { path: '/learning-config', titleKey: 'nav.learningConfig', icon: 'SetUp' },
         { path: '/system-settings', titleKey: 'nav.systemSettings', icon: 'Tools' }
       ]
     })
     // 运营管理独立顶级分组(仅管理员可见, 含 6 个子模块)
     groups.push({
       titleKey: 'layout.group.operation',
+      icon: 'Monitor',
       items: [
-        { path: '/operation/overview',    titleKey: 'opNav.overview',    icon: 'Odometer' },
-        { path: '/operation/pages',       titleKey: 'opNav.pages',       icon: 'Document' },
+        { path: '/operation/overview',    titleKey: 'opNav.overview',    icon: 'DataBoard' },
+        { path: '/operation/pages',       titleKey: 'opNav.pages',       icon: 'Grid' },
         { path: '/operation/user-journey', titleKey: 'opNav.userJourney', icon: 'Connection' },
         { path: '/operation/errors',      titleKey: 'opNav.errors',      icon: 'Warning' },
         { path: '/operation/performance', titleKey: 'opNav.performance', icon: 'Histogram' },
-        { path: '/operation/clients',     titleKey: 'opNav.clients',     icon: 'DataLine' }
+        { path: '/operation/clients',     titleKey: 'opNav.clients',     icon: 'Cellphone' }
       ]
     })
   }
   groups.push({
     titleKey: 'layout.group.other',
+    icon: 'MoreFilled',
     items: [
-      { path: '/releases', titleKey: 'nav.releases', icon: 'Tickets' },
+      { path: '/releases', titleKey: 'nav.releases', icon: 'Promotion' },
       { path: '/feedback', titleKey: 'nav.feedback', icon: 'ChatDotSquare' },
       { path: '/about',    titleKey: 'nav.about',     icon: 'InfoFilled' }
     ]
   })
   return groups
 })
+
+// 收起态 hover 哪个 group(用于 popup 控制)
+// popup 在固定定位下也需要延迟关闭, 否则鼠标从 group 移到 popup 间隙会触发 mouseleave 导致 popup 消失
+const hoveredGroupKey = ref(null)
+let closeTimer = null
+const openGroup = (key) => {
+  if (closeTimer) { clearTimeout(closeTimer); closeTimer = null }
+  hoveredGroupKey.value = key
+  updatePopupPos(key)
+}
+const scheduleClose = () => {
+  if (closeTimer) clearTimeout(closeTimer)
+  closeTimer = setTimeout(() => { hoveredGroupKey.value = null }, 320)
+}
+const cancelClose = () => {
+  if (closeTimer) { clearTimeout(closeTimer); closeTimer = null }
+}
+// 收起态 popup 位置(由 hoveredGroupKey 触发 + ref 拿到 DOM 位置)
+// 用 fixed 定位脱离 .aside 的 overflow:hidden
+// 关键: left 直接贴触发块右边缘(不加间隙), 视觉间距由 .cm-popup::before 透明桥接层撑出来,
+//       这样鼠标从图标块移到弹层时始终落在"同一个 hover 区域"内, 不会中途触发 mouseleave
+const popupPos = ref({ left: '0px', top: '0px' })
+const updatePopupPos = (titleKey) => {
+  const el = groupRefs.value[titleKey]
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  // 垂直方向防溢出: 弹层过高时向上收, 保证底部不出视口
+  const popupH = (menuGroups.value.find(g => g.titleKey === titleKey)?.items.length || 0) * 36 + 44
+  const maxTop = window.innerHeight - popupH - 12
+  const top = Math.max(8, Math.min(rect.top, maxTop))
+  popupPos.value = { left: `${Math.round(rect.right)}px`, top: `${Math.round(top)}px` }
+}
+watch(hoveredGroupKey, (key) => { if (key) updatePopupPos(key) })
+const groupRefs = ref({})
+
+// 收起态二级图标的自定义 tooltip
+// 原生 title 有 1~2s 延迟且样式不可控, 收起态只有图标没有文字, 必须给即时提示
+const tip = ref({ text: '', left: 0, top: 0 })
+const showTip = (text, e) => {
+  const rect = e.currentTarget.getBoundingClientRect()
+  // 贴侧栏右缘弹出(不能只用图标 rect.right: 34px 图标在 56px 侧栏里是居中的, 会压到侧栏内)
+  const asideEl = e.currentTarget.closest('.aside')
+  const left = asideEl ? asideEl.getBoundingClientRect().right + 8 : rect.right + 8
+  tip.value = { text, left: Math.round(left), top: Math.round(rect.top + rect.height / 2) }
+}
+const hideTip = () => { tip.value = { text: '', left: 0, top: 0 } }
 
 // 分组展开/收起:按"用户 + 分组 key"持久化到 localStorage(刷新/重登都保留用户的选择)
 // key 用 titleKey(稳定,不受界面语言影响);解析失败兜底 []
@@ -227,9 +292,16 @@ watch(() => route.path, (p) => {
 const activePath = computed(() => {
   if (route.path.startsWith('/learning/')) return '/learning'
   if (route.path.startsWith('/forum/')) return '/forum'
+  // 具体游戏页(/games/2048)高亮「游戏」入口
+  if (route.path.startsWith('/games/')) return '/games'
   return route.path
 })
 const goTo = (path) => router.push(path)
+
+// 是否命中菜单项(精准匹配,用于自定义二级菜单 active 态)
+const isActivePath = (p) => activePath.value === p
+// 是否当前 group 内有激活项(用于收起态一级图标 active 态高亮)
+const isActiveGroup = (group) => group.items.some(it => isActivePath(it.path))
 
 // i18n 文案可能内嵌 HTML(如 <b>/<a>),经 sanitizeHtml 消毒后再交给 v-html
 const tHtml = (key) => sanitizeHtml(t(key))
@@ -409,9 +481,11 @@ const onCommand = async (cmd) => {
       </router-link>
 
       <el-scrollbar class="menu-scroll" role="navigation" :aria-label="$t('layout.a11y.mainNav')">
+        <!-- ============ 展开态: 一级标题(图标+文字) + 二级 el-menu-item ============ -->
         <el-menu
+          v-show="!menuCollapsed"
           :default-active="activePath"
-          :collapse="menuCollapsed"
+          :collapse="false"
           :collapse-transition="false"
           class="aside-menu"
           background-color="transparent"
@@ -421,7 +495,6 @@ const onCommand = async (cmd) => {
         >
           <template v-for="group in menuGroups" :key="group.titleKey">
             <div
-              v-show="!menuCollapsed"
               class="group-title"
               :class="{ collapsed: isGroupCollapsed(group.titleKey) }"
               role="button"
@@ -429,10 +502,11 @@ const onCommand = async (cmd) => {
               @click="toggleGroup(group.titleKey)"
               @keydown.enter="toggleGroup(group.titleKey)"
             >
-              <span>{{ $t(group.titleKey) }}</span>
+              <el-icon class="g-icon"><component :is="group.icon" /></el-icon>
+              <span class="g-text">{{ $t(group.titleKey) }}</span>
               <el-icon class="g-arrow"><ArrowDown /></el-icon>
             </div>
-            <template v-if="menuCollapsed || !isGroupCollapsed(group.titleKey)">
+            <template v-if="!isGroupCollapsed(group.titleKey)">
               <el-menu-item
                 v-for="item in group.items"
                 :key="item.path"
@@ -447,6 +521,86 @@ const onCommand = async (cmd) => {
             </template>
           </template>
         </el-menu>
+
+        <!-- ============ 收起态 ============
+             规则: 该组在展开态处于「展开」状态 → 直接列出它的二级菜单图标(省一次 hover);
+                   该组处于「折叠」状态 → 只显示一级分组图标, hover 弹 popup 看二级 -->
+        <ul v-show="menuCollapsed" class="collapsed-menu" role="menu">
+          <template v-for="group in menuGroups" :key="group.titleKey">
+            <!-- 展开组: 直接渲染二级菜单图标 -->
+            <template v-if="!isGroupCollapsed(group.titleKey)">
+              <li
+                v-for="(item, idx) in group.items"
+                :key="item.path"
+                class="cm-row"
+                :class="{ 'cm-group-start': idx === 0 }"
+                role="none"
+              >
+                <router-link
+                  :to="item.path"
+                  class="cm-trigger cm-sub"
+                  :class="{ active: isActivePath(item.path) }"
+                  :title="$t(item.titleKey)"
+                  role="menuitem"
+                  @mouseenter="showTip($t(item.titleKey), $event)"
+                  @mouseleave="hideTip"
+                  @click="hideTip"
+                >
+                  <el-icon :size="18"><component :is="item.icon" /></el-icon>
+                </router-link>
+              </li>
+            </template>
+            <!-- 折叠组: 一级图标块 + hover popup -->
+            <li
+              v-else
+              :ref="el => { if (el) groupRefs[group.titleKey] = el }"
+              class="cm-group cm-group-start"
+              :class="{ active: isActiveGroup(group), hover: hoveredGroupKey === group.titleKey }"
+              role="none"
+              @mouseenter="openGroup(group.titleKey)"
+              @mouseleave="scheduleClose"
+            >
+              <div class="cm-trigger" :title="$t(group.titleKey)" role="menuitem" tabindex="-1">
+                <el-icon :size="20"><component :is="group.icon" /></el-icon>
+              </div>
+            </li>
+          </template>
+          <!-- popup 放循环外, fixed 定位, 跟 hover 状态绑定;同样响应 mouseenter/leave 防止间隙消失 -->
+          <transition name="popper">
+            <div
+              v-show="hoveredGroupKey"
+              class="cm-popup"
+              role="menu"
+              :style="{ left: popupPos.left, top: popupPos.top }"
+              @mouseenter="cancelClose"
+              @mouseleave="scheduleClose"
+            >
+              <template v-if="hoveredGroupKey">
+                <div class="cm-popup-title">{{ $t(hoveredGroupKey) }}</div>
+                <router-link
+                  v-for="item in menuGroups.find(g => g.titleKey === hoveredGroupKey)?.items || []"
+                  :key="item.path"
+                  :to="item.path"
+                  class="cm-popup-item"
+                  :class="{ active: isActivePath(item.path) }"
+                  role="menuitem"
+                >
+                  <el-icon :size="16"><component :is="item.icon" /></el-icon>
+                  <span>{{ $t(item.titleKey) }}</span>
+                </router-link>
+              </template>
+            </div>
+          </transition>
+
+          <!-- 二级图标悬浮提示(原生 title 延迟太慢, 这里做即时气泡) -->
+          <transition name="cm-tip">
+            <div
+              v-show="tip.text"
+              class="cm-tip"
+              :style="{ left: tip.left + 'px', top: tip.top + 'px' }"
+            >{{ tip.text }}</div>
+          </transition>
+        </ul>
       </el-scrollbar>
 
       <!-- 底部角色提示 -->
@@ -763,6 +917,9 @@ a.logo:hover { background: rgba(255, 255, 255, .08); }
   cursor: pointer; transition: color .18s;
 }
 .group-title:hover { color: #fff; }
+.group-title .g-icon { font-size: 16px; color: #94a3b8; transition: color .18s; flex: none; }
+.group-title:hover .g-icon { color: #fff; }
+.group-title .g-text { flex: 1; }
 .group-title .g-arrow { transition: transform .2s; font-size: 14px; color: #94a3b8; }
 .group-title.collapsed .g-arrow { transform: rotate(-90deg); }
 /* 二级: 菜单项 —— 略小于分组标题, 形成清晰层级 */
@@ -777,20 +934,119 @@ a.logo:hover { background: rgba(255, 255, 255, .08); }
   color: #fff !important;
   box-shadow: 0 4px 12px rgba(var(--c-primary-rgb, 37, 99, 235), .35);
 }
-.aside.collapsed .aside-menu { width: 56px; }
-.aside.collapsed .aside-menu :deep(.el-menu-item) {
-  display: flex; align-items: center; justify-content: center;
-  margin: 3px 6px; padding: 0 !important;
-}
-/* 折叠态: 图标包在 tooltip 触发层内, 需对该层做居中并隐藏标题 */
-.aside.collapsed .aside-menu :deep(.el-menu-tooltip__trigger) {
-  display: flex; align-items: center; justify-content: center; width: 100%;
-}
-.aside.collapsed .aside-menu :deep(.el-menu-item .el-icon),
-.aside.collapsed .aside-menu :deep(.el-menu-tooltip__trigger .el-icon) { margin: 0; }
-.aside.collapsed .mi-title { display: none; }
-.aside.collapsed .aside-menu :deep(.el-menu-tooltip__trigger .el-menu-item__title) { display: none; }
 .mi-title { margin-left: 2px; }
+
+/* ============ 收起态菜单 ============ */
+/* 自定义一级图标列表(替代 el-menu 的 collapse tooltip, hover 弹 popup 显示二级) */
+.collapsed-menu {
+  list-style: none; margin: 0; padding: 8px 0;
+  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+}
+.cm-group { position: relative; }
+.cm-row { position: relative; }
+/* 分组分隔线: 收起态里 25+ 个图标挤一起很难看出归属, 每组第一项上方加细分隔 */
+.cm-group-start {
+  margin-top: 4px; padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+}
+.collapsed-menu > li.cm-group-start:first-child {
+  margin-top: 0; padding-top: 0; border-top: none;
+}
+.cm-trigger {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; margin: 0 auto;
+  border-radius: 8px; color: #94a3b8; cursor: pointer;
+  transition: background .18s, color .18s;
+  text-decoration: none;
+}
+.cm-trigger:hover, .cm-group.hover .cm-trigger { background: rgba(255,255,255,.08); color: #fff; }
+/* 二级图标块(来自「展开组」): 略小一号 + 颜色更深一档, 与一级分组图标形成层级差 */
+.cm-sub {
+  width: 34px; height: 34px;
+  color: #7c8899;
+}
+.cm-sub:hover { color: #fff; background: rgba(255,255,255,.08); }
+.cm-sub.active {
+  background: var(--c-primary-grad, linear-gradient(90deg, #2563eb, #4f46e5));
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(var(--c-primary-rgb, 37, 99, 235), .35);
+}
+.cm-group.active .cm-trigger {
+  background: var(--c-primary-grad, linear-gradient(90deg, #2563eb, #4f46e5));
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(var(--c-primary-rgb, 37, 99, 235), .35);
+}
+/* 二级 popup: 用 fixed 定位脱离 .aside 的 overflow:hidden, 配合 :style 动态算 left/top */
+.cm-popup {
+  position: fixed;
+  /* left/top 由 :style 动态计算(避免父级 overflow:hidden 截断) */
+  /* 视觉上留 8px 间距: 靠 margin-left 而不是改 left, 这样 ::before 桥接层能盖住间隙 */
+  margin-left: 8px;
+  min-width: 180px; padding: 6px;
+  background: #fff; color: var(--c-text-1, #1f2937);
+  border: 1px solid var(--c-border, #e5e7eb);
+  border-radius: var(--r-m, 8px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .18);
+  z-index: 50;
+}
+/* 透明桥接层: 覆盖 popup 与图标块之间的 8px 间隙, 鼠标穿过时不丢失 hover 状态
+   (伪元素属于 popup 命中区, 所以不会触发 popup 的 mouseleave) */
+.cm-popup::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -12px; width: 12px;
+  background: transparent;
+}
+.cm-popup-title {
+  padding: 6px 10px 8px;
+  font-size: var(--fs-xs); font-weight: 600;
+  color: var(--c-text-3, #6b7280);
+  border-bottom: 1px solid var(--c-border, #e5e7eb);
+  margin-bottom: 4px;
+}
+.cm-popup-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 6px;
+  font-size: var(--fs-sm); color: var(--c-text-2, #374151);
+  text-decoration: none; transition: background .12s, color .12s;
+}
+.cm-popup-item:hover { background: var(--c-primary-bg, #ecf5ff); color: var(--c-primary, #2563eb); }
+.cm-popup-item.active {
+  background: var(--c-primary-grad, linear-gradient(90deg, #2563eb, #4f46e5));
+  color: #fff;
+}
+/* popup 淡入淡出(让 hover 切换看起来更顺滑) */
+.popper-enter-active, .popper-leave-active { transition: opacity .14s ease, transform .14s ease; }
+.popper-enter-from, .popper-leave-to { opacity: 0; transform: translateX(-4px); }
+/* 二级图标的悬浮文字提示(即时气泡, 深色底白字) */
+.cm-tip {
+  position: fixed;
+  transform: translateY(-50%);
+  padding: 4px 10px;
+  background: rgba(15, 23, 42, .94);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.45;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;   /* 不挡鼠标, 避免自己触发 mouseleave 抖动 */
+  z-index: 60;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .28);
+}
+.cm-tip::before {
+  content: '';
+  position: absolute;
+  left: -4px; top: 50%;
+  transform: translateY(-50%);
+  border: 4px solid transparent;
+  border-right-color: rgba(15, 23, 42, .94);
+}
+/* tooltip 专用过渡: 只动 opacity, 不能碰 transform(否则会覆盖 translateY(-50%) 导致跳位) */
+.cm-tip-enter-active, .cm-tip-leave-active { transition: opacity .12s ease; }
+.cm-tip-enter-from, .cm-tip-leave-to { opacity: 0; }
+/* 移动端: 收起态自定义菜单隐藏(off-canvas 抽屉本身就是展开态, 用标准菜单) */
+.aside.mobile .collapsed-menu { display: none; }
 .aside-foot {
   flex: none; padding: 12px 20px; font-size: var(--fs-xs); color: #94a3b8;
   border-top: 1px solid rgba(255, 255, 255, .06); white-space: nowrap;

@@ -47,6 +47,24 @@ const GAMES = [
     descKey: 'games.guess.desc',
     color: '#10b981',
     cover: 'guess' // 标记用 SVG 渲染
+  },
+  {
+    code: 'sudoku',
+    name: '数独',
+    nameKey: 'sudoku.title',
+    route: '/games/sudoku',
+    descKey: 'games.sudoku.desc',
+    color: '#0ea5e9',
+    cover: 'sudoku' // 标记用 SVG 渲染
+  },
+  {
+    code: 'one-stroke',
+    name: '一笔画完',
+    nameKey: 'oneStroke.title',
+    route: '/games/one-stroke',
+    descKey: 'games.oneStroke.desc',
+    color: '#f59e0b',
+    cover: 'oneStroke' // 标记用 SVG 渲染
   }
 ]
 
@@ -99,6 +117,7 @@ const fmtRelative = (s) => {
 }
 
 const open = (card) => router.push(card.route)
+const openHistory = (card, e) => { e.stopPropagation(); router.push({ path: '/games/history', query: { code: card.code } }) }
 
 const load = async () => {
   loading.value = true
@@ -186,6 +205,59 @@ onMounted(load)
               <span class="b">0</span><span class="lbl">B</span>
             </div>
           </div>
+          <div v-else-if="card.cover === 'sudoku'" class="mini-sudoku">
+            <svg viewBox="0 0 100 100" class="mini-sudoku-svg">
+              <rect x="4" y="4" width="92" height="92" rx="4" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" />
+              <g stroke="#94a3b8" stroke-width="0.4">
+                <line v-for="n in 8" :key="'sh'+n" :x1="4 + n*11.5" :y1="4" :x2="4 + n*11.5" :y2="96" />
+                <line v-for="n in 8" :key="'sv'+n" :y1="4 + n*11.5" :y2="96" :x1="4" :x2="96" />
+              </g>
+              <g stroke="#475569" stroke-width="1">
+                <line v-for="n in 2" :key="'bh'+n" :x1="4 + (n+1)*34.5" :y1="4" :x2="4 + (n+1)*34.5" :y2="96" />
+                <line v-for="n in 2" :key="'bv'+n" :y1="4 + (n+1)*34.5" :y2="96" :x1="4" :x2="96" />
+              </g>
+              <!-- 已知数字 -->
+              <text v-for="(d, i) in '5 3 7 2 8 4 6 9 1 6 7 2 1 9 5 3 4 8 9 1 4 7 6 5 2 8 3'.split(' ')" :key="i"
+                :x="8 + (i % 9) * 11.5"
+                :y="18 + Math.floor(i / 9) * 11.5"
+                font-family="ui-monospace, monospace" font-size="6"
+                font-weight="700" fill="#0f172a" text-anchor="middle">{{ d }}</text>
+              <!-- 高亮单元格 -->
+              <rect x="22" y="37" width="11.5" height="11.5" fill="rgba(14, 165, 233, 0.15)" stroke="#0ea5e9" stroke-width="1" rx="1" />
+              <rect x="33.5" y="48.5" width="11.5" height="11.5" fill="rgba(14, 165, 233, 0.15)" stroke="#0ea5e9" stroke-width="1" rx="1" />
+            </svg>
+          </div>
+          <div v-else-if="card.cover === 'oneStroke'" class="mini-one-stroke">
+            <svg viewBox="0 0 100 100" class="mini-one-stroke-svg">
+              <!-- 五角星 (K5 简化): 5 节点 + 8 边 -->
+              <g stroke="#94a3b8" stroke-width="0.7" fill="none">
+                <line x1="50" y1="14" x2="86" y2="38" />
+                <line x1="86" y1="38" x2="70" y2="84" />
+                <line x1="70" y1="84" x2="30" y2="84" />
+                <line x1="30" y1="84" x2="14" y2="38" />
+                <line x1="14" y1="38" x2="50" y2="14" />
+                <line x1="50" y1="14" x2="70" y2="84" />
+                <line x1="86" y1="38" x2="14" y2="38" />
+                <line x1="50" y1="14" x2="30" y2="84" />
+              </g>
+              <!-- 已走边 (蓝色) -->
+              <g stroke="#f59e0b" stroke-width="1.4" fill="none" stroke-linecap="round">
+                <line x1="50" y1="14" x2="14" y2="38" />
+                <line x1="14" y1="38" x2="86" y2="38" />
+                <line x1="86" y1="38" x2="50" y2="14" />
+              </g>
+              <!-- 节点 -->
+              <g>
+                <circle cx="50" cy="14" r="3.6" fill="#fff" stroke="#475569" stroke-width="1" />
+                <circle cx="86" cy="38" r="3.6" fill="#fff" stroke="#475569" stroke-width="1" />
+                <circle cx="70" cy="84" r="3.6" fill="#fff" stroke="#475569" stroke-width="1" />
+                <circle cx="30" cy="84" r="3.6" fill="#fff" stroke="#475569" stroke-width="1" />
+                <circle cx="14" cy="38" r="3.6" fill="#fff" stroke="#475569" stroke-width="1" />
+              </g>
+              <!-- 当前节点 (蓝色高亮) -->
+              <circle cx="50" cy="14" r="4" fill="#f59e0b" />
+            </svg>
+          </div>
           <div v-else class="mini-board">
             <div v-for="(row, r) in card.cover" :key="r" class="mini-row">
               <span
@@ -239,6 +311,15 @@ onMounted(load)
             @click.stop="open(card)"
           >
             {{ card.hasProgress ? $t('games.resume') : (card.playedCount ? $t('games.playAgain2') : $t('games.start')) }}
+          </el-button>
+          <el-button
+            v-if="card.playedCount"
+            class="gcard-btn gcard-btn-secondary"
+            size="small"
+            plain
+            @click.stop="openHistory(card, $event)"
+          >
+            📊 {{ $t('gameHistory.title') }} · {{ card.playedCount }}
           </el-button>
         </div>
       </article>
@@ -310,6 +391,10 @@ onMounted(load)
 .mini-guess .hint-row .a { color: #16a34a; font-weight: 700; font-size: 14px; }
 .mini-guess .hint-row .b { color: #f59e0b; font-weight: 700; font-size: 14px; }
 .mini-guess .hint-row .lbl { color: #6b7280; font-weight: 600; margin-right: 4px; }
+.mini-sudoku { width: 100%; max-width: 168px; padding: 6px; background: #f1f5f9; border-radius: 6px; }
+.mini-sudoku-svg { width: 100%; height: auto; display: block; border-radius: 4px; }
+.mini-one-stroke { width: 100%; max-width: 168px; padding: 6px; background: linear-gradient(140deg, #fef3c7, #fde68a); border-radius: 6px; }
+.mini-one-stroke-svg { width: 100%; height: auto; display: block; border-radius: 4px; }
 .mini-board { display: grid; gap: 5px; width: 100%; max-width: 168px; }
 .mini-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .mini-cell {
@@ -381,6 +466,7 @@ onMounted(load)
 .progress-line .pl-time { margin-left: auto; color: var(--c-text-3); }
 
 .gcard-btn { margin-top: auto; width: 100%; }
+.gcard-btn-secondary { margin-top: 6px; color: var(--c-text-2); }
 
 /* ============ 响应式 ============ */
 @media (max-width: 768px) {
