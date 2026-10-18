@@ -50,4 +50,11 @@ public interface LearningService {
 
     /** 保存界面语言偏好(locale 可空=清除;仅接受 zh-CN/en-US) */
     void savePreferredLocale(Long userId, String locale);
+
+    /**
+     * 最近 N 条学习完成事件(管理员看板"实时活动"用)
+     * <p>
+     * 跨用户、按 learned_at 倒序;带 lessonTitle / chapterNo / subjectName
+     */
+    java.util.List<java.util.Map<String, Object>> recentProgress(int limit);
 }

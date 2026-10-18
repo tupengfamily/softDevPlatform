@@ -1,12 +1,12 @@
 <script setup>
-// 学习看板 — 管理员与普通用户看到的维度不同:
-// - 管理员: 全部用户的学习进度 + 学习偏好分布/偏好语言,可搜索
-// - 普通用户: 当前语言(头像旁选择框记忆的语言)的个人学习进度
-// - 语言维度完全跟随头部"学习语言"选择框,页内不再提供语言选择(节省显示空间)
+// 学习看板 — 重设计(更直观,更现代)
+// 管理员视角: KPI 大卡 + 学科横向对比 + 偏好分布 + 实时活动 + 学员榜 + 鼓励
+// 普通用户视角: 个人进度环 + 里程碑 + 鼓励
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getBoard } from '../api/learning'
+import { ArrowRight, Document, Medal, Reading, Sunny } from '@element-plus/icons-vue'
+import { getBoard, getRecentProgress } from '../api/learning'
 import { useSubjectStore } from '../store/subject'
 
 const router = useRouter()
@@ -15,20 +15,15 @@ const { t } = useI18n()
 
 const loading = ref(false)
 const board = ref(null)
+const recentEvents = ref([])
 const keyword = ref('')
-const subjectId = ref(null)     // 跟随头部"学习语言"选择(存储偏好)
+const subjectId = ref(null)
 
 const isAdmin = computed(() => board.value?.scope === 'ALL')
 const myRow = computed(() => (board.value?.rows || []).find(r => r.self) || null)
-const subjectStats = computed(() => board.value?.subjects || [])
-const preferenceStats = computed(() =>
-  (board.value?.preferenceStats || []).filter(p => p.userCount > 0))
-const subjectName = computed(() => {
-  if (subjectId.value == null) return t('learningBoard.subject.all')
-  return subjectStats.value.find(s => s.subjectId === subjectId.value)?.subjectName || t('learningBoard.subject.all')
-})
+const subjectStats = computed(() => (board.value?.subjects || []).slice().sort((a, b) => b.avgPercent - a.avgPercent))
+const preferenceStats = computed(() => (board.value?.preferenceStats || []).filter(p => p.userCount > 0))
 
-// 搜索过滤(仅管理员视图使用)
 const rows = computed(() => {
   const list = board.value?.rows || []
   const kw = keyword.value.trim().toLowerCase()
@@ -38,32 +33,87 @@ const rows = computed(() => {
     (r.email || '').toLowerCase().includes(kw))
 })
 
-const load = async () => {
-  loading.value = true
-  try {
-    const res = await getBoard(subjectId.value)
-    board.value = res.data
-  } catch (e) { /* 已统一弹错 */ } finally {
-    loading.value = false
-  }
-}
-watch(subjectId, load)
-// 头部语言选择框切换 -> 看板维度同步
-watch(() => subjectStore.preferredSubjectId, (sid) => {
-  const next = sid ?? null
-  if (next !== subjectId.value) subjectId.value = next
+const subjectName = computed(() => {
+  if (subjectId.value == null) return t('learningBoard.subject.all')
+  return subjectStats.value.find(s => s.subjectId === subjectId.value)?.subjectName || t('learningBoard.subject.all')
 })
 
-const barColor = (p) => (p >= 80 ? '#16a34a' : p >= 40 ? '#2563eb' : '#f59e0b')
+// 进度条颜色梯度(< 30 橙, 30-70 蓝, >= 70 绿)
+const progressColor = (p) => (p >= 70 ? '#16a34a' : p >= 30 ? '#2563eb' : '#f59e0b')
+
+// 排行前 3 名特殊徽章
 const rankClass = (i) => (i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '')
+const rankLabel = (i) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`)
+
+// 头像首字母
+const avatar = (name) => (name || '?').charAt(0).toUpperCase()
+const avatarColor = (roles) => (roles?.includes('ADMIN') ? '#c22b2b' : '#15803d')
+
+// 鼓励文案按当前完成度智能切换
+const encouragement = computed(() => {
+  const p = myRow.value?.percent || 0
+  if (p === 0) return { icon: Sunny, type: 'start', key: 'learningBoard.tips.start' }
+  if (p < 30) return { icon: Reading, type: 'pace', key: 'learningBoard.tips.pace' }
+  if (p < 70) return { icon: Medal, type: 'practice', key: 'learningBoard.tips.practice' }
+  return { icon: Medal, type: 'challenge', key: 'learningBoard.tips.challenge' }
+})
+
+// 里程碑(三个卡片):已学 / 待学 / 总时长
+const milestones = computed(() => {
+  const r = myRow.value
+  if (!r) return []
+  const learned = r.learnedLessons || 0
+  const total = r.totalLessons || 0
+  const remaining = Math.max(0, total - learned)
+  return [
+    { key: 'learningBoard.self.learned', value: learned, suffix: t('learningBoard.self.lessons'), color: 'green', icon: '✓' },
+    { key: 'learningBoard.self.remaining', value: remaining, suffix: t('learningBoard.self.lessons'), color: 'blue', icon: '⋯' },
+    { key: 'learningBoard.self.lastLearned', value: r.lastLearnedAt || t('learningBoard.notStarted'), suffix: '', color: 'orange', icon: '⏱' }
+  ]
+})
+
 const displayRole = (roles) => {
   const r = (roles || '').split(',').filter(Boolean)
   if (r.includes('ADMIN')) return t('learningBoard.role.admin')
   return t('learningBoard.role.user')
 }
 
+// 相对时间(短)
+const fmtAgo = (iso) => {
+  if (!iso) return '—'
+  const d = typeof iso === 'string' ? new Date(iso) : iso
+  if (Number.isNaN(d.getTime())) return String(iso)
+  const diff = Date.now() - d.getTime()
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return t('gameHistory.justNow')
+  if (min < 60) return t('gameHistory.minutesAgo', { n: min })
+  const h = Math.floor(min / 60)
+  if (h < 24) return t('gameHistory.hoursAgo', { n: h })
+  const day = Math.floor(h / 24)
+  if (day < 30) return t('gameHistory.daysAgo', { n: day })
+  return d.toLocaleDateString()
+}
+
+const load = async () => {
+  loading.value = true
+  try {
+    const res = await getBoard(subjectId.value)
+    board.value = res.data
+    if (isAdmin.value) {
+      const rr = await getRecentProgress(8)
+      recentEvents.value = rr.data || []
+    }
+  } catch (e) { /* 已统一弹错 */ } finally {
+    loading.value = false
+  }
+}
+watch(subjectId, load)
+watch(() => subjectStore.preferredSubjectId, (sid) => {
+  const next = sid ?? null
+  if (next !== subjectId.value) subjectId.value = next
+})
+
 onMounted(async () => {
-  // 默认维度 = 用户正在学习的语言(偏好),让"看板"与学习内容保持同一语言
   if (!subjectStore.loaded) await subjectStore.load()
   if (subjectStore.preferredSubjectId) subjectId.value = subjectStore.preferredSubjectId
   await load()
@@ -71,303 +121,567 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page" v-loading="loading">
+  <div class="lb-page" v-loading="loading">
 
-    <!-- ① 管理员: 全员看板 -->
+    <!-- ==================== ① 管理员视角:全员看板 ==================== -->
     <template v-if="isAdmin">
-      <div class="hero admin">
-        <div>
-          <h1>{{ $t('learningBoard.hero.title') }} <small>{{ $t('learningBoard.hero.adminSub', { subject: subjectName }) }}</small></h1>
-          <p>{{ $t('learningBoard.hero.adminDesc') }}</p>
+      <!-- Hero / 头部:简洁标题 + 搜索框(原来太花) -->
+      <header class="lb-hero">
+        <div class="lb-hero-left">
+          <h1>
+            <span class="hero-emoji">📊</span>
+            {{ $t('learningBoard.hero.title') }}
+            <small class="hero-sub">{{ $t('learningBoard.hero.adminSub', { subject: subjectName }) }}</small>
+          </h1>
+          <p class="hero-desc">{{ $t('learningBoard.hero.adminDesc') }}</p>
         </div>
-        <el-input
-          v-model="keyword"
-          :placeholder="$t('learningBoard.search.placeholder')"
-          clearable
-          class="search"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
-        </el-input>
-      </div>
+        <div class="lb-hero-right">
+          <el-input
+            v-model="keyword"
+            :placeholder="$t('learningBoard.search.placeholder')"
+            clearable
+            size="large"
+            class="search-box"
+          >
+            <template #prefix><el-icon><Document /></el-icon></template>
+          </el-input>
+        </div>
+      </header>
 
-      <div class="stats">
-        <div class="stat">
-          <div class="label">{{ $t('learningBoard.kpi.totalUsers') }}</div>
-          <div class="num">{{ board?.totalUsers || 0 }}<small>{{ $t('learningBoard.kpi.unitPeople') }}</small></div>
+      <!-- KPI 大卡: 4 张差异化设计 -->
+      <section class="kpi-row">
+        <div class="kpi-card kpi-blue">
+          <div class="kpi-icon"><el-icon><Reading /></el-icon></div>
+          <div class="kpi-body">
+            <div class="kpi-label">{{ $t('learningBoard.kpi.totalUsers') }}</div>
+            <div class="kpi-num">{{ board?.totalUsers || 0 }}</div>
+            <div class="kpi-sub">
+              <span class="trend-up">{{ $t('learningBoard.kpi.activeUsers') }} {{ board?.activeUsers || 0 }} {{ $t('learningBoard.kpi.unitPeople') }}</span>
+            </div>
+          </div>
         </div>
-        <div class="stat">
-          <div class="label">{{ $t('learningBoard.kpi.activeUsers') }}</div>
-          <div class="num">{{ board?.activeUsers || 0 }}<small>{{ $t('learningBoard.kpi.unitPeople') }}</small></div>
+        <div class="kpi-card kpi-green">
+          <div class="kpi-icon"><el-icon><Medal /></el-icon></div>
+          <div class="kpi-body">
+            <div class="kpi-label">{{ $t('learningBoard.kpi.avgPercent') }}</div>
+            <div class="kpi-num">{{ board?.avgPercent || 0 }}<small>%</small></div>
+            <div class="kpi-sub">
+              <div class="mini-bar"><i :style="{ width: (board?.avgPercent || 0) + '%', background: progressColor(board?.avgPercent || 0) }"></i></div>
+            </div>
+          </div>
         </div>
-        <div class="stat">
-          <div class="label">{{ $t('learningBoard.kpi.avgPercent') }}</div>
-          <div class="num">{{ board?.avgPercent || 0 }}<small>%</small></div>
-          <div class="bar"><i :style="{ width: (board?.avgPercent || 0) + '%', background: barColor(board?.avgPercent || 0) }"></i></div>
+        <div class="kpi-card kpi-orange">
+          <div class="kpi-icon"><el-icon><Document /></el-icon></div>
+          <div class="kpi-body">
+            <div class="kpi-label">{{ $t('learningBoard.kpi.totalLessons') }}</div>
+            <div class="kpi-num">{{ board?.totalLessons || 0 }}</div>
+            <div class="kpi-sub">{{ $t('learningBoard.kpi.unitLesson') }}</div>
+          </div>
         </div>
-        <div class="stat">
-          <div class="label">{{ $t('learningBoard.kpi.totalLessons') }}</div>
-          <div class="num">{{ board?.totalLessons || 0 }}<small>{{ $t('learningBoard.kpi.unitLesson') }}</small></div>
+        <div class="kpi-card kpi-purple">
+          <div class="kpi-icon"><el-icon><Sunny /></el-icon></div>
+          <div class="kpi-body">
+            <div class="kpi-label">{{ $t('learningBoard.kpi.topPercent') }}</div>
+            <div class="kpi-num">{{ board?.maxPercent || 0 }}<small>%</small></div>
+            <div class="kpi-sub">{{ $t('learningBoard.kpi.topHint') }}</div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <!-- 各科目(语言)平均完成度对比(纯展示,语言选择在头部) -->
-      <div class="subject-stats" v-if="subjectStats.length">
-        <div
-          v-for="s in subjectStats"
-          :key="s.subjectId"
-          class="sub-card"
-          :class="{ active: subjectId === s.subjectId }"
-        >
-          <div class="sub-name">{{ s.subjectName }}</div>
-          <div class="sub-pct">{{ s.avgPercent }}<small>%</small></div>
-          <div class="bar"><i :style="{ width: s.avgPercent + '%', background: barColor(s.avgPercent) }"></i></div>
-          <div class="sub-meta">{{ $t('learningBoard.subject.meta', { n: s.totalLessons }) }}</div>
+      <!-- 学科完成度:横向条形图(更直观对比) -->
+      <section v-if="subjectStats.length" class="section subject-section">
+        <h2 class="section-title">
+          <span class="title-emoji">📚</span>
+          {{ $t('learningBoard.subject.title') }}
+          <small class="title-sub">{{ $t('learningBoard.subject.subtitle', { n: subjectStats.length }) }}</small>
+        </h2>
+        <div class="subject-bar-list">
+          <div
+            v-for="(s, i) in subjectStats"
+            :key="s.subjectId"
+            class="subject-row"
+            :class="{ active: subjectId === s.subjectId }"
+          >
+            <span class="rank-num">{{ i + 1 }}</span>
+            <span class="subject-name">{{ s.subjectName }}</span>
+            <div class="bar-track">
+              <div
+                class="bar-fill"
+                :style="{
+                  width: s.avgPercent + '%',
+                  background: progressColor(s.avgPercent)
+                }"
+              ></div>
+            </div>
+            <span class="percent" :style="{ color: progressColor(s.avgPercent) }">{{ s.avgPercent }}%</span>
+            <span class="meta muted">{{ s.totalLessons }} {{ $t('learningBoard.kpi.unitLesson') }}</span>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <!-- 学习偏好分布:学员们正在学习的语言 -->
-      <div class="pref-bar" v-if="preferenceStats.length">
-        <span class="pref-title">{{ $t('learningBoard.pref.title') }}</span>
-        <el-tag
-          v-for="p in preferenceStats"
-          :key="p.subjectId"
-          size="small"
-          effect="plain"
-          round
-          class="pref-tag"
-        >
-          {{ $t('learningBoard.pref.item', { subject: p.subjectName, n: p.userCount }) }}
-        </el-tag>
-        <span class="pref-hint">{{ $t('learningBoard.pref.hint') }}</span>
-      </div>
-
-      <div class="card">
-        <div class="card-head">
-          <h3>{{ $t('learningBoard.table.title') }} <small class="hint-inline">{{ subjectName }}</small></h3>
-          <span class="hint">{{ $t('learningBoard.table.hint', { n: rows.length, p: board?.maxPercent || 0 }) }}</span>
+      <!-- 偏好分布 + 实时活动: 双栏 -->
+      <section class="row-2col">
+        <!-- 学习偏好分布:堆叠 bar + 标签 -->
+        <div v-if="preferenceStats.length" class="section pref-section">
+          <h2 class="section-title">
+            <span class="title-emoji">🎯</span>
+            {{ $t('learningBoard.pref.title') }}
+          </h2>
+          <div class="pref-stack">
+            <div class="pref-bar-track">
+              <div
+                v-for="p in preferenceStats"
+                :key="p.subjectId"
+                class="pref-segment"
+                :style="{
+                  width: (p.userCount / (board?.totalUsers || 1) * 100) + '%',
+                  background: ['#2563eb', '#16a34a', '#f59e0b', '#8e44ad', '#ec4899', '#06b6d4'][preferenceStats.indexOf(p) % 6]
+                }"
+                :title="`${p.subjectName}: ${p.userCount} 人`"
+              ></div>
+            </div>
+            <ul class="pref-legend">
+              <li v-for="(p, i) in preferenceStats" :key="p.subjectId">
+                <span class="dot" :style="{ background: ['#2563eb', '#16a34a', '#f59e0b', '#8e44ad', '#ec4899', '#06b6d4'][i % 6] }"></span>
+                <span class="dot-name">{{ p.subjectName }}</span>
+                <strong class="dot-num">{{ p.userCount }}</strong>
+              </li>
+            </ul>
+          </div>
         </div>
-        <table class="board-table">
+
+        <!-- 实时活动流(管理员专属) -->
+        <div v-if="recentEvents.length" class="section activity-section">
+          <h2 class="section-title">
+            <span class="title-emoji">⚡</span>
+            {{ $t('learningBoard.activity.title') }}
+          </h2>
+          <ul class="activity-list">
+            <li v-for="e in recentEvents" :key="e.lessonId + '-' + e.userId + '-' + e.learnedAt" class="activity-item">
+              <span class="activity-avatar" :style="{ background: avatarColor(e.username === 'admin' ? 'ADMIN' : '') }">
+                {{ avatar(e.username) }}
+              </span>
+              <div class="activity-content">
+                <div class="activity-line">
+                  <strong>{{ e.username }}</strong>
+                  <span class="muted">{{ $t('learningBoard.activity.completed') }}</span>
+                  <em>{{ e.lessonTitle }}</em>
+                </div>
+                <div class="activity-meta">
+                  <el-tag size="small" effect="plain" round>{{ e.subjectName }}</el-tag>
+                  <span class="muted">{{ $t('learningBoard.activity.chapter') }} {{ e.chapterNo }}</span>
+                  <span class="muted">· {{ fmtAgo(e.learnedAt) }}</span>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 学员榜: 前 3 名高亮 -->
+      <section class="section rank-section">
+        <div class="section-head">
+          <h2 class="section-title">
+            <span class="title-emoji">🏆</span>
+            {{ $t('learningBoard.table.title') }}
+            <small class="title-sub">{{ $t('learningBoard.table.headSub', { n: rows.length }) }}</small>
+          </h2>
+          <span class="head-hint">{{ $t('learningBoard.table.hint', { p: board?.maxPercent || 0 }) }}</span>
+        </div>
+
+        <div v-if="!rows.length" class="empty-state">
+          <span class="empty-emoji">🔍</span>
+          <p>{{ $t('learningBoard.table.noMatch') }}</p>
+        </div>
+        <table v-else class="rank-table">
           <thead>
             <tr>
-              <th style="width:56px">{{ $t('learningBoard.table.rank') }}</th>
+              <th class="col-rank">{{ $t('learningBoard.table.rank') }}</th>
               <th>{{ $t('learningBoard.table.student') }}</th>
-              <th style="width:110px">{{ $t('learningBoard.table.role') }}</th>
-              <th style="width:110px">{{ $t('learningBoard.table.preference') }}</th>
-              <th style="width:230px">{{ $t('learningBoard.table.progress') }}</th>
-              <th style="width:110px">{{ $t('learningBoard.table.learned') }}</th>
-              <th style="width:150px">{{ $t('learningBoard.table.lastLearned') }}</th>
+              <th class="col-progress">{{ $t('learningBoard.table.progress') }}</th>
+              <th class="col-stat">{{ $t('learningBoard.table.learned') }}</th>
+              <th class="col-time">{{ $t('learningBoard.table.lastLearned') }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(r, i) in rows" :key="r.userId" :class="{ me: r.self }">
-              <td>
-                <span class="rank" :class="rankClass(i)">{{ i + 1 }}</span>
+            <tr v-for="(r, i) in rows" :key="r.userId" :class="{ me: r.self, podium: i < 3 }">
+              <td class="col-rank">
+                <span class="rank-badge" :class="rankClass(i)">
+                  <template v-if="i < 3">{{ rankLabel(i) }}</template>
+                  <template v-else>{{ i + 1 }}</template>
+                </span>
               </td>
               <td>
                 <div class="who">
-                  <span class="avatar" :style="{ background: r.roles?.includes('ADMIN') ? '#c22b2b' : '#15803d' }">
-                    {{ (r.username || '?').charAt(0).toUpperCase() }}
-                  </span>
+                  <span class="who-avatar" :style="{ background: avatarColor(r.roles) }">{{ avatar(r.username) }}</span>
                   <div class="who-info">
-                    <b>{{ r.username }}<em v-if="r.self">{{ $t('learningBoard.table.me') }}</em></b>
-                    <small>{{ r.email || '—' }}</small>
+                    <b>{{ r.username }}<em v-if="r.self" class="me-tag">{{ $t('learningBoard.table.me') }}</em></b>
+                    <small class="muted">
+                      <el-tag size="small" :type="r.roles?.includes('ADMIN') ? 'danger' : 'success'" effect="plain" round class="role-tag">
+                        {{ displayRole(r.roles) }}
+                      </el-tag>
+                      <template v-if="r.preferredSubject">
+                        <span class="muted"> · </span>
+                        <span class="pref-tag">{{ r.preferredSubject }}</span>
+                      </template>
+                    </small>
                   </div>
                 </div>
               </td>
-              <td>
-                <el-tag size="small" :type="r.roles?.includes('ADMIN') ? 'danger' : 'success'" effect="light" round>
-                  {{ displayRole(r.roles) }}
-                </el-tag>
-              </td>
-              <td class="muted">
-                <el-tag v-if="r.preferredSubject" size="small" effect="plain" round>{{ r.preferredSubject }}</el-tag>
-                <template v-else>{{ $t('learningBoard.table.notSet') }}</template>
-              </td>
-              <td>
+              <td class="col-progress">
                 <div class="progress-cell">
-                  <div class="bar"><i :style="{ width: r.percent + '%', background: barColor(r.percent) }"></i></div>
-                  <span class="pct">{{ r.percent }}%</span>
+                  <div class="bar-track"><div class="bar-fill" :style="{ width: r.percent + '%', background: progressColor(r.percent) }"></div></div>
+                  <strong class="percent" :style="{ color: progressColor(r.percent) }">{{ r.percent }}%</strong>
                 </div>
               </td>
-              <td class="mono">{{ r.learnedLessons }} / {{ r.totalLessons }}</td>
-              <td class="muted">{{ r.lastLearnedAt || $t('learningBoard.notStarted') }}</td>
-            </tr>
-            <tr v-if="!rows.length">
-              <td colspan="7" class="empty">{{ $t('learningBoard.table.noMatch') }}</td>
+              <td class="col-stat">
+                <strong>{{ r.learnedLessons }}</strong><small class="muted"> / {{ r.totalLessons }}</small>
+              </td>
+              <td class="col-time muted">{{ r.lastLearnedAt ? fmtAgo(r.lastLearnedAt) : $t('learningBoard.notStarted') }}</td>
             </tr>
           </tbody>
         </table>
-      </div>
+      </section>
     </template>
 
-    <!-- ② 普通用户: 当前语言的个人学习进度 -->
+    <!-- ==================== ② 普通用户视角: 个人进度 ==================== -->
     <template v-else>
-      <div class="hero">
-        <div>
-          <h1>{{ $t('learningBoard.self.title') }} <small>{{ subjectName }}</small></h1>
-          <p>{{ $t('learningBoard.self.desc', { subject: subjectName }) }}</p>
+      <!-- Hero: 个人化欢迎 + 引导 -->
+      <header class="lb-hero self-hero">
+        <div class="lb-hero-left">
+          <h1>
+            <span class="hero-emoji">🎓</span>
+            {{ $t('learningBoard.self.title') }}
+            <small class="hero-sub">{{ subjectName }}</small>
+          </h1>
+          <p class="hero-desc">{{ $t('learningBoard.self.desc', { subject: subjectName }) }}</p>
         </div>
-        <el-button type="primary" @click="router.push('/learning')">{{ $t('learningBoard.self.goLearn') }} <el-icon><ArrowRight /></el-icon></el-button>
-      </div>
+      </header>
 
-      <div class="self-cards">
-        <div class="self-main">
-          <div class="ring" :style="{ '--p': (myRow?.percent || 0) + '%', '--c': barColor(myRow?.percent || 0) }">
-            <div class="ring-inner">
-              <b>{{ myRow?.percent || 0 }}<small>%</small></b>
-              <span>{{ $t('learningBoard.self.percent') }}</span>
+      <!-- 主进度环 + 鼓励: 大卡片视觉冲击 -->
+      <section class="self-main-card">
+        <div class="ring-wrap">
+          <svg class="ring-svg" viewBox="0 0 160 160">
+            <circle cx="80" cy="80" r="68" fill="none" stroke="#eef0f6" stroke-width="14" />
+            <circle
+              cx="80" cy="80" r="68" fill="none"
+              :stroke="progressColor(myRow?.percent || 0)"
+              stroke-width="14"
+              stroke-linecap="round"
+              :stroke-dasharray="`${(myRow?.percent || 0) * 4.27} 427`"
+              transform="rotate(-90 80 80)"
+            />
+          </svg>
+          <div class="ring-content">
+            <div class="ring-pct" :style="{ color: progressColor(myRow?.percent || 0) }">
+              {{ myRow?.percent || 0 }}<small>%</small>
             </div>
-          </div>
-          <div class="self-meta">
-            <div class="row"><span>{{ $t('learningBoard.self.currentLang') }}</span><b>{{ subjectName }}</b></div>
-            <div class="row"><span>{{ $t('learningBoard.self.learned') }}</span><b>{{ myRow?.learnedLessons || 0 }} / {{ myRow?.totalLessons || 0 }}</b></div>
-            <div class="row"><span>{{ $t('learningBoard.self.lastLearned') }}</span><b>{{ myRow?.lastLearnedAt || $t('learningBoard.notStarted') }}</b></div>
-            <el-button type="primary" plain style="margin-top:14px" @click="router.push('/learning')">
-              {{ $t('learningBoard.self.continue') }}
-            </el-button>
+            <div class="ring-label">{{ $t('learningBoard.self.percent') }}</div>
           </div>
         </div>
 
-        <div class="tip-card">
-          <h4>{{ $t('learningBoard.tips.title') }}</h4>
-          <ul>
-            <li v-if="!myRow?.learnedLessons">{{ $t('learningBoard.tips.start') }}</li>
-            <li v-else-if="(myRow?.percent || 0) < 30">{{ $t('learningBoard.tips.pace') }}</li>
-            <li v-else-if="(myRow?.percent || 0) < 70">{{ $t('learningBoard.tips.practice') }}</li>
-            <li v-else>{{ $t('learningBoard.tips.challenge') }}</li>
-          </ul>
+        <div class="self-content">
+          <component
+            :is="encouragement.icon"
+            class="enc-icon"
+            :style="{ color: progressColor(myRow?.percent || 0) }"
+          />
+          <p class="enc-text">{{ $t(encouragement.key) }}</p>
+          <el-button type="primary" round size="large" @click="router.push('/learning')">
+            {{ $t('learningBoard.self.continue') }} <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+          </el-button>
         </div>
-      </div>
+      </section>
+
+      <!-- 三张里程碑: 已学 / 待学 / 最近 -->
+      <section class="milestone-row">
+        <div v-for="(m, i) in milestones" :key="i" class="milestone-card" :class="'ms-' + m.color">
+          <div class="ms-icon">{{ m.icon }}</div>
+          <div class="ms-label">{{ $t(m.key) }}</div>
+          <div class="ms-value" :class="{ large: typeof m.value === 'number' && m.value >= 100 }">
+            {{ m.value }}<small v-if="m.suffix && typeof m.value === 'number'"> {{ m.suffix }}</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- 个人最近活动 -->
+      <section v-if="recentEvents.length" class="section my-activity">
+        <h2 class="section-title">
+          <span class="title-emoji">📝</span>
+          {{ $t('learningBoard.activity.myTitle') }}
+        </h2>
+        <ul class="activity-list">
+          <li v-for="e in recentEvents.slice(0, 5)" :key="e.lessonId + '-my-' + e.learnedAt" class="activity-item">
+            <span class="activity-avatar" :style="{ background: avatarColor('USER') }">{{ avatar(e.username) }}</span>
+            <div class="activity-content">
+              <div class="activity-line">
+                <strong>{{ e.lessonTitle }}</strong>
+              </div>
+              <div class="activity-meta">
+                <el-tag size="small" effect="plain" round>{{ e.subjectName }}</el-tag>
+                <span class="muted">{{ $t('learningBoard.activity.chapter') }} {{ e.chapterNo }}</span>
+                <span class="muted">· {{ fmtAgo(e.learnedAt) }}</span>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </section>
     </template>
   </div>
 </template>
 
 <style scoped>
-.page { padding: 24px 32px 40px; }
+/* ============ 基础布局 ============ */
+.lb-page { padding: 24px 32px 48px; max-width: 1200px; margin: 0 auto; }
 
-/* 各科目平均完成度卡片(纯展示,当前语言高亮) */
-.subject-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.sub-card {
-  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m);
-  padding: 14px 16px; transition: all .15s; box-shadow: 0 2px 6px rgba(20, 30, 60, .05);
+/* ============ Hero (管理员/普通用户通用) ============ */
+.lb-hero {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 20px; margin-bottom: 20px;
 }
-.sub-card.active { border-color: var(--c-primary); box-shadow: 0 8px 18px rgba(37, 99, 235, .15); }
-.sub-name { color: #64748b; font-size: var(--fs-xs); margin-bottom: 4px; }
-.sub-pct { font-size: var(--fs-xl); font-weight: 700; color: #1f2937; line-height: 1.2; }
-.sub-pct small { font-size: var(--fs-xs); color: #64748b; margin-left: 2px; }
-.sub-card .bar { margin-top: 8px; height: 5px; border-radius: var(--r-full); background: var(--c-border); overflow: hidden; }
-.sub-card .bar i { display: block; height: 100%; border-radius: var(--r-full); transition: width .4s ease; }
-.sub-meta { margin-top: 6px; color: #64748b; font-size: var(--fs-xs); }
-.hint-inline { color: #64748b; font-size: var(--fs-xs); font-weight: 400; margin-left: 6px; }
-
-/* 学习偏好分布 */
-.pref-bar {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m);
-  padding: 11px 16px; margin-bottom: 16px; box-shadow: 0 2px 6px rgba(20, 30, 60, .05);
+.lb-hero h1 {
+  margin: 0; font-size: 24px; font-weight: 700; color: var(--c-text-1);
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
 }
-.pref-title { font-size: var(--fs-xs); color: #64748b; font-weight: 600; margin-right: 4px; }
-.pref-tag { flex: none; }
-.pref-hint { margin-left: auto; color: #64748b; font-size: var(--fs-xs); }
-
-.hero {
-  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px;
-  background: linear-gradient(120deg, #eef4ff 0%, #f6f1ff 60%, #fff 100%);
-  border: 1px solid #e8edf9; border-radius: var(--r-l); padding: 22px 26px; margin-bottom: 18px;
+.hero-emoji { font-size: 28px; }
+.hero-sub {
+  font-size: 13px; color: var(--c-text-3); font-weight: 400;
+  background: var(--c-fill-2, #f1f5f9); padding: 2px 10px; border-radius: 99px;
 }
-.hero.admin { background: linear-gradient(120deg, #fff1f1 0%, #fdf4ff 55%, #fff 100%); border-color: #f6e2e2; }
-.hero h1 { margin: 0 0 6px; font-size: var(--fs-xl); }
-.hero h1 small { font-size: var(--fs-xs); color: #64748b; font-weight: 400; margin-left: 8px; }
-.hero p { margin: 0; color: #6b7280; font-size: var(--fs-base); }
-.search { width: 260px; flex: none; }
+.hero-desc { margin: 8px 0 0; color: var(--c-text-3); font-size: 14px; }
+.lb-hero-right { width: 320px; flex: none; }
+.search-box :deep(.el-input__wrapper) { border-radius: 12px; }
 
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
-.stat { background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m); padding: 16px 18px; box-shadow: 0 2px 6px rgba(20, 30, 60, .05); }
-.stat .label { color: #64748b; font-size: var(--fs-xs); margin-bottom: 6px; }
-.stat .num { font-size: var(--fs-xl); font-weight: 700; color: #1f2937; line-height: 1.2; }
-.stat .num small { font-size: var(--fs-xs); color: #64748b; font-weight: 400; margin-left: 3px; }
-.bar { height: 6px; border-radius: var(--r-full); background: var(--c-border); overflow: hidden; }
-.stat .bar { margin-top: 10px; }
-.bar i { display: block; height: 100%; border-radius: var(--r-full); transition: width .4s ease; }
-
-.card { background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-m); box-shadow: 0 2px 6px rgba(20, 30, 60, .05); overflow: hidden; }
-.card-head { display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid #f1f3f8; }
-.card-head h3 { margin: 0; font-size: var(--fs-md); }
-.card-head .hint { color: #64748b; font-size: var(--fs-xs); }
-
-.board-table { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
-.board-table th {
-  text-align: left; padding: 11px 16px; background: #f8fafd; color: #6b7280;
-  font-weight: 500; font-size: var(--fs-xs); border-bottom: 1px solid var(--c-border);
+/* ============ KPI 大卡 ============ */
+.kpi-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  margin-bottom: 24px;
 }
-.board-table td { padding: 12px 16px; border-bottom: 1px solid #f4f6fa; vertical-align: middle; }
-.board-table tr.me { background: #f5f9ff; }
-.board-table tr.me:hover { background: #eef5ff; }
-.board-table tbody tr:hover { background: #fafbfe; }
+.kpi-card {
+  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l, 14px);
+  padding: 18px 20px; display: flex; gap: 14px; align-items: flex-start;
+  box-shadow: 0 2px 8px rgba(20, 30, 60, .04);
+  transition: transform .2s, box-shadow .2s;
+}
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(20, 30, 60, .08); }
+.kpi-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; flex: none;
+  font-size: 22px; color: #fff;
+}
+.kpi-blue   { border-top-color: #2563eb; } .kpi-blue .kpi-icon   { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+.kpi-green  { border-top-color: #16a34a; } .kpi-green .kpi-icon  { background: linear-gradient(135deg, #16a34a, #22c55e); }
+.kpi-orange { border-top-color: #f59e0b; } .kpi-orange .kpi-icon { background: linear-gradient(135deg, #f59e0b, #fb923c); }
+.kpi-purple { border-top-color: #8e44ad; } .kpi-purple .kpi-icon { background: linear-gradient(135deg, #8e44ad, #a855f7); }
 
-.rank { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 50%; background: #f1f4f9; color: #6b7280; font-size: var(--fs-xs); font-weight: 600; }
-.rank.gold { background: linear-gradient(135deg, #b45309, #92400e); color: #fff; }
-.rank.silver { background: linear-gradient(135deg, #64748b, #556275); color: #fff; }
-.rank.bronze { background: linear-gradient(135deg, #9a6b42, #7d5632); color: #fff; }
+.kpi-body { flex: 1; min-width: 0; }
+.kpi-label { color: var(--c-text-3); font-size: 12px; margin-bottom: 4px; }
+.kpi-num { font-size: 32px; font-weight: 800; color: var(--c-text-1); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-num small { font-size: 16px; color: var(--c-text-3); margin-left: 2px; font-weight: 600; }
+.kpi-sub { margin-top: 6px; font-size: 12px; color: var(--c-text-3); display: flex; align-items: center; gap: 6px; }
+.trend-up { color: #16a34a; font-weight: 600; }
+
+/* ============ Section 通用 ============ */
+.section { margin-bottom: 24px; }
+.section-title {
+  font-size: 16px; font-weight: 700; color: var(--c-text-1);
+  margin: 0 0 14px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+}
+.title-emoji { font-size: 18px; }
+.title-sub { font-size: 12px; color: var(--c-text-3); font-weight: 400; margin-left: 4px; }
+
+/* ============ 学科完成度 横向条形图 ============ */
+.subject-section, .pref-section, .activity-section {
+  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l);
+  padding: 18px 20px; box-shadow: 0 2px 8px rgba(20, 30, 60, .04);
+}
+.subject-bar-list { display: flex; flex-direction: column; gap: 10px; }
+.subject-row {
+  display: grid;
+  grid-template-columns: 28px 100px 1fr 60px 90px;
+  gap: 12px; align-items: center;
+  padding: 10px 12px; border-radius: 10px;
+  transition: background .15s;
+}
+.subject-row:hover { background: var(--c-fill-2, #f8fafc); }
+.subject-row.active { background: linear-gradient(90deg, rgba(37, 99, 235, .08), transparent); border-left: 3px solid #2563eb; padding-left: 9px; }
+.rank-num { color: var(--c-text-3); font-weight: 700; font-size: 13px; text-align: center; }
+.subject-name { color: var(--c-text-1); font-weight: 600; font-size: 14px; }
+.bar-track {
+  height: 10px; background: var(--c-fill-2, #f1f5f9); border-radius: 99px; overflow: hidden;
+}
+.bar-fill {
+  height: 100%; border-radius: 99px; transition: width .5s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .08) inset;
+}
+.percent { font-weight: 700; font-size: 15px; text-align: right; font-variant-numeric: tabular-nums; }
+.meta { font-size: 12px; text-align: right; }
+.muted { color: var(--c-text-3); }
+
+/* ============ 偏好分布 堆叠 bar ============ */
+.row-2col { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; }
+.pref-section { display: flex; flex-direction: column; }
+.pref-stack { display: flex; flex-direction: column; gap: 14px; }
+.pref-bar-track {
+  display: flex; height: 28px; border-radius: 99px; overflow: hidden;
+  background: var(--c-fill-2, #f1f5f9);
+}
+.pref-segment { height: 100%; transition: width .5s; }
+.pref-legend { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.pref-legend li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.pref-legend .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.pref-legend .dot-name { flex: 1; color: var(--c-text-2); }
+.pref-legend .dot-num { color: var(--c-text-1); font-variant-numeric: tabular-nums; }
+
+/* ============ 实时活动流 ============ */
+.activity-list { list-style: none; padding: 0; margin: 0; max-height: 320px; overflow-y: auto; }
+.activity-item {
+  display: flex; gap: 12px; padding: 10px 0;
+  border-bottom: 1px dashed var(--c-border);
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 600; font-size: 13px;
+}
+.activity-content { flex: 1; min-width: 0; }
+.activity-line { font-size: 13px; line-height: 1.4; }
+.activity-line em { font-style: normal; font-weight: 600; color: var(--c-text-1); }
+.activity-line .muted { margin: 0 4px; }
+.activity-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 11px; }
+
+/* ============ 学员榜 ============ */
+.rank-section { padding: 0; }
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px;
+  padding: 0 4px;
+}
+.head-hint { font-size: 12px; color: var(--c-text-3); }
+.rank-table {
+  width: 100%; border-collapse: collapse;
+  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l);
+  overflow: hidden; box-shadow: 0 2px 8px rgba(20, 30, 60, .04);
+}
+.rank-table th {
+  text-align: left; padding: 12px 16px; background: linear-gradient(180deg, #f8fafd, #f4f6fa);
+  color: var(--c-text-3); font-weight: 600; font-size: 12px;
+  border-bottom: 1px solid var(--c-border);
+}
+.rank-table td { padding: 14px 16px; border-bottom: 1px solid #f4f6fa; vertical-align: middle; }
+.rank-table tr:last-child td { border-bottom: none; }
+.rank-table tbody tr { transition: background .15s; }
+.rank-table tbody tr:hover { background: #fafbfe; }
+.rank-table tr.me { background: #f0f7ff; }
+.rank-table tr.me:hover { background: #e3effa; }
+.rank-table tr.podium { font-weight: 500; }
+
+.col-rank { width: 70px; text-align: center; }
+.col-progress { width: 240px; }
+.col-stat { width: 90px; }
+.col-time { width: 130px; }
+
+.rank-badge {
+  display: inline-flex; min-width: 32px; height: 32px;
+  align-items: center; justify-content: center;
+  border-radius: 50%; font-weight: 700; font-size: 18px;
+}
+.rank-badge.gold { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #fff; box-shadow: 0 4px 8px rgba(245, 158, 11, .3); }
+.rank-badge.silver { background: linear-gradient(135deg, #cbd5e1, #94a3b8); color: #fff; box-shadow: 0 4px 8px rgba(148, 163, 184, .3); }
+.rank-badge.bronze { background: linear-gradient(135deg, #d97706, #b45309); color: #fff; box-shadow: 0 4px 8px rgba(180, 83, 9, .3); }
 
 .who { display: flex; align-items: center; gap: 10px; }
-.avatar { width: 30px; height: 30px; border-radius: 50%; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-sm); font-weight: 600; flex: none; }
-.who-info { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
-.who-info b { font-size: var(--fs-base); }
-.who-info em { font-style: normal; font-size: var(--fs-xs); color: #2563eb; background: #e8f0ff; border-radius: var(--r-full); padding: 0 6px; margin-left: 6px; }
-.who-info small { color: #6b7280; font-size: var(--fs-xs); }
+.who-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 600; font-size: 14px; flex: none;
+}
+.who-info { display: flex; flex-direction: column; gap: 3px; line-height: 1.2; }
+.who-info b { font-size: 14px; color: var(--c-text-1); display: flex; align-items: center; gap: 6px; }
+.me-tag { font-style: normal; font-size: 10px; background: #2563eb; color: #fff; padding: 1px 6px; border-radius: 99px; }
+.who-info small { font-size: 11px; color: var(--c-text-3); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.role-tag { font-size: 10px !important; height: 18px !important; padding: 0 6px !important; }
+.pref-tag { font-size: 11px; }
 
 .progress-cell { display: flex; align-items: center; gap: 10px; }
-.progress-cell .bar { flex: 1; }
-.progress-cell .pct { width: 38px; text-align: right; font-size: var(--fs-xs); color: #374151; }
-.mono { font-family: 'JetBrains Mono', Menlo, monospace; font-size: var(--fs-xs); color: #374151; }
-.muted { color: #6b7280; font-size: var(--fs-xs); }
-.empty { text-align: center; color: #6b7280; padding: 34px 0; }
+.progress-cell .bar-track { flex: 1; height: 8px; }
+.progress-cell .percent { width: 44px; font-size: 13px; }
 
-/* 普通用户视图 */
-.self-cards { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; }
-.self-main {
-  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l); padding: 26px;
-  display: flex; align-items: center; gap: 30px; box-shadow: 0 2px 6px rgba(20, 30, 60, .05);
+.empty-state {
+  text-align: center; padding: 48px 20px;
+  background: #fff; border: 1px dashed var(--c-border); border-radius: var(--r-l);
+  color: var(--c-text-3);
 }
-.ring {
-  --p: 0%; --c: #2563eb;
-  width: 148px; height: 148px; border-radius: 50%; flex: none;
-  background: conic-gradient(var(--c) var(--p), var(--c-border) 0);
-  display: flex; align-items: center; justify-content: center;
+.empty-emoji { font-size: 40px; display: block; margin-bottom: 8px; }
+
+/* ============ 普通用户视图 ============ */
+.self-hero { background: linear-gradient(120deg, #f0f6ff, #faf5ff 60%, #fff); padding: 18px 22px; border-radius: var(--r-l); border: 1px solid #e8edf9; margin-bottom: 20px; }
+
+.self-main-card {
+  display: grid; grid-template-columns: auto 1fr; gap: 32px; align-items: center;
+  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l);
+  padding: 28px 36px; box-shadow: 0 4px 16px rgba(20, 30, 60, .05);
+  margin-bottom: 20px;
 }
-.ring-inner {
-  width: 116px; height: 116px; border-radius: 50%; background: #fff;
+.ring-wrap { position: relative; width: 160px; height: 160px; flex: none; }
+.ring-svg { width: 100%; height: 100%; transform: rotate(0); }
+.ring-content {
+  position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
-.ring-inner b { font-size: var(--fs-xl); color: #1f2937; line-height: 1; }
-.ring-inner b small { font-size: var(--fs-sm); color: #64748b; }
-.ring-inner span { font-size: var(--fs-xs); color: #64748b; margin-top: 4px; }
-.self-meta { flex: 1; }
-.self-meta .row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px dashed var(--c-border); font-size: var(--fs-base); }
-.self-meta .row span { color: #64748b; }
-.self-meta .row b { color: #1f2937; font-weight: 600; }
+.ring-pct { font-size: 44px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.ring-pct small { font-size: 20px; margin-left: 2px; opacity: .6; }
+.ring-label { color: var(--c-text-3); font-size: 13px; margin-top: 4px; }
 
-.tip-card { background: linear-gradient(135deg, #f0f6ff, #faf5ff); border: 1px solid #e8edf9; border-radius: var(--r-l); padding: 22px 24px; }
-.tip-card h4 { margin: 0 0 12px; font-size: var(--fs-md); }
-.tip-card ul { margin: 0; padding-left: 18px; color: #4b5563; font-size: var(--fs-base); line-height: 2; }
+.self-content { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.enc-icon { font-size: 36px; }
+.enc-text { font-size: 16px; color: var(--c-text-1); margin: 0; line-height: 1.6; max-width: 480px; }
 
-/* ============ 移动端(<=768px) ============ */
-@media (max-width: 768px) {
-  .hero { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px; }
-  .search { width: 100%; }
-  .subject-stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .self-cards { grid-template-columns: 1fr; }
-  .self-main { flex-direction: column; text-align: center; padding: 18px; gap: 16px; }
-  .self-meta .row { font-size: var(--fs-sm); }
-  /* 排行榜表格横向滚动 */
-  .card { overflow-x: auto; }
-  .board-table { min-width: 620px; }
+/* 里程碑 3 卡 */
+.milestone-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
+.milestone-card {
+  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l);
+  padding: 18px 22px;
+  display: flex; flex-direction: column; gap: 4px;
+  box-shadow: 0 2px 6px rgba(20, 30, 60, .04);
+  border-top: 3px solid var(--c-border);
+  transition: transform .15s;
 }
-@media (max-width: 400px) {
-  .subject-stats { grid-template-columns: 1fr 1fr; }
-  .ring { width: 124px; height: 124px; }
-  .ring-inner { width: 96px; height: 96px; }
+.milestone-card:hover { transform: translateY(-2px); }
+.ms-green  { border-top-color: #16a34a; } .ms-green .ms-icon  { color: #16a34a; }
+.ms-blue   { border-top-color: #2563eb; } .ms-blue .ms-icon   { color: #2563eb; }
+.ms-orange { border-top-color: #f59e0b; } .ms-orange .ms-icon { color: #f59e0b; }
+.ms-icon { font-size: 22px; line-height: 1; }
+.ms-label { color: var(--c-text-3); font-size: 12px; }
+.ms-value { font-size: 24px; font-weight: 700; color: var(--c-text-1); line-height: 1.2; }
+.ms-value.large { color: var(--c-primary, #2563eb); }
+.ms-value small { font-size: 13px; color: var(--c-text-3); font-weight: 400; }
+
+.my-activity {
+  background: #fff; border: 1px solid var(--c-border); border-radius: var(--r-l);
+  padding: 18px 20px; box-shadow: 0 2px 6px rgba(20, 30, 60, .04);
+}
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 1024px) {
+  .row-2col { grid-template-columns: 1fr; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .lb-page { padding: 16px 14px 36px; }
+  .lb-hero { flex-direction: column; align-items: stretch; }
+  .lb-hero-right { width: 100%; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .kpi-card { padding: 14px; gap: 10px; }
+  .kpi-num { font-size: 24px; }
+  .kpi-icon { width: 36px; height: 36px; font-size: 18px; }
+  .self-main-card { grid-template-columns: 1fr; text-align: center; padding: 22px; }
+  .self-content { align-items: center; }
+  .ring-wrap { margin: 0 auto; }
+  .milestone-row { grid-template-columns: 1fr; gap: 10px; }
+  .rank-table { font-size: 13px; min-width: 580px; }
+  .rank-section { overflow-x: auto; }
+  .subject-row { grid-template-columns: 24px 80px 1fr 50px; font-size: 12px; }
+  .subject-row .meta { display: none; }
 }
 </style>

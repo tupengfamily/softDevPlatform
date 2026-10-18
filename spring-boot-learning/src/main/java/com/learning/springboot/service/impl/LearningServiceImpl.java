@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -239,6 +240,61 @@ public class LearningServiceImpl implements LearningService {
     public void unmarkLearned(Long lessonId, Long userId) {
         progressRepository.deleteByUserIdAndLessonId(userId, lessonId);
         log.info("用户 {} 取消课时 {} 的学习标记", userId, lessonId);
+    }
+
+    /**
+     * 看板"最近学习动态"(管理员视角,跨用户的最近完成事件)
+     * <p>
+     * 返回 N 条,按 learned_at 倒序,带 lessonTitle / chapterNo / subjectName
+     */
+    @Override
+    @Cacheable(value = "learningBoard", key = "'recent:' + #limit")
+    public List<Map<String, Object>> recentProgress(int limit) {
+        List<LessonProgress> all = progressRepository.findTop100ByLearnedAtNotNullOrderByLearnedAtDesc();
+        if (all.isEmpty()) return List.of();
+
+        // 批量拉 lesson / user / chapter 减少 N+1
+        Set<Long> lessonIds = new HashSet<>();
+        Set<Long> userIds = new HashSet<>();
+        for (LessonProgress p : all) {
+            lessonIds.add(p.getLessonId());
+            userIds.add(p.getUserId());
+        }
+        Map<Long, LearningLesson> lessons = lessonRepository.findAllById(lessonIds).stream()
+            .collect(Collectors.toMap(LearningLesson::getId, l -> l));
+        Map<Long, User> users = userRepository.findAllById(userIds).stream()
+            .collect(Collectors.toMap(User::getId, u -> u));
+
+        // 还需要 chapter 拿 subjectId (subjectName 用于前端展示)
+        Set<Long> chapterIds = lessons.values().stream().map(LearningLesson::getChapterId).collect(Collectors.toSet());
+        Map<Long, LearningChapter> chapters = chapterRepository.findAllById(chapterIds).stream()
+            .collect(Collectors.toMap(LearningChapter::getId, c -> c));
+        Set<Long> subjectIds = chapters.values().stream().map(LearningChapter::getSubjectId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, String> subjectNames = subjectRepository.findAllById(subjectIds).stream()
+            .collect(Collectors.toMap(LearningSubject::getId, LearningSubject::getName));
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        int n = 0;
+        for (LessonProgress p : all) {
+            if (n >= limit) break;
+            if (p.getLearnedAt() == null) continue;
+            LearningLesson l = lessons.get(p.getLessonId());
+            if (l == null) continue;
+            LearningChapter c = chapters.get(l.getChapterId());
+            User u = users.get(p.getUserId());
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("userId", p.getUserId());
+            item.put("username", u == null ? null : u.getUsername());
+            item.put("lessonId", l.getId());
+            item.put("lessonTitle", l.getTitle());
+            item.put("chapterNo", c == null ? null : c.getChapterNo());
+            item.put("subjectId", c == null ? null : c.getSubjectId());
+            item.put("subjectName", c == null ? null : subjectNames.getOrDefault(c.getSubjectId(), null));
+            item.put("learnedAt", p.getLearnedAt());
+            out.add(item);
+            n++;
+        }
+        return out;
     }
 
     // ==================== 进度统计 ====================

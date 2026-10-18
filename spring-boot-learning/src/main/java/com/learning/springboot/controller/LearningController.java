@@ -72,6 +72,15 @@ public class LearningController {
     }
 
     /**
+     * 最近 N 条学习完成事件(看板"实时活动"用,管理员/普通用户都能用)
+     */
+    @GetMapping("/recent-progress")
+    public ResponseEntity<?> recentProgress(@RequestParam(defaultValue = "5") int limit) {
+        int n = Math.max(1, Math.min(limit, 20));
+        return Result.ok(learningService.recentProgress(n));
+    }
+
+    /**
      * 学习偏好(正在学习的语言/科目)
      * <p>
      * 头像旁语言选择框的记忆:登录后拉取、切换时保存,下次进入默认展示该语言的学习内容。

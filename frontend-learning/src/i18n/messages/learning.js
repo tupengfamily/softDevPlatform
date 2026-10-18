@@ -74,6 +74,19 @@ export default {
     'learningBoard.tips.practice': '已过三分之一,建议把并发与数据库章节的练习都跑一遍。',
     'learningBoard.tips.challenge': '进度很棒!试着挑战综合实战章节,自己动手完成完整项目。',
 
+    // 学科横向对比 / 偏好分布 / 实时活动
+    'learningBoard.subject.title': '各科目完成度',
+    'learningBoard.subject.subtitle': '共 {n} 个科目,按平均完成度排序',
+    'learningBoard.kpi.topPercent': '最高完成度',
+    'learningBoard.kpi.topHint': '榜首学员的进度',
+    'learningBoard.activity.title': '实时活动',
+    'learningBoard.activity.myTitle': '我的最近学习',
+    'learningBoard.activity.completed': '完成了',
+    'learningBoard.activity.chapter': '第',
+    'learningBoard.table.headSub': '共 {n} 位',
+    'learningBoard.self.lessons': '课时',
+    'learningBoard.self.remaining': '待学课时',
+
     // ===== 我的收藏 Favorites =====
     'favorites.hero.title': '我的收藏',
     'favorites.hero.desc': '收藏常用网站、工具与文档,支持分类与排序。',
@@ -213,6 +226,17 @@ export default {
     'learningBoard.tips.pace': 'Keep a steady pace: 1-2 lessons a day, and practice in the code sandbox.',
     'learningBoard.tips.practice': "You're one third through. Try running every exercise in the concurrency and database chapters.",
     'learningBoard.tips.challenge': 'Great progress! Take on the capstone chapters and build a complete project yourself.',
+    'learningBoard.subject.title': 'Subjects by Completion',
+    'learningBoard.subject.subtitle': '{n} subjects, sorted by average completion',
+    'learningBoard.kpi.topPercent': 'Top Completion',
+    'learningBoard.kpi.topHint': 'Highest among all learners',
+    'learningBoard.activity.title': 'Live Activity',
+    'learningBoard.activity.myTitle': 'My Recent Activity',
+    'learningBoard.activity.completed': 'completed',
+    'learningBoard.activity.chapter': 'Ch.',
+    'learningBoard.table.headSub': '{n} learners',
+    'learningBoard.self.lessons': 'lessons',
+    'learningBoard.self.remaining': 'Remaining',
 
     // ===== Favorites =====
     'favorites.hero.title': 'My Favorites',

@@ -18,6 +18,10 @@ export const getProgress = (subjectId) =>
 export const getBoard = (subjectId) =>
   request({ url: '/learning/board', method: 'get', params: subjectId ? { subjectId } : {} })
 
+// GET /api/learning/recent-progress?limit= — 最近 N 条学习完成事件(看板"实时活动")
+export const getRecentProgress = (limit = 8) =>
+  request({ url: '/learning/recent-progress', method: 'get', params: { limit } })
+
 // GET /api/learning/preference — 学习偏好(正在学习的语言)
 export const getPreference = () =>
   request({ url: '/learning/preference', method: 'get' })

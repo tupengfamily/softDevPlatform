@@ -31,6 +31,16 @@ public interface LessonProgressRepository extends JpaRepository<LessonProgress, 
     void deleteByLessonIdIn(Collection<Long> lessonIds);
 
     /**
+     * 全局最近 N 条学习完成记录(只取已完成的)
+     * <p>
+     * 配合 join lesson + user 在 service 层做,避免 N+1
+     */
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT p FROM LessonProgress p WHERE p.learnedAt IS NOT NULL ORDER BY p.learnedAt DESC"
+    )
+    List<LessonProgress> findTop100ByLearnedAtNotNullOrderByLearnedAtDesc();
+
+    /**
      * 限定到某批课时内的全部进度(看板统计用,避免全表加载)
      * <p>
      * 配合 idx_lesson 索引,即使总进度表很大,按 lesson_id IN (...) 也能快速命中。
