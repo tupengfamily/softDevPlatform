@@ -176,6 +176,7 @@ const menuGroups = computed(() => {
         { path: '/roles',     titleKey: 'nav.roles', icon: 'Stamp' },
         { path: '/dicts',     titleKey: 'nav.dicts', icon: 'Collection' },
         { path: '/logs',      titleKey: 'nav.logs', icon: 'Tickets' },
+        { path: '/api-keys',  titleKey: 'nav.apiKeys', icon: 'Key' },
         { path: '/learning-config', titleKey: 'nav.learningConfig', icon: 'SetUp' },
         { path: '/system-settings', titleKey: 'nav.systemSettings', icon: 'Tools' }
       ]
@@ -821,9 +822,14 @@ const onCommand = async (cmd) => {
           <el-icon class="gb-ic"><View /></el-icon>
           <span class="gb-text" v-html="tHtml('layout.readonly.banner')"></span>
         </div>
-        <RouterView v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
+        <!--
+          不要用 mode="out-in"：农场页等多根组件（主体 + 若干全屏浮层）无法完成 transition，
+          out-in 会卡在 leave 阶段，路由已变但新页面永远不渲染 —— 表现为"点返回后内容区空白"。
+          去掉 out-in 后多根组件会跳过动画直接切换，单根组件仍保留淡入淡出。
+        -->
+        <RouterView v-slot="{ Component, route }">
+          <transition name="fade">
+            <component :is="Component" :key="route.path" />
           </transition>
         </RouterView>
       </el-main>

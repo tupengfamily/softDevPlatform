@@ -87,6 +87,12 @@ const routes = [
         meta: { title: '数据字典', titleKey: 'nav.dicts', icon: 'Collection', roles: ['ADMIN'] }
       },
       {
+        path: 'api-keys',
+        name: 'ApiKeyManagement',
+        component: () => import('../views/ApiKeyManagement.vue'),
+        meta: { title: 'API 密钥', titleKey: 'nav.apiKeys', icon: 'Key', roles: ['ADMIN'] }
+      },
+      {
         path: 'system-settings',
         name: 'SystemSettings',
         component: () => import('../views/SystemSettings.vue'),
@@ -151,6 +157,12 @@ const routes = [
         name: 'GameOneStroke',
         component: () => import('../views/games/GameOneStroke.vue'),
         meta: { title: '一笔画完', titleKey: 'oneStroke.title', icon: 'EditPen' }
+      },
+      {
+        path: 'games/farm',
+        name: 'GameFarm',
+        component: () => import('../views/games/GameFarm.vue'),
+        meta: { title: '稼穑', titleKey: 'farm.title', icon: 'Sunny' }
       },
       {
         path: 'games/history',
