@@ -18,6 +18,14 @@ services:
     environment:
       - SERVER_PORT=8080
       - JAVA_OPTS=-Xms256m -Xmx512m
+      # 🔴 正式部署必须关闭「稼穑」演示模式。
+      #    开启后玩家能手动推进天数 / 注入模拟天气，违反 1:1 真实时间基线（D2）。
+      - FARM_DEMO_MODE=false
+      # 天地图服务端 key（瓦片代理用）。真实值请写到同目录的 .env 里：
+      #   echo 'TIANDITU_SERVER_KEY=你的服务端key' > .env
+      # .env 已在 .gitignore 中，不会进版本库。留空则地图底图返回 503 并提示配置。
+      - TIANDITU_SERVER_KEY=${TIANDITU_SERVER_KEY:-}
+      - TIANDITU_ENABLED=${TIANDITU_ENABLED:-true}
     # 需要直接访问后端 API 时, 取消下面两行注释
     # ports:
     #   - "8080:8080"

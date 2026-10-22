@@ -7,6 +7,8 @@ target/
 build/
 out/
 dist/
+# 沙箱删除守卫拦截 vite 清空 dist 时，用 mv 备份出来的旧产物目录
+dist.bak.*/
 
 # ============ IDE 文件 ============
 .idea/
@@ -81,6 +83,20 @@ replay_pid*.log
 # hsk-cli(花生壳)本地缓存:含 account_id / claim token / publicUrl 等账号信息
 .hsk/
 
+# ============ 密钥 / 凭据(绝对不允许进版本库) ============
+# 第三方 API Key / Secret 一律走「系统管理 → API 密钥」页面配置, 后端加密后落库。
+# 以下规则是兜底: 即使有人手动 git add 也不会被提交。
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*secret*.json
+*credential*.json
+secrets.json
+api-keys.json
+data/api-key-master.key
+
 # java-learning IO 流等示例的运行产物
 /note.txt
 /demo.bin
@@ -91,3 +107,17 @@ replay_pid*.log
 /03-learning-center.png
 /04-learning-center-fixed.png
 frontend-learning/public/__design*.html
+
+# ============================================================
+#  不进版本库的目录
+# ============================================================
+# 原始农业统计数据集（197MB / 1500+ 个 xls / csv / html），
+# 属于外部数据快照，不是项目代码，体积也远超仓库合理规模。
+# 只保留「来源说明 + 解析脚本」这两个元信息文件，数据本体不入库。
+/data-sources/**
+!/data-sources/SOURCES.md
+!/data-sources/parse_html_table.py
+
+# 沙箱删除守卫（safe-delete）拦截时归档下来的旧产物目录
+frontend-learning/.trash_*/
+frontend-learning/dist.bak-*/

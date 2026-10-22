@@ -308,13 +308,15 @@ function installLifecycle() {
 // ============== 工具方法 ==============
 /** 手动触发业务事件 */
 export function trackEvent(name, params = {}) {
+  // ⚠️ 后端 TrackEventDto 只有固定的 27 个字段 + 一个 Map 类型的 extra。
+  //    之前把 eventName 平铺在顶层 → Jackson 遇到未知字段直接抛
+  //    Unrecognized field "eventName" → 整批 400 → 这条埋点永远丢。
+  //    自定义字段一律塞进 extra。
   enqueue({
-    ...baseEvent('custom', {}),
+    ...baseEvent('custom', { extra: { eventName: name, ...params } }),
     routeName: currentPage?.route,
     pageTitle: currentPage?.title,
     url: location.href,
-    eventName: name,
-    ...params,
     timestamp: nowMs()
   })
 }

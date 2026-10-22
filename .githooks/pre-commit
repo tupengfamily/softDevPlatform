@@ -1,0 +1,24 @@
+#!/bin/sh
+# 提交前扫描硬编码凭据
+# 凭据统一走「系统管理 → API 密钥」页面配置（后端加密落库），不允许进版本库。
+# 手动跳过: git commit --no-verify
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+PY=""
+for cand in python3 python; do
+  if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
+done
+
+if [ -z "$PY" ]; then
+  echo "pre-commit: 未找到 python，跳过密钥扫描"
+  exit 0
+fi
+
+if ! "$PY" "$ROOT/scripts/check_secrets.py" --staged; then
+  echo ""
+  echo "提交被拦截：检测到疑似硬编码凭据。"
+  echo "请把凭据移到「系统管理 → API 密钥」页面配置，或改用环境变量注入。"
+  exit 1
+fi
+exit 0

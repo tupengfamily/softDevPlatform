@@ -108,6 +108,34 @@ onlyoffice:
   jwt-enabled: ${OO_JWT_ENABLED:true}
   jwt-header: ${OO_JWT_HEADER:Authorization}
 
+# ============== 天地图（Tianditu）后端代理 ==============
+# 架构：服务端持 key 代调天地图，浏览器只跟本服务说话。
+#   - 为什么不让浏览器直连：服务端 key 放前端等于公开；浏览器端 key 直连又拿不到
+#     矢量/注记等需要 key 的图层能力，且 key 会出现在 DevTools 里。
+#   - 天地图有两种 key：浏览器端 key 在服务端调用会返回 403
+#     {"code":301012,"msg":"权限类型错误"}，所以代理层必须用「服务端」类型 key。
+#
+# ⚠️ 密钥绝不要写进本文件（会随仓库泄露）。只通过环境变量注入：
+#   TIANDITU_SERVER_KEY  = 天地图控制台申请的【服务端】key   ← 代理层必填
+#   TIANDITU_BROWSER_KEY = 天地图控制台申请的【浏览器端】key（备用，本后端不用）
+#   TIANDITU_ENABLED     = true/false 总开关（默认 true）
+tianditu:
+  enabled: ${TIANDITU_ENABLED:true}
+  # 服务端 key：未配置时地图端点返回 503 并提示配置，不去打上游（避免无谓报错）
+  server-key: ${TIANDITU_SERVER_KEY:}
+  # 浏览器端 key：仅备用字段，代理层不使用
+  browser-key: ${TIANDITU_BROWSER_KEY:}
+  # API 根地址（地名搜索 / 地理编码）
+  base-url: ${TIANDITU_BASE_URL:https://api.tianditu.gov.cn}
+  # 瓦片域名模板，{0} 为 0-7 机器编号（天地图共 8 台，代理层按 (x+y)%8 轮询分流）
+  tile-host-template: ${TIANDITU_TILE_HOST:https://t{0}.tianditu.gov.cn}
+  # 超时（毫秒）：连接 3s / 读取 8s
+  connect-timeout-ms: ${TIANDITU_CONNECT_TIMEOUT_MS:3000}
+  read-timeout-ms: ${TIANDITU_READ_TIMEOUT_MS:8000}
+  # 搜索/地理编码结果内存缓存（天地图的行政区划/POI 数据几乎不变，缓存可省上游配额）
+  max-cache-entries: ${TIANDITU_MAX_CACHE_ENTRIES:500}
+  cache-ttl-ms: ${TIANDITU_CACHE_TTL_MS:1800000}
+
 # ============== 缓存 (Caffeine 本地内存) ==============
 # 读多写少的接口(字典/课程树/系统设置)在 service 方法上用 @Cacheable
 # 多实例部署需换成 Redis; 单实例 Caffeine 性能最优
@@ -115,3 +143,14 @@ spring.cache:
   type: caffeine
   caffeine:
     spec: maximumSize=2000,expireAfterWrite=5m,recordStats
+# ============================================================
+# 「稼穑」小游戏（/api/games/farm）
+# ============================================================
+farm:
+  # 🔴 演示模式：允许「手动推进天数」与「注入模拟天气」。
+  #    正式部署必须设 FARM_DEMO_MODE=false —— 1:1 真实时间下推进时间违反设计基线 D2
+  #    （禁止任何形式的时间加速）。平台作为通用学习系统，玩家不会为看一季稻子等 140 天，
+  #    所以本地开发默认开启，并在 UI 上如实标注「演示模式」。
+  #    ⚠️ Docker/生产部署务必在 compose 的 environment 里显式传 FARM_DEMO_MODE=false，
+  #       否则会跟着默认值一起把「推进 400 天」的闸门放开。
+  demo-mode: ${FARM_DEMO_MODE:true}

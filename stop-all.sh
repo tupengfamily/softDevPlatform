@@ -9,6 +9,13 @@
 # - 清理 .run/*.pid / tmp 日志
 # --clean 选项额外清理 SQLite WAL/SHM
 # --force 跳过确认(脚本/CI 场景)
+#
+# 集成说明:
+# - 后端模块列表包含原 spring-boot-learning 全部功能 + 稼穑小游戏（farm-game）
+#   - 稼穑引擎位于 src/main/java/com/learning/springboot/farm/engine/
+#   - 演示天气位于 src/main/resources/farm/weather-nanchang.json
+#   - 启动后通过 GET /api/games/farm/state 验证模块已挂载
+# - 8080 端口的 Spring Boot jar 进程即「通用学习平台后端」+「稼穑小游戏后端」
 
 # 颜色
 RED='\033[0;31m'

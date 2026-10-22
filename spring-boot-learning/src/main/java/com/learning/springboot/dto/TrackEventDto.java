@@ -1,5 +1,7 @@
 package com.learning.springboot.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.Map;
 
 /**
@@ -13,7 +15,17 @@ import java.util.Map;
  *   <li>page_perf: 性能指标(PerformanceObserver 上报)</li>
  *   <li>custom: 自定义业务事件(预留)</li>
  * </ul>
+ *
+ * <p>🔴 <b>为什么要 @JsonIgnoreProperties(ignoreUnknown = true)</b>：
+ * 埋点是「尽力而为」的数据采集，**丢一条埋点绝不该影响业务**。
+ * 但 Jackson 默认遇到 DTO 里没有的字段会直接抛
+ * {@code UnrecognizedPropertyException} → 整个 batch 请求 400 →
+ * 这一批里的所有事件（可能几十条）一起丢。
+ * 前端 tracker.js 已经把自定义字段统一塞进 {@code extra}，
+ * 但只要有人再加一个新字段忘了改 DTO，历史代码就会静默地全量丢数据。
+ * 这里显式宽容：未知字段忽略掉，已知字段照常入库。
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class TrackEventDto {
 
     public String sessionId;          // 必填,前端生成(uuid)

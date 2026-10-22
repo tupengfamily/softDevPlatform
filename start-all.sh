@@ -481,19 +481,48 @@ echo ""
 step "⑦ 启动后端 Spring Boot..."
 cd "$SCRIPT_DIR/spring-boot-learning"
 
-# 后台启动 mvn(显式传 SERVER_PORT=8080, 覆盖沙箱可能注入的其他端口, 避免监听错位)
-nohup env SERVER_PORT=8080 mvn spring-boot:run > "$BACKEND_LOG" 2>&1 &
+# 优先用预打包的 jar 启动（启动从 60+ 秒降到 5 秒，且不阻塞 npm 缓存）。
+# jar 不存在或源码比 jar 新 → 触发 mvn package 自动重打。
+JAR="$SCRIPT_DIR/spring-boot-learning/target/spring-boot-learning-1.0.0-SNAPSHOT.jar"
+NEEDS_BUILD=0
+if [ ! -f "$JAR" ]; then
+    NEEDS_BUILD=1
+    info "  未找到预编译 jar，编译首次会拉依赖，请稍候..."
+else
+    # 若最近 24 小时内有 .java 比 jar 新 → 重打
+    if [ -n "$(find src/main/java -name "*.java" -newer "$JAR" -print -quit 2>/dev/null)" ]; then
+        NEEDS_BUILD=1
+        info "  检测到源码比 jar 新，自动重新打包..."
+    fi
+fi
+if [ "$NEEDS_BUILD" = "1" ]; then
+    if ! mvn -o package -DskipTests > "$BACKEND_LOG" 2>&1; then
+        error "后端打包失败，请看 $BACKEND_LOG"
+        tail -30 "$BACKEND_LOG"
+        exit 1
+    fi
+    success "  打包完成"
+fi
+
+# ⚠️ 关键：必须从仓库根目录启 jar，而不是模块目录。
+#    application.yml 用 ${user.dir} 解析数据目录。模块目录下只有早期的小库（缺
+#    create_time / update_time 列），会导致 LearningDataSeedService 启动失败；
+#    根目录下的 data/sandbox.db 才是 schema 完整的活动库。
+cd "$SCRIPT_DIR"
+
+# 后台启动 jar（显式传 SERVER_PORT=8080，覆盖沙箱可能注入的其他端口）
+nohup env SERVER_PORT=8080 java -jar "$JAR" > "$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$BACKEND_PID_FILE"
 
-info "后端进程 PID: $BACKEND_PID, 日志: $BACKEND_LOG"
+info "后端进程 PID: $BACKEND_PID，日志: $BACKEND_LOG"
 
-# 等待后端就绪(最多 90 秒,首次启动要拉依赖)
-info "等待后端启动(端口 8080, 首次启动可能需要 60-90 秒)..."
+# 等待后端就绪（jar 启动通常 5–8 秒；保险起见 30 秒）
+info "等待后端启动（端口 8080，jar 启动通常 5–8 秒）..."
 # 探活 URL 选 /api/auth/public-key(免鉴权 + 必存在)
 HEALTH_URL="http://localhost:8080/api/auth/public-key"
 HEALTH_OK=0
-for i in {1..45}; do
+for i in {1..15}; do
     sleep 2
     if curl -sf "$HEALTH_URL" >/dev/null 2>&1; then
         success "后端启动成功 (用时约 $((i*2)) 秒)"
@@ -505,16 +534,37 @@ for i in {1..45}; do
         error "后端进程已退出, 请查看日志: tail -50 $BACKEND_LOG"
         exit 1
     fi
-    # 每 10 秒给个进度提示
-    if [ $((i % 5)) -eq 0 ]; then
-        info "  等待中 ($((i*2))/90 秒)..."
+    # 每 5 秒给个进度提示
+    if [ $((i % 3)) -eq 0 ]; then
+        info "  等待中 ($((i*2))/30 秒)..."
     fi
 done
 
 if [ $HEALTH_OK -ne 1 ]; then
-    error "后端启动超时(90秒), 请查看日志: tail -50 $BACKEND_LOG"
+    error "后端启动超时(30秒), 请查看日志: tail -50 $BACKEND_LOG"
     exit 1
 fi
+
+# 稼穑小游戏集成自检（早发现早报错）
+# 登录拿 token，再打一发 /api/games/farm/state，必须 200 才算完成
+info "稼穑模块自检（登录后调用 /api/games/farm/state）..."
+ADMIN_TOKEN=$(curl -s --noproxy '*' -X POST http://localhost:8080/api/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"username":"admin","password":"admin123"}' \
+    | /Users/tupengfamily/.workbuddy/binaries/node/versions/22.22.2-6/bin/node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const j=JSON.parse(d);console.log(j.data&&j.data.token||'')}catch{console.log('')}})")
+if [ -n "$ADMIN_TOKEN" ]; then
+    FARM_STATUS=$(curl -s --noproxy '*' -o /dev/null -w "%{http_code}" \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        http://localhost:8080/api/games/farm/state)
+    if [ "$FARM_STATUS" = "200" ]; then
+        success "稼穑模块（/api/games/farm/state）已注册到游戏中心"
+    else
+        warn "稼穑接口未通过自检（HTTP $FARM_STATUS），可能 bean 未注册或源码未重新打包"
+    fi
+else
+    warn "登录失败，跳过稼穑自检（不阻塞启动）"
+fi
+
 echo ""
 
 # ===========================================
@@ -580,11 +630,14 @@ echo -e "     ./stop-all.sh          (停止并保留数据)"
 echo -e "     ./stop-all.sh --clean  (停止并清理 SQLite WAL/SHM)"
 echo ""
 
-# 询问是否打开浏览器
-if command -v open >/dev/null 2>&1; then
-    read -p "$(echo -e ${CYAN}是否打开浏览器? [y/N]: ${NC})" -n 1 -r
+# 询问是否打开浏览器（非交互式/CI 环境默认跳过；用 ./start-all.sh --open 强制开）
+if [ -t 0 ] && [ "${OPEN_BROWSER:-0}" != "1" ] && [ "${1:-}" != "--open" ]; then
+    read -p "$(echo -e ${CYAN}是否打开浏览器? [y/N]: ${NC})" -n 1 -r 2>/dev/null
     echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        open http://localhost:5173
+    if [[ "${REPLY:-N}" =~ ^[Yy]$ ]]; then
+        OPEN_BROWSER=1
     fi
+fi
+if [ "${OPEN_BROWSER:-0}" = "1" ] && command -v open >/dev/null 2>&1; then
+    open http://localhost:5173 2>/dev/null || true
 fi
