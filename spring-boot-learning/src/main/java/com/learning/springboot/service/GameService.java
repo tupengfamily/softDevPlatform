@@ -31,7 +31,7 @@ import java.util.Set;
 public class GameService {
 
     /** 已上线的游戏白名单(防止任意 gameCode 往库里灌数据) */
-    private static final Set<String> SUPPORTED_GAMES = Set.of("2048", "gomoku", "guess", "sudoku", "one-stroke");
+    private static final Set<String> SUPPORTED_GAMES = Set.of("2048", "gomoku", "guess", "sudoku", "one-stroke", "farm");
     /** 单局得分的合理上限(纯防御: 2048 理论上限远低于此, 拦住前端误传/刷分) */
     private static final int MAX_SCORE = 10_000_000;
     /** 最大方块值上限(理论 2^24 ≈ 16M 已足够) */

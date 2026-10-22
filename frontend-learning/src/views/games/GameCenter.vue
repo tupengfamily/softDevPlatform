@@ -19,6 +19,15 @@ const { t } = useI18n()
 
 const GAMES = [
   {
+    code: 'farm',
+    name: '稼穑',
+    nameKey: 'farm.title',
+    route: '/games/farm',
+    descKey: 'games.farm.desc',
+    color: '#4d7c2a',
+    cover: 'farm'
+  },
+  {
     code: '2048',
     name: '2048',
     route: '/games/2048',
@@ -187,6 +196,16 @@ onMounted(load)
               <circle cx="40" cy="60" r="5.5" fill="#ffffff" stroke="#c8c8c8" stroke-width="0.5" />
               <circle cx="55" cy="65" r="5.5" fill="#ffffff" stroke="#c8c8c8" stroke-width="0.5" />
             </svg>
+          </div>
+          <div v-else-if="card.cover === 'farm'" class="mini-farm">
+            <i
+              v-for="n in 16"
+              :key="n"
+              :style="{
+                background:
+                  n % 5 === 0 ? '#c9a83c' : n % 3 === 0 ? '#6da23f' : n % 2 === 0 ? '#a9cd80' : '#8fbb63'
+              }"
+            ></i>
           </div>
           <div v-else-if="card.cover === 'guess'" class="mini-guess">
             <div class="digits">
@@ -383,6 +402,15 @@ onMounted(load)
 }
 .mini-gomoku { width: 100%; max-width: 168px; }
 .mini-gomoku-svg { width: 100%; height: auto; display: block; border-radius: 6px; }
+/* 稼穑: 迷你田块（4x4，颜色对应物候阶梯） */
+.mini-farm {
+  width: 100%; max-width: 132px; aspect-ratio: 1;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px;
+  padding: 6px; border-radius: 6px;
+  background: #6b5844;
+}
+.mini-farm i { display: block; border-radius: 2px; }
+
 .mini-guess {
   width: 100%; max-width: 168px; padding: 8px 4px;
   display: flex; flex-direction: column; align-items: center; gap: 6px;

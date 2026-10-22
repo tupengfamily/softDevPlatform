@@ -88,7 +88,8 @@ const GAME_OPTIONS = [
   { code: 'gomoku',     label: t('gomoku.title') },
   { code: 'guess',      label: t('guess.title') },
   { code: 'sudoku',     label: t('sudoku.title') },
-  { code: 'one-stroke', label: t('oneStroke.title') }
+  { code: 'one-stroke', label: t('oneStroke.title') },
+  { code: 'farm',       label: t('farm.title') }
 ]
 
 const code = ref(route.query.code || '2048')

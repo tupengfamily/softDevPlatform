@@ -1,0 +1,4233 @@
+{
+ "meta": {
+  "source": "国家统计局《中国统计年鉴2025》表12-8/12-10 + 官方产量公告",
+  "yearbook": "中国统计年鉴2025",
+  "dataYear": 2024,
+  "notice": "年鉴2025版载2024年数据；省级口径，区县/地市级无公开机读源，地图上的区县着色为按省级数据与区县面积推算的分布示意。",
+  "unitArea": "千公顷",
+  "unitOutput": "万吨",
+  "unitYield": "公斤/公顷",
+  "level": "province",
+  "cropOrder": [
+   "grain",
+   "rice",
+   "wheat",
+   "corn",
+   "soybean",
+   "tubers",
+   "beans",
+   "vegetable",
+   "fruit",
+   "orchard",
+   "apple",
+   "citrus",
+   "pear",
+   "grape",
+   "banana",
+   "cotton",
+   "oil",
+   "peanut",
+   "rapeseed",
+   "sesame",
+   "sugar",
+   "sugarcane",
+   "tobacco",
+   "flue_cured",
+   "tea",
+   "tea_garden",
+   "fiber",
+   "beet",
+   "cereal",
+   "broad_bean",
+   "pea_broad_bean",
+   "total_area"
+  ],
+  "crops": {
+   "grain": {
+    "name": "粮食",
+    "group": "粮食",
+    "level": 1
+   },
+   "cereal": {
+    "name": "谷物",
+    "group": "粮食",
+    "level": 2
+   },
+   "rice": {
+    "name": "稻谷",
+    "group": "粮食",
+    "level": 1
+   },
+   "wheat": {
+    "name": "小麦",
+    "group": "粮食",
+    "level": 1
+   },
+   "corn": {
+    "name": "玉米",
+    "group": "粮食",
+    "level": 1
+   },
+   "beans": {
+    "name": "豆类",
+    "group": "粮食",
+    "level": 1
+   },
+   "soybean": {
+    "name": "大豆",
+    "group": "粮食",
+    "level": 1
+   },
+   "tubers": {
+    "name": "薯类",
+    "group": "粮食",
+    "level": 1
+   },
+   "cotton": {
+    "name": "棉花",
+    "group": "经济作物",
+    "level": 1
+   },
+   "oil": {
+    "name": "油料",
+    "group": "经济作物",
+    "level": 1
+   },
+   "peanut": {
+    "name": "花生",
+    "group": "经济作物",
+    "level": 1
+   },
+   "rapeseed": {
+    "name": "油菜籽",
+    "group": "经济作物",
+    "level": 1
+   },
+   "sesame": {
+    "name": "芝麻",
+    "group": "经济作物",
+    "level": 1
+   },
+   "fiber": {
+    "name": "麻类",
+    "group": "经济作物",
+    "level": 1
+   },
+   "sugar": {
+    "name": "糖料",
+    "group": "经济作物",
+    "level": 1
+   },
+   "sugarcane": {
+    "name": "甘蔗",
+    "group": "经济作物",
+    "level": 1
+   },
+   "beet": {
+    "name": "甜菜",
+    "group": "经济作物",
+    "level": 1
+   },
+   "tobacco": {
+    "name": "烟叶",
+    "group": "经济作物",
+    "level": 1
+   },
+   "flue_cured": {
+    "name": "烤烟",
+    "group": "经济作物",
+    "level": 2
+   },
+   "broad_bean": {
+    "name": "蚕豆",
+    "group": "其他",
+    "level": 2
+   },
+   "pea_broad_bean": {
+    "name": "豌蚕豆",
+    "group": "其他",
+    "level": 2
+   },
+   "tea": {
+    "name": "茶叶",
+    "group": "其他",
+    "level": 1
+   },
+   "fruit": {
+    "name": "水果",
+    "group": "水果",
+    "level": 1
+   },
+   "apple": {
+    "name": "苹果",
+    "group": "水果",
+    "level": 2
+   },
+   "citrus": {
+    "name": "柑橘",
+    "group": "水果",
+    "level": 2
+   },
+   "pear": {
+    "name": "梨",
+    "group": "水果",
+    "level": 2
+   },
+   "grape": {
+    "name": "葡萄",
+    "group": "水果",
+    "level": 2
+   },
+   "banana": {
+    "name": "香蕉",
+    "group": "水果",
+    "level": 2
+   },
+   "vegetable": {
+    "name": "蔬菜",
+    "group": "蔬菜",
+    "level": 1
+   },
+   "tea_garden": {
+    "name": "茶园",
+    "group": "其他",
+    "level": 2
+   },
+   "orchard": {
+    "name": "果园",
+    "group": "水果",
+    "level": 2
+   },
+   "total_area": {
+    "name": "农作物总播种面积",
+    "group": "其他",
+    "level": 1
+   }
+  }
+ },
+ "provinces": {
+  "北京": {
+   "total_area": {
+    "area": 165.3
+   },
+   "grain": {
+    "area": 94.2,
+    "output": 57.6,
+    "yield": 6115.5,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 91.3,
+    "output": 56.4,
+    "yield": 6177.4
+   },
+   "rice": {
+    "area": 0.4,
+    "output": 0.2,
+    "yield": 5000.0
+   },
+   "wheat": {
+    "area": 28.5,
+    "output": 16.1,
+    "yield": 5649.1
+   },
+   "corn": {
+    "area": 60.6,
+    "output": 39.5,
+    "yield": 6518.2
+   },
+   "beans": {
+    "area": 1.4,
+    "output": 0.3,
+    "yield": 2142.9
+   },
+   "soybean": {
+    "area": 1.2,
+    "output": 0.3,
+    "yield": 2500.0
+   },
+   "tubers": {
+    "area": 1.6,
+    "output": 0.9,
+    "yield": 5625.0
+   },
+   "cotton": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "oil": {
+    "area": 3.4,
+    "output": 1.0,
+    "yield": 2941.2
+   },
+   "peanut": {
+    "area": 2.5,
+    "output": 0.9,
+    "yield": 3600.0
+   },
+   "rapeseed": {
+    "area": 0.3,
+    "output": 0.0
+   },
+   "sesame": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "tobacco": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "vegetable": {
+    "area": 50.4
+   },
+   "orchard": {
+    "area": 26.2
+   },
+   "fruit": {
+    "output": 44.0
+   },
+   "apple": {
+    "output": 3.3
+   },
+   "citrus": {
+    "output": 0.0
+   },
+   "pear": {
+    "output": 4.6
+   },
+   "grape": {
+    "output": 0.9
+   },
+   "banana": {
+    "output": 0.0
+   },
+   "summer_grain": {
+    "area": 28.5,
+    "output": 16.1,
+    "yield": 5634.2,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "天津": {
+   "total_area": {
+    "area": 462.5
+   },
+   "grain": {
+    "area": 399.1,
+    "output": 270.6,
+    "yield": 6780.5,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 390.8,
+    "output": 267.0,
+    "yield": 6832.1
+   },
+   "rice": {
+    "area": 55.6,
+    "output": 53.5,
+    "yield": 9622.3
+   },
+   "wheat": {
+    "area": 127.7,
+    "output": 79.9,
+    "yield": 6256.9
+   },
+   "corn": {
+    "area": 198.1,
+    "output": 129.0,
+    "yield": 6511.9
+   },
+   "beans": {
+    "area": 5.2,
+    "output": 1.2,
+    "yield": 2307.7
+   },
+   "soybean": {
+    "area": 5.1,
+    "output": 1.2,
+    "yield": 2352.9
+   },
+   "tubers": {
+    "area": 3.1,
+    "output": 2.3,
+    "yield": 7419.4
+   },
+   "cotton": {
+    "area": 0.9,
+    "output": 0.1,
+    "yield": 1338.5,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 1.7,
+    "output": 0.5,
+    "yield": 2941.2
+   },
+   "peanut": {
+    "area": 0.7,
+    "output": 0.3,
+    "yield": 4285.7
+   },
+   "rapeseed": {
+    "area": 0.5,
+    "output": 0.1,
+    "yield": 2000.0
+   },
+   "sesame": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugarcane": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "vegetable": {
+    "area": 55.1
+   },
+   "orchard": {
+    "area": 13.9
+   },
+   "fruit": {
+    "output": 52.9
+   },
+   "apple": {
+    "output": 2.2
+   },
+   "pear": {
+    "output": 5.3
+   },
+   "grape": {
+    "output": 5.1
+   },
+   "summer_grain": {
+    "area": 127.7,
+    "output": 79.9,
+    "yield": 6261.3,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "河北": {
+   "total_area": {
+    "area": 8122.1
+   },
+   "grain": {
+    "area": 6460.1,
+    "output": 3908.8,
+    "yield": 6050.6,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 6085.6,
+    "output": 3723.5,
+    "yield": 6118.5
+   },
+   "rice": {
+    "area": 72.0,
+    "output": 48.6,
+    "yield": 6750.0
+   },
+   "wheat": {
+    "area": 2249.1,
+    "output": 1499.2,
+    "yield": 6665.8
+   },
+   "corn": {
+    "area": 3461.8,
+    "output": 2097.6,
+    "yield": 6059.3
+   },
+   "beans": {
+    "area": 141.1,
+    "output": 31.0,
+    "yield": 2197.0
+   },
+   "soybean": {
+    "area": 117.8,
+    "output": 25.9,
+    "yield": 2198.6
+   },
+   "tubers": {
+    "area": 233.4,
+    "output": 154.3,
+    "yield": 6611.0
+   },
+   "cotton": {
+    "area": 57.9,
+    "output": 7.1,
+    "yield": 1227.0,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 370.1,
+    "output": 128.8,
+    "yield": 3480.1
+   },
+   "peanut": {
+    "area": 240.2,
+    "output": 99.3,
+    "yield": 4134.1
+   },
+   "rapeseed": {
+    "area": 52.5,
+    "output": 9.6,
+    "yield": 1828.6
+   },
+   "sesame": {
+    "area": 1.7,
+    "output": 0.2,
+    "yield": 1176.5
+   },
+   "fiber": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 13.4,
+    "output": 77.2,
+    "yield": 57611.9
+   },
+   "sugarcane": {
+    "area": 0.0,
+    "output": 0.3
+   },
+   "beet": {
+    "area": 13.4,
+    "output": 76.9,
+    "yield": 57388.1
+   },
+   "tobacco": {
+    "area": 1.4,
+    "output": 0.4,
+    "yield": 2857.1
+   },
+   "flue_cured": {
+    "area": 0.5,
+    "output": 0.1,
+    "yield": 2000.0
+   },
+   "vegetable": {
+    "area": 865.4
+   },
+   "tea_garden": {
+    "area": 0.0
+   },
+   "orchard": {
+    "area": 462.2
+   },
+   "broad_bean": {
+    "output": 0.0
+   },
+   "pea_broad_bean": {
+    "output": 0.0
+   },
+   "tea": {
+    "output": 0.0
+   },
+   "fruit": {
+    "output": 1625.1
+   },
+   "apple": {
+    "output": 281.9
+   },
+   "pear": {
+    "output": 413.6
+   },
+   "grape": {
+    "output": 141.8
+   },
+   "summer_grain": {
+    "area": 2276.3,
+    "output": 1513.0,
+    "yield": 6646.5,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "山西": {
+   "total_area": {
+    "area": 3638.3
+   },
+   "grain": {
+    "area": 3151.6,
+    "output": 1468.7,
+    "yield": 4660.0,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 2822.0,
+    "output": 1385.6,
+    "yield": 4910.0
+   },
+   "rice": {
+    "area": 2.5,
+    "output": 1.6,
+    "yield": 6400.0
+   },
+   "wheat": {
+    "area": 527.9,
+    "output": 248.2,
+    "yield": 4701.6
+   },
+   "corn": {
+    "area": 1835.5,
+    "output": 1025.7,
+    "yield": 5588.1
+   },
+   "beans": {
+    "area": 150.0,
+    "output": 23.0,
+    "yield": 1533.3
+   },
+   "soybean": {
+    "area": 116.7,
+    "output": 18.8,
+    "yield": 1611.0
+   },
+   "tubers": {
+    "area": 179.6,
+    "output": 60.1,
+    "yield": 3346.3
+   },
+   "cotton": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "oil": {
+    "area": 106.4,
+    "output": 19.6,
+    "yield": 1842.1
+   },
+   "peanut": {
+    "area": 5.1,
+    "output": 1.7,
+    "yield": 3333.3
+   },
+   "rapeseed": {
+    "area": 22.9,
+    "output": 3.5,
+    "yield": 1528.4
+   },
+   "sesame": {
+    "area": 1.7,
+    "output": 0.2,
+    "yield": 1176.5
+   },
+   "fiber": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugarcane": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "beet": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "tobacco": {
+    "area": 1.6,
+    "output": 0.5,
+    "yield": 3125.0
+   },
+   "flue_cured": {
+    "area": 1.5,
+    "output": 0.5,
+    "yield": 3333.3
+   },
+   "vegetable": {
+    "area": 231.0
+   },
+   "tea_garden": {
+    "area": 0.1
+   },
+   "orchard": {
+    "area": 379.1
+   },
+   "broad_bean": {
+    "output": 0.2
+   },
+   "pea_broad_bean": {
+    "output": 0.2
+   },
+   "tea": {
+    "output": 0.0
+   },
+   "fruit": {
+    "output": 1109.1
+   },
+   "apple": {
+    "output": 418.5
+   },
+   "pear": {
+    "output": 170.4
+   },
+   "grape": {
+    "output": 47.5
+   },
+   "banana": {
+    "output": 0.0
+   },
+   "summer_grain": {
+    "area": 527.9,
+    "output": 248.2,
+    "yield": 4702.1,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "内蒙古": {
+   "total_area": {
+    "area": 8934.6
+   },
+   "grain": {
+    "area": 7011.8,
+    "output": 4100.5,
+    "yield": 5847.9,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 5401.0,
+    "output": 3670.9,
+    "yield": 6796.7
+   },
+   "rice": {
+    "area": 107.5,
+    "output": 84.8,
+    "yield": 7888.4
+   },
+   "wheat": {
+    "area": 330.5,
+    "output": 107.1,
+    "yield": 3240.5
+   },
+   "corn": {
+    "area": 4315.8,
+    "output": 3276.2,
+    "yield": 7591.2
+   },
+   "beans": {
+    "area": 1316.3,
+    "output": 259.8,
+    "yield": 1973.7
+   },
+   "soybean": {
+    "area": 1238.2,
+    "output": 248.1,
+    "yield": 2003.7
+   },
+   "tubers": {
+    "area": 294.5,
+    "output": 169.8,
+    "yield": 5765.7
+   },
+   "oil": {
+    "area": 875.0,
+    "output": 211.4,
+    "yield": 2416.0
+   },
+   "peanut": {
+    "area": 51.7,
+    "output": 23.5,
+    "yield": 4545.5
+   },
+   "rapeseed": {
+    "area": 255.3,
+    "output": 35.4,
+    "yield": 1386.6
+   },
+   "sesame": {
+    "area": 0.1,
+    "output": 0.0
+   },
+   "fiber": {
+    "area": 2.7,
+    "output": 0.5,
+    "yield": 1851.9
+   },
+   "sugar": {
+    "area": 76.4,
+    "output": 376.4,
+    "yield": 49267.0
+   },
+   "beet": {
+    "area": 76.1,
+    "output": 374.7,
+    "yield": 49237.8
+   },
+   "tobacco": {
+    "area": 0.9,
+    "output": 0.2,
+    "yield": 2222.2
+   },
+   "flue_cured": {
+    "area": 0.5,
+    "output": 0.1,
+    "yield": 2000.0
+   },
+   "vegetable": {
+    "area": 234.7
+   },
+   "orchard": {
+    "area": 91.1
+   },
+   "broad_bean": {
+    "output": 0.2
+   },
+   "fruit": {
+    "output": 201.6
+   },
+   "apple": {
+    "output": 40.3
+   },
+   "citrus": {
+    "output": 0.0
+   },
+   "pear": {
+    "output": 8.6
+   },
+   "grape": {
+    "output": 4.4
+   }
+  },
+  "辽宁": {
+   "total_area": {
+    "area": 4384.9
+   },
+   "grain": {
+    "area": 3577.5,
+    "output": 2500.3,
+    "yield": 6989.1,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 3388.1,
+    "output": 2443.2,
+    "yield": 7211.1
+   },
+   "rice": {
+    "area": 499.7,
+    "output": 398.4,
+    "yield": 7972.8
+   },
+   "wheat": {
+    "area": 1.6,
+    "output": 0.7,
+    "yield": 4375.0
+   },
+   "corn": {
+    "area": 2797.8,
+    "output": 2002.1,
+    "yield": 7156.0
+   },
+   "beans": {
+    "area": 133.0,
+    "output": 30.0,
+    "yield": 2255.6
+   },
+   "soybean": {
+    "area": 129.0,
+    "output": 29.2,
+    "yield": 2263.6
+   },
+   "tubers": {
+    "area": 56.3,
+    "output": 27.1,
+    "yield": 4813.5
+   },
+   "oil": {
+    "area": 329.9,
+    "output": 132.5,
+    "yield": 4016.4
+   },
+   "peanut": {
+    "area": 327.0,
+    "output": 131.6,
+    "yield": 4024.5
+   },
+   "rapeseed": {
+    "area": 0.2,
+    "output": 0.0
+   },
+   "sesame": {
+    "area": 0.1,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 0.2,
+    "output": 1.0,
+    "yield": 50000.0
+   },
+   "beet": {
+    "area": 0.2,
+    "output": 1.0,
+    "yield": 50000.0
+   },
+   "tobacco": {
+    "area": 3.6,
+    "output": 1.0,
+    "yield": 2777.8
+   },
+   "flue_cured": {
+    "area": 2.6,
+    "output": 0.7,
+    "yield": 2692.3
+   },
+   "vegetable": {
+    "area": 351.3
+   },
+   "tea_garden": {
+    "area": 0.0
+   },
+   "orchard": {
+    "area": 340.5
+   },
+   "broad_bean": {
+    "output": 4.9
+   },
+   "tea": {
+    "output": 0.0
+   },
+   "fruit": {
+    "output": 967.2
+   },
+   "apple": {
+    "output": 280.0
+   },
+   "pear": {
+    "output": 138.7
+   },
+   "grape": {
+    "output": 88.5
+   }
+  },
+  "吉林": {
+   "total_area": {
+    "area": 6327.2
+   },
+   "grain": {
+    "area": 5853.8,
+    "output": 4266.0,
+    "yield": 7287.5,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 5433.6,
+    "output": 4164.4,
+    "yield": 7664.2
+   },
+   "rice": {
+    "area": 823.1,
+    "output": 676.4,
+    "yield": 8217.7
+   },
+   "wheat": {
+    "area": 2.7,
+    "output": 0.9,
+    "yield": 3333.3
+   },
+   "corn": {
+    "area": 4558.6,
+    "output": 3459.6,
+    "yield": 7589.2
+   },
+   "beans": {
+    "area": 395.5,
+    "output": 86.4,
+    "yield": 2184.6
+   },
+   "soybean": {
+    "area": 351.7,
+    "output": 78.9,
+    "yield": 2243.4
+   },
+   "tubers": {
+    "area": 24.8,
+    "output": 15.2,
+    "yield": 6129.0
+   },
+   "oil": {
+    "area": 243.1,
+    "output": 91.2,
+    "yield": 3751.5
+   },
+   "peanut": {
+    "area": 231.5,
+    "output": 88.5,
+    "yield": 3822.9
+   },
+   "rapeseed": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sesame": {
+    "area": 0.1,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 0.3,
+    "output": 1.7,
+    "yield": 56666.7
+   },
+   "beet": {
+    "area": 0.3,
+    "output": 1.7,
+    "yield": 56666.7
+   },
+   "tobacco": {
+    "area": 7.4,
+    "output": 2.0,
+    "yield": 2702.7
+   },
+   "flue_cured": {
+    "area": 4.0,
+    "output": 1.0,
+    "yield": 2500.0
+   },
+   "vegetable": {
+    "area": 142.5
+   },
+   "orchard": {
+    "area": 28.5
+   },
+   "broad_bean": {
+    "output": 0.5
+   },
+   "pea_broad_bean": {
+    "output": 0.0
+   },
+   "fruit": {
+    "output": 149.5
+   },
+   "apple": {
+    "output": 9.3
+   },
+   "pear": {
+    "output": 6.8
+   },
+   "grape": {
+    "output": 7.9
+   }
+  },
+  "黑龙江": {
+   "total_area": {
+    "area": 15334.3
+   },
+   "grain": {
+    "area": 14754.0,
+    "output": 8001.7,
+    "yield": 5423.4,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 9990.4,
+    "output": 7075.6,
+    "yield": 7082.4
+   },
+   "rice": {
+    "area": 3305.2,
+    "output": 2471.6,
+    "yield": 7477.9
+   },
+   "wheat": {
+    "area": 25.3,
+    "output": 9.9,
+    "yield": 3913.0
+   },
+   "corn": {
+    "area": 6642.2,
+    "output": 4584.9,
+    "yield": 6902.7
+   },
+   "beans": {
+    "area": 4736.0,
+    "output": 912.0,
+    "yield": 1925.7
+   },
+   "soybean": {
+    "area": 4685.5,
+    "output": 905.0,
+    "yield": 1931.5
+   },
+   "tubers": {
+    "area": 27.6,
+    "output": 14.2,
+    "yield": 5144.9
+   },
+   "oil": {
+    "area": 52.1,
+    "output": 19.6,
+    "yield": 3762.0
+   },
+   "peanut": {
+    "area": 34.5,
+    "output": 16.5,
+    "yield": 4782.6
+   },
+   "rapeseed": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sesame": {
+    "area": 0.1,
+    "output": 0.0
+   },
+   "fiber": {
+    "area": 26.2,
+    "output": 14.5,
+    "yield": 5534.4
+   },
+   "sugar": {
+    "area": 6.4,
+    "output": 37.2,
+    "yield": 58125.0
+   },
+   "beet": {
+    "area": 6.4,
+    "output": 37.2,
+    "yield": 58125.0
+   },
+   "tobacco": {
+    "area": 10.2,
+    "output": 2.7,
+    "yield": 2647.1
+   },
+   "flue_cured": {
+    "area": 9.4,
+    "output": 2.5,
+    "yield": 2659.6
+   },
+   "vegetable": {
+    "area": 197.0
+   },
+   "orchard": {
+    "area": 44.5
+   },
+   "broad_bean": {
+    "output": 0.4
+   },
+   "pea_broad_bean": {
+    "output": 0.0
+   },
+   "fruit": {
+    "output": 191.3
+   },
+   "apple": {
+    "output": 14.6
+   },
+   "pear": {
+    "output": 4.9
+   },
+   "grape": {
+    "output": 7.9
+   }
+  },
+  "上海": {
+   "total_area": {
+    "area": 278.0
+   },
+   "grain": {
+    "area": 130.3,
+    "output": 98.3,
+    "yield": 7542.6,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 129.6,
+    "output": 98.1,
+    "yield": 7569.4
+   },
+   "rice": {
+    "area": 105.5,
+    "output": 81.8,
+    "yield": 7753.6
+   },
+   "wheat": {
+    "area": 21.9,
+    "output": 14.9,
+    "yield": 6803.7
+   },
+   "corn": {
+    "area": 0.6,
+    "output": 0.4,
+    "yield": 6666.7
+   },
+   "beans": {
+    "area": 0.6,
+    "output": 0.1,
+    "yield": 1666.7
+   },
+   "soybean": {
+    "area": 0.6,
+    "output": 0.1,
+    "yield": 1666.7
+   },
+   "tubers": {
+    "area": 0.1,
+    "output": 0.0
+   },
+   "oil": {
+    "area": 2.4,
+    "output": 0.7,
+    "yield": 2916.7
+   },
+   "peanut": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "rapeseed": {
+    "area": 2.4,
+    "output": 0.6,
+    "yield": 2500.0
+   },
+   "sesame": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 0.0,
+    "output": 0.1
+   },
+   "sugarcane": {
+    "area": 0.0,
+    "output": 0.1
+   },
+   "vegetable": {
+    "area": 87.6
+   },
+   "tea_garden": {
+    "area": 0.2
+   },
+   "orchard": {
+    "area": 10.3
+   },
+   "tea": {
+    "output": 0.0
+   },
+   "fruit": {
+    "output": 31.6
+   },
+   "citrus": {
+    "output": 4.8
+   },
+   "pear": {
+    "output": 3.0
+   },
+   "grape": {
+    "output": 3.6
+   },
+   "summer_grain": {
+    "area": 23.5,
+    "output": 15.9,
+    "yield": 6769.7,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "江苏": {
+   "total_area": {
+    "area": 7616.6
+   },
+   "grain": {
+    "area": 5475.5,
+    "output": 3810.1,
+    "yield": 6958.4,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 5152.9,
+    "output": 3708.6,
+    "yield": 7197.1
+   },
+   "rice": {
+    "area": 2225.6,
+    "output": 1996.0,
+    "yield": 8968.4
+   },
+   "wheat": {
+    "area": 2404.3,
+    "output": 1398.3,
+    "yield": 5815.8
+   },
+   "corn": {
+    "area": 488.5,
+    "output": 295.2,
+    "yield": 6043.0
+   },
+   "beans": {
+    "area": 289.8,
+    "output": 79.3,
+    "yield": 2736.4
+   },
+   "soybean": {
+    "area": 226.5,
+    "output": 62.6,
+    "yield": 2763.8
+   },
+   "tubers": {
+    "area": 32.9,
+    "output": 22.1,
+    "yield": 6717.3
+   },
+   "cotton": {
+    "area": 3.0,
+    "output": 0.4,
+    "yield": 1469.0,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 317.4,
+    "output": 106.1,
+    "yield": 3342.8
+   },
+   "peanut": {
+    "area": 97.1,
+    "output": 41.8,
+    "yield": 4304.8
+   },
+   "rapeseed": {
+    "area": 213.3,
+    "output": 62.9,
+    "yield": 2948.9
+   },
+   "sesame": {
+    "area": 6.7,
+    "output": 1.3,
+    "yield": 1940.3
+   },
+   "fiber": {
+    "area": 0.2,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 3.0,
+    "output": 5.4,
+    "yield": 18000.0
+   },
+   "sugarcane": {
+    "area": 0.5,
+    "output": 3.3,
+    "yield": 66000.0
+   },
+   "tobacco": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "vegetable": {
+    "area": 1501.1
+   },
+   "tea_garden": {
+    "area": 30.7
+   },
+   "orchard": {
+    "area": 160.4
+   },
+   "broad_bean": {
+    "output": 1.4
+   },
+   "pea_broad_bean": {
+    "output": 1.4
+   },
+   "tea": {
+    "output": 1.1
+   },
+   "fruit": {
+    "output": 1023.5
+   },
+   "apple": {
+    "output": 61.3
+   },
+   "citrus": {
+    "output": 3.4
+   },
+   "pear": {
+    "output": 79.3
+   },
+   "grape": {
+    "output": 72.5
+   },
+   "summer_grain": {
+    "area": 2492.1,
+    "output": 1430.4,
+    "yield": 5739.8,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "浙江": {
+   "total_area": {
+    "area": 2072.8
+   },
+   "grain": {
+    "area": 1047.0,
+    "output": 650.2,
+    "yield": 6210.2,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 857.4,
+    "output": 577.0,
+    "yield": 6729.6
+   },
+   "rice": {
+    "area": 656.0,
+    "output": 492.2,
+    "yield": 7503.0
+   },
+   "wheat": {
+    "area": 169.9,
+    "output": 71.8,
+    "yield": 4226.0
+   },
+   "corn": {
+    "area": 21.3,
+    "output": 9.1,
+    "yield": 4272.3
+   },
+   "beans": {
+    "area": 108.7,
+    "output": 28.3,
+    "yield": 2603.5
+   },
+   "soybean": {
+    "area": 87.9,
+    "output": 23.2,
+    "yield": 2639.4
+   },
+   "tubers": {
+    "area": 80.8,
+    "output": 44.9,
+    "yield": 5556.9
+   },
+   "cotton": {
+    "area": 1.4,
+    "output": 0.2,
+    "yield": 1394.8,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 163.0,
+    "output": 36.2,
+    "yield": 2220.9
+   },
+   "peanut": {
+    "area": 16.1,
+    "output": 5.1,
+    "yield": 3167.7
+   },
+   "rapeseed": {
+    "area": 142.0,
+    "output": 30.3,
+    "yield": 2133.8
+   },
+   "sesame": {
+    "area": 4.7,
+    "output": 0.8,
+    "yield": 1702.1
+   },
+   "fiber": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 5.9,
+    "output": 38.1,
+    "yield": 64576.3
+   },
+   "sugarcane": {
+    "area": 5.9,
+    "output": 38.1,
+    "yield": 64576.3
+   },
+   "tobacco": {
+    "area": 0.3,
+    "output": 0.1,
+    "yield": 3333.3
+   },
+   "flue_cured": {
+    "area": 0.1,
+    "output": 0.0
+   },
+   "vegetable": {
+    "area": 681.3
+   },
+   "tea_garden": {
+    "area": 211.2
+   },
+   "orchard": {
+    "area": 288.6
+   },
+   "broad_bean": {
+    "output": 2.9
+   },
+   "pea_broad_bean": {
+    "output": 2.9
+   },
+   "tea": {
+    "output": 19.9
+   },
+   "fruit": {
+    "output": 745.1
+   },
+   "apple": {
+    "output": 0.0
+   },
+   "citrus": {
+    "output": 189.4
+   },
+   "pear": {
+    "output": 33.9
+   },
+   "grape": {
+    "output": 78.7
+   },
+   "banana": {
+    "output": 0.0
+   },
+   "summer_grain": {
+    "area": 218.2,
+    "output": 87.8,
+    "yield": 4021.1,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   },
+   "early_rice": {
+    "area": 125.8,
+    "output": 78.4,
+    "yield": 6230.2,
+    "sources": [
+     "国家统计局early_rice公告"
+    ]
+   }
+  },
+  "安徽": {
+   "total_area": {
+    "area": 9092.2
+   },
+   "grain": {
+    "area": 7344.9,
+    "output": 4184.3,
+    "yield": 5696.9,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 6603.5,
+    "output": 4059.1,
+    "yield": 6146.9
+   },
+   "rice": {
+    "area": 2496.0,
+    "output": 1630.9,
+    "yield": 6534.1
+   },
+   "wheat": {
+    "area": 2876.2,
+    "output": 1759.2,
+    "yield": 6116.4
+   },
+   "corn": {
+    "area": 1209.3,
+    "output": 657.6,
+    "yield": 5437.9
+   },
+   "beans": {
+    "area": 675.3,
+    "output": 104.4,
+    "yield": 1546.0
+   },
+   "soybean": {
+    "area": 630.8,
+    "output": 98.4,
+    "yield": 1559.9
+   },
+   "tubers": {
+    "area": 66.0,
+    "output": 20.7,
+    "yield": 3136.4
+   },
+   "cotton": {
+    "area": 20.3,
+    "output": 1.9,
+    "yield": 916.3,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 665.4,
+    "output": 189.5,
+    "yield": 2847.9
+   },
+   "peanut": {
+    "area": 148.1,
+    "output": 73.9,
+    "yield": 4989.9
+   },
+   "rapeseed": {
+    "area": 490.9,
+    "output": 110.8,
+    "yield": 2257.1
+   },
+   "sesame": {
+    "area": 20.5,
+    "output": 3.5,
+    "yield": 1707.3
+   },
+   "fiber": {
+    "area": 1.7,
+    "output": 0.6,
+    "yield": 3529.4
+   },
+   "sugar": {
+    "area": 2.0,
+    "output": 8.4,
+    "yield": 42000.0
+   },
+   "sugarcane": {
+    "area": 1.2,
+    "output": 5.3,
+    "yield": 44166.7
+   },
+   "beet": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "tobacco": {
+    "area": 9.7,
+    "output": 2.2,
+    "yield": 2268.0
+   },
+   "flue_cured": {
+    "area": 9.6,
+    "output": 2.2,
+    "yield": 2291.7
+   },
+   "vegetable": {
+    "area": 802.8
+   },
+   "tea_garden": {
+    "area": 212.6
+   },
+   "orchard": {
+    "area": 161.1
+   },
+   "broad_bean": {
+    "output": 0.8
+   },
+   "pea_broad_bean": {
+    "output": 0.8
+   },
+   "tea": {
+    "output": 15.1
+   },
+   "fruit": {
+    "output": 853.7
+   },
+   "apple": {
+    "output": 37.7
+   },
+   "citrus": {
+    "output": 3.6
+   },
+   "pear": {
+    "output": 147.3
+   },
+   "grape": {
+    "output": 59.7
+   },
+   "summer_grain": {
+    "area": 2876.8,
+    "output": 1759.3,
+    "yield": 6115.7,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   },
+   "early_rice": {
+    "area": 169.9,
+    "output": 99.9,
+    "yield": 5882.4,
+    "sources": [
+     "国家统计局early_rice公告"
+    ]
+   }
+  },
+  "福建": {
+   "total_area": {
+    "area": 1737.7
+   },
+   "grain": {
+    "area": 844.4,
+    "output": 514.4,
+    "yield": 6091.6,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 645.2,
+    "output": 416.1,
+    "yield": 6449.2
+   },
+   "rice": {
+    "area": 603.9,
+    "output": 397.7,
+    "yield": 6585.5
+   },
+   "wheat": {
+    "area": 0.1,
+    "output": 0.0
+   },
+   "corn": {
+    "area": 37.3,
+    "output": 17.0,
+    "yield": 4557.6
+   },
+   "beans": {
+    "area": 43.6,
+    "output": 12.4,
+    "yield": 2844.0
+   },
+   "soybean": {
+    "area": 36.2,
+    "output": 10.2,
+    "yield": 2817.7
+   },
+   "tubers": {
+    "area": 155.6,
+    "output": 85.9,
+    "yield": 5520.6
+   },
+   "oil": {
+    "area": 86.8,
+    "output": 24.9,
+    "yield": 2868.7
+   },
+   "peanut": {
+    "area": 76.4,
+    "output": 23.4,
+    "yield": 3062.8
+   },
+   "rapeseed": {
+    "area": 10.1,
+    "output": 1.5,
+    "yield": 1485.1
+   },
+   "sesame": {
+    "area": 0.3,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 5.1,
+    "output": 28.5,
+    "yield": 55882.4
+   },
+   "sugarcane": {
+    "area": 5.1,
+    "output": 28.5,
+    "yield": 55882.4
+   },
+   "tobacco": {
+    "area": 64.6,
+    "output": 13.9,
+    "yield": 2151.7
+   },
+   "flue_cured": {
+    "area": 64.4,
+    "output": 13.8,
+    "yield": 2142.9
+   },
+   "vegetable": {
+    "area": 656.5
+   },
+   "tea_garden": {
+    "area": 252.6
+   },
+   "orchard": {
+    "area": 391.3
+   },
+   "tea": {
+    "output": 57.8
+   },
+   "fruit": {
+    "output": 964.7
+   },
+   "citrus": {
+    "output": 525.8
+   },
+   "pear": {
+    "output": 22.0
+   },
+   "grape": {
+    "output": 26.3
+   },
+   "banana": {
+    "output": 53.2
+   },
+   "summer_grain": {
+    "area": 56.4,
+    "output": 25.1,
+    "yield": 4460.8,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   },
+   "early_rice": {
+    "area": 95.3,
+    "output": 60.4,
+    "yield": 6334.1,
+    "sources": [
+     "国家统计局early_rice公告"
+    ]
+   }
+  },
+  "江西": {
+   "total_area": {
+    "area": 5799.5
+   },
+   "grain": {
+    "area": 3774.6,
+    "output": 2196.0,
+    "yield": 5818.0,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 3463.7,
+    "output": 2098.7,
+    "yield": 6059.1
+   },
+   "rice": {
+    "area": 3383.6,
+    "output": 2065.5,
+    "yield": 6104.4
+   },
+   "wheat": {
+    "area": 11.9,
+    "output": 3.9,
+    "yield": 3277.3
+   },
+   "corn": {
+    "area": 61.7,
+    "output": 28.2,
+    "yield": 4570.5
+   },
+   "beans": {
+    "area": 159.2,
+    "output": 39.3,
+    "yield": 2468.6
+   },
+   "soybean": {
+    "area": 113.4,
+    "output": 30.6,
+    "yield": 2698.4
+   },
+   "tubers": {
+    "area": 151.7,
+    "output": 58.0,
+    "yield": 3823.3
+   },
+   "cotton": {
+    "area": 19.0,
+    "output": 2.1,
+    "yield": 1125.0,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 818.9,
+    "output": 151.3,
+    "yield": 1847.6
+   },
+   "peanut": {
+    "area": 184.2,
+    "output": 59.4,
+    "yield": 3224.8
+   },
+   "rapeseed": {
+    "area": 600.2,
+    "output": 87.6,
+    "yield": 1459.5
+   },
+   "sesame": {
+    "area": 34.1,
+    "output": 4.2,
+    "yield": 1231.7
+   },
+   "fiber": {
+    "area": 2.3,
+    "output": 0.4,
+    "yield": 1739.1
+   },
+   "sugar": {
+    "area": 12.9,
+    "output": 59.8,
+    "yield": 46356.6
+   },
+   "sugarcane": {
+    "area": 12.9,
+    "output": 59.8,
+    "yield": 46356.6
+   },
+   "tobacco": {
+    "area": 12.4,
+    "output": 2.5,
+    "yield": 2016.1
+   },
+   "flue_cured": {
+    "area": 12.3,
+    "output": 2.5,
+    "yield": 2032.5
+   },
+   "vegetable": {
+    "area": 720.6
+   },
+   "tea_garden": {
+    "area": 122.4
+   },
+   "orchard": {
+    "area": 436.1
+   },
+   "broad_bean": {
+    "output": 0.3
+   },
+   "pea_broad_bean": {
+    "output": 0.3
+   },
+   "tea": {
+    "output": 8.3
+   },
+   "fruit": {
+    "output": 822.7
+   },
+   "apple": {
+    "output": 0.0
+   },
+   "citrus": {
+    "output": 523.6
+   },
+   "pear": {
+    "output": 16.6
+   },
+   "grape": {
+    "output": 12.2
+   },
+   "banana": {
+    "output": 0.0
+   },
+   "summer_grain": {
+    "area": 84.2,
+    "output": 26.1,
+    "yield": 3103.7,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   },
+   "early_rice": {
+    "area": 1206.8,
+    "output": 676.7,
+    "yield": 5607.0,
+    "sources": [
+     "国家统计局early_rice公告"
+    ]
+   }
+  },
+  "山东": {
+   "total_area": {
+    "area": 11079.0
+   },
+   "grain": {
+    "area": 8412.6,
+    "output": 5710.2,
+    "yield": 6787.7,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 8047.1,
+    "output": 5537.6,
+    "yield": 6881.5
+   },
+   "rice": {
+    "area": 98.0,
+    "output": 86.3,
+    "yield": 8806.1
+   },
+   "wheat": {
+    "area": 4023.2,
+    "output": 2716.2,
+    "yield": 6751.3
+   },
+   "corn": {
+    "area": 3890.9,
+    "output": 2722.7,
+    "yield": 6997.6
+   },
+   "beans": {
+    "area": 236.0,
+    "output": 64.1,
+    "yield": 2716.1
+   },
+   "soybean": {
+    "area": 232.3,
+    "output": 63.1,
+    "yield": 2716.3
+   },
+   "tubers": {
+    "area": 129.5,
+    "output": 108.5,
+    "yield": 8378.4
+   },
+   "cotton": {
+    "area": 99.8,
+    "output": 12.7,
+    "yield": 1273.9,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 632.2,
+    "output": 284.3,
+    "yield": 4497.0
+   },
+   "peanut": {
+    "area": 617.2,
+    "output": 280.2,
+    "yield": 4539.9
+   },
+   "rapeseed": {
+    "area": 9.2,
+    "output": 2.4,
+    "yield": 2608.7
+   },
+   "sesame": {
+    "area": 1.1,
+    "output": 0.2,
+    "yield": 1818.2
+   },
+   "fiber": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugarcane": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "tobacco": {
+    "area": 19.3,
+    "output": 5.1,
+    "yield": 2642.5
+   },
+   "flue_cured": {
+    "area": 19.2,
+    "output": 5.1,
+    "yield": 2656.2
+   },
+   "vegetable": {
+    "area": 1620.9
+   },
+   "tea_garden": {
+    "area": 26.5
+   },
+   "orchard": {
+    "area": 609.9
+   },
+   "broad_bean": {
+    "output": 0.1
+   },
+   "pea_broad_bean": {
+    "output": 0.1
+   },
+   "tea": {
+    "output": 3.3
+   },
+   "fruit": {
+    "output": 3324.6
+   },
+   "apple": {
+    "output": 1073.9
+   },
+   "citrus": {
+    "output": 0.0
+   },
+   "pear": {
+    "output": 143.4
+   },
+   "grape": {
+    "output": 132.5
+   },
+   "banana": {
+    "output": 0.0
+   },
+   "summer_grain": {
+    "area": 4024.2,
+    "output": 2716.5,
+    "yield": 6750.4,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "河南": {
+   "total_area": {
+    "area": 14796.8
+   },
+   "grain": {
+    "area": 10777.1,
+    "output": 6719.4,
+    "yield": 6234.8,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 10171.0,
+    "output": 6513.0,
+    "yield": 6403.5
+   },
+   "rice": {
+    "area": 590.1,
+    "output": 474.0,
+    "yield": 8032.5
+   },
+   "wheat": {
+    "area": 5675.4,
+    "output": 3785.3,
+    "yield": 6669.7
+   },
+   "corn": {
+    "area": 3866.6,
+    "output": 2238.6,
+    "yield": 5789.6
+   },
+   "beans": {
+    "area": 404.3,
+    "output": 86.2,
+    "yield": 2132.1
+   },
+   "soybean": {
+    "area": 380.7,
+    "output": 82.8,
+    "yield": 2174.9
+   },
+   "tubers": {
+    "area": 201.8,
+    "output": 120.2,
+    "yield": 5956.4
+   },
+   "cotton": {
+    "area": 5.6,
+    "output": 0.7,
+    "yield": 1211.8,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 1628.2,
+    "output": 704.9,
+    "yield": 4329.3
+   },
+   "peanut": {
+    "area": 1318.4,
+    "output": 638.2,
+    "yield": 4840.7
+   },
+   "rapeseed": {
+    "area": 202.2,
+    "output": 48.4,
+    "yield": 2393.7
+   },
+   "sesame": {
+    "area": 101.6,
+    "output": 16.6,
+    "yield": 1633.9
+   },
+   "fiber": {
+    "area": 0.3,
+    "output": 0.1,
+    "yield": 3333.3
+   },
+   "sugar": {
+    "area": 1.1,
+    "output": 8.2,
+    "yield": 74545.5
+   },
+   "sugarcane": {
+    "area": 1.1,
+    "output": 8.2,
+    "yield": 74545.5
+   },
+   "tobacco": {
+    "area": 74.5,
+    "output": 19.5,
+    "yield": 2617.4
+   },
+   "flue_cured": {
+    "area": 74.4,
+    "output": 19.5,
+    "yield": 2621.0
+   },
+   "vegetable": {
+    "area": 1829.7
+   },
+   "tea_garden": {
+    "area": 116.9
+   },
+   "orchard": {
+    "area": 383.5
+   },
+   "broad_bean": {
+    "output": 0.3
+   },
+   "pea_broad_bean": {
+    "output": 0.0
+   },
+   "tea": {
+    "output": 7.5
+   },
+   "fruit": {
+    "output": 2619.8
+   },
+   "apple": {
+    "output": 423.8
+   },
+   "citrus": {
+    "output": 5.5
+   },
+   "pear": {
+    "output": 152.6
+   },
+   "grape": {
+    "output": 95.2
+   },
+   "summer_grain": {
+    "area": 5676.8,
+    "output": 3785.7,
+    "yield": 6668.7,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "湖北": {
+   "total_area": {
+    "area": 8403.0
+   },
+   "grain": {
+    "area": 4722.6,
+    "output": 2785.3,
+    "yield": 5897.9,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 4112.6,
+    "output": 2624.9,
+    "yield": 6382.6
+   },
+   "rice": {
+    "area": 2276.6,
+    "output": 1889.2,
+    "yield": 8298.3
+   },
+   "wheat": {
+    "area": 1043.5,
+    "output": 410.5,
+    "yield": 3933.9
+   },
+   "corn": {
+    "area": 765.5,
+    "output": 315.2,
+    "yield": 4117.6
+   },
+   "beans": {
+    "area": 274.0,
+    "output": 47.6,
+    "yield": 1737.2
+   },
+   "soybean": {
+    "area": 243.9,
+    "output": 42.9,
+    "yield": 1758.9
+   },
+   "tubers": {
+    "area": 336.0,
+    "output": 112.9,
+    "yield": 3360.1
+   },
+   "cotton": {
+    "area": 98.4,
+    "output": 9.3,
+    "yield": 946.0,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 1625.0,
+    "output": 406.4,
+    "yield": 2500.9
+   },
+   "peanut": {
+    "area": 266.0,
+    "output": 97.1,
+    "yield": 3650.4
+   },
+   "rapeseed": {
+    "area": 1261.7,
+    "output": 292.0,
+    "yield": 2314.3
+   },
+   "sesame": {
+    "area": 84.2,
+    "output": 14.6,
+    "yield": 1734.0
+   },
+   "fiber": {
+    "area": 2.9,
+    "output": 0.7,
+    "yield": 2413.8
+   },
+   "sugar": {
+    "area": 6.2,
+    "output": 26.1,
+    "yield": 42096.8
+   },
+   "sugarcane": {
+    "area": 6.2,
+    "output": 26.1,
+    "yield": 42096.8
+   },
+   "tobacco": {
+    "area": 39.1,
+    "output": 7.9,
+    "yield": 2020.5
+   },
+   "flue_cured": {
+    "area": 34.7,
+    "output": 6.8,
+    "yield": 1959.7
+   },
+   "vegetable": {
+    "area": 1380.3
+   },
+   "tea_garden": {
+    "area": 386.2
+   },
+   "orchard": {
+    "area": 414.7
+   },
+   "broad_bean": {
+    "output": 0.1
+   },
+   "pea_broad_bean": {
+    "output": 0.1
+   },
+   "tea": {
+    "output": 47.4
+   },
+   "fruit": {
+    "output": 1231.1
+   },
+   "apple": {
+    "output": 0.2
+   },
+   "citrus": {
+    "output": 588.7
+   },
+   "pear": {
+    "output": 46.6
+   },
+   "grape": {
+    "output": 32.1
+   },
+   "summer_grain": {
+    "area": 1312.4,
+    "output": 490.5,
+    "yield": 3737.7,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   },
+   "early_rice": {
+    "area": 128.1,
+    "output": 78.0,
+    "yield": 6087.5,
+    "sources": [
+     "国家统计局early_rice公告"
+    ]
+   }
+  },
+  "湖南": {
+   "total_area": {
+    "area": 8800.3
+   },
+   "grain": {
+    "area": 4773.4,
+    "output": 3078.1,
+    "yield": 6448.4,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 4405.2,
+    "output": 2930.1,
+    "yield": 6651.5
+   },
+   "rice": {
+    "area": 3959.9,
+    "output": 2675.1,
+    "yield": 6755.5
+   },
+   "wheat": {
+    "area": 22.6,
+    "output": 7.5,
+    "yield": 3318.6
+   },
+   "corn": {
+    "area": 403.7,
+    "output": 240.6,
+    "yield": 5959.9
+   },
+   "beans": {
+    "area": 179.3,
+    "output": 47.9,
+    "yield": 2671.5
+   },
+   "soybean": {
+    "area": 141.1,
+    "output": 38.5,
+    "yield": 2728.6
+   },
+   "tubers": {
+    "area": 188.9,
+    "output": 100.1,
+    "yield": 5299.1
+   },
+   "cotton": {
+    "area": 60.7,
+    "output": 8.4,
+    "yield": 1379.3,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 1641.0,
+    "output": 302.1,
+    "yield": 1841.0
+   },
+   "peanut": {
+    "area": 121.8,
+    "output": 33.2,
+    "yield": 2725.8
+   },
+   "rapeseed": {
+    "area": 1503.4,
+    "output": 266.6,
+    "yield": 1773.3
+   },
+   "sesame": {
+    "area": 12.3,
+    "output": 1.9,
+    "yield": 1544.7
+   },
+   "fiber": {
+    "area": 1.5,
+    "output": 0.4,
+    "yield": 2666.7
+   },
+   "sugar": {
+    "area": 7.6,
+    "output": 35.8,
+    "yield": 47105.3
+   },
+   "sugarcane": {
+    "area": 7.6,
+    "output": 35.8,
+    "yield": 47105.3
+   },
+   "tobacco": {
+    "area": 102.1,
+    "output": 20.8,
+    "yield": 2037.2
+   },
+   "flue_cured": {
+    "area": 101.2,
+    "output": 20.6,
+    "yield": 2035.6
+   },
+   "vegetable": {
+    "area": 1469.1
+   },
+   "tea_garden": {
+    "area": 220.6
+   },
+   "orchard": {
+    "area": 604.5
+   },
+   "broad_bean": {
+    "output": 0.2
+   },
+   "pea_broad_bean": {
+    "output": 0.2
+   },
+   "tea": {
+    "output": 28.7
+   },
+   "fruit": {
+    "output": 1325.7
+   },
+   "apple": {
+    "output": 0.0
+   },
+   "citrus": {
+    "output": 719.2
+   },
+   "pear": {
+    "output": 22.2
+   },
+   "grape": {
+    "output": 29.8
+   },
+   "summer_grain": {
+    "area": 113.9,
+    "output": 45.8,
+    "yield": 4025.9,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   },
+   "early_rice": {
+    "area": 1210.9,
+    "output": 732.9,
+    "yield": 6052.5,
+    "sources": [
+     "国家统计局early_rice公告"
+    ]
+   }
+  },
+  "广东": {
+   "total_area": {
+    "area": 4629.4
+   },
+   "grain": {
+    "area": 2236.8,
+    "output": 1313.4,
+    "yield": 5872.0,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 1970.3,
+    "output": 1189.7,
+    "yield": 6038.2
+   },
+   "rice": {
+    "area": 1835.1,
+    "output": 1123.6,
+    "yield": 6122.8
+   },
+   "wheat": {
+    "area": 1.2,
+    "output": 0.4,
+    "yield": 3333.3
+   },
+   "corn": {
+    "area": 133.1,
+    "output": 65.6,
+    "yield": 4928.6
+   },
+   "beans": {
+    "area": 45.8,
+    "output": 12.5,
+    "yield": 2729.3
+   },
+   "soybean": {
+    "area": 36.1,
+    "output": 9.8,
+    "yield": 2714.7
+   },
+   "tubers": {
+    "area": 220.7,
+    "output": 111.2,
+    "yield": 5038.5
+   },
+   "oil": {
+    "area": 366.5,
+    "output": 123.2,
+    "yield": 3361.5
+   },
+   "peanut": {
+    "area": 357.2,
+    "output": 121.6,
+    "yield": 3404.3
+   },
+   "rapeseed": {
+    "area": 6.1,
+    "output": 0.9,
+    "yield": 1475.4
+   },
+   "sesame": {
+    "area": 3.2,
+    "output": 0.6,
+    "yield": 1875.0
+   },
+   "fiber": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 136.4,
+    "output": 1227.2,
+    "yield": 89970.7
+   },
+   "sugarcane": {
+    "area": 136.4,
+    "output": 1227.2,
+    "yield": 89970.7
+   },
+   "tobacco": {
+    "area": 15.4,
+    "output": 3.8,
+    "yield": 2467.5
+   },
+   "flue_cured": {
+    "area": 14.7,
+    "output": 3.6,
+    "yield": 2449.0
+   },
+   "vegetable": {
+    "area": 1489.3
+   },
+   "tea_garden": {
+    "area": 115.8
+   },
+   "orchard": {
+    "area": 1106.5
+   },
+   "broad_bean": {
+    "output": 8.3
+   },
+   "pea_broad_bean": {
+    "output": 8.3
+   },
+   "tea": {
+    "output": 19.2
+   },
+   "fruit": {
+    "output": 2190.3
+   },
+   "citrus": {
+    "output": 632.4
+   },
+   "pear": {
+    "output": 14.6
+   },
+   "grape": {
+    "output": 7.7
+   },
+   "banana": {
+    "output": 488.1
+   },
+   "summer_grain": {
+    "area": 150.2,
+    "output": 71.7,
+    "yield": 4772.0,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   },
+   "early_rice": {
+    "area": 869.7,
+    "output": 527.7,
+    "yield": 6067.5,
+    "sources": [
+     "国家统计局early_rice公告"
+    ]
+   }
+  },
+  "广西": {
+   "total_area": {
+    "area": 6431.6
+   },
+   "grain": {
+    "area": 2841.8,
+    "output": 1403.8,
+    "yield": 4939.7,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 2401.7,
+    "output": 1319.2,
+    "yield": 5492.8
+   },
+   "rice": {
+    "area": 1764.6,
+    "output": 1035.0,
+    "yield": 5865.4
+   },
+   "wheat": {
+    "area": 5.4,
+    "output": 1.2,
+    "yield": 2222.2
+   },
+   "corn": {
+    "area": 618.1,
+    "output": 280.3,
+    "yield": 4534.9
+   },
+   "beans": {
+    "area": 169.8,
+    "output": 27.9,
+    "yield": 1643.1
+   },
+   "soybean": {
+    "area": 111.9,
+    "output": 17.8,
+    "yield": 1590.7
+   },
+   "tubers": {
+    "area": 270.3,
+    "output": 56.7,
+    "yield": 2097.7
+   },
+   "cotton": {
+    "area": 0.8,
+    "output": 0.1,
+    "yield": 1250.0
+   },
+   "oil": {
+    "area": 293.2,
+    "output": 84.4,
+    "yield": 2878.6
+   },
+   "peanut": {
+    "area": 238.5,
+    "output": 78.8,
+    "yield": 3304.0
+   },
+   "rapeseed": {
+    "area": 49.4,
+    "output": 4.9,
+    "yield": 991.9
+   },
+   "sesame": {
+    "area": 3.0,
+    "output": 0.5,
+    "yield": 1666.7
+   },
+   "fiber": {
+    "area": 2.0,
+    "output": 0.6,
+    "yield": 3000.0
+   },
+   "sugar": {
+    "area": 840.3,
+    "output": 6929.8,
+    "yield": 82468.2
+   },
+   "sugarcane": {
+    "area": 840.3,
+    "output": 6929.8,
+    "yield": 82468.2
+   },
+   "tobacco": {
+    "area": 12.5,
+    "output": 2.0,
+    "yield": 1600.0
+   },
+   "flue_cured": {
+    "area": 11.1,
+    "output": 1.7,
+    "yield": 1531.5
+   },
+   "vegetable": {
+    "area": 1750.4
+   },
+   "tea_garden": {
+    "area": 112.5
+   },
+   "orchard": {
+    "area": 1412.8
+   },
+   "broad_bean": {
+    "output": 48.5
+   },
+   "pea_broad_bean": {
+    "output": 48.5
+   },
+   "tea": {
+    "output": 13.0
+   },
+   "fruit": {
+    "output": 3721.5
+   },
+   "citrus": {
+    "output": 1996.3
+   },
+   "pear": {
+    "output": 56.5
+   },
+   "grape": {
+    "output": 79.9
+   },
+   "banana": {
+    "output": 316.3
+   },
+   "summer_grain": {
+    "area": 122.6,
+    "output": 29.9,
+    "yield": 2435.8,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   },
+   "early_rice": {
+    "area": 814.9,
+    "output": 481.5,
+    "yield": 5908.7,
+    "sources": [
+     "国家统计局early_rice公告"
+    ]
+   }
+  },
+  "海南": {
+   "total_area": {
+    "area": 711.8
+   },
+   "grain": {
+    "area": 272.7,
+    "output": 142.4,
+    "yield": 5222.1,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 227.3,
+    "output": 123.8,
+    "yield": 5446.5
+   },
+   "rice": {
+    "area": 227.3,
+    "output": 123.8,
+    "yield": 5446.5
+   },
+   "beans": {
+    "area": 3.7,
+    "output": 0.8,
+    "yield": 2162.2
+   },
+   "soybean": {
+    "area": 1.4,
+    "output": 0.3,
+    "yield": 2142.9
+   },
+   "tubers": {
+    "area": 41.6,
+    "output": 17.8,
+    "yield": 4278.8
+   },
+   "oil": {
+    "area": 30.8,
+    "output": 8.0,
+    "yield": 2597.4
+   },
+   "peanut": {
+    "area": 30.3,
+    "output": 7.9,
+    "yield": 2607.3
+   },
+   "sesame": {
+    "area": 0.5,
+    "output": 0.1,
+    "yield": 2000.0
+   },
+   "sugar": {
+    "area": 12.5,
+    "output": 80.8,
+    "yield": 64640.0
+   },
+   "sugarcane": {
+    "area": 12.5,
+    "output": 80.8,
+    "yield": 64640.0
+   },
+   "tobacco": {
+    "area": 0.4,
+    "output": 0.0
+   },
+   "flue_cured": {
+    "area": 0.4,
+    "output": 0.0
+   },
+   "vegetable": {
+    "area": 276.4
+   },
+   "tea_garden": {
+    "area": 3.2
+   },
+   "orchard": {
+    "area": 208.1
+   },
+   "broad_bean": {
+    "output": 0.0
+   },
+   "pea_broad_bean": {
+    "output": 0.0
+   },
+   "tea": {
+    "output": 0.2
+   },
+   "fruit": {
+    "output": 617.7
+   },
+   "citrus": {
+    "output": 17.3
+   },
+   "grape": {
+    "output": 0.3
+   },
+   "banana": {
+    "output": 110.2
+   },
+   "summer_grain": {
+    "area": 24.5,
+    "output": 10.4,
+    "yield": 4254.1,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   },
+   "early_rice": {
+    "area": 112.5,
+    "output": 68.9,
+    "yield": 6124.1,
+    "sources": [
+     "国家统计局early_rice公告"
+    ]
+   }
+  },
+  "重庆": {
+   "total_area": {
+    "area": 3521.9
+   },
+   "grain": {
+    "area": 2031.9,
+    "output": 1100.7,
+    "yield": 5417.2,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 1151.7,
+    "output": 768.1,
+    "yield": 6669.3
+   },
+   "rice": {
+    "area": 658.4,
+    "output": 492.1,
+    "yield": 7474.2
+   },
+   "wheat": {
+    "area": 18.2,
+    "output": 6.1,
+    "yield": 3351.6
+   },
+   "corn": {
+    "area": 450.1,
+    "output": 261.0,
+    "yield": 5798.7
+   },
+   "beans": {
+    "area": 225.3,
+    "output": 47.2,
+    "yield": 2095.0
+   },
+   "soybean": {
+    "area": 119.6,
+    "output": 24.7,
+    "yield": 2065.2
+   },
+   "tubers": {
+    "area": 654.9,
+    "output": 285.4,
+    "yield": 4357.9
+   },
+   "oil": {
+    "area": 382.1,
+    "output": 79.8,
+    "yield": 2088.5
+   },
+   "peanut": {
+    "area": 66.6,
+    "output": 15.3,
+    "yield": 2297.3
+   },
+   "rapeseed": {
+    "area": 303.2,
+    "output": 62.8,
+    "yield": 2071.2
+   },
+   "sesame": {
+    "area": 4.0,
+    "output": 0.5,
+    "yield": 1250.0
+   },
+   "fiber": {
+    "area": 1.5,
+    "output": 0.3,
+    "yield": 2000.0
+   },
+   "sugar": {
+    "area": 1.9,
+    "output": 8.5,
+    "yield": 44736.8
+   },
+   "sugarcane": {
+    "area": 1.9,
+    "output": 8.5,
+    "yield": 44736.8
+   },
+   "tobacco": {
+    "area": 28.8,
+    "output": 5.7,
+    "yield": 1979.2
+   },
+   "flue_cured": {
+    "area": 24.9,
+    "output": 4.8,
+    "yield": 1927.7
+   },
+   "vegetable": {
+    "area": 831.6
+   },
+   "tea_garden": {
+    "area": 56.5
+   },
+   "orchard": {
+    "area": 381.5
+   },
+   "broad_bean": {
+    "output": 1.3
+   },
+   "pea_broad_bean": {
+    "output": 1.3
+   },
+   "tea": {
+    "output": 5.8
+   },
+   "fruit": {
+    "output": 681.5
+   },
+   "apple": {
+    "output": 0.6
+   },
+   "citrus": {
+    "output": 419.6
+   },
+   "pear": {
+    "output": 37.5
+   },
+   "grape": {
+    "output": 14.4
+   },
+   "banana": {
+    "output": 0.2
+   },
+   "summer_grain": {
+    "area": 376.9,
+    "output": 125.2,
+    "yield": 3321.0,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "四川": {
+   "total_area": {
+    "area": 10359.9
+   },
+   "grain": {
+    "area": 6405.9,
+    "output": 3633.8,
+    "yield": 5672.6,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 4493.4,
+    "output": 2951.9,
+    "yield": 6569.4
+   },
+   "rice": {
+    "area": 1848.7,
+    "output": 1491.9,
+    "yield": 8070.0
+   },
+   "wheat": {
+    "area": 610.6,
+    "output": 278.0,
+    "yield": 4552.9
+   },
+   "corn": {
+    "area": 1867.3,
+    "output": 1123.2,
+    "yield": 6015.1
+   },
+   "beans": {
+    "area": 721.5,
+    "output": 162.8,
+    "yield": 2256.4
+   },
+   "soybean": {
+    "area": 554.3,
+    "output": 124.7,
+    "yield": 2249.7
+   },
+   "tubers": {
+    "area": 1190.9,
+    "output": 519.1,
+    "yield": 4358.9
+   },
+   "cotton": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "oil": {
+    "area": 1771.1,
+    "output": 460.8,
+    "yield": 2601.8
+   },
+   "peanut": {
+    "area": 309.3,
+    "output": 85.3,
+    "yield": 2757.8
+   },
+   "rapeseed": {
+    "area": 1452.7,
+    "output": 374.1,
+    "yield": 2575.2
+   },
+   "sesame": {
+    "area": 2.1,
+    "output": 0.3,
+    "yield": 1428.6
+   },
+   "fiber": {
+    "area": 20.0,
+    "output": 3.9,
+    "yield": 1950.0
+   },
+   "sugar": {
+    "area": 9.5,
+    "output": 39.6,
+    "yield": 41684.2
+   },
+   "sugarcane": {
+    "area": 9.5,
+    "output": 39.5,
+    "yield": 41578.9
+   },
+   "beet": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "tobacco": {
+    "area": 75.1,
+    "output": 15.9,
+    "yield": 2117.2
+   },
+   "flue_cured": {
+    "area": 70.0,
+    "output": 14.2,
+    "yield": 2028.6
+   },
+   "vegetable": {
+    "area": 1619.6
+   },
+   "tea_garden": {
+    "area": 417.5
+   },
+   "orchard": {
+    "area": 897.0
+   },
+   "broad_bean": {
+    "output": 10.3
+   },
+   "pea_broad_bean": {
+    "output": 10.3
+   },
+   "tea": {
+    "output": 45.4
+   },
+   "fruit": {
+    "output": 1597.4
+   },
+   "apple": {
+    "output": 110.0
+   },
+   "citrus": {
+    "output": 656.3
+   },
+   "pear": {
+    "output": 95.4
+   },
+   "grape": {
+    "output": 65.1
+   },
+   "banana": {
+    "output": 3.7
+   },
+   "summer_grain": {
+    "area": 1128.3,
+    "output": 465.1,
+    "yield": 4121.7,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "贵州": {
+   "total_area": {
+    "area": 5362.9
+   },
+   "grain": {
+    "area": 2771.4,
+    "output": 1146.1,
+    "yield": 4135.5,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 1579.8,
+    "output": 829.2,
+    "yield": 5248.8
+   },
+   "rice": {
+    "area": 574.4,
+    "output": 379.5,
+    "yield": 6606.9
+   },
+   "wheat": {
+    "area": 103.2,
+    "output": 26.0,
+    "yield": 2519.4
+   },
+   "corn": {
+    "area": 747.8,
+    "output": 372.6,
+    "yield": 4982.6
+   },
+   "beans": {
+    "area": 365.6,
+    "output": 43.6,
+    "yield": 1192.6
+   },
+   "soybean": {
+    "area": 239.1,
+    "output": 27.2,
+    "yield": 1137.6
+   },
+   "tubers": {
+    "area": 826.0,
+    "output": 273.3,
+    "yield": 3308.7
+   },
+   "cotton": {
+    "area": 0.3,
+    "output": 0.0
+   },
+   "oil": {
+    "area": 620.7,
+    "output": 116.3,
+    "yield": 1873.7
+   },
+   "peanut": {
+    "area": 41.5,
+    "output": 10.7,
+    "yield": 2578.3
+   },
+   "rapeseed": {
+    "area": 571.9,
+    "output": 104.1,
+    "yield": 1820.2
+   },
+   "sesame": {
+    "area": 0.1,
+    "output": 0.0
+   },
+   "fiber": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 6.0,
+    "output": 30.8,
+    "yield": 51333.3
+   },
+   "sugarcane": {
+    "area": 6.0,
+    "output": 30.8,
+    "yield": 51333.3
+   },
+   "tobacco": {
+    "area": 135.3,
+    "output": 23.7,
+    "yield": 1751.7
+   },
+   "flue_cured": {
+    "area": 123.9,
+    "output": 21.9,
+    "yield": 1767.6
+   },
+   "vegetable": {
+    "area": 1453.1
+   },
+   "tea_garden": {
+    "area": 440.5
+   },
+   "orchard": {
+    "area": 679.8
+   },
+   "broad_bean": {
+    "output": 0.2
+   },
+   "pea_broad_bean": {
+    "output": 0.2
+   },
+   "tea": {
+    "output": 30.8
+   },
+   "fruit": {
+    "output": 799.2
+   },
+   "apple": {
+    "output": 38.6
+   },
+   "citrus": {
+    "output": 139.5
+   },
+   "pear": {
+    "output": 52.2
+   },
+   "grape": {
+    "output": 43.6
+   },
+   "banana": {
+    "output": 10.7
+   },
+   "summer_grain": {
+    "area": 793.9,
+    "output": 239.3,
+    "yield": 3014.6,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "云南": {
+   "total_area": {
+    "area": 7298.8
+   },
+   "grain": {
+    "area": 4246.8,
+    "output": 1993.5,
+    "yield": 4694.0,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 3113.7,
+    "output": 1653.5,
+    "yield": 5310.4
+   },
+   "rice": {
+    "area": 668.9,
+    "output": 452.9,
+    "yield": 6770.8
+   },
+   "wheat": {
+    "area": 256.4,
+    "output": 56.4,
+    "yield": 2199.7
+   },
+   "corn": {
+    "area": 1941.8,
+    "output": 1075.8,
+    "yield": 5540.2
+   },
+   "beans": {
+    "area": 519.3,
+    "output": 105.8,
+    "yield": 2037.4
+   },
+   "soybean": {
+    "area": 178.3,
+    "output": 34.1,
+    "yield": 1912.5
+   },
+   "tubers": {
+    "area": 613.9,
+    "output": 234.2,
+    "yield": 3815.0
+   },
+   "oil": {
+    "area": 345.2,
+    "output": 71.2,
+    "yield": 2062.6
+   },
+   "peanut": {
+    "area": 45.2,
+    "output": 9.4,
+    "yield": 2079.6
+   },
+   "rapeseed": {
+    "area": 289.2,
+    "output": 60.3,
+    "yield": 2085.1
+   },
+   "sesame": {
+    "area": 0.1,
+    "output": 0.0
+   },
+   "fiber": {
+    "area": 0.2,
+    "output": 0.1,
+    "yield": 5000.0
+   },
+   "sugar": {
+    "area": 229.7,
+    "output": 1687.2,
+    "yield": 73452.3
+   },
+   "sugarcane": {
+    "area": 229.7,
+    "output": 1687.2,
+    "yield": 73452.3
+   },
+   "tobacco": {
+    "area": 432.6,
+    "output": 89.2,
+    "yield": 2062.0
+   },
+   "flue_cured": {
+    "area": 422.7,
+    "output": 86.8,
+    "yield": 2053.5
+   },
+   "vegetable": {
+    "area": 1375.4
+   },
+   "tea_garden": {
+    "area": 541.4
+   },
+   "orchard": {
+    "area": 772.4
+   },
+   "broad_bean": {
+    "output": 3.6
+   },
+   "pea_broad_bean": {
+    "output": 3.6
+   },
+   "tea": {
+    "output": 58.6
+   },
+   "fruit": {
+    "output": 1486.6
+   },
+   "apple": {
+    "output": 78.8
+   },
+   "citrus": {
+    "output": 303.8
+   },
+   "pear": {
+    "output": 83.1
+   },
+   "grape": {
+    "output": 119.2
+   },
+   "banana": {
+    "output": 193.6
+   },
+   "summer_grain": {
+    "area": 990.9,
+    "output": 264.1,
+    "yield": 2665.0,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   },
+   "early_rice": {
+    "area": 20.9,
+    "output": 13.1,
+    "yield": 6279.9,
+    "sources": [
+     "国家统计局early_rice公告"
+    ]
+   }
+  },
+  "西藏": {
+   "total_area": {
+    "area": 288.0
+   },
+   "grain": {
+    "area": 199.4,
+    "output": 112.9,
+    "yield": 5664.7,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 193.7,
+    "output": 111.5,
+    "yield": 5756.3
+   },
+   "rice": {
+    "area": 0.8,
+    "output": 0.5,
+    "yield": 6250.0
+   },
+   "wheat": {
+    "area": 32.6,
+    "output": 18.8,
+    "yield": 5766.9
+   },
+   "corn": {
+    "area": 5.3,
+    "output": 3.1,
+    "yield": 5849.1
+   },
+   "beans": {
+    "area": 4.7,
+    "output": 1.2,
+    "yield": 2553.2
+   },
+   "soybean": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "tubers": {
+    "area": 1.0,
+    "output": 0.3,
+    "yield": 3000.0
+   },
+   "oil": {
+    "area": 19.6,
+    "output": 5.1,
+    "yield": 2602.0
+   },
+   "peanut": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "rapeseed": {
+    "area": 19.6,
+    "output": 5.1,
+    "yield": 2602.0
+   },
+   "sugar": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "sugarcane": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "tobacco": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "flue_cured": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "vegetable": {
+    "area": 30.9
+   },
+   "tea_garden": {
+    "area": 3.8
+   },
+   "orchard": {
+    "area": 8.5
+   },
+   "tea": {
+    "output": 0.0
+   },
+   "fruit": {
+    "output": 4.0
+   },
+   "apple": {
+    "output": 1.3
+   },
+   "citrus": {
+    "output": 0.1
+   },
+   "pear": {
+    "output": 0.2
+   },
+   "grape": {
+    "output": 0.6
+   },
+   "banana": {
+    "output": 0.1
+   }
+  },
+  "陕西": {
+   "total_area": {
+    "area": 4280.9
+   },
+   "grain": {
+    "area": 3031.9,
+    "output": 1352.3,
+    "yield": 4460.2,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 2516.4,
+    "output": 1204.5,
+    "yield": 4786.6
+   },
+   "rice": {
+    "area": 105.0,
+    "output": 73.9,
+    "yield": 7038.1
+   },
+   "wheat": {
+    "area": 941.8,
+    "output": 425.0,
+    "yield": 4512.6
+   },
+   "corn": {
+    "area": 1255.2,
+    "output": 662.2,
+    "yield": 5275.7
+   },
+   "beans": {
+    "area": 220.6,
+    "output": 38.3,
+    "yield": 1736.2
+   },
+   "soybean": {
+    "area": 177.8,
+    "output": 31.7,
+    "yield": 1782.9
+   },
+   "tubers": {
+    "area": 294.9,
+    "output": 109.5,
+    "yield": 3713.1
+   },
+   "cotton": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "oil": {
+    "area": 275.6,
+    "output": 62.8,
+    "yield": 2278.7
+   },
+   "peanut": {
+    "area": 37.5,
+    "output": 11.8,
+    "yield": 3146.7
+   },
+   "rapeseed": {
+    "area": 187.5,
+    "output": 41.6,
+    "yield": 2218.7
+   },
+   "sesame": {
+    "area": 8.1,
+    "output": 1.3,
+    "yield": 1604.9
+   },
+   "fiber": {
+    "area": 0.2,
+    "output": 0.0
+   },
+   "sugar": {
+    "area": 0.1,
+    "output": 0.2,
+    "yield": 20000.0
+   },
+   "sugarcane": {
+    "area": 0.0,
+    "output": 0.2
+   },
+   "beet": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "tobacco": {
+    "area": 24.8,
+    "output": 6.0,
+    "yield": 2419.4
+   },
+   "flue_cured": {
+    "area": 24.7,
+    "output": 5.9,
+    "yield": 2388.7
+   },
+   "vegetable": {
+    "area": 570.2
+   },
+   "tea_garden": {
+    "area": 165.0
+   },
+   "orchard": {
+    "area": 1159.2
+   },
+   "broad_bean": {
+    "output": 0.8
+   },
+   "pea_broad_bean": {
+    "output": 0.8
+   },
+   "tea": {
+    "output": 11.5
+   },
+   "fruit": {
+    "output": 2453.3
+   },
+   "apple": {
+    "output": 1449.9
+   },
+   "citrus": {
+    "output": 61.8
+   },
+   "pear": {
+    "output": 117.7
+   },
+   "grape": {
+    "output": 99.0
+   },
+   "summer_grain": {
+    "area": 1067.1,
+    "output": 467.4,
+    "yield": 4380.4,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "甘肃": {
+   "total_area": {
+    "area": 4205.2
+   },
+   "grain": {
+    "area": 2715.9,
+    "output": 1296.1,
+    "yield": 4772.3,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 1981.9,
+    "output": 1027.8,
+    "yield": 5185.9
+   },
+   "rice": {
+    "area": 2.1,
+    "output": 1.3,
+    "yield": 6190.5
+   },
+   "wheat": {
+    "area": 736.4,
+    "output": 303.0,
+    "yield": 4114.6
+   },
+   "corn": {
+    "area": 1108.1,
+    "output": 684.9,
+    "yield": 6180.9
+   },
+   "beans": {
+    "area": 156.2,
+    "output": 37.6,
+    "yield": 2407.2
+   },
+   "soybean": {
+    "area": 64.4,
+    "output": 12.1,
+    "yield": 1878.9
+   },
+   "tubers": {
+    "area": 577.9,
+    "output": 230.7,
+    "yield": 3992.0
+   },
+   "cotton": {
+    "area": 22.2,
+    "output": 4.7,
+    "yield": 2115.8,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 286.8,
+    "output": 67.4,
+    "yield": 2350.1
+   },
+   "peanut": {
+    "area": 0.2,
+    "output": 0.1,
+    "yield": 5000.0
+   },
+   "rapeseed": {
+    "area": 162.3,
+    "output": 39.7,
+    "yield": 2446.1
+   },
+   "fiber": {
+    "area": 0.3,
+    "output": 0.1,
+    "yield": 3333.3
+   },
+   "sugar": {
+    "area": 2.5,
+    "output": 18.4,
+    "yield": 73600.0
+   },
+   "beet": {
+    "area": 2.5,
+    "output": 18.4,
+    "yield": 73600.0
+   },
+   "tobacco": {
+    "area": 1.6,
+    "output": 0.5,
+    "yield": 3125.0
+   },
+   "flue_cured": {
+    "area": 1.6,
+    "output": 0.5,
+    "yield": 3125.0
+   },
+   "vegetable": {
+    "area": 517.1
+   },
+   "tea_garden": {
+    "area": 13.1
+   },
+   "orchard": {
+    "area": 334.6
+   },
+   "broad_bean": {
+    "output": 0.0
+   },
+   "pea_broad_bean": {
+    "output": 0.0
+   },
+   "tea": {
+    "output": 0.2
+   },
+   "fruit": {
+    "output": 1102.9
+   },
+   "apple": {
+    "output": 538.9
+   },
+   "citrus": {
+    "output": 0.5
+   },
+   "pear": {
+    "output": 29.0
+   },
+   "grape": {
+    "output": 27.8
+   },
+   "summer_grain": {
+    "area": 873.9,
+    "output": 346.2,
+    "yield": 3962.0,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "青海": {
+   "total_area": {
+    "area": 599.5
+   },
+   "grain": {
+    "area": 305.9,
+    "output": 118.3,
+    "yield": 3866.2,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 218.7,
+    "output": 81.8,
+    "yield": 3740.3
+   },
+   "wheat": {
+    "area": 97.3,
+    "output": 38.0,
+    "yield": 3905.4
+   },
+   "corn": {
+    "area": 22.8,
+    "output": 16.0,
+    "yield": 7017.5
+   },
+   "beans": {
+    "area": 18.9,
+    "output": 5.1,
+    "yield": 2698.4
+   },
+   "soybean": {
+    "area": 1.7,
+    "output": 0.2,
+    "yield": 1176.5
+   },
+   "tubers": {
+    "area": 68.3,
+    "output": 31.3,
+    "yield": 4582.7
+   },
+   "oil": {
+    "area": 150.8,
+    "output": 33.6,
+    "yield": 2228.1
+   },
+   "rapeseed": {
+    "area": 149.9,
+    "output": 33.4,
+    "yield": 2228.2
+   },
+   "tobacco": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "vegetable": {
+    "area": 44.3
+   },
+   "orchard": {
+    "area": 3.1
+   },
+   "fruit": {
+    "output": 3.6
+   },
+   "apple": {
+    "output": 0.5
+   },
+   "pear": {
+    "output": 1.0
+   },
+   "grape": {
+    "output": 0.1
+   },
+   "banana": {
+    "output": 0.0
+   }
+  },
+  "宁夏": {
+   "total_area": {
+    "area": 1196.2
+   },
+   "grain": {
+    "area": 694.2,
+    "output": 385.9,
+    "yield": 5559.2,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 600.5,
+    "output": 353.6,
+    "yield": 5888.4
+   },
+   "rice": {
+    "area": 23.8,
+    "output": 19.2,
+    "yield": 8067.2
+   },
+   "wheat": {
+    "area": 72.0,
+    "output": 24.3,
+    "yield": 3375.0
+   },
+   "corn": {
+    "area": 395.3,
+    "output": 299.3,
+    "yield": 7571.5
+   },
+   "beans": {
+    "area": 21.8,
+    "output": 3.0,
+    "yield": 1376.1
+   },
+   "soybean": {
+    "area": 19.6,
+    "output": 2.6,
+    "yield": 1326.5
+   },
+   "tubers": {
+    "area": 71.9,
+    "output": 29.3,
+    "yield": 4075.1
+   },
+   "oil": {
+    "area": 31.6,
+    "output": 5.4,
+    "yield": 1708.9
+   },
+   "peanut": {
+    "area": 0.7,
+    "output": 0.2,
+    "yield": 2857.1
+   },
+   "rapeseed": {
+    "area": 8.3,
+    "output": 0.9,
+    "yield": 1084.3
+   },
+   "sugar": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "beet": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "tobacco": {
+    "area": 0.3,
+    "output": 0.1,
+    "yield": 3333.3
+   },
+   "flue_cured": {
+    "area": 0.3,
+    "output": 0.1,
+    "yield": 3333.3
+   },
+   "vegetable": {
+    "area": 138.2
+   },
+   "orchard": {
+    "area": 88.1
+   },
+   "fruit": {
+    "output": 272.2
+   },
+   "apple": {
+    "output": 33.5
+   },
+   "pear": {
+    "output": 2.3
+   },
+   "grape": {
+    "output": 19.8
+   },
+   "summer_grain": {
+    "area": 74.4,
+    "output": 24.8,
+    "yield": 3331.5,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  },
+  "新疆": {
+   "total_area": {
+    "area": 7068.8
+   },
+   "grain": {
+    "area": 2960.0,
+    "output": 2330.2,
+    "yield": 7872.4,
+    "sources": [
+     "国家统计局2024年粮食产量公告"
+    ]
+   },
+   "cereal": {
+    "area": 2817.8,
+    "output": 2264.0,
+    "yield": 8034.6
+   },
+   "rice": {
+    "area": 36.7,
+    "output": 36.0,
+    "yield": 9809.3
+   },
+   "wheat": {
+    "area": 1170.1,
+    "output": 703.1,
+    "yield": 6008.9
+   },
+   "corn": {
+    "area": 1579.7,
+    "output": 1508.5,
+    "yield": 9549.3
+   },
+   "beans": {
+    "area": 99.5,
+    "output": 23.8,
+    "yield": 2392.0
+   },
+   "soybean": {
+    "area": 82.2,
+    "output": 19.6,
+    "yield": 2384.4
+   },
+   "tubers": {
+    "area": 42.7,
+    "output": 42.4,
+    "yield": 9929.7
+   },
+   "cotton": {
+    "area": 2447.9,
+    "output": 568.6,
+    "yield": 2322.8,
+    "sources": [
+     "国家统计局cotton公告"
+    ]
+   },
+   "oil": {
+    "area": 153.7,
+    "output": 49.8,
+    "yield": 3240.1
+   },
+   "peanut": {
+    "area": 9.9,
+    "output": 5.8,
+    "yield": 5858.6
+   },
+   "rapeseed": {
+    "area": 26.1,
+    "output": 7.2,
+    "yield": 2758.6
+   },
+   "sesame": {
+    "area": 0.1,
+    "output": 0.0
+   },
+   "fiber": {
+    "area": 6.5,
+    "output": 2.5,
+    "yield": 3846.2
+   },
+   "sugar": {
+    "area": 86.8,
+    "output": 731.1,
+    "yield": 84228.1
+   },
+   "sugarcane": {
+    "area": 0.0,
+    "output": 0.0
+   },
+   "beet": {
+    "area": 86.8,
+    "output": 731.1,
+    "yield": 84228.1
+   },
+   "vegetable": {
+    "area": 412.6
+   },
+   "orchard": {
+    "area": 824.4
+   },
+   "fruit": {
+    "output": 1752.6
+   },
+   "apple": {
+    "output": 229.6
+   },
+   "citrus": {
+    "output": 0.0
+   },
+   "pear": {
+    "output": 189.5
+   },
+   "grape": {
+    "output": 348.4
+   },
+   "summer_grain": {
+    "area": 1171.6,
+    "output": 693.5,
+    "yield": 5918.9,
+    "sources": [
+     "国家统计局summer_grain公告"
+    ]
+   }
+  }
+ }
+}

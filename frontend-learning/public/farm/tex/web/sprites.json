@@ -1,0 +1,52 @@
+{
+ "plant_rice_young": {
+  "w": 443,
+  "h": 481,
+  "size": 512
+ },
+ "plant_rice_ripe": {
+  "w": 361,
+  "h": 481,
+  "size": 512
+ },
+ "plant_wheat_young": {
+  "w": 333,
+  "h": 481,
+  "size": 512
+ },
+ "plant_wheat_ripe": {
+  "w": 283,
+  "h": 481,
+  "size": 512
+ },
+ "plant_corn_young": {
+  "w": 364,
+  "h": 481,
+  "size": 512
+ },
+ "plant_corn_ripe": {
+  "w": 297,
+  "h": 480,
+  "size": 512
+ },
+ "plant_soybean_young": {
+  "w": 440,
+  "h": 481,
+  "size": 512
+ },
+ "plant_soybean_ripe": {
+  "w": 394,
+  "h": 481,
+  "size": 512
+ },
+ "plant_tree": {
+  "w": 306,
+  "h": 481,
+  "size": 512
+ },
+ "plant_grass_tuft": {
+  "w": 340,
+  "h": 481,
+  "size": 512
+ }
+}

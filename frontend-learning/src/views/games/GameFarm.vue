@@ -1,0 +1,2304 @@
+<template>
+  <FieldSetup
+    v-if="setupVisible"
+    :initial-zone="state?.plot?.zoneId || ''"
+    :initial-crop="state?.plot?.cropId || 'rice_mid'"
+    :has-field="!!(state && state.plot && state.plot.chosen)"
+    :slot="effectiveSetupSlot"
+    :farm-id="pendingFarmId || currentFarmId"
+    @created="onFieldCreated"
+  />
+
+  <div v-else class="fm-page" :class="`season-${seasonBg.season}`">
+    <!-- ================= 左：3D 农田（铺满剩余宽度） ================= -->
+    <section class="fm-stage" :class="{ frosted: state && state.crop.frostStop }">
+      <!-- Three.js 场景 -->
+      <FarmScene3D
+        v-if="state && !sceneFailed"
+        :key="cropVisual"
+        :stage="dvsStage"
+        :crop="cropVisual"
+        :season="seasonBg.season"
+        :weather="state.weather"
+        :water="cropVisual === 'rice' && state.soil ? state.soil.waterMm : 0"
+        :cells="cells"
+        :plots="plots"
+        :slot="currentSlot"
+        :view="sceneView"
+        @fail="sceneFailed = true"
+        @select-plot="selectPlot"
+        @create-plot="onSceneCreatePlot"
+      />
+
+      <!-- WebGL 不可用时的 SVG 退化田地（结构与旧版一致） -->
+      <div v-if="sceneFailed" class="fm-fallback">
+        <div class="season-bg" :style="{ background: seasonBg.sky }"></div>
+        <div class="horizon">
+          <svg class="mountains" viewBox="0 0 800 200" preserveAspectRatio="none">
+            <path
+              d="M 0 200 L 0 110 Q 80 80 130 95 Q 180 60 230 80 Q 280 50 330 70 Q 380 30 430 60 Q 480 40 530 65 Q 580 35 630 55 Q 680 45 730 70 Q 780 60 800 80 L 800 200 Z"
+              :fill="mountainColor"
+            />
+          </svg>
+          <div class="trees">
+            <svg v-for="(t, i) in trees" :key="'t' + i" class="tree" :style="t.style" viewBox="0 0 30 60">
+              <ellipse cx="15" cy="22" rx="14" ry="20" :fill="t.color" />
+              <rect x="13" y="40" width="4" height="18" fill="#5a3a1a" />
+            </svg>
+          </div>
+          <div class="skyline"></div>
+        </div>
+        <div class="field-surface">
+          <div class="irrigation-channel left"></div>
+          <div class="irrigation-channel right"></div>
+          <div class="ridge"></div>
+        </div>
+        <div class="plotgrid">
+          <PlantCell
+            v-for="c in cells"
+            :key="c.key"
+            :stage="c.stage"
+            :heat-wave="c.heatWave"
+            :frost="c.frost"
+            :rain="c.rain"
+            :waterlogged="c.waterlogged"
+            :dry="c.dry"
+            :style="cellStyle(c)"
+          />
+        </div>
+      </div>
+
+      <!-- 顶部浮层：标题 + 实时指标 -->
+      <header class="fm-head">
+        <a class="back-link" @click="gotoCenter">
+          <span class="back-icon">←</span><span class="back-txt">{{ $t('farm.back') }}</span>
+        </a>
+        <h2 class="title">{{ $t('farm.title') }}</h2>
+        <span class="head-sep"></span>
+        <span v-if="state" class="hchip">
+          <b>DVS</b> {{ state.crop.dvs.toFixed(2) }}
+        </span>
+        <span v-if="state" class="hchip">{{ state.crop.stage }}</span>
+        <span v-if="state" class="hchip">第 {{ state.seasons }} 季</span>
+        <span v-if="state && state.plot" class="hchip plot-chip" @click="rebuildPlot">
+          <b>{{ state.plot.name }}</b>
+          <em class="plot-crop">{{ state.plot.cropName }}</em>
+          <i class="plot-lv" :class="'l-'+state.plot.level">{{ state.plot.levelName }}</i>
+        </span>
+        <span
+          class="hchip board-chip"
+          :class="{ on: sceneView === 'map' }"
+          @click="toggleMap"
+        >{{ sceneView === 'map' ? '回到田地' : '俯瞰' }}</span>
+        <span class="hchip board-chip" @click="worldMapOpen = true">中国地图</span>
+        <span class="hchip board-chip" @click="boardOpen = true">
+          看板{{ plots.length ? ' ' + plots.length : '' }}
+        </span>
+      </header>
+
+      <!-- 左下角天气 / 气温标签 -->
+      <div v-if="state" class="fm-weatherbar">
+        <span class="wx-icon" :class="'wx-' + weatherFx.kind">{{ weatherIcon }}</span>
+        <span class="wb-strong">{{ state.weather.tmax.toFixed(0) }}° / {{ state.weather.tmin.toFixed(0) }}°C</span>
+        <span class="wb-item">💧 {{ state.weather.precip.toFixed(1) }} mm</span>
+        <span class="wb-item" :class="{ hot: state.weather.heatTier >= 2 }">
+          {{ $t('farm.heatTier.' + state.weather.heatTier) }}
+        </span>
+        <span class="wb-sep"></span>
+        <span class="wb-item muted">{{ state.weatherSource }}</span>
+      </div>
+
+      <!-- 霜冻终止：本季已经结束，只能重开 -->
+      <div v-if="state && state.crop.frostStop && !state.crop.harvestable" class="fm-frost-alert">
+        <span class="fa-icon">❄️</span>
+        <span>{{ $t('farm.frostStop', { dvs: state.crop.dvs.toFixed(2) }) }}</span>
+        <el-button size="small" type="primary" link @click="restart">{{ $t('farm.restart') }}</el-button>
+      </div>
+
+      <!-- 苗期枯死：本季绝收，且永远到不了黄熟期，必须能「记为绝收」把这一季结掉 -->
+      <div v-if="state && state.crop.withered" class="fm-wither-alert">
+        <span class="wa-icon">🥀</span>
+        <span class="wa-text">
+          苗期枯死：{{ state.crop.failureNote || '本季已绝收' }}
+        </span>
+        <el-button size="small" type="warning" link @click="closeFailed">记为绝收</el-button>
+      </div>
+
+      <!-- 出苗不全：群体偏小，产量会相应打折 -->
+      <div
+        v-else-if="state && state.crop.germination != null && state.crop.germination < 0.85 && state.plot.chosen"
+        class="fm-germ-alert"
+      >
+        <span class="ga-icon">🌱</span>
+        <span class="ga-text">
+          出苗率 {{ Math.round(state.crop.germination * 100) }}%（缺苗
+          {{ Math.round((1 - state.crop.germination) * 100) }}%），群体偏小，产量会相应打折
+        </span>
+      </div>
+
+      <!-- 病虫害告警（只在已显症且达到偏重时出现） -->
+      <div v-if="pestAlert" class="fm-pest-alert">
+        <span class="pa-icon">🐛</span>{{ pestAlert }}
+      </div>
+
+      <!-- 地块切换条：一个地区最多 100 块地，横向滚动 -->
+      <div v-if="plots.length" class="fm-plotrail-wrap">
+        <button
+          class="pr-nav pr-nav-l"
+          :class="{ off: railScroll.left <= 1 }"
+          aria-label="向左滚动"
+          @click="railScrollBy(-1)"
+        >‹</button>
+        <div ref="plotRailEl" class="fm-plotrail" @scroll="onRailScroll">
+          <button
+            v-for="p in plots"
+            :key="p.slot"
+            :class="['pr-chip', 'pr-chip-' + p.slot, { on: p.slot === currentSlot, empty: !p.chosen }]"
+            @click="selectPlot(p.slot)"
+          >
+            <b>{{ p.slot + 1 }}</b>
+            <span class="pr-crop">{{ shortCrop(p.cropName) }}</span>
+            <i class="pr-stage">{{ p.stage }}</i>
+          </button>
+          <button
+            class="pr-chip pr-add"
+            :class="{ full: plots.length >= 100 }"
+            @click="newPlot"
+          >＋</button>
+        </div>
+        <button
+          class="pr-nav pr-nav-r"
+          :class="{ off: railScroll.right <= 1 }"
+          aria-label="向右滚动"
+          @click="railScrollBy(1)"
+        >›</button>
+        <!-- 溢出提示：右侧渐隐 + "当前是第几块/共几块"计数 -->
+        <span class="pr-count mono">{{ plotIndexLabel }}</span>
+      </div>
+
+      <!-- 右下角交互提示 -->
+      <div v-if="state && !sceneFailed" class="fm-hint">
+        <span>拖拽旋转</span><i>·</i><span>滚轮缩放</span>
+      </div>
+
+      <div v-if="!state" class="fm-loading">
+        <el-skeleton :rows="6" animated />
+      </div>
+    </section>
+
+    <!-- ================= 右：数据与操作面板 ================= -->
+    <aside class="fm-right">
+      <div v-if="!state" class="fm-loading-r">
+        <el-skeleton :rows="8" animated />
+      </div>
+      <template v-else>
+        <!-- 固定操作头：随时可推进/收割，不随内容滚走 -->
+        <header class="fb-head">
+          <div class="fb-row1">
+            <span class="fb-date mono">{{ state.worldDate }}</span>
+            <span class="fb-stage">{{ state.crop.stage }}</span>
+            <span class="fb-dvs mono">DVS {{ state.crop.dvs.toFixed(2) }}</span>
+            <span class="fb-season">第 {{ state.seasons }} 季</span>
+            <span v-if="state.demoMode" class="fb-demo" @click="demoInfoOpen = !demoInfoOpen">
+              演示模式 {{ demoInfoOpen ? '▴' : '▾' }}
+            </span>
+          </div>
+          <div class="fb-row2">
+            <el-button-group v-if="state.demoMode">
+              <el-button :disabled="busy" @click="advance(1)">+1 天</el-button>
+              <el-button :disabled="busy" @click="advance(7)">+7 天</el-button>
+              <el-button :disabled="busy" @click="advance(30)">+30 天</el-button>
+            </el-button-group>
+            <el-button
+              type="primary"
+              class="fb-harvest"
+              :disabled="busy || !state.crop.harvestable"
+              @click="harvest"
+            >
+              {{ $t('farm.harvest') }}
+            </el-button>
+            <span class="grow"></span>
+            <el-dropdown trigger="click" @command="onMenu">
+              <el-button text class="fb-more">更多 ▾</el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="restart">{{ $t('farm.restart') }}</el-dropdown-item>
+                  <el-dropdown-item command="rules">{{ $t('farm.rules') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+          <p v-if="demoInfoOpen" class="fb-demo-note">
+            <b>{{ $t('farm.demoTitle') }}</b>{{ $t('farm.demoDesc') }}
+          </p>
+        </header>
+
+        <div class="fb-scroll">
+          <!-- 四项关键指标 -->
+          <section class="fb-metrics">
+            <div class="metric">
+              <span class="m-lab">{{ $t('farm.weather') }}</span>
+              <span class="m-val mono">{{ state.weather.tmax.toFixed(1) }}°<i>/</i>{{ state.weather.tmin.toFixed(1) }}°</span>
+              <span class="m-sub">💧 {{ state.weather.precip.toFixed(1) }} mm</span>
+            </div>
+            <div class="metric" :class="{ danger: state.weather.heatTier >= 2 }">
+              <span class="m-lab">{{ $t('farm.heat') }}</span>
+              <span class="m-val">{{ heatLabel }}</span>
+              <span class="m-sub">{{ $t('farm.weatherSourceShort') }}</span>
+            </div>
+            <div class="metric">
+              <span class="m-lab">{{ $t('farm.aat') }}</span>
+              <span class="m-val mono">{{ Math.round(state.crop.aatCum) }}</span>
+              <span class="m-sub">/ {{ Math.round(state.crop.aatReq) }} ℃·d</span>
+            </div>
+            <div class="metric">
+              <span class="m-lab">{{ $t('farm.estimate') }}</span>
+              <span class="m-val mono strong">{{ state.yield.estimatedYieldKgPerMu.toFixed(0) }}</span>
+              <span class="m-sub">kg/亩</span>
+            </div>
+          </section>
+
+          <!-- 本季投入（S12） -->
+          <section v-if="state.inputSummary" class="fb-input-strip">
+            <div class="is-cell">
+              <span class="is-lab">{{ $t('farm.input.cost') }}</span>
+              <span class="is-val mono">{{ state.inputSummary.cost.toFixed(0) }}</span>
+              <span class="is-unit">{{ $t('farm.yuan') }}/{{ $t('farm.mu') }}</span>
+            </div>
+            <div class="is-cell">
+              <span class="is-lab">{{ $t('farm.input.n') }}</span>
+              <span class="is-val mono">
+                {{ state.inputSummary.nApplied.toFixed(1) }}<i>/{{ state.inputSummary.nNeed }}</i>
+              </span>
+              <span class="is-unit">kg/{{ $t('farm.mu') }}</span>
+            </div>
+            <div class="is-cell">
+              <span class="is-lab">{{ $t('farm.input.net') }}</span>
+              <span class="is-val mono" :class="{ bad: state.inputSummary.net < 0 }">
+                {{ state.inputSummary.net.toFixed(0) }}
+              </span>
+              <span class="is-unit">{{ $t('farm.yuan') }}</span>
+            </div>
+            <el-button size="small" class="is-btn" @click="inputOpen = true">
+              {{ $t('farm.input.open') }}
+            </el-button>
+          </section>
+          <p v-if="phiWarn" class="fb-phi-warn">⚠️ {{ phiWarn }}</p>
+
+          <!-- 生育进程（时间轴） -->
+          <section class="fb-card fb-crop">
+            <div class="fc-head">
+              <h3>{{ state.crop.cropName }}</h3>
+              <span class="muted">{{ $t('farm.sowDate') }} {{ state.crop.sowDate }}</span>
+            </div>
+
+            <div class="tl">
+              <div class="tl-track">
+                <span
+                  v-for="(t, i) in timeline"
+                  :key="i"
+                  class="tl-seg"
+                  :class="{ done: t.done, active: t.active }"
+                  :style="{ left: t.from * 100 + '%', width: (t.to - t.from) * 100 + '%' }"
+                ></span>
+                <span class="tl-dot" :style="{ left: Math.min(100, state.crop.dvs * 100) + '%' }"></span>
+              </div>
+              <div class="tl-labels">
+                <span
+                  v-for="(t, i) in timeline"
+                  :key="i"
+                  :class="{ on: t.active, low: i % 2 === 1 }"
+                  :style="{ left: ((t.from + t.to) / 2) * 100 + '%' }"
+                >{{ t.label }}</span>
+              </div>
+            </div>
+
+            <div class="tl-meta">
+              <span class="mono">DVS {{ state.crop.dvs.toFixed(3) }}</span>
+              <span class="muted">
+                {{ $t('farm.toNext', { name: state.crop.nextMilestone, days: state.crop.daysToNextMilestone }) }}
+              </span>
+            </div>
+
+            <div class="fc-kv">
+              <div>
+                <dt>{{ $t('farm.heading') }}</dt>
+                <dd class="mono">{{ state.crop.headingDate || '—' }}</dd>
+              </div>
+              <div>
+                <dt>{{ $t('farm.mature') }}</dt>
+                <dd class="mono">{{ state.crop.matureDate || '—' }}</dd>
+              </div>
+              <div>
+                <dt>{{ $t('farm.seasons') }}</dt>
+                <dd class="mono">{{ state.seasons }}</dd>
+              </div>
+            </div>
+
+            <details class="fb-details">
+              <summary>{{ $t('farm.yieldBreakdown') }}</summary>
+              <table class="ytable">
+                <thead>
+                  <tr>
+                    <th>{{ $t('farm.col.item') }}</th>
+                    <th>{{ $t('farm.col.value') }}</th>
+                    <th>{{ $t('farm.col.loss') }}</th>
+                    <th>{{ $t('farm.col.from') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in yieldRows" :key="r.name">
+                    <td>{{ r.name }}</td>
+                    <td class="mono">{{ r.value }}</td>
+                    <td class="mono" :class="{ bad: r.dmg > 0.005 }">
+                      {{ r.dmg > 0.001 ? '−' + (r.dmg * 100).toFixed(1) + '%' : '—' }}
+                    </td>
+                    <td class="muted">{{ r.from }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="note">{{ $t('farm.note') }}</p>
+            </details>
+          </section>
+
+          <!-- 土壤水分与地力（S6） -->
+          <section v-if="state.soil" class="fb-card fb-soil">
+            <div class="panel-head">
+              <h3>🌾 {{ $t('farm.soilTitle') }}</h3>
+              <span class="soil-status" :class="'s-' + state.soil.status">
+                {{ $t('farm.soilStatus.' + state.soil.status) }}
+              </span>
+            </div>
+            <div class="water-gauge">
+              <span v-for="n in 5" :key="n" :class="{ on: n <= waterLevel }"></span>
+            </div>
+            <div class="soil-kv">
+              <div>
+                <dt>{{ $t('farm.soilLayer') }}</dt>
+                <dd class="mono">{{ state.soil.waterMm.toFixed(0) }} mm</dd>
+              </div>
+              <div>
+                <dt>{{ $t('farm.soilSfi') }}</dt>
+                <dd class="mono">{{ Math.round(state.soil.sfi) }}<i>/100</i></dd>
+              </div>
+              <div>
+                <dt>{{ $t('farm.soilEt') }}</dt>
+                <dd class="mono">{{ state.soil.etToday.toFixed(1) }} mm</dd>
+              </div>
+            </div>
+            <p class="soil-tip">{{ soilTip }}</p>
+          </section>
+
+          <!-- 水稻工序链（S10） -->
+          <section class="fb-card fm-chain">
+            <div class="chain-head">
+              <h3>🌱 {{ $t('farm.chainTitle') }}</h3>
+              <span class="chain-progress">{{ chainDone }}/{{ chainTotal }}</span>
+            </div>
+            <div v-for="g in chainGroups" :key="g.key" class="chain-group">
+              <div class="chain-group-title">{{ $t('farm.opGroup.' + g.key) }}</div>
+              <ul class="chain-list">
+                <li v-for="s in g.steps" :key="s.id" :class="'op-' + s.status">
+                  <span class="op-dot"></span>
+                  <div class="op-main">
+                    <div class="op-row">
+                      <span class="op-name">{{ $t('farm.op.' + s.id) }}</span>
+                      <span v-if="s.status === 'DONE' && !s.repeatable && s.quality > 0" class="op-stars">{{ stars(s.quality) }}</span>
+                      <span v-if="s.repeatable && s.count > 0" class="op-count">×{{ s.count }}</span>
+                      <span v-if="s.date" class="op-date mono">{{ s.date.slice(5) }}</span>
+                    </div>
+                    <div class="op-hint">{{ opHint(s) }}</div>
+                  </div>
+                  <el-button
+                    v-if="s.status === 'AVAILABLE'"
+                    size="small"
+                    :type="s.id === 'HARVEST' ? 'primary' : 'default'"
+                    :disabled="busy"
+                    @click="onOp(s)"
+                  >
+                    {{ s.id === 'HARVEST' ? $t('farm.harvest') : $t('farm.doOp') }}
+                  </el-button>
+                </li>
+              </ul>
+            </div>
+          </section>
+
+          <!-- 病虫害 -->
+          <section class="fb-card fm-pests">
+            <div class="pest-head">
+              <h3>🐛 {{ $t('farm.pestTitle') }}</h3>
+              <span v-if="state.pestLossPct > 0" class="pest-loss">
+                {{ $t('farm.pestLoss', { p: state.pestLossPct.toFixed(1) }) }}
+              </span>
+              <span class="grow"></span>
+              <el-button size="small" type="warning" plain :disabled="busy" @click="inputOpen = true">
+                {{ $t('farm.input.open') }}
+              </el-button>
+            </div>
+            <ul v-if="visiblePests.length" class="pest-list">
+              <li v-for="p in visiblePests" :key="p.id" :class="'st-' + p.status">
+                <div class="pest-row">
+                  <span class="pest-name">{{ pestName(p) }}</span>
+                  <span class="pest-type">{{ $t('farm.pestType.' + p.type) }}</span>
+                  <span class="pest-status">{{ $t('farm.pestStatus.' + p.status) }}</span>
+                  <span class="pest-di">DI {{ Math.round(p.severity * p.incidence * 100) }}</span>
+                </div>
+                <div class="pest-bar"><i :style="{ width: Math.min(100, p.severity * 100) + '%' }"></i></div>
+                <p class="pest-advice">{{ $t('farm.pestAdvice.' + p.advice) }}</p>
+              </li>
+            </ul>
+            <p v-else class="muted pest-empty">{{ $t('farm.pestEmpty') }}</p>
+            <p class="pest-tip muted">{{ $t('farm.pestTip') }}</p>
+          </section>
+
+          <!-- 灾害记录 -->
+          <section class="fb-card fm-events">
+            <div class="ev-head">
+              <h3>🌩 {{ $t('farm.eventTitle') }}</h3>
+              <span v-if="state.disasterLossPct > 0" class="ev-loss">
+                {{ $t('farm.eventLoss', { p: state.disasterLossPct.toFixed(1) }) }}
+              </span>
+            </div>
+            <ul v-if="state.events && state.events.length" class="ev-list">
+              <li v-for="(e, i) in state.events" :key="i" :class="'ev-' + e.type">
+                <div class="ev-row">
+                  <span class="ev-date mono">{{ e.date }}</span>
+                  <span class="ev-name">{{ $t('farm.eventType.' + e.type) }}</span>
+                  <span class="ev-pct" :class="{ muted: e.loss <= 0 }">
+                    {{ e.loss > 0 ? '−' + (e.loss * 100).toFixed(0) + '%' : '—' }}
+                  </span>
+                </div>
+                <p class="ev-note">{{ e.note }}</p>
+              </li>
+            </ul>
+            <p v-else class="muted ev-empty">{{ $t('farm.eventEmpty') }}</p>
+          </section>
+
+          <!-- 今日变化 -->
+          <section class="fb-card">
+            <div class="panel-head">
+              <h3>{{ $t('farm.today') }}</h3>
+            </div>
+            <ul class="changes">
+              <li v-for="(c, i) in state.todayChanges" :key="i">{{ c }}</li>
+            </ul>
+          </section>
+
+          <!-- 历史成绩 + 农事记录 -->
+          <div class="fb-grid2">
+            <section class="fb-card">
+              <div class="panel-head">
+                <h3>{{ $t('farm.recent') }}</h3>
+                <span class="muted">{{ $t('farm.best') }} {{ state.bestYield }}</span>
+              </div>
+              <ul v-if="state.recentScores && state.recentScores.length" class="recent">
+                <li v-for="(s, i) in state.recentScores" :key="i">
+                  <span class="mono score">{{ s.score }}</span>
+                  <span class="muted">{{ fmtTime(s.createTime) }}</span>
+                </li>
+              </ul>
+              <p v-else class="muted empty">{{ $t('farm.noRecord') }}</p>
+            </section>
+
+            <section v-if="actions.length" class="fb-card">
+              <div class="panel-head">
+                <h3>{{ $t('farm.actionHistory') }}</h3>
+                <span class="muted">{{ actions.length }}</span>
+              </div>
+              <ul class="history">
+                <li v-for="a in actions.slice(0, 6)" :key="a.id">
+                  <span class="mono hd">{{ a.date.slice(5) }}</span>
+                  <span class="action-tag">{{ $t('farm.action.' + a.type) }}</span>
+                  <span v-if="a.durationDays > 1" class="muted">{{ a.durationDays }}d</span>
+                </li>
+              </ul>
+            </section>
+          </div>
+
+          <!-- 测试期天气注入 -->
+          <details v-if="state.demoMode" class="fb-card fb-mock">
+            <summary>🧪 {{ $t('farm.mockTitle') }}</summary>
+            <p class="muted mock-desc">{{ $t('farm.mockDesc') }}</p>
+            <div class="mock-presets">
+              <el-button size="small" :disabled="busy" @click="applyPreset('heat')">
+                {{ $t('farm.mockPreset.heat') }}
+              </el-button>
+              <el-button size="small" :disabled="busy" @click="applyPreset('storm')">
+                {{ $t('farm.mockPreset.storm') }}
+              </el-button>
+              <el-button size="small" :disabled="busy" @click="applyPreset('cold')">
+                {{ $t('farm.mockPreset.cold') }}
+              </el-button>
+              <el-button size="small" type="danger" plain :disabled="busy || !mocks.length" @click="resetMocks">
+                {{ $t('farm.mockReset') }}
+              </el-button>
+            </div>
+            <ul v-if="mocks.length" class="mock-list">
+              <li v-for="m in mocks" :key="m.id">
+                <span class="mono">{{ m.fromDate }} → {{ m.toDate }}</span>
+                <span class="mono">{{ m.tmax }}°/{{ m.tmin }}°</span>
+                <span class="mono">💧{{ m.precip }}mm</span>
+              </li>
+            </ul>
+            <p v-else class="muted mock-empty">{{ $t('farm.mockEmpty') }}</p>
+          </details>
+        </div>
+      </template>
+    </aside>
+
+    <el-dialog v-model="rulesVisible" :title="$t('farm.rules')" width="620px" append-to-body>
+      <div class="rules">
+        <p v-for="(r, i) in rules" :key="i" v-html="sanitizeHtml(r)"></p>
+      </div>
+    </el-dialog>
+  </div>
+  <FarmWorldMap
+    v-if="worldMapOpen"
+    @close="worldMapOpen = false"
+    @state-changed="load"
+    @enter-plot="onWorldEnterPlot"
+    @open-inputs="onWorldOpenInputs"
+  />
+
+  <FarmBoard
+    v-if="boardOpen"
+    :busy="busy"
+    @close="boardOpen = false"
+    @select="onBoardSelect"
+    @action="onBoardAction"
+    @harvest="onBoardHarvest"
+  />
+
+  <InputDrawer
+    v-if="state"
+    v-model="inputOpen"
+    :inputs="state.inputs || []"
+    :busy="busy"
+    :slot="currentSlot"
+    @applied="load"
+  />
+</template>
+
+<script setup>
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import PlantCell from '../../components/farm/PlantCell.vue'
+import FarmScene3D from '../../components/farm/FarmScene3D.vue'
+import FieldSetup from '../../components/farm/FieldSetup.vue'
+import InputDrawer from '../../components/farm/InputDrawer.vue'
+import FarmBoard from '../../components/farm/FarmBoard.vue'
+import FarmWorldMap from '../../components/farm/FarmWorldMap.vue'
+import { sanitizeHtml } from '../../utils/markdown'
+import {
+  getFarmState, listFarmPlots, advanceFarm, harvestFarm, restartFarm,
+  mockFarmWeather, listFarmMockWeather, resetFarmMockWeather,
+  performFarmAction, listFarmActions, closeFailedFarmSeason
+} from '../../api/farm'
+
+const router = useRouter()
+const { t } = useI18n()
+
+const state = ref(null)
+const busy = ref(false)
+const rulesVisible = ref(false)
+const mocks = ref([])
+const actions = ref([])
+const sceneFailed = ref(false)
+const demoInfoOpen = ref(false)
+const showSetup = ref(false)
+const inputOpen = ref(false)
+/** 当前选中的地块槽位（0..99） */
+const currentSlot = ref(0)
+/** 全部地块摘要（多田切换用） */
+const plots = ref([])
+/** 建田目标槽位：-1 = 新建一块地，≥0 = 在指定地块上重建 */
+const setupSlot = ref(-1)
+const MAX_PLOTS = 100
+/** 当前地块所属农场（地图建场后，新开的地块默认挂到这里） */
+const currentFarmId = computed(() => {
+  const p = plots.value.find((x) => x.slot === currentSlot.value)
+  return p && p.farmId ? p.farmId : null
+})
+const boardOpen = ref(false)
+/** 中国地图（区县选点建农场）——进入游戏先看地图概览，符合「先看全局再下地」的操作顺序 */
+const worldMapOpen = ref(true)
+/** 从地图「进入农场」时指定的归属农场：新开地块要挂在它下面 */
+const pendingFarmId = ref(null)
+/** field = 近景；map = 俯瞰选点 */
+const sceneView = ref('field')
+
+/** 未建田或主动换地时，整页展示选地流程 */
+const setupVisible = computed(() => showSetup.value || !!(state.value?.plot && !state.value.plot.chosen))
+
+/**
+ * 真正提交给 FieldSetup 的槽位（2026-10-22）。
+ *
+ * <p><b>为什么不能直接用 {@link setupSlot}</b>：收割后地块进入「待播种」，
+ * {@code state.plot.chosen} 变 false → {@link setupVisible} 变 true → 选地页自动弹出。
+ * 但 {@code setupSlot} 只在玩家主动点「新建 / 换地」时才会被赋值，
+ * 收割后它仍然是 -1（= 新建一块地）——
+ * 于是玩家在「选下一季」的界面上确认，落地的是<b>另一块新地</b>，
+ * 而刚收完的那块一直挂在「待播种」状态永远出不来。
+ *
+ * <p>规则：玩家主动打开（{@code showSetup=true}）时听 {@code setupSlot}；
+ * 系统自动打开（收割后 / 首次进入）时锁定当前地块。
+ */
+const effectiveSetupSlot = computed(() => {
+  if (showSetup.value) return setupSlot.value
+  return state.value?.plot && !state.value.plot.chosen ? currentSlot.value : -1
+})
+
+/**
+ * 这块地是否处于「苗期枯死」——本季绝收，但玩家还没结掉它。
+ *
+ * <p>枯死的地块 DVS 永远停在低位，收割会被「没到黄熟期」拒绝，
+ * 必须用「记为绝收」把这一季结掉（状态记 FAILED，写明枯死原因），
+ * 否则它既收不了也结不掉，玩家被卡死。
+ */
+const isWithered = computed(() => !!state.value?.crop?.withered)
+
+const ACTION_TYPES = ['IRRIGATE', 'DRAIN', 'FERTILIZE', 'PESTICIDE', 'UNCOVER']
+
+/** 作物形态：水稻/小麦/玉米/大豆，决定 3D 几何与配色 */
+const cropVisual = computed(() => state.value?.plot?.visual || 'rice')
+
+/** 作物全名太长，切换条上只留主名（去掉括号里的品种说明） */
+function shortCrop(name) {
+  if (!name) return '空地'
+  return String(name).split(/[（(]/)[0]
+}
+
+// ---------------- 地块切换条：滚动导航 ----------------
+
+const plotRailEl = ref(null)
+/** 两侧可滚动余量（px）：>1 说明还有内容藏在边上 */
+const railScroll = reactive({ left: 0, right: 0 })
+
+/**
+ * 「当前是第几块 / 共几块」。
+ *
+ * 不能用 currentSlot+1：槽位号是后端分配的，可以跳跃（11 号槽位之后可能是 15 号），
+ * 那样会显示成 12/11 这种反常数字。要用当前地块在列表中的实际序号。
+ */
+const plotIndexLabel = computed(() => {
+  const total = plots.value.length
+  if (!total) return '0/0'
+  const idx = plots.value.findIndex((p) => p.slot === currentSlot.value)
+  return `${idx >= 0 ? idx + 1 : 0}/${total}`
+})
+
+function onRailScroll() {
+  const el = plotRailEl.value
+  if (!el) return
+  railScroll.left = el.scrollLeft
+  railScroll.right = el.scrollWidth - el.clientWidth - el.scrollLeft
+}
+
+/** 导航按钮：按一屏的 80% 翻页 */
+function railScrollBy(dir) {
+  const el = plotRailEl.value
+  if (!el) return
+  const step = Math.max(120, el.clientWidth * 0.8)
+  el.scrollTo({ left: el.scrollLeft + dir * step, behavior: 'smooth' })
+}
+
+/** 切换地块后把对应 chip 滚进可视区，否则在第 80 块时选中第 1 块会看不到高亮 */
+function scrollRailTo(slot) {
+  const el = plotRailEl.value
+  if (!el) return
+  const target = el.querySelector('.pr-chip-' + slot)
+  if (!target) return
+  const left = target.offsetLeft
+  const right = left + target.offsetWidth
+  const viewL = el.scrollLeft
+  const viewR = viewL + el.clientWidth
+  if (left < viewL + 8) {
+    el.scrollTo({ left: Math.max(0, left - 24), behavior: 'smooth' })
+  } else if (right > viewR - 8) {
+    el.scrollTo({ left: right - el.clientWidth + 24, behavior: 'smooth' })
+  }
+}
+
+/** 建田完成：关掉选地页，新建时自动跳到新地块 */
+async function onFieldCreated() {
+  showSetup.value = false
+  const wasNew = setupSlot.value < 0
+  setupSlot.value = -1
+  pendingFarmId.value = null
+  await load()
+  if (wasNew && plots.value.length) {
+    const last = plots.value.reduce((a, b) => (a.slot >= b.slot ? a : b))
+    currentSlot.value = last.slot
+    await load()
+  }
+}
+
+/** 地图里点「进入农场/地块」：切到那块地并关掉地图 */
+async function onWorldEnterPlot({ farmId, slot }) {
+  worldMapOpen.value = false
+  await load()
+  const exists = plots.value.some((p) => p.slot === slot)
+  if (exists) {
+    currentSlot.value = slot
+    await load()
+    return
+  }
+  // 这个农场下还没有对应地块：直接进建田流程，新地挂在目标农场下
+  currentSlot.value = slot
+  pendingFarmId.value = farmId || null
+  setupSlot.value = -1
+  showSetup.value = true
+}
+
+/** 看板里点某块地：切过去并关掉看板 */
+async function onBoardSelect(slot) {
+  boardOpen.value = false
+  await selectPlot(slot)
+}
+
+/**
+ * 地图悬浮面板点「药」：切到那块地并打开农资抽屉（2026-10-22 需求 O）。
+ *
+ * <p>打药/施肥不能走笼统的农事接口（后端要求必须带具体药剂与用量），
+ * 所以这里是把玩家送到农资面板去选药，而不是直接代他做一次打药。
+ */
+async function onWorldOpenInputs({ slot }) {
+  worldMapOpen.value = false
+  await load()
+  const exists = plots.value.some((p) => p.slot === slot)
+  if (!exists) {
+    ElMessage.warning('这块地不在当前用户的田里')
+    return
+  }
+  if (currentSlot.value !== slot) {
+    currentSlot.value = slot
+    await load()
+  }
+  inputOpen.value = true
+}
+
+/** 看板里做一次农事 */
+async function onBoardAction(slot, type) {
+  try {
+    await performFarmAction(slot, type, null)
+    await load()
+    ElMessage.success(t('farm.actionOk', { name: t('farm.actionName.' + type) }))
+  } catch (e) {
+    ElMessage.error(e?.message || t('farm.opFail'))
+  }
+}
+
+/** 看板里收割 */
+async function onBoardHarvest(slot) {
+  try {
+    const r = await harvestFarm(slot)
+    await load()
+    const y = r?.data?.yield || r?.data?.y
+    ElMessage.success(t('farm.harvestOk', { y: y ?? '—', best: '' }))
+  } catch (e) {
+    ElMessage.error(e?.message || t('farm.opFail'))
+  }
+}
+
+/** 切换到另一块地 */
+async function selectPlot(slot) {
+  if (slot === currentSlot.value || busy.value) return
+  currentSlot.value = slot
+  await load()
+  // 高亮的 chip 必须留在视野里，否则第 80 块被选中时用户看不到自己在哪
+  await nextTick()
+  scrollRailTo(slot)
+}
+
+/** 近景 ↔ 俯瞰地图 */
+function toggleMap() {
+  sceneView.value = sceneView.value === 'map' ? 'field' : 'map'
+}
+
+/** 在 3D 场景里点空地：直接在那一格建田 */
+function onSceneCreatePlot(slot) {
+  setupSlot.value = slot
+  showSetup.value = true
+}
+
+/** 新建一块地（后端自动分配槽位） */
+function newPlot() {
+  if (plots.value.length >= MAX_PLOTS) {
+    ElMessage.warning(t('farm.plotLimit', { n: MAX_PLOTS }))
+    return
+  }
+  setupSlot.value = -1
+  showSetup.value = true
+}
+
+/** 在当前地块上换作物/换播期 */
+function rebuildPlot() {
+  setupSlot.value = currentSlot.value
+  showSetup.value = true
+}
+
+const STAGE_SEGMENTS = [
+  { key: 'seedling', from: 0, to: 0.16 },
+  { key: 'tiller', from: 0.16, to: 0.36 },
+  { key: 'dry', from: 0.36, to: 0.41 },
+  { key: 'boot', from: 0.41, to: 0.63 },
+  { key: 'head', from: 0.63, to: 0.72 },
+  { key: 'fill', from: 0.72, to: 0.92 },
+  { key: 'ripe', from: 0.92, to: 1.0 }
+]
+
+/** 生育进程时间轴：7 段，按 DVS 边界切分 */
+const timeline = computed(() => {
+  const d = state.value?.crop?.dvs ?? 0
+  return STAGE_SEGMENTS.map(s => ({
+    ...s,
+    label: t('farm.stageShort.' + s.key),
+    done: d >= s.to,
+    active: d >= s.from && d < s.to
+  }))
+})
+
+function onMenu(cmd) {
+  if (cmd === 'restart') restart()
+  else if (cmd === 'rules') rulesVisible.value = true
+}
+
+const rules = computed(() => [
+  t('farm.rule1'), t('farm.rule2'), t('farm.rule3'), t('farm.rule4'), t('farm.rule5')
+].filter(Boolean))
+
+function gotoCenter() {
+  router.push('/games')
+}
+
+async function load() {
+  try {
+    const res = await getFarmState(currentSlot.value)
+    state.value = res?.data || null
+    const pl = await listFarmPlots()
+    plots.value = pl?.data || []
+    // 选中的地块被删/不存在时回到 0
+    if (!plots.value.some(p => p.slot === currentSlot.value) && plots.value.length) {
+      currentSlot.value = plots.value[0].slot
+      const again = await getFarmState(currentSlot.value)
+      state.value = again?.data || null
+    }
+    if (state.value?.demoMode) {
+      const m = await listFarmMockWeather()
+      mocks.value = m?.data || []
+    }
+    const a = await listFarmActions(currentSlot.value)
+    actions.value = a?.data || []
+    // 切换条：等 DOM 出来再同步滚动位置与余量
+    await nextTick()
+    onRailScroll()
+    scrollRailTo(currentSlot.value)
+  } catch (e) {
+    ElMessage.error(e?.message || t('farm.loadFail'))
+  }
+}
+
+async function run(fn, okMsg) {
+  busy.value = true
+  try {
+    const r = await fn()
+    await load()
+    if (okMsg) ElMessage.success(okMsg(r))
+    return r
+  } catch (e) {
+    ElMessage.error(e?.message || t('farm.opFail'))
+    return null
+  } finally {
+    busy.value = false
+  }
+}
+
+async function advance(d) {
+  // 大跨度推进会跳过正在窗口内的工序：先提示，避免"一按就错过"
+  if (d >= 30) {
+    const pending = (state.value?.chain || []).filter(
+      s => s.status === 'AVAILABLE' && !s.repeatable && s.id !== 'HARVEST'
+    )
+    if (pending.length) {
+      try {
+        await ElMessageBox.confirm(
+          t('farm.jumpWarn', { days: d, names: pending.map(s => s.name).join('、') }),
+          t('farm.jumpWarnTitle'),
+          { type: 'warning', confirmButtonText: t('farm.jumpConfirm'), cancelButtonText: t('common.cancel') }
+        )
+      } catch (e) {
+        return
+      }
+    }
+  }
+  return run(() => advanceFarm(currentSlot.value, d))
+}
+
+async function harvest() {
+  const r = await run(
+    () => harvestFarm(currentSlot.value),
+    (res) => t('farm.harvestOk', {
+      y: res?.data?.yieldKgPerMu ?? 0,
+      best: res?.data?.isNewBest ? t('farm.newBest') : ''
+    })
+  )
+  const d = r?.data
+  if (d && d.phiViolated) {
+    ElMessageBox.alert(
+      t('farm.input.phiViolation', {
+        item: d.phiItem || '',
+        y: d.yieldKgPerMu,
+        cost: d.inputCost,
+        net: d.net
+      }),
+      t('farm.input.phiViolationTitle'),
+      { type: 'warning', confirmButtonText: t('farm.input.phiAck') }
+    )
+  } else if (d && d.yieldCapped) {
+    // 产量触顶时给一句说明，别让玩家对着"到顶了"猜原因
+    ElMessageBox.alert(
+      d.yieldCapNote || '',
+      t('farm.harvestCappedTitle'),
+      { type: 'info', confirmButtonText: t('farm.input.phiAck') }
+    )
+  }
+}
+
+const restart = () => run(() => restartFarm(currentSlot.value), () => t('farm.restartOk'))
+
+/**
+ * 把本季记为绝收（2026-10-22）。
+ *
+ * <p>苗期枯死的地块 DVS 永远停在低位，收割会被「没到黄熟期」拒绝——
+ * 玩家既收不了也结不掉，这一季就卡死了。这一季恰恰是最该进档案的一季
+ * （枯死原因、出苗率、沉没成本），所以单开一个入口：产量记 0、状态 FAILED、
+ * <b>不记游戏成绩</b>（失败不占榜）。
+ */
+async function closeFailed() {
+  try {
+    await ElMessageBox.confirm(
+      t('farm.failedConfirm'),
+      t('farm.failedTitle'),
+      { type: 'warning', confirmButtonText: t('farm.failedAck'), cancelButtonText: t('common.cancel') }
+    )
+  } catch (e) {
+    return
+  }
+  const r = await run(() => closeFailedFarmSeason(currentSlot.value), null)
+  const d = r?.data
+  if (d) {
+    ElMessageBox.alert(
+      t('farm.failedDone', {
+        note: d.failureNote || '',
+        cost: d.inputCost ?? 0,
+        net: d.net ?? 0
+      }),
+      t('farm.failedTitle'),
+      { type: 'warning', confirmButtonText: t('farm.failedAck') }
+    )
+  }
+}
+
+// ==================== 测试用：模拟天气 ====================
+
+const PRESETS = {
+  heat: { days: 5, tmax: 36, tmin: 28, precip: 0, labelKey: 'farm.mockPreset.heat' },
+  storm: { days: 1, tmax: 24, tmin: 22, precip: 120, labelKey: 'farm.mockPreset.storm' },
+  cold: { days: 3, tmax: 18, tmin: 12, precip: 2, labelKey: 'farm.mockPreset.cold' }
+}
+
+function todayStr() {
+  const d = new Date()
+  return d.toISOString().slice(0, 10)
+}
+
+function applyPreset(key) {
+  const p = PRESETS[key]
+  if (!p) return
+  const from = todayStr()
+  const to = new Date(from)
+  to.setDate(to.getDate() + p.days - 1)
+  const toStr = to.toISOString().slice(0, 10)
+  run(
+    () => mockFarmWeather({ fromDate: from, toDate: toStr, tmax: p.tmax, tmin: p.tmin, precip: p.precip, label: t(p.labelKey) }),
+    (r) => t('farm.mockInjectOk', { label: r?.data?.label || t(p.labelKey), from, to: toStr })
+  )
+}
+
+function resetMocks() {
+  run(
+    () => resetFarmMockWeather(),
+    (r) => t('farm.mockResetOk', { n: r?.data?.removed ?? 0 })
+  )
+}
+
+// ==================== 农事操作 ====================
+
+function doAction(type) {
+  run(
+    () => performFarmAction(currentSlot.value, type, null),
+    (r) => t('farm.actionOk', { type: t('farm.action.' + type), dvs: r?.data?.dvsAtAction?.toFixed(3) ?? '?' })
+  )
+}
+
+onMounted(load)
+
+const dvs = computed(() => state.value?.crop?.dvs ?? 0)
+
+const phiWarn = computed(() => {
+  const s = state.value?.inputSummary
+  if (!s || s.phiLeft < 0 || !s.lastSprayDate) return ''
+  const minPhi = 21
+  if (s.phiLeft >= minPhi) return ''
+  return t('farm.input.phiCountdown', { d: s.phiLeft })
+})
+
+const visiblePests = computed(() =>
+  (state.value?.pests || []).filter(p => p.detected && p.severity >= 0.04)
+)
+
+const pestAlert = computed(() => {
+  const list = visiblePests.value.filter(p => p.severity >= 0.15)
+  if (!list.length) return ''
+  return list.map(p => pestName(p) + ' ' + t('farm.pestStatus.' + p.status)).join(' · ')
+})
+
+function pestName(p) {
+  const key = 'farm.pestName.' + p.id
+  const v = t(key)
+  return v === key ? p.name : v
+}
+
+const SOIL_LEVEL = { FLOODED: 5, WET: 4, MOIST: 3, DRY: 2, DROUGHT: 1 }
+
+const OP_GROUPS = [
+  { key: 'setup', ids: ['PUDDLE', 'BASE_FERT', 'TRANSPLANT'] },
+  { key: 'manage', ids: ['TILLER_FERT', 'DRY_FIELD', 'PANICLE_FERT', 'IRRIGATE', 'PESTICIDE'] },
+  { key: 'harvest', ids: ['DRAIN_FINAL', 'HARVEST'] }
+]
+
+const chainGroups = computed(() => {
+  const list = state.value?.chain || []
+  const byId = Object.fromEntries(list.map(s => [s.id, s]))
+  return OP_GROUPS
+    .map(g => ({ key: g.key, steps: g.ids.map(id => byId[id]).filter(Boolean) }))
+    .filter(g => g.steps.length)
+})
+
+const chainVisible = computed(() => {
+  const ids = new Set(OP_GROUPS.flatMap(g => g.ids))
+  return (state.value?.chain || []).filter(s => ids.has(s.id) && !s.repeatable)
+})
+
+const chainDone = computed(() => chainVisible.value
+  .filter(s => s.status === 'DONE' || s.status === 'AUTO').length)
+
+const chainTotal = computed(() => chainVisible.value.length)
+
+function stars(q) {
+  if (q >= 0.95) return '★★'
+  if (q >= 0.7) return '★☆'
+  return '☆☆'
+}
+
+function opHint(s) {
+  if (s.id === 'IRRIGATE' || s.id === 'PESTICIDE') {
+    return t('farm.opHint.' + s.id)
+  }
+  if (s.status === 'AUTO') return t('farm.opHint.AUTO')
+  if (s.status === 'DONE' || s.status === 'MISSED' || s.status === 'LOCKED') {
+    return t('farm.opHint.' + s.status, { from: s.from.toFixed(2), to: s.to.toFixed(2) })
+  }
+  return t('farm.opHint.AVAILABLE', { from: s.from.toFixed(2), to: s.to.toFixed(2) })
+}
+
+function onOp(s) {
+  if (s.id === 'HARVEST') harvest()
+  else if (s.id === 'PESTICIDE' || s.id.endsWith('_FERT')) {
+    // 施肥/打药必须走农资：选对药剂/肥料、对的量，才叫完成了这道工序
+    inputOpen.value = true
+  } else doAction(s.id)
+}
+
+const waterLevel = computed(() => SOIL_LEVEL[state.value?.soil?.status] || 3)
+
+const soilTip = computed(() => {
+  const s = state.value?.soil
+  if (!s) return ''
+  if (s.status === 'DROUGHT') return t('farm.soilTip.DROUGHT')
+  if (s.status === 'DRY') return t('farm.soilTip.DRY')
+  if (s.status === 'FLOODED') return t('farm.soilTip.FLOODED')
+  return t('farm.soilTip.OK')
+})
+
+const heatLabel = computed(() => {
+  const tier = state.value?.weather?.heatTier ?? 0
+  return t('farm.heatTier.' + tier)
+})
+
+// DVS → 阶段 0-5
+const dvsStage = computed(() => {
+  const d = dvs.value
+  if (d < 0.16) return 0
+  if (d < 0.36) return 1
+  if (d < 0.63) return 2
+  if (d < 0.72) return 3
+  if (d < 0.92) return 4
+  return 5
+})
+
+// ==================== 季节背景（3D 未加载时的退化层） ====================
+const seasonBg = computed(() => {
+  const date = state.value?.worldDate
+  if (!date) return { sky: 'linear-gradient(180deg,#cfe3b4 0%,#6da23f 100%)', season: 'summer', overlay: null }
+  const month = parseInt(date.slice(5, 7), 10)
+  if (month >= 11 || month <= 2) {
+    return { sky: 'linear-gradient(180deg,#dde7f0 0%,#b8c4d0 100%)', season: 'winter', overlay: 'snow' }
+  } else if (month >= 3 && month <= 5) {
+    return { sky: 'linear-gradient(180deg,#f6e8d0 0%,#d8c8a0 60%,#a9d4a0 100%)', season: 'spring', overlay: 'petals' }
+  } else if (month >= 6 && month <= 8) {
+    return { sky: 'linear-gradient(180deg,#a9d4a0 0%,#6da23f 60%,#3a6a20 100%)', season: 'summer', overlay: null }
+  }
+  return { sky: 'linear-gradient(180deg,#f4d090 0%,#d8a060 60%,#a07830 100%)', season: 'autumn', overlay: 'leaves' }
+})
+
+const weatherFx = computed(() => {
+  const w = state.value?.weather
+  if (!w) return { kind: 'clear', intensity: 0 }
+  if (w.precip > 30) return { kind: 'storm', intensity: 1 }
+  if (w.precip > 5) return { kind: 'rain', intensity: 0.6 }
+  if (w.tmin < 0) return { kind: 'snow', intensity: 0.8 }
+  if (w.tmax > 33) return { kind: 'heatwave', intensity: 0.7 }
+  if (w.tmax > 28) return { kind: 'sunny', intensity: 0.5 }
+  return { kind: 'clear', intensity: 0.2 }
+})
+
+const weatherIcon = computed(() => ({
+  storm: '⛈', rain: '🌧', snow: '🌨', heatwave: '🌡', sunny: '☀', clear: '☁'
+}[weatherFx.value.kind] || '☀'))
+
+// 退化田地的远树/远山配色
+const trees = computed(() => {
+  const palette = {
+    spring: ['#7ec850', '#8ed460', '#9fd870', '#a9d870', '#7ec850', '#6da23f', '#8ed460', '#7ec850', '#9fd870'],
+    summer: ['#4a7a2a', '#5a8a30', '#3a6a20', '#4a7a2a', '#6da23f', '#5a8a30', '#4a7a2a', '#3a6a20', '#5a8a30'],
+    autumn: ['#c9a040', '#b89030', '#a8801f', '#c99030', '#b89030', '#a8801f', '#c9a040', '#b89030', '#a8801f'],
+    winter: ['#8a8478', '#9a9488', '#7a7468', '#8a8478', '#9a9488', '#7a7468', '#8a8478', '#9a9488', '#7a7468']
+  }
+  const colors = palette[seasonBg.value.season] || palette.summer
+  return Array.from({ length: 9 }, (_, i) => ({
+    color: colors[i],
+    style: {
+      left: (5 + i * 11) + '%',
+      bottom: (i % 3 === 0 ? '12%' : (i % 3 === 1 ? '14%' : '11%')),
+      width: (28 + (i % 4) * 4) + 'px',
+      height: (50 + (i % 3) * 8) + 'px',
+      opacity: 0.85
+    }
+  }))
+})
+
+const mountainColor = computed(() => {
+  const map = { spring: '#a8c890', summer: '#4a7a5a', autumn: '#9a8858', winter: '#a8b0c0' }
+  return map[seasonBg.value.season] || map.summer
+})
+
+/**
+ * 退化田地: 5×3=15 株
+ */
+function cellStyle(c) {
+  const col = c.col
+  const row = c.row
+  const cx = 10 + col * 20 + ((c.key * 3.7) % 4) - 2
+  const cy = 3 + row * 29.5 + ((c.key * 5.3) % 2)
+  const cs = 0.72 + row * 0.22
+  const cr = ((c.key * 23) % 15 - 7) + 'deg'
+  return { '--cx': cx + '%', '--cy': cy + '%', '--cs': cs, '--cr': cr }
+}
+
+const cells = computed(() => {
+  const d = dvs.value
+  const w = state.value?.weather
+  const tier = w?.heatTier ?? 0
+  const tmax = w?.tmax ?? 25
+  const tmin = w?.tmin ?? 18
+  const precip = w?.precip ?? 0
+
+  const COLS = 5
+  const ROWS = 3
+  return Array.from({ length: COLS * ROWS }, (_, i) => {
+    const col = i % COLS
+    const row = Math.floor(i / COLS)
+    const microOffset = ((i * 7) % 4) * 0.005
+    const cellDvs = Math.min(1.0, d + microOffset)
+    let cellStage
+    if (cellDvs < 0.16) cellStage = 0
+    else if (cellDvs < 0.36) cellStage = 1
+    else if (cellDvs < 0.63) cellStage = 2
+    else if (cellDvs < 0.72) cellStage = 3
+    else if (cellDvs < 0.92) cellStage = 4
+    else cellStage = 5
+
+    return {
+      key: i,
+      col,
+      row,
+      stage: cellStage,
+      heatWave: tier >= 2 && cellStage >= 2,
+      frost: tmin < 0,
+      rain: precip > 5,
+      waterlogged: precip > 50,
+      dry: tmax > 33 && precip < 1
+    }
+  })
+})
+
+/**
+ * 产量四要素。
+ *
+ * <p>引擎用的是同一套乘性模型，但四要素的名字是禾谷类口径（穗数/实粒/千粒重）。
+ * 园艺作物的对应关系是：株数 / 单株果数 / 单果重 —— 数值口径一致，
+ * 只是标签必须换，否则"番茄的每穗粒数"会让玩家一头雾水。
+ */
+const yieldRows = computed(() => {
+  const y = state.value?.yield
+  if (!y) return []
+  const grain = ['rice', 'wheat', 'corn', 'soybean'].includes(cropVisual.value)
+  return [
+    {
+      name: t(grain ? 'farm.col.panicles' : 'farm.col.plants'),
+      value: grain
+        ? `${Math.round(y.panicles).toLocaleString()} 穗/亩`
+        : `${Math.round(y.panicles).toLocaleString()} 株/亩`,
+      dmg: y.dmgPanicle,
+      from: t(grain ? 'farm.from.tiller' : 'farm.from.veg1')
+    },
+    {
+      name: t(grain ? 'farm.col.grains' : 'farm.col.fruits'),
+      value: y.grainsPerPanicle.toFixed(1),
+      dmg: Math.max(y.dmgFloret, y.dmgFertility),
+      from: t(grain ? 'farm.from.head' : 'farm.from.veg2')
+    },
+    {
+      name: t('farm.col.soil'),
+      value: '×' + (state.value?.soil?.soilCoef ?? 1).toFixed(2),
+      dmg: 0,
+      from: 'SFI ' + Math.round(state.value?.soil?.sfi ?? 0)
+    },
+    {
+      name: t(grain ? 'farm.col.tgw' : 'farm.col.unitWeight'),
+      value: `${y.thousandGrainWeight.toFixed(grain ? 2 : 1)} g`,
+      dmg: y.dmgWeight,
+      from: t(grain ? 'farm.from.fill' : 'farm.from.veg3')
+    }
+  ]
+})
+
+function fmtTime(v) {
+  if (!v) return ''
+  const s = String(v).replace('T', ' ')
+  return s.length > 16 ? s.slice(0, 16) : s
+}
+</script>
+
+<style scoped>
+/* ===== 地块切换条 ===== */
+/* ---- 地块切换条 ----
+   容器：flex 布局 = [左翻页] [可横向滚动的 chip 列表] [右翻页] + [计数]
+   滚动列表两侧用渐隐遮罩提示"还有内容在边上"，否则用户根本不知道能横滚。
+   翻页按钮在两端溢出时自动禁用（.off）。 */
+.fm-plotrail-wrap {
+  position: absolute;
+  left: 16px;
+  bottom: 48px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 6;
+  pointer-events: none;
+}
+.fm-plotrail-wrap > * { pointer-events: auto; }
+
+.fm-plotrail {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 2px;
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+  /* 左右渐隐：提示两侧还有地块 */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+}
+.fm-plotrail::-webkit-scrollbar { height: 5px; }
+.fm-plotrail::-webkit-scrollbar-thumb { background: rgba(255,255,255,.32); border-radius: 3px; }
+
+/* 翻页按钮 */
+.pr-nav {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 17px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(18, 30, 20, 0.62);
+  backdrop-filter: blur(8px);
+  color: #eef5ea;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.16s, opacity 0.16s;
+}
+.pr-nav:hover { background: rgba(40, 64, 42, 0.86); }
+.pr-nav.off { opacity: 0.22; cursor: default; pointer-events: none; }
+
+/* 当前地块 / 总数 */
+.pr-count {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: rgba(238, 245, 234, 0.85);
+  background: rgba(18, 30, 20, 0.62);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  padding: 0 9px;
+  height: 26px;
+  line-height: 24px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pr-chip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 17px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(18, 30, 20, 0.52);
+  backdrop-filter: blur(8px);
+  color: #eef5ea;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, transform 0.16s;
+  white-space: nowrap;
+}
+.pr-chip:hover { background: rgba(28, 46, 30, 0.72); }
+.pr-chip.on {
+  background: rgba(96, 156, 72, 0.92);
+  border-color: rgba(180, 232, 150, 0.9);
+  box-shadow: 0 0 0 2px rgba(150, 220, 120, 0.28);
+}
+.pr-chip.empty { opacity: 0.62; border-style: dashed; }
+.pr-chip b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+.pr-crop { font-weight: 600; }
+.pr-stage { font-style: normal; opacity: 0.72; font-size: 11px; }
+.pr-add {
+  width: 34px;
+  padding: 0;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+}
+.pr-add.full { opacity: 0.4; cursor: not-allowed; }
+.board-chip {
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.16);
+}
+.board-chip:hover { background: rgba(255, 255, 255, 0.3); }
+.board-chip.on { background: rgba(96, 156, 72, 0.9); }
+
+/* ============================================================
+   PC 端布局：左侧 3D 农田自适应铺满 + 右侧 400–480 固定操作栏
+   右栏分两段：fb-head（固定操作头）+ fb-scroll（内容滚动）
+   ============================================================ */
+.fm-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(400px, 30vw, 480px);
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #0e1726;
+  position: relative;
+}
+
+/* ---------------- 左：农田舞台 ---------------- */
+.fm-stage.frosted :deep(canvas) {
+  filter: saturate(0.42) brightness(0.9) sepia(0.16);
+  transition: filter 0.4s;
+}
+
+.fm-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #6fa7c9 0%, #a8cfa0 55%, #4a7a2a 100%);
+}
+
+/* 顶部浮层 */
+.fm-head {
+  position: absolute;
+  z-index: 6;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(12px) saturate(1.2);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18);
+  max-width: calc(100% - 28px);
+}
+.fm-head .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #2563eb;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.fm-head .back-link:hover { text-decoration: underline; }
+.fm-head .back-icon { font-size: 15px; line-height: 1; }
+.fm-head .title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  color: #0f172a;
+  white-space: nowrap;
+}
+.head-sep { width: 1px; height: 16px; background: rgba(15, 23, 42, 0.14); }
+.hchip {
+  font-size: 12px;
+  color: #334155;
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.hchip b { font-weight: 600; color: #64748b; margin-right: 2px; }
+.plot-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  background: rgba(47, 127, 208, 0.10);
+  color: #1d5f96;
+}
+.plot-chip:hover { background: rgba(47, 127, 208, 0.18); }
+.plot-chip em { font-style: normal; font-size: 11px; color: #64748b; }
+.plot-chip i { font-style: normal; font-size: 10px; padding: 0 4px; border-radius: 4px; background: #eef7e7; color: #2f7a2a; }
+.plot-chip i.l-2 { background: #fff7e6; color: #b45309; }
+.plot-chip i.l-3, .plot-chip i.l-4 { background: #fdeeea; color: #b91c1c; }
+.plot-chip i.l-5 { background: #f3eefe; color: #7c3aed; }
+
+/* 左下天气条 */
+.fm-weatherbar {
+  position: absolute;
+  z-index: 6;
+  left: 14px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(9, 20, 33, 0.55);
+  backdrop-filter: blur(10px);
+  color: #eaf3fb;
+  font-size: 12.5px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+.fm-weatherbar .wx-icon { font-size: 16px; }
+.fm-weatherbar .wb-strong { font-weight: 600; font-variant-numeric: tabular-nums; }
+.fm-weatherbar .wb-item { opacity: 0.92; font-variant-numeric: tabular-nums; }
+.fm-weatherbar .wb-item.hot { color: #ffc46b; }
+.fm-weatherbar .wb-sep { width: 1px; height: 12px; background: rgba(255, 255, 255, 0.28); }
+.fm-weatherbar .muted {
+  color: rgba(234, 243, 251, 0.7);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 右下交互提示 */
+.fm-hint {
+  position: absolute;
+  z-index: 6;
+  right: 14px;
+  bottom: 16px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(9, 20, 33, 0.42);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11.5px;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+.fm-hint i { opacity: 0.5; font-style: normal; }
+
+/* 病虫害告警 */
+.fm-pest-alert {
+  position: absolute;
+  z-index: 6;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: rgba(160, 42, 24, 0.82);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(120, 30, 10, 0.32);
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  max-width: calc(100% - 40px);
+}
+.fm-pest-alert .pa-icon { font-size: 14px; }
+
+.fm-frost-alert {
+  position: absolute;
+  z-index: 7;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 16px;
+  border-radius: 999px;
+  background: rgba(28, 58, 96, 0.86);
+  color: #eaf4ff;
+  font-size: 12.5px;
+  box-shadow: 0 8px 24px rgba(10, 30, 60, 0.35);
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  max-width: calc(100% - 40px);
+}
+.fm-frost-alert .fa-icon { font-size: 15px; }
+.fm-frost-alert :deep(.el-button) { color: #9ed0ff; font-size: 12.5px; }
+
+/* 苗期枯死告警（2026-10-22）：本季绝收，必须能结掉 */
+.fm-wither-alert {
+  position: absolute;
+  z-index: 7;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 16px;
+  border-radius: 999px;
+  background: rgba(112, 38, 30, 0.88);
+  color: #ffe8e2;
+  font-size: 12.5px;
+  box-shadow: 0 8px 24px rgba(60, 16, 10, 0.35);
+  backdrop-filter: blur(8px);
+  max-width: calc(100% - 40px);
+}
+.fm-wither-alert .wa-icon { font-size: 15px; }
+.fm-wither-alert .wa-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fm-wither-alert :deep(.el-button) { color: #ffb3a3; font-size: 12.5px; }
+
+/* 出苗不全告警（2026-10-22） */
+.fm-germ-alert {
+  position: absolute;
+  z-index: 6;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(120, 96, 20, 0.86);
+  color: #fff3cd;
+  font-size: 12px;
+  backdrop-filter: blur(8px);
+  max-width: calc(100% - 40px);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.fm-germ-alert .ga-icon { font-size: 14px; }
+.fm-germ-alert .ga-text { overflow: hidden; text-overflow: ellipsis; }
+
+.fm-loading,
+.fm-loading-r {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.fm-loading-r { position: static; padding: 20px; }
+
+/* ---------------- 右：操作栏 ---------------- */
+.fm-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  background: #f4f6fa;
+  border-left: 1px solid rgba(15, 23, 42, 0.07);
+  overflow: hidden;
+}
+
+/* 固定操作头 */
+.fb-head {
+  flex: none;
+  padding: 12px 14px 11px;
+  background: #fff;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  z-index: 2;
+}
+.fb-row1 { display: flex; align-items: center; gap: 8px; }
+.fb-date {
+  font-size: 15px;
+  font-weight: 650;
+  color: #0f172a;
+  letter-spacing: 0.2px;
+}
+.fb-stage {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #2f7a2a;
+  background: #eaf6e4;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+.fb-dvs { font-size: 11.5px; color: #7b8798; }
+.fb-season { margin-left: auto; font-size: 11.5px; color: #94a3b8; }
+.fb-demo {
+  font-size: 11px;
+  color: #b45309;
+  background: #fff5e8;
+  border: 1px solid #f6dfc0;
+  border-radius: 999px;
+  padding: 2px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fb-row2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.fb-row2 .el-button { margin: 0; }
+.fb-row2 :deep(.el-button-group .el-button) { padding: 7px 10px; font-size: 12.5px; }
+.fb-harvest { min-width: 74px; font-weight: 600; }
+.fb-more { color: #64748b; padding: 7px 2px; font-size: 12.5px; }
+.grow { flex: 1; }
+
+/* 内容滚动区 */
+.fb-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px 26px;
+  scrollbar-width: thin;
+}
+.fb-scroll::-webkit-scrollbar { width: 8px; }
+.fb-scroll::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.14);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.fb-scroll::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.26); background-clip: content-box; }
+
+/* 指标条 */
+.fb-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: rgba(15, 23, 42, 0.07);
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 12px;
+  overflow: hidden;
+  flex: none;
+}
+.metric {
+  background: #fff;
+  padding: 10px 10px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.m-lab { font-size: 10.5px; color: #8a94a6; white-space: nowrap; }
+.m-val {
+  font-size: 15px;
+  font-weight: 650;
+  color: #0f172a;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+.m-val i { font-style: normal; color: #c7ced8; margin: 0 1px; font-weight: 400; }
+.m-val.strong { color: #2f7a2a; }
+.m-sub {
+  font-size: 10.5px;
+  color: #a3abb9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.metric.danger { background: #fff6f6; }
+.metric.danger .m-val { color: #d14343; }
+
+/* 卡片 */
+.fb-card {
+  flex: none;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.fb-card h3 { margin: 0; font-size: 14px; font-weight: 650; color: #0f172a; }
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.muted { color: #8a94a6; font-size: 11.5px; }
+.mono { font-variant-numeric: tabular-nums; }
+
+/* 生育时间轴 */
+.fc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.tl { padding: 2px 0 0; }
+.tl-track {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: #eef1f5;
+}
+.tl-seg {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: #e6ebf1;
+  border-right: 2px solid #fff;
+  box-sizing: border-box;
+}
+.tl-seg:first-child { border-radius: 999px 0 0 999px; }
+.tl-seg:last-child { border-radius: 0 999px 999px 0; border-right: none; }
+.tl-seg.done { background: linear-gradient(180deg, #8cc861, #5ea23a); }
+.tl-seg.active { background: linear-gradient(180deg, #a8da78, #6cb043); }
+.tl-dot {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #3f8f2e;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 5px rgba(20, 60, 10, 0.28);
+  transition: left 0.4s ease;
+}
+.tl-labels {
+  position: relative;
+  height: 30px;
+  margin-top: 5px;
+  font-size: 10px;
+  color: #a3abb9;
+}
+.tl-labels span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.tl-labels span.low { top: 14px; }
+.tl-labels span.on { color: #2f7a2a; font-weight: 650; }
+.tl-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.fc-kv {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #eef1f6;
+}
+.fc-kv dt { font-size: 10.5px; color: #8a94a6; margin-bottom: 2px; }
+.fc-kv dd { margin: 0; font-size: 12.5px; color: #1f2937; }
+
+/* 折叠区（产量归因 / 测试天气） */
+.fb-details {
+  margin-top: 10px;
+  border-top: 1px solid #f1f4f8;
+  padding-top: 9px;
+}
+.fb-details > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #4b5c74;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.fb-details > summary::-webkit-details-marker { display: none; }
+.fb-details > summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid #94a3b8;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.16s;
+}
+.fb-details[open] > summary::before { transform: rotate(90deg); }
+
+.ytable { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 8px; }
+.ytable th {
+  text-align: left;
+  font-weight: 500;
+  color: #8a94a6;
+  font-size: 10.5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #eef1f6;
+}
+.ytable td { padding: 5px 0; border-bottom: 1px solid #f5f7fa; color: #334155; }
+.ytable td.bad { color: #d14343; }
+.note { margin: 8px 0 0; font-size: 10.5px; line-height: 1.6; color: #98a1b0; }
+
+/* 本季投入条 */
+.fb-input-strip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+}
+.is-cell { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.is-lab { font-size: 9.5px; color: #98a1b0; white-space: nowrap; }
+.is-val { font-size: 13px; font-weight: 650; color: #0f172a; white-space: nowrap; }
+.is-val i { font-style: normal; font-size: 10px; color: #a3abb9; font-weight: 400; }
+.is-val.bad { color: #b91c1c; }
+.is-unit { font-size: 9.5px; color: #b0b8c4; }
+.is-btn { margin-left: auto; flex: none; }
+.fb-phi-warn {
+  flex: none;
+  margin: -4px 0 0;
+  font-size: 10.5px;
+  color: #b45309;
+  background: #fff8ed;
+  border: 1px solid #f7e3c6;
+  border-radius: 8px;
+  padding: 5px 9px;
+  line-height: 1.5;
+}
+
+/* 土壤水分 */
+.soil-status {
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 2px 8px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+.soil-status.s-DRY { background: #fff7e6; color: #b45309; }
+.soil-status.s-DROUGHT { background: #fff1ee; color: #c2410c; }
+.soil-status.s-FLOODED { background: #e8f4fb; color: #0369a1; }
+
+.water-gauge { display: flex; gap: 4px; margin: 4px 0 10px; }
+.water-gauge span {
+  flex: 1;
+  height: 8px;
+  border-radius: 3px;
+  background: #eef1f5;
+}
+.water-gauge span.on { background: linear-gradient(180deg, #7cc4e8, #3d93c4); }
+.soil-kv {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.soil-kv dt { font-size: 10.5px; color: #8a94a6; margin-bottom: 2px; }
+.soil-kv dd { margin: 0; font-size: 12.5px; color: #1f2937; }
+.soil-kv dd i { font-style: normal; color: #a3abb9; font-size: 10.5px; margin-left: 2px; }
+.soil-tip {
+  margin: 9px 0 0;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: #8a94a6;
+}
+
+/* 工序链 */
+.chain-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.chain-progress {
+  font-size: 11.5px;
+  color: #2f7a2a;
+  background: #eef7e7;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-variant-numeric: tabular-nums;
+}
+.chain-group { margin-top: 8px; }
+.chain-group-title {
+  font-size: 10.5px;
+  color: #98a1b0;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+.chain-list { list-style: none; margin: 0; padding: 0; }
+.chain-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed #f0f3f7;
+}
+.chain-list li:last-child { border-bottom: none; }
+.op-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d5dbe3;
+}
+.op-DONE .op-dot { background: #5ea23a; }
+.op-AUTO .op-dot { background: #9bbf86; }
+.op-AVAILABLE .op-dot { background: #e8a13c; box-shadow: 0 0 0 3px rgba(232, 161, 60, 0.18); }
+.op-MISSED .op-dot { background: #d9534f; }
+.op-main { flex: 1; min-width: 0; }
+.op-row { display: flex; align-items: center; gap: 6px; }
+.op-name { font-size: 12.5px; font-weight: 600; color: #1f2937; }
+.op-MISSED .op-name { color: #b23b38; }
+.op-LOCKED .op-name { color: #8a94a6; font-weight: 500; }
+.op-stars { font-size: 10px; color: #d9a13c; letter-spacing: -1px; }
+.op-count { font-size: 10.5px; color: #7b8798; background: #f1f4f8; border-radius: 8px; padding: 0 5px; }
+.op-date { margin-left: auto; font-size: 10.5px; color: #a3abb9; }
+.op-hint {
+  font-size: 10.5px;
+  color: #98a1b0;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.op-AVAILABLE .op-hint { color: #b07824; }
+.chain-list .el-button { margin: 0; flex: none; }
+
+/* 病虫害 */
+.pest-head,
+.ev-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.pest-loss {
+  font-size: 11px;
+  color: #c2410c;
+  background: #fff1e6;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.pest-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pest-list li { padding: 8px 10px; border-radius: 10px; background: #faf8f5; border: 1px solid #f0eae3; }
+.pest-list li.st-HEAVY { background: #fff7ef; border-color: #f7dcc4; }
+.pest-list li.st-SEVERE { background: #fff2ef; border-color: #f6cdc4; }
+.pest-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.pest-name { font-weight: 650; color: #0f172a; }
+.pest-type {
+  font-size: 10.5px;
+  color: #7c5a3a;
+  background: #f4ead9;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.pest-status { font-size: 11px; color: #b45309; }
+.pest-list li.st-HEAVY .pest-status,
+.pest-list li.st-SEVERE .pest-status { color: #c2410c; font-weight: 600; }
+.pest-di { margin-left: auto; font-size: 11px; color: #98a1b0; font-variant-numeric: tabular-nums; }
+.pest-bar { height: 5px; border-radius: 999px; background: #efe7df; margin: 6px 0 4px; overflow: hidden; }
+.pest-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #f0b45a, #d9663a); transition: width 0.4s; }
+.pest-advice { margin: 0; font-size: 11px; color: #8a7a68; line-height: 1.5; }
+.pest-empty { margin: 2px 0 4px; }
+.pest-tip { margin: 8px 0 0; font-size: 10.5px; line-height: 1.55; }
+
+/* 灾害 */
+.ev-loss {
+  font-size: 11px;
+  color: #7c3aed;
+  background: #f3eefe;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.ev-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.ev-list li { padding: 7px 10px; border-radius: 9px; background: #f8fafc; border: 1px solid #eef2f7; }
+.ev-list li.ev-FLASH_FLOOD { background: #f2f8ff; border-color: #d9e8fa; }
+.ev-list li.ev-FREEZE { background: #f4f9ff; border-color: #dbe7f5; }
+.ev-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.ev-date { color: #98a1b0; font-size: 11px; }
+.ev-name { font-weight: 600; color: #1f2937; }
+.ev-pct { margin-left: auto; font-size: 11.5px; color: #b91c1c; font-variant-numeric: tabular-nums; }
+.ev-note { margin: 4px 0 0; font-size: 10.5px; color: #8a94a6; line-height: 1.5; }
+.ev-empty { margin: 2px 0; }
+
+/* 今日变化 / 历史 */
+.changes { margin: 0; padding-left: 15px; font-size: 12px; line-height: 1.85; color: #334155; }
+.changes li::marker { color: #b6c3d4; }
+.fb-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.recent { margin: 0; padding: 0; list-style: none; }
+.recent li {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid #f5f7fa;
+  font-size: 12px;
+}
+.recent .score { font-weight: 650; color: #0f172a; }
+.empty { margin: 4px 0; }
+.history { list-style: none; margin: 0; padding: 0; }
+.history li {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px dashed #f0f3f7;
+  font-size: 11.5px;
+  color: #475569;
+}
+.history li:last-child { border-bottom: none; }
+.history .hd { color: #94a3b8; font-size: 11px; }
+.action-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #ecf5ff;
+  color: #409eff;
+  border-radius: 10px;
+  font-size: 10.5px;
+}
+
+/* 测试天气 */
+.fb-mock > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+  list-style: none;
+}
+.fb-mock > summary::-webkit-details-marker { display: none; }
+.mock-desc { margin: 6px 0 8px; line-height: 1.5; }
+.mock-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.mock-presets .el-button { margin: 0; }
+.mock-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.mock-list li { display: flex; gap: 8px; font-size: 11px; color: #64748b; padding: 3px 0; }
+.mock-empty { margin: 6px 0 0; }
+
+/* 演示说明气泡 */
+.fb-demo-note {
+  margin: 9px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fffaF2;
+  border: 1px solid #f6e6cd;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: #6b5a44;
+}
+.fb-demo-note b { color: #8a5a12; margin-right: 4px; }
+
+/* 玩法说明弹窗 */
+.rules p { margin: 0 0 8px; font-size: 13px; line-height: 1.75; }
+
+/* ============ WebGL 退化田地（结构沿用旧版 SVG） ============ */
+.fm-fallback { position: absolute; inset: 0; overflow: hidden; }
+.season-bg { position: absolute; inset: 0; z-index: 0; opacity: 0.35; }
+.horizon { position: absolute; top: 0; left: 0; right: 0; height: 28%; z-index: 1; pointer-events: none; }
+.mountains { position: absolute; bottom: 0; left: 0; width: 100%; height: 80%; opacity: 0.55; }
+.skyline {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+}
+.trees { position: absolute; inset: 0; z-index: 2; }
+.tree { position: absolute; bottom: 0; }
+.field-surface {
+  position: absolute;
+  top: 22%;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  background:
+    linear-gradient(180deg, rgba(200, 225, 240, 0.35) 0%, rgba(170, 205, 190, 0.15) 18%, transparent 35%),
+    repeating-linear-gradient(180deg, transparent 0, transparent 16px, rgba(220, 235, 245, 0.08) 16px, rgba(220, 235, 245, 0.08) 17px),
+    linear-gradient(180deg, #7a6a4a 0%, #6b5230 25%, #5a3e1a 60%, #46300f 100%);
+}
+.irrigation-channel {
+  position: absolute;
+  top: 30%;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, rgba(120, 180, 220, 0.7), rgba(80, 140, 180, 0.9));
+}
+.irrigation-channel.left { left: 18%; }
+.irrigation-channel.right { right: 18%; }
+.ridge {
+  position: absolute;
+  top: 30%;
+  height: 2px;
+  left: 22%;
+  right: 22%;
+  background: linear-gradient(90deg, transparent, rgba(101, 67, 33, 0.5) 20%, rgba(101, 67, 33, 0.5) 80%, transparent);
+}
+.plotgrid { position: absolute; top: 24%; bottom: 4%; left: 0; right: 0; z-index: 4; pointer-events: none; }
+.plotgrid > :deep(.plant-cell) {
+  position: absolute;
+  width: 18%;
+  aspect-ratio: 6 / 10;
+  height: auto !important;
+  left: var(--cx, 0);
+  top: var(--cy, 0);
+  transform: scale(var(--cs, 1)) rotate(var(--cr, 0deg));
+  transform-origin: 50% 100%;
+}
+.plotgrid :deep(.ground) { display: none !important; }
+.plotgrid :deep(.perspective-wrap) { transform: none !important; }
+
+/* ============ 响应式（PC 优先；<1180 收窄右栏，<900 才堆叠） ============ */
+@media (max-width: 1440px) {
+  .fm-page { grid-template-columns: minmax(0, 1fr) clamp(380px, 32vw, 440px); }
+  .fb-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1180px) {
+  .fm-page { grid-template-columns: minmax(0, 1fr) 380px; }
+  .fm-head .title { font-size: 15px; }
+  .hchip:nth-of-type(2) { display: none; }
+}
+
+@media (max-width: 900px) {
+  .fm-page {
+    grid-template-columns: 1fr;
+    grid-template-rows: 56vh auto;
+    height: auto;
+    max-height: none;
+    min-height: calc(100dvh - 52px);
+    overflow: visible;
+  }
+  .fm-stage { height: 56vh; }
+  .fm-right { height: auto; border-left: none; border-top: 1px solid rgba(15, 23, 42, 0.06); }
+  .fb-scroll { overflow: visible; }
+  .fm-hint { display: none; }
+  .fm-weatherbar { font-size: 11.5px; gap: 8px; padding: 6px 10px; }
+  /* 地块条跟着场景一起上移（场景只有 56vh），别压在场景外 */
+  .fm-plotrail-wrap { bottom: 8px; left: 8px; right: 8px; }
+}
+
+@media (max-width: 480px) {
+  .fm-head { left: 8px; right: 8px; top: 8px; padding: 6px 10px; gap: 8px; }
+  .fm-head .back-txt { display: none; }
+  .hchip { display: none; }
+  .fm-weatherbar { left: 8px; bottom: 8px; }
+  .fm-weatherbar .wb-sep, .fm-weatherbar .wb-item.muted { display: none; }
+  .fm-weatherbar { gap: 6px; }
+  .fb-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fb-grid2 { grid-template-columns: 1fr; }
+
+  /* ---- 地块条紧凑模式 ----
+     窄屏一屏放不下几个 chip，作物名+阶段全显示的话更看不到几块。
+     改成只显示编号，选中块才展开显示作物名。 */
+  .fm-plotrail-wrap { gap: 4px; bottom: 6px; }
+  .pr-nav { width: 24px; height: 30px; font-size: 15px; }
+  .pr-count { height: 24px; line-height: 22px; padding: 0 7px; font-size: 11px; }
+  .fm-plotrail { gap: 6px; padding: 5px 2px; }
+  .pr-chip {
+    height: 30px;
+    padding: 0 9px;
+    font-size: 11.5px;
+    gap: 0;
+  }
+  .pr-chip .pr-crop,
+  .pr-chip .pr-stage { display: none; }
+  .pr-chip.on { padding: 0 11px; gap: 5px; }
+  .pr-chip.on .pr-crop {
+    display: inline;
+    max-width: 74px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pr-add { width: 30px; }
+}
+</style>

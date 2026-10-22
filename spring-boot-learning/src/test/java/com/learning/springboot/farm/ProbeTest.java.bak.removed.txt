@@ -1,0 +1,57 @@
+package com.learning.springboot.farm;
+
+import com.learning.springboot.farm.engine.DayWeather;
+import com.learning.springboot.farm.engine.PestEngine;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+/** 临时探针：摸清 PestEngine 的真实行为（用完删除）。 */
+class ProbeTest {
+
+    private static List<DayWeather> weather(int n, double tmean, double precip, LocalDate from) {
+        List<DayWeather> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add(new DayWeather(from.plusDays(i).toString(), tmean + 5, tmean - 5, precip));
+        }
+        return out;
+    }
+
+    private static List<Double> dvsTrace(int n, double dvsEnd) {
+        List<Double> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add(dvsEnd * (i + 1) / n);
+        }
+        return out;
+    }
+
+    @Test
+    void probe() {
+        LocalDate sow = LocalDate.of(2024, 4, 1);
+        int n = 60;
+        for (double precip : new double[]{12, 25, 40}) {
+            for (double tmean : new double[]{24, 26, 28}) {
+                List<DayWeather> days = weather(n, tmean, precip, sow);
+                List<Double> trace = dvsTrace(n, 0.7);
+                int onsetsNo = 0;
+                int onsetsSpray = 0;
+                int onsetsWrong = 0;
+                for (long seed = 1; seed <= 120; seed++) {
+                    PestEngine.Result a = PestEngine.simulate(days, 0, n, trace, seed, List.of(), false, "rice");
+                    PestEngine.Result b = PestEngine.simulate(days, 0, n, trace, seed, List.of(
+                            new PestEngine.Spray(sow.plusDays(9), "TRICYCLAZOLE", Set.of("blast"), 1.0, 14)), false, "rice");
+                    PestEngine.Result c = PestEngine.simulate(days, 0, n, trace, seed, List.of(
+                            new PestEngine.Spray(sow.plusDays(9), "IMIDACLOPRID", Set.of("planthopper"), 1.0, 14)), false, "rice");
+                    onsetsNo += a.instances().stream().filter(p -> p.id().equals("blast")).count();
+                    onsetsSpray += b.instances().stream().filter(p -> p.id().equals("blast")).count();
+                    onsetsWrong += c.instances().stream().filter(p -> p.id().equals("blast")).count();
+                }
+                System.out.printf("precip=%.0f tmean=%.0f | blast发生次数 不打药=%d 对症打药=%d 打错药=%d%n",
+                        precip, tmean, onsetsNo, onsetsSpray, onsetsWrong);
+            }
+        }
+    }
+}

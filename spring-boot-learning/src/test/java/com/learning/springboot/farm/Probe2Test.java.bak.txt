@@ -1,0 +1,57 @@
+package com.learning.springboot.farm;
+
+import com.learning.springboot.farm.engine.DayWeather;
+import com.learning.springboot.farm.engine.PestEngine;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+
+class Probe2Test {
+
+    @Test
+    void probe() {
+        LocalDate sow = LocalDate.of(2024, 4, 1);
+        int n = 60;
+        List<DayWeather> days = new ArrayList<>();
+        List<Double> trace = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            days.add(new DayWeather(sow.plusDays(i).toString(), 31, 21, 25));
+            trace.add(0.7 * (i + 1) / n);
+        }
+        var blast = PestEngine.RICE.stream().filter(c -> c.id().equals("blast")).findFirst().orElseThrow();
+        System.out.println("blast: tLo=" + blast.tLo() + " tHi=" + blast.tHi()
+                + " humMin=" + blast.humidityMin() + " wet=" + blast.leafWetness()
+                + " inoc=" + blast.inoculum() + " dvsLo=" + blast.dvsLo() + " dvsHi=" + blast.dvsHi());
+        System.out.println("humidityProxy(25) = " + PestEngine.humidityProxy(25));
+        System.out.println("envSuitability(26,95,wet) = "
+                + PestEngine.envSuitability(blast, 26, 95, true, 1.0));
+        // 敏感期天数
+        int sens = 0;
+        for (double d : trace) {
+            if (d >= blast.dvsLo() && d < blast.dvsHi()) sens++;
+        }
+        System.out.println("敏感期天数 = " + sens);
+
+        int onsets = 0;
+        int totalRuns = 200;
+        for (long seed = 1; seed <= totalRuns; seed++) {
+            PestEngine.Result r = PestEngine.simulate(days, 0, n, trace, seed, List.of(), false, "rice");
+            onsets += r.instances().stream().filter(p -> p.id().equals("blast")).count();
+        }
+        System.out.println("blast 发生率 = " + onsets + "/" + totalRuns + " = "
+                + (100.0 * onsets / totalRuns) + "%");
+        // 其它病虫的发生率
+        for (var cfg : PestEngine.RICE) {
+            int c = 0;
+            for (long seed = 1; seed <= totalRuns; seed++) {
+                PestEngine.Result r = PestEngine.simulate(days, 0, n, trace, seed, List.of(), false, "rice");
+                c += r.instances().stream().filter(p -> p.id().equals(cfg.id())).count();
+            }
+            System.out.printf("  %-18s 发生率 %.1f%%  (dvs %.2f-%.2f, inoc %.3f, t %d-%d, humMin %d)%n",
+                    cfg.id(), 100.0 * c / totalRuns, cfg.dvsLo(), cfg.dvsHi(), cfg.inoculum(),
+                    cfg.tLo(), cfg.tHi(), cfg.humidityMin());
+        }
+    }
+}

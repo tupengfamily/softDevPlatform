@@ -120,6 +120,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
      * 游客可读接口(匿名 GET 放行,userId 为空):
      * 科目列表 / 课程树 / 课时详情 / 补充内容树 — 支撑游客浏览学习中心。
      * 个人相关接口(进度、标记完成、偏好、看板、写操作)仍要求登录。
+     *
+     * <p>天地图代理({@code /api/map/tianditu/**})也在此列:
+     * 瓦片由浏览器 {@code <img>} 直接加载, 根本不会带 Authorization 头,
+     * 若走鉴权流程会直接 401 → 地图空白。放在这里而非 shouldNotFilter 白名单,
+     * 是为了让「带 token 的请求仍能解析出 userId」—— 将来若要在地图上做
+     * 「我的农场在地图上高亮」这类需要身份的功能, 不用改架构。
      */
     private boolean isGuestReadable(HttpServletRequest req) {
         if (!"GET".equalsIgnoreCase(req.getMethod())) return false;
@@ -128,6 +134,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             || path.equals("/api/learning/curriculum")
             || path.matches("/api/learning/lessons/\\d+")
             || path.equals("/api/learning/supplements")
+            || path.startsWith("/api/map/tianditu/")  // 天地图代理(底图/瓦片/地名搜索, 公开地理数据)
             || path.equals("/api/dicts/map");   // 数据字典标签映射(只读),业务页展示文案用
     }
 

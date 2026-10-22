@@ -37,7 +37,11 @@ public class OperationLogAspect {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Set<String> SENSITIVE_KEYS = Set.of(
         "password", "oldPassword", "newPassword",
-        "token", "accessToken", "refreshToken", "expiresIn");
+        "token", "accessToken", "refreshToken", "expiresIn",
+        // 第三方服务凭据: API Key / Secret / 私钥。写操作日志时必须抹掉,
+        // 否则管理员在界面上配一把 key, 明文就进了 t_operation_log 表。
+        "secret", "apiKey", "api_key", "secretKey", "secretValue", "appSecret",
+        "privateKey", "accessKeySecret", "clientSecret");
 
     @Autowired private OperationLogService operationLogService;
 
@@ -99,7 +103,7 @@ public class OperationLogAspect {
                     || (!(a instanceof jakarta.servlet.ServletRequest)
                         && !(a instanceof jakarta.servlet.ServletResponse)))
                 .toArray();
-            return MAPPER.writeValueAsString(filtered);
+            return maskSensitive(MAPPER.writeValueAsString(filtered));
         } catch (Exception e) {
             return "serialize-error: " + e.getMessage();
         }
@@ -108,16 +112,26 @@ public class OperationLogAspect {
     private String serializeResult(Object result) {
         if (result == null) return "";
         try {
-            String json = MAPPER.writeValueAsString(result);
-            // 简单过滤敏感字段(字符串与数值两种形态都脱敏, 如 LoginResponse 的 token/expiresIn)
-            for (String key : SENSITIVE_KEYS) {
-                json = json.replaceAll("(?i)\"" + key + "\"\\s*:\\s*(\"[^\"]*\"|-?\\d+(?:\\.\\d+)?)",
-                    "\"" + key + "\":\"***\"");
-            }
-            return json;
+            return maskSensitive(MAPPER.writeValueAsString(result));
         } catch (Exception e) {
             return "serialize-error";
         }
+    }
+
+    /**
+     * 把 JSON 里敏感字段的值替换成 ***。
+     *
+     * <p>字符串与数值两种形态都脱敏, 如 LoginResponse 的 token/expiresIn。
+     * 请求参数与响应体走同一条规则 —— 之前只有响应体脱敏,
+     * 会让「表单里提交的 API Key 明文」原样进 t_operation_log 表。
+     */
+    private static String maskSensitive(String json) {
+        if (json == null) return null;
+        for (String key : SENSITIVE_KEYS) {
+            json = json.replaceAll("(?i)\"" + key + "\"\\s*:\\s*(\"[^\"]*\"|-?\\d+(?:\\.\\d+)?)",
+                    "\"" + key + "\":\"***\"");
+        }
+        return json;
     }
 
     private String truncate(String s, int max) {

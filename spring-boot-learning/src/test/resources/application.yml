@@ -1,0 +1,72 @@
+# ===========================================
+# 测试专用配置（Spring Boot 测试会优先加载 src/test/resources）
+# ===========================================
+# 🔴 为什么需要独立配置：
+#   原来测试直接吃 src/main/resources/application.yml，
+#   里面的 url 是 ${user.dir}/data/admin.db —— ${user.dir} 在跑测试时是模块目录，
+#   于是测试会去读 spring-boot-learning/data/ 下的历史遗留库（admin.db / sandbox.db）。
+#   那些库是早期小库，schema 不全（比如 t_learning_subject 缺 create_time 列），
+#   JPA 的 ddl-auto=update 又补不上 SQLite 的 NOT NULL 无默认值列，
+#   于是 AdminBootstrap 的种子同步直接抛异常 → 整个 ApplicationContext 起不来
+#   → UserControllerTest / UserServiceTest / contextLoads 全红。
+#
+#   这里给测试一个**干净的、按需新建**的库：
+#   - 文件放在 target/ 下（每次 mvn clean 都清掉，不会留脏数据）
+#   - 用独立目录，不会碰开发库 data/admin.db 与 data/sandbox.db
+#   - 保持 SQLite 单文件，启动快、隔离干净
+#
+# 副作用（可接受）：测试不再复用开发库里的用户/课程数据，
+# 但 AdminBootstrap 会按种子重建一套完整的 admin + 学习课程数据，
+# 这正是测试想要的"干净起点"。
+spring:
+  datasource:
+    url: jdbc:sqlite:${user.dir}/target/test-data/test-admin.db
+    driver-class-name: org.sqlite.JDBC
+    username: ""
+    password: ""
+    hikari:
+      pool-name: TestHikariPool
+      maximum-pool-size: 2
+      minimum-idle: 1
+      connection-init-sql: "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;"
+
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 30
+        order_inserts: true
+        order_updates: true
+
+sandbox:
+  datasource:
+    url: jdbc:sqlite:${user.dir}/target/test-data/test-sandbox.db
+    driver-class-name: org.sqlite.JDBC
+    pool-size: 2
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173
+
+# 测试里把天地图代理关掉：不需要真调上游（省配额 + 免得因限流把测试拖挂）
+tianditu:
+  enabled: false
+
+onlyoffice:
+  enabled: false
+  jwt-enabled: false
+
+farm:
+  demo-mode: true
+
+logging:
+  level:
+    root: WARN
+    com.learning.springboot: INFO
+    org.hibernate.SQL: WARN

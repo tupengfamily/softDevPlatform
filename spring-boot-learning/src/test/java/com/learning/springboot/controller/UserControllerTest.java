@@ -121,9 +121,13 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/hello - 公开接口无需 token")
-    void testHello() throws Exception {
-        mockMvc.perform(get("/api/hello"))
+    @DisplayName("GET /api/auth/public-key - 公开接口无需 token")
+    void testPublicEndpointNeedsNoToken() throws Exception {
+        // 🔴 原来这条测的是 /api/hello，但 HelloController 已在 d9c4663
+        // 「删除 7 处废弃代码」里整文件删掉了 —— 测试没跟着删，
+        // 于是它一直是个「打 500 也算过」的僵尸断言（mockMvc 找不到映射 → 500）。
+        // 现在改测真实存在的公开端点：取 RSA 公钥（前端登录前就要拉它解密密码）。
+        mockMvc.perform(get("/api/auth/public-key"))
             .andExpect(status().isOk());
     }
 }
