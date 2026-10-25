@@ -85,16 +85,23 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // ============ 自定义 SQL ============
 
     /**
-     * 按用户名模糊查询(原生 SQL)
+     * 按用户名模糊查询
+     *
+     * <p>🔴 2026-10-25：原来用原生 SQL {@code SELECT *} —— 一是取不回 roles 关联，
+     * 序列化时（事务已关闭、open-in-view=false）抛 LazyInitializationException 变 500；
+     * 二是 {@code SELECT *} 把 password 这类敏感列也带了出来。
+     * 现改为 JPQL + JOIN FETCH 一次取全。
      */
-    @Query(value = "SELECT * FROM t_user WHERE username LIKE %:keyword% ORDER BY id DESC",
-            nativeQuery = true)
+    @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles WHERE u.username LIKE %:keyword% ORDER BY u.id DESC")
     List<User> searchByUsernameLike(@Param("keyword") String keyword);
 
     /**
      * 按年龄范围查询
+     *
+     * <p>🔴 2026-10-25：同样需要 JOIN FETCH roles，否则序列化时抛懒加载异常。
      */
-    List<User> findByAgeBetween(Integer startAge, Integer endAge);
+    @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles WHERE u.age BETWEEN :startAge AND :endAge ORDER BY u.id DESC")
+    List<User> findByAgeBetween(@Param("startAge") Integer startAge, @Param("endAge") Integer endAge);
 
     // ============ 原生 SQL ============
 

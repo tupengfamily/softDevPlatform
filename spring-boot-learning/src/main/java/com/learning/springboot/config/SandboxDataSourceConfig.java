@@ -12,8 +12,18 @@ import javax.sql.DataSource;
 /**
  * 沙箱库独立数据源配置
  * <p>
- * 教学 SQL 沙箱使用独立的 sandbox.db 文件, 与主库 admin.db 完全隔离,
- * 学生可以随便执行 SELECT/INSERT/UPDATE/DELETE 而不污染真实数据。
+ * 教学 SQL 沙箱使用独立的连接池, 学生在「SQL 沙箱」页里随便执行
+ * SELECT/INSERT/UPDATE/DELETE 而不污染真实业务数据 ——
+ * 沙箱只操作 classes / students / courses / scores 四张教学表。
+ * <p>
+ * ⚠️ 注意：沙箱池与主池<b>目前指向同一个 sandbox.db 文件</b>
+ * （教学表与业务表同居一库）。这是历史既有行为 —— 主数据源 yml
+ * 已改为指向 {@code data/sandbox.db}（见 application.yml 注释），
+ * 沙箱池沿用同一路径以确保教学表可见。
+ * <p>
+ * 两个池指向同一 SQLite 文件时，靠 WAL + busy_timeout 化解写锁竞争；
+ * 若日后要拆库，只需改 {@code sandbox.datasource.url} 指向新文件，
+ * 本类无需改动。
  */
 @Configuration
 public class SandboxDataSourceConfig {

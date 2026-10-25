@@ -97,10 +97,18 @@ public class WikiCollaboratorController {
         return Result.ok(collaborationService.listSharedToMe(userId));
     }
 
-    /** 资源上的协作者列表(所有者管理) */
+    /**
+     * 资源上的协作者列表(所有者管理)。
+     *
+     * <p>🔴 2026-10-26 修复 M8（越权）：原来<b>没有 {@code @CurrentUser}</b>，
+     * 也没有归属校验 —— 任意登录用户构造 resourceId 就能枚举他人协作者与 ownerId。
+     * 现在归属校验下沉到 {@code CollaborationService.listCollaboratorsOfResource}，
+     * 规则是「所有者 / 已批准协作者 / 申请人本人」可见，其他人 403。
+     */
     @GetMapping("/resource")
-    public ResponseEntity<?> ofResource(@RequestParam String resourceType, @RequestParam Long resourceId) {
-        return Result.ok(collaborationService.listCollaboratorsOfResource(resourceType, resourceId));
+    public ResponseEntity<?> ofResource(@RequestParam String resourceType, @RequestParam Long resourceId,
+                                        @CurrentUser Long userId) {
+        return Result.ok(collaborationService.listCollaboratorsOfResource(userId, resourceType, resourceId));
     }
 
     private String str(Object o) { return o == null ? null : String.valueOf(o); }

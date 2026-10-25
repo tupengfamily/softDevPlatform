@@ -94,7 +94,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (userId != null) {
                 Long tokenTv = jwtUtil.extractTokenVersion(claims);
                 Long userTv = userRepository.findTokenVersionById(userId);
-                if (userTv != null && tokenTv != null && tokenTv < userTv) {
+                if (userTv == null) {
+                    // 🔴 2026-10-25：用户已不存在（被删除）。旧 token 必须立即失效，
+                    // 原来这里因 userTv == null 直接跳过比对 → 被删账号的 token 仍可用。
+                    log.info("[JWT] userId={} 不存在 → token 已失效", userId);
+                    writeUnauthorized(resp, "账号不存在或已被删除");
+                    return;
+                }
+                if (tokenTv != null && tokenTv < userTv) {
                     log.info("[JWT] token tv={} < user tv={} for userId={} → token 已失效",
                             tokenTv, userTv, userId);
                     writeUnauthorized(resp, "Token 已失效(账号在其他位置登出或密码已修改)");

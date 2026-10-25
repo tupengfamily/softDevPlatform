@@ -36,13 +36,18 @@ spring:
       max-request-size: 24MB
 
   # ============== 数据源(SQLite 文件) ==============
+  # 🔴 活动库是 data/sandbox.db —— 这里曾长期写成 data/admin.db(0 字节, 从未被使用)，
+  #    真正生效靠启动时命令行覆盖 --spring.datasource.url=... 蒙混过关。
+  #    后果：yml 与实际行为不一致，任何不带该参数启动的场合(IDE 直接跑、
+  #    Docker 镜像默认启动、CI)都会连到空库 → Hibernate 重建 schema → 数据全丢。
+  #    现在配置与实际对齐，并允许用 SPRING_DATASOURCE_URL 覆盖(部署到别的库时用)。
   datasource:
-    url: jdbc:sqlite:${user.dir}/data/admin.db
+    url: ${SPRING_DATASOURCE_URL:jdbc:sqlite:${user.dir}/data/sandbox.db}
     driver-class-name: org.sqlite.JDBC
     username: ""
     password: ""
     hikari:
-      pool-name: AdminHikariPool
+      pool-name: MainHikariPool
       # SQLite 文件锁串行写;池太大反而加剧锁竞争。WAL 模式下读可并发,
       # 但写依然是单写,3-5 个连接足够覆盖并发请求(HTTP 线程池共享)
       maximum-pool-size: 5

@@ -74,6 +74,10 @@ public class UserServiceImpl implements UserService {
         if (!userRepository.existsById(id)) {
             throw new BusinessException(404, "用户不存在: id=" + id);
         }
+        // 🔴 2026-10-25：删号必须先撤销 token。
+        // 否则用户被删除后，其旧 JWT 依然能通过 JwtAuthFilter
+        // （userTv == null 时 tv 比对被跳过）继续访问接口。
+        revokeTokens(id);
         userRepository.deleteById(id);
     }
 
@@ -108,6 +112,12 @@ public class UserServiceImpl implements UserService {
         }
         user.setPassword(passwordEncoder.encode(req.getNewPassword()));
         userRepository.save(user);
+        // 🔴 2026-10-25：改密码必须撤销旧 token。
+        // 否则用户改密后，攻击者手里的旧 JWT 仍可继续用最长 24 小时
+        // （jwt.expiration-millis=86400000）。
+        // 顺序：先 incrementTokenVersion（@Modifying 直写 DB），再 save(user)。
+        // 反过来的话，JPA 一级缓存里 user 的旧 tokenVersion 会被 save 写回，把刚递增的值覆盖掉。
+        revokeTokens(userId);
     }
 
     @Override
@@ -126,6 +136,21 @@ public class UserServiceImpl implements UserService {
         }
         user.setRoles(newRoles);
         userRepository.save(user);
+        // 🔴 2026-10-25：改角色必须撤销旧 token。
+        // JWT 里带的是角色快照，AdminInterceptor 只读快照不查库，
+        // 撤销管理员权限后旧 JWT 最长 24 小时仍能访问 @RequireAdmin 接口。
+        revokeTokens(userId);
+    }
+
+    /**
+     * 撤销该用户所有已签发的 token（递增 tokenVersion）。
+     *
+     * <p>🔴 2026-10-25：所有**改变用户权限或凭证**的入口都必须调用它：
+     * 改密码、撤销角色、禁用账号。
+     * 漏掉任何一处，被撤销的权限就还能被旧 token 用一整天。
+     */
+    private void revokeTokens(Long userId) {
+        userRepository.incrementTokenVersion(userId, java.time.LocalDateTime.now());
     }
 
     @Override
@@ -138,6 +163,12 @@ public class UserServiceImpl implements UserService {
             .orElseThrow(() -> new BusinessException(404, "用户不存在"));
         user.setStatus(status);
         userRepository.save(user);
+        // 🔴 2026-10-25：禁用账号必须撤销 token。
+        // UserStatusInterceptor 虽然会拦已禁用用户，但读操作若走游客可读路径仍可能放行；
+        // 撤销 token 是唯一彻底的收口。
+        if (status == User.STATUS_DISABLED) {
+            revokeTokens(userId);
+        }
     }
 
     @Override

@@ -27,6 +27,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     /** 最近 N 条消息(头部消息中心面板) */
     List<Notification> findTop8ByUserIdOrderByCreateTimeDesc(Long userId);
 
+    /**
+     * 某用户的某类关联消息（2026-10-22 需求 P：仓库临期提醒去重）。
+     *
+     * <p>仓库的临期提醒按「批次 id」去重——同一批货只提醒一次，
+     * 所以要按 related_type + related_id 找到已提醒过的批次。
+     */
+    List<Notification> findByUserIdAndRelatedType(Long userId, String relatedType);
+
     /** 单条标记已读 */
     @Modifying
     @Query("update Notification n set n.isRead = true where n.id = :id and n.userId = :userId and n.isRead = false")

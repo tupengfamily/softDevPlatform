@@ -225,7 +225,7 @@ fi
 if command -v sqlite3 >/dev/null 2>&1; then
     success "sqlite3:$(sqlite3 -version | awk '{print $1}')  (用于调试数据库)"
 else
-    warn "sqlite3 CLI 未安装(可选, 仅用于查看 data/admin.db)"
+    warn "sqlite3 CLI 未安装(可选, 仅用于查看 data/sandbox.db)"
 fi
 
 if [ $FAIL -ne 0 ]; then
@@ -615,7 +615,7 @@ echo -e "     http://localhost:5173"
 echo ""
 echo -e "  ${YELLOW}☕ 后端(Spring Boot 3 + JWT + SQLite)${NC}"
 echo -e "     http://localhost:8080"
-echo -e "     数据库: $SCRIPT_DIR/spring-boot-learning/data/admin.db"
+echo -e "     数据库: $SCRIPT_DIR/data/sandbox.db"
 echo ""
 echo -e "  ${BLUE}🔐 默认账号${NC}"
 echo -e "     admin / admin123  (ADMIN 角色,全部权限)"

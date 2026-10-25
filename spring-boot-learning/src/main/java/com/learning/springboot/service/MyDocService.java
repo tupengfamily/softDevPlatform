@@ -5,6 +5,7 @@ import com.learning.springboot.entity.MyDocFile;
 import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.repository.MyDocDirectoryRepository;
 import com.learning.springboot.repository.MyDocFileRepository;
+import com.learning.springboot.security.HtmlSanitizer;
 import com.learning.springboot.service.doc.MyDocStorage;
 import com.learning.springboot.service.doc.MyDocType;
 import com.learning.springboot.service.doc.OfficeDocService;
@@ -279,6 +280,14 @@ public class MyDocService {
         f.setName(uniqueFileName(userId, f.getDirectoryId(), cleanName(base, "文档名称"), ext, null));
         f.setStorageKey(newKey(ext));
         f.setSortNo(nextSortFile(userId, f.getDirectoryId()));
+        // 🔴 2026-10-25：导入的 HTML 也要消毒。
+        // .html/.htm 会被映射成 RICHTEXT，预览时以 text/html 内联返回 ——
+        // 不消毒就等于给了攻击者一条存储型 XSS 的写入通道。
+        if (type == MyDocType.RICHTEXT) {
+            String html = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+            bytes = HtmlSanitizer.sanitizeRichText(html)
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }
         f.setSizeBytes((long) bytes.length);
         f.setVersion(1);
         storage.write(userId, f.getStorageKey(), bytes);
@@ -402,6 +411,13 @@ public class MyDocService {
             // Markdown / RichText: model.content 是纯文本 / HTML
             Object content = model == null ? null : model.get("content");
             String text = content == null ? "" : String.valueOf(content);
+            // 🔴 2026-10-25：富文本必须消毒。
+            // 原来这条路径直接落盘，而预览端点以 text/html 内联返回
+            // → 上传含 <script> 的 HTML 即可在应用自身域下执行脚本（存储型 XSS），
+            //    能偷走 localStorage 里的 JWT。其它 6 处富文本入口都做了消毒，唯独这里漏了。
+            if (type == MyDocType.RICHTEXT) {
+                text = HtmlSanitizer.sanitizeRichText(text);
+            }
             // 限制大小: 单文件 20MB(留余量)
             if (text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > settings.getMyDocMaxFileBytes()) {
                 throw new BusinessException("保存后内容过大, 超出单文件上限 " + humanSize(settings.getMyDocMaxFileBytes()));

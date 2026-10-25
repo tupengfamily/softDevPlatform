@@ -44,6 +44,7 @@ public class User {
 
     /** BCrypt 加密后的密码 */
     @Column(nullable = false, length = 100)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String password;
 
     @Column(nullable = false, length = 100)

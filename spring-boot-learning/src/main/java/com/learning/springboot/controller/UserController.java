@@ -123,12 +123,19 @@ public class UserController {
     /** 按用户名模糊查询 */
     @GetMapping("/search")
     public ResponseEntity<?> search(@RequestParam(defaultValue = "") String keyword) {
-        return Result.ok(userService.searchByUsername(keyword));
+        // 🔴 2026-10-25：返回 UserVO 而非实体。
+        // 实体的 getPassword() 没有 @JsonIgnore → BCrypt hash 会进响应体；
+        // 且 roles 是 LAZY，open-in-view:false 下序列化直接抛 LazyInitializationException 变 500。
+        // 同文件的 listAll() 早已改用 UserVO，这里是遗漏。
+        List<UserVO> data = userService.searchByUsername(keyword).stream().map(UserVO::from).toList();
+        return Result.ok(data);
     }
 
     /** 按年龄范围 */
     @GetMapping("/age")
     public ResponseEntity<?> findByAge(@RequestParam Integer min, @RequestParam Integer max) {
-        return Result.ok(userService.findByAgeRange(min, max));
+        // 🔴 2026-10-25：同上，改用 UserVO 脱敏
+        List<UserVO> data = userService.findByAgeRange(min, max).stream().map(UserVO::from).toList();
+        return Result.ok(data);
     }
 }

@@ -201,6 +201,14 @@ public class MyDocController {
         String encoded = URLEncoder.encode(safe, StandardCharsets.UTF_8).replace("+", "%20");
         headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + ascii + "\"; filename*=UTF-8''" + encoded);
         headers.setCacheControl("private, max-age=300");
+        // 🔴 2026-10-25：HTML / 富文本预览加 CSP sandbox（纵深防御第二层）。
+        // 即使写入侧的消毒被绕过，sandbox 也能阻止脚本执行 / 窃取同域 Cookie。
+        // sandbox 不带 allow-scripts → 页面里的 <script> 不会执行；
+        // 不带 allow-same-origin → 沙箱页面拿不到本域的 localStorage（JWT 就在那）。
+        if (type == MyDocType.HTML || type == MyDocType.RICHTEXT) {
+            headers.set("Content-Security-Policy", "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'");
+            headers.set("X-Content-Type-Options", "nosniff");
+        }
         return new ResponseEntity<>(bytes, headers, org.springframework.http.HttpStatus.OK);
     }
 

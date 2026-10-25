@@ -1,8 +1,10 @@
 package com.learning.springboot.service.impl;
 
 import com.learning.springboot.dto.SupplementVO;
+import com.learning.springboot.entity.LearningChapter;
 import com.learning.springboot.entity.SupplementNode;
 import com.learning.springboot.exception.BusinessException;
+import com.learning.springboot.repository.LearningChapterRepository;
 import com.learning.springboot.repository.SupplementNodeRepository;
 import com.learning.springboot.security.HtmlSanitizer;
 import com.learning.springboot.service.SupplementService;
@@ -31,6 +33,10 @@ public class SupplementServiceImpl implements SupplementService {
     private static final Logger log = LoggerFactory.getLogger(SupplementServiceImpl.class);
 
     @Autowired private SupplementNodeRepository nodeRepository;
+    /**
+     * 官方章节仓储（2026-10-26 修复 M9）：校验 {@code chapterId} 的科目归属。
+     */
+    @Autowired private LearningChapterRepository chapterRepository;
 
     @Override
     public List<SupplementVO.NodeVO> getTree(Long subjectId, Long chapterId, Long currentUserId, boolean admin) {
@@ -60,6 +66,16 @@ public class SupplementServiceImpl implements SupplementService {
     @Transactional(rollbackFor = Exception.class)
     public SupplementVO.NodeVO create(SupplementVO.NodeUpsertRequest req, Long userId, String username) {
         validate(req);
+        // 🔴 2026-10-26 修复 M9（越权）：挂载位置必须做归属校验。
+        //
+        // 原实现直接把 req.parentNodeId / req.chapterId 写进新节点，
+        // 不校验它们是否属于当前用户 / 当前科目。后果有两条：
+        //   ① **污染他人树**：把内容挂到别人建的父节点下 → 出现在别人的补充章节里；
+        //   ② **级联删除的破坏面扩大**：delete() 会 collectDescendants 递归删掉全部子孙，
+        //      攻击者先往别人的树上挂一个节点，再由受害者（或攻击者自己用
+        //      「删自己那个节点」的方式）触发级联，把别人的子树一起删掉。
+        //   ③ **污染官方章节**：chapterId 不校验科目，能把内容挂到别的科目的官方章节下。
+        validateMountPoint(req, userId);
         SupplementNode node = new SupplementNode();
         node.setSubjectId(req.subjectId);
         node.setChapterId(req.chapterId);
@@ -172,6 +188,69 @@ public class SupplementServiceImpl implements SupplementService {
         if (req.parentNodeId == null && req.chapterId == null) {
             // 允许: 科目下的自建章节(根节点)
         }
+    }
+
+    /**
+     * 🔴 M9：校验挂载位置的归属。
+     *
+     * <p>三道校验：
+     * <ol>
+     *   <li><b>parentNodeId 存在</b> → 父节点必须存在，且父节点的 {@code subjectId}
+     *       必须与请求的 {@code subjectId} 一致（否则是跨科目乱挂）；</li>
+     *   <li><b>父节点本身</b> → 必须是「根节点或子树」这种合法形态
+     *       （父节点不能自己又挂在别的节点下形成环 —— 详见 {@link #wouldCreateCycle}）；</li>
+     *   <li><b>chapterId 存在</b> → 章节必须存在，且章节的 {@code subjectId}
+     *       必须与请求的 {@code subjectId} 一致（否则能污染别的科目的官方章节）。</li>
+     * </ol>
+     *
+     * <p>⚠️ <b>不校验父节点的作者</b>：补充内容是<b>协作型</b>的 ——
+     * 官方设计上就是「所有人可在章节下补充内容」，父节点是别人写的很常见。
+     * 真正要防的是「跨科目乱挂」与「形成环」这两类结构性破坏。
+     */
+    private void validateMountPoint(SupplementVO.NodeUpsertRequest req, Long userId) {
+        if (req.parentNodeId != null) {
+            SupplementNode parent = nodeRepository.findById(req.parentNodeId)
+                .orElseThrow(() -> new BusinessException(400, "父节点不存在"));
+            if (parent.getSubjectId() == null || !parent.getSubjectId().equals(req.subjectId)) {
+                throw new BusinessException(400, "父节点不属于当前科目，不能挂载");
+            }
+            // 防环：父节点不能是自己的后代（create 场景下新建节点还没 id，
+            // 但父链可能已经被历史数据搞成环，这里做一次防御性检查）
+            if (isDescendant(parent, req.parentNodeId)) {
+                throw new BusinessException(400, "不能挂到自己的子节点下");
+            }
+        }
+        if (req.chapterId != null) {
+            LearningChapter chapter = chapterRepository.findById(req.chapterId)
+                .orElseThrow(() -> new BusinessException(400, "章节不存在"));
+            // ⚠️ 老数据里章节可能没有 subject_id（默认科目 Java），
+            //    此时不做科目比对（否则老章节全都挂不上）。
+            if (chapter.getSubjectId() != null && !chapter.getSubjectId().equals(req.subjectId)) {
+                throw new BusinessException(400, "章节不属于当前科目，不能挂载");
+            }
+        }
+    }
+
+    /**
+     * 判断 {@code node} 是否在以 {@code rootId} 为根的子树里（用于防环）。
+     *
+     * <p>实现：从 {@code node} 往上走父链，若某一步回到 {@code rootId}，说明成环。
+     * 加了访问步数上限，防止历史脏数据造成的无限循环。
+     */
+    private boolean isDescendant(SupplementNode node, Long rootId) {
+        int guard = 0;
+        Long cur = node.getParentNodeId();
+        while (cur != null && guard++ < 64) {
+            if (cur.equals(rootId)) {
+                return true;
+            }
+            SupplementNode next = nodeRepository.findById(cur).orElse(null);
+            if (next == null) {
+                return false;
+            }
+            cur = next.getParentNodeId();
+        }
+        return false;
     }
 
     private String normalizeType(String type) {

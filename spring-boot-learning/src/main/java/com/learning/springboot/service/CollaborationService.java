@@ -228,10 +228,75 @@ public class CollaborationService {
         }).toList();
     }
 
-    /** 资源上的协作者列表(所有者管理) */
-    public List<Map<String, Object>> listCollaboratorsOfResource(String resourceType, Long resourceId) {
+    /**
+     * 资源上的协作者列表。
+     *
+     * <p>🔴 2026-10-26 修复 M8（越权）：原实现<b>没有任何身份与归属校验</b>，
+     * 任意登录用户只要构造 {@code /api/wiki/collab/resource?resourceType=ART&resourceId=123}
+     * 就能拿到别人资源的完整协作者名单 —— 包含 {@code ownerId}、协作者用户名、
+     * 申请理由、资源名。resourceId 是<b>自增 id</b>，可以顺序遍历整个库，
+     * 等于把全站 Wiki 目录结构与人员关系整个爬走。
+     *
+     * <p>现在的规则（与 {@link #submitApplication} 的归属校验同源）：
+     * <ul>
+     *   <li><b>资源所有者</b> → 可见全部（这是「所有者管理协作者」的本意）；</li>
+     *   <li><b>已批准的协作者</b> → 可见（需要知道还有谁在协作）；</li>
+     *   <li><b>申请人自己</b> → 可见自己的那一条（要确认申请状态）；</li>
+     *   <li><b>其他人</b> → 403，不泄露任何信息。</li>
+     * </ul>
+     *
+     * @param userId      当前登录用户（必须传，不能为 null）
+     * @param resourceType DIR / ART
+     * @param resourceId  资源 id
+     */
+    public List<Map<String, Object>> listCollaboratorsOfResource(Long userId, String resourceType, Long resourceId) {
+        if (userId == null) {
+            throw new BusinessException(401, "请先登录");
+        }
+        if (resourceId == null) {
+            throw new BusinessException(400, "资源 id 不能为空");
+        }
+        // ① 资源本身必须存在，且必须解析出所有者
+        Long ownerId = resolveOwnerId(resourceType, resourceId);
+        // ② 调用者必须与资源有某种关系
+        if (!userId.equals(ownerId) && !isApprovedCollaborator(resourceType, resourceId, userId)
+                && !hasOwnApplication(resourceType, resourceId, userId)) {
+            throw new BusinessException(403, "无权查看该资源的协作者");
+        }
         return collabRepository.findByResourceTypeAndResourceId(resourceType, resourceId)
             .stream().map(this::toVO).toList();
+    }
+
+    /**
+     * 解析资源所有者（资源不存在时抛 404）。
+     *
+     * <p>DIR → {@code WikiDirectory.userId}；ART → {@code WikiArticle.userId}。
+     */
+    private Long resolveOwnerId(String resourceType, Long resourceId) {
+        if (WikiCollaborator.RESOURCE_DIR.equals(resourceType)) {
+            WikiDirectory d = directoryRepository.findById(resourceId)
+                .orElseThrow(() -> new BusinessException(404, "目录不存在"));
+            return d.getUserId();
+        }
+        if (WikiCollaborator.RESOURCE_ART.equals(resourceType)) {
+            WikiArticle a = articleRepository.findById(resourceId)
+                .orElseThrow(() -> new BusinessException(404, "文章不存在"));
+            return a.getUserId();
+        }
+        throw new BusinessException(400, "非法资源类型: " + resourceType);
+    }
+
+    /** 是否是该资源「已批准」的协作者。 */
+    private boolean isApprovedCollaborator(String resourceType, Long resourceId, Long userId) {
+        return collabRepository.findByResourceTypeAndResourceIdAndStatus(
+                resourceType, resourceId, WikiCollaborator.STATUS_APPROVED)
+            .stream().anyMatch(c -> c.getUserId().equals(userId));
+    }
+
+    /** 是否对该资源提交过申请（任何状态）——用于让申请人看到自己的申请进度。 */
+    private boolean hasOwnApplication(String resourceType, Long resourceId, Long userId) {
+        return collabRepository.findByResourceTypeAndResourceIdAndUserId(resourceType, resourceId, userId)
+            .stream().anyMatch(c -> c.getUserId().equals(userId));
     }
 
     /** 资源所有者的待审批 + 已处理历史(审批中心面板) */
