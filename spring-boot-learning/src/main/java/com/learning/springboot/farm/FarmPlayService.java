@@ -15,6 +15,7 @@ import com.learning.springboot.farm.engine.CropCatalog;
 import com.learning.springboot.farm.engine.SoilEngine;
 import com.learning.springboot.farm.engine.SuitabilityEngine;
 import com.learning.springboot.farm.engine.WeedEngine;
+import com.learning.springboot.farm.engine.WarehouseEngine;
 import com.learning.springboot.service.GameService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,47 +65,18 @@ public class FarmPlayService {
      */
     public static final int MAX_PLOTS_PER_FARM = 12;
 
-    /** 水稻收购价（元/kg，2025 年最低收购价中晚籼 1.29 元/斤）。 */
-    private static final double RICE_PRICE = 2.58;
-
     /**
-     * 各作物收购价（元/kg，2025 年最低收购价 / 产地批发价量级）。
+     * 可收获的 DVS 门槛（黄熟期起点）。
      *
-     * <p>园艺作物价格波动远大于粮食：这里取<b>产地中位价</b>，不含冷链与损耗。
-     * 花卉按 kg 当量折算（切花约 40g/支、25g/支），与其它作物同一套结算口径。
+     * <p>🔴 2026-10-26 P0-2：这里原来还挂着一份 22 分支的 {@code switch(cropId)} 价表，
+     * 与 {@link WarehouseEngine#STORAGES} 的 22 条 {@code Storage} 记录
+     * <b>重复定义同一批收购价</b>。两份数值当前恰好一致，但那是<b>靠人工同步维持的巧合</b>，
+     * 改一处忘另一处就会让「收割提示净收益」与「仓库卖价」自相矛盾。
+     *
+     * <p>现已全部删除：收购价唯一真源是 {@link WarehouseEngine#STORAGES}，
+     * 收割预估与实际卖价都走 {@code estimateRevenue()} → {@link WarehouseEngine#value()}，
+     * 与 {@code sell()} 是同一个函数。
      */
-    private static double priceOf(String cropId) {
-        return switch (cropId == null ? "rice_mid" : cropId) {
-            // 粮食
-            case "wheat_winter" -> 2.40;
-            case "corn_spring" -> 2.30;
-            case "soybean" -> 5.00;
-            case "millet" -> 3.20;
-            // 蔬菜
-            case "cabbage" -> 1.20;
-            case "tomato" -> 4.50;
-            case "cucumber" -> 3.20;
-            case "chili" -> 6.00;
-            case "eggplant" -> 3.60;
-            case "yardlong_bean" -> 6.00;
-            case "radish" -> 1.50;
-            case "potato" -> 1.60;
-            // 水果
-            case "strawberry" -> 20.00;
-            case "watermelon" -> 2.00;
-            case "melon" -> 5.00;
-            case "grape" -> 12.00;
-            case "pear" -> 5.00;
-            // 花卉
-            case "chrysanthemum" -> 15.00;
-            case "sunflower" -> 8.00;
-            case "tulip" -> 25.00;
-            case "rose" -> 18.00;
-            default -> RICE_PRICE;
-        };
-    }
-
-    /** 可收获的 DVS 门槛（黄熟期起点） */
     private static final double HARVEST_DVS = 0.92;
 
     /**
@@ -209,7 +181,7 @@ public class FarmPlayService {
      *
      * <p>430 天覆盖了一季中稻（130–150 天）与晚播越冬作物，够用。
      */
-    private static final int MAX_REPLAY_DAYS = 430;
+    static final int MAX_REPLAY_DAYS = 430;
 
     @Value("${farm.demo-mode:true}")
     private boolean demoMode;
@@ -581,7 +553,8 @@ public class FarmPlayService {
                 }
                 ger = germination(userId, p, cfg);
                 if (sim != null) {
-                    wr = weeds(userId, p, sim, today);
+                    // 🔴 2026-10-26 P0-3：请求级上下文 —— 地块列表里每块地也要复用同一份天气。
+                    wr = weeds(userId, p, sim, seasonContext(userId, p, today));
                 }
             }
             m.put("dvs", round(dvs, 3));
@@ -711,21 +684,26 @@ public class FarmPlayService {
             return idleView(userId, plot, crop, today);
         }
 
-        SimEngine.SimResult r = replay(userId, plot, plot.getSowDate(), today);
+        // 🔴 2026-10-26 P0-3：请求级上下文 —— 天气取一次、农事取两次（窗口内 / 全季），
+        // 下面 4 个子引擎 + 工序链 + 货架面板 + 生长回放全部复用它。
+        // 改造前这里会触发 8 次 seasonActions DB 查询 + 5 次 weather.range 天气构造。
+        SeasonContext ctx = seasonContext(userId, plot, today);
+
+        SimEngine.SimResult r = replay(userId, plot, plot.getSowDate(), today, ctx);
         if (r == null) {
             throw new BusinessException("地块数据异常：无法回放天气");
         }
 
-        PestEngine.Result pr = pests(userId, plot, r, today);
-        DisasterEngine.Result dr = disasters(userId, plot, r, today);
-        SoilEngine.Result sr = soil(userId, plot, r, today);
-        List<FarmAction> acts = seasonActions(userId, plot, plot.getSowDate(), today);
+        PestEngine.Result pr = pests(userId, plot, r, ctx);
+        DisasterEngine.Result dr = disasters(userId, plot, r, ctx);
+        SoilEngine.Result sr = soil(userId, plot, r, ctx);
+        List<FarmAction> acts = ctx.seasonActions();
         List<OpChain.Step> chain = OpChain.build(plot.getSowDate(), r.dvsByDay(), acts,
                 r.dvs(), r.dvs() >= HARVEST_DVS, cropIdOf(plot));
         // 出苗评估（2026-10-22）：出苗率折进群体密度，枯死直接绝收
         GerminationEngine.Result ger = germination(userId, plot, crop);
         // 杂草压力（2026-10-22 需求 O）：争水争光争肥，折进产量
-        WeedEngine.Result wr = weeds(userId, plot, r, today);
+        WeedEngine.Result wr = weeds(userId, plot, r, ctx);
         // 🔴 2026-10-23 需求 R：农具加成（温室提产量 / 滴灌减干旱 / 烘干机提品质）
         Yields y = yields(r, pr, dr, sr, chain, crop, ger, wr, toolBonusOf(userId));
 
@@ -864,8 +842,8 @@ public class FarmPlayService {
                         wr.onsetDate(), wr.manualWeeds(), wr.herbicideDays(),
                         WeedEngine.advice(wr.level())),
                 opViews(chain),
-                inputViews(userId, plot, today, r, sr),
-                inputSummary(userId, plot, today, r, sr, y.ey()),
+                inputViews(userId, plot, today, r, sr, ctx),
+                inputSummary(userId, plot, today, r, sr, y.ey(), ctx),
                 plot.getSeasons(),
                 round(plot.getBestYield(), 1),
                 plot.getLastHarvestDate() == null ? null : plot.getLastHarvestDate().toString(),
@@ -893,6 +871,9 @@ public class FarmPlayService {
      */
     private FarmView idleView(Long userId, FarmPlot plot, CropConfig crop, LocalDate today) {
         String zoneId = zoneOf(plot);
+        // 🔴 2026-10-26 P0-3：待播种只需要农事列表（抗性累积 / 已用次数），
+        // 不需要构造几百天天气。
+        SeasonContext idleCtx = actionsOnlyContext(userId, plot, today);
         // 🔴 2026-10-22 修复：这里原来用 `seasons > 0 || lastHarvestDate != null`
         // 判断「这块地是不是已经种过」。但绝收（苗期枯死）季既不增加 seasons、
         // 也不写 lastHarvestDate —— 玩家种过一季却枯死了，地块会被判成「待开垦」，
@@ -984,8 +965,8 @@ public class FarmPlayService {
                         WeedEngine.advice(WeedEngine.Level.NONE)),
                 List.of(),
                 // 货架仍要展示（玩家可以先买好下一季的农资）
-                inputViews(userId, plot, today, emptySim(plot), sr),
-                inputSummary(userId, plot, today, emptySim(plot), sr, 0),
+                inputViews(userId, plot, today, emptySim(plot), sr, idleCtx),
+                inputSummary(userId, plot, today, emptySim(plot), sr, 0, idleCtx),
                 plot.getSeasons(),
                 round(plot.getBestYield(), 1),
                 plot.getLastHarvestDate() == null ? null : plot.getLastHarvestDate().toString(),
@@ -1202,7 +1183,9 @@ public class FarmPlayService {
         FarmPlot plot = getOrCreate(userId, slot);
         CropConfig crop = cropOf(plot);
         LocalDate today = growthToday(userId, plot);
-        SimEngine.SimResult r = replay(userId, plot, plot.getSowDate(), today);
+        // 🔴 2026-10-26 P0-3：请求级上下文 —— 天气取一次、农事取两次（窗口内 / 全季）。
+        SeasonContext ctx = seasonContext(userId, plot, today);
+        SimEngine.SimResult r = replay(userId, plot, plot.getSowDate(), today, ctx);
         if (r == null) {
             throw new BusinessException("地块数据异常：无法回放天气");
         }
@@ -1216,16 +1199,17 @@ public class FarmPlayService {
                     "还没到黄熟期（DVS %.3f < %.2f），再等等", r.dvs(), HARVEST_DVS));
         }
 
-        PestEngine.Result pr = pests(userId, plot, r, today);
-        DisasterEngine.Result dr = disasters(userId, plot, r, today);
-        SoilEngine.Result sr = soil(userId, plot, r, today);
-        List<FarmAction> acts = seasonActions(userId, plot, plot.getSowDate(), today);
+        // 🔴 2026-10-26 P0-3：请求级上下文 —— 天气取一次、农事取两次（窗口内 / 全季）。
+        PestEngine.Result pr = pests(userId, plot, r, ctx);
+        DisasterEngine.Result dr = disasters(userId, plot, r, ctx);
+        SoilEngine.Result sr = soil(userId, plot, r, ctx);
+        List<FarmAction> acts = ctx.seasonActions();
         List<OpChain.Step> chain = OpChain.build(plot.getSowDate(), r.dvsByDay(), acts,
                 r.dvs(), true, cropIdOf(plot));
         // 出苗评估（2026-10-22）：出苗率折进群体密度，枯死直接绝收
         GerminationEngine.Result gerEarly = germination(userId, plot, crop);
         // 杂草压力（2026-10-22 需求 O）：收割时的最终产量也要扣杂草的争水争肥
-        WeedEngine.Result wrEarly = weeds(userId, plot, r, today);
+        WeedEngine.Result wrEarly = weeds(userId, plot, r, ctx);
         Yields y = yields(r, pr, dr, sr, chain, crop, gerEarly, wrEarly, toolBonusOf(userId));
         double yield = round(y.ey(), 1);
         int days = (int) ChronoUnit.DAYS.between(plot.getSowDate(), today) + 1;
@@ -1261,8 +1245,25 @@ public class FarmPlayService {
         inputCost = round(inputCost, 2);
         // 农残超标：收购价打折（记为 0.85），并写进成绩归因
         double priceFactor = phiViolated ? 0.85 : 1.0;
-        double cropPrice = priceOf(cropIdOf(plot));
-        double revenue = round(yield * cropPrice * priceFactor, 1);
+
+        // 🔴 2026-10-26 P0-2：收割预估与实际卖价**同源**。
+        //
+        // 原来这里算的是 `yield × priceOf(cropId) × priceFactor` —— 只有裸价，
+        // 没有地区系数、没有品质系数、没有供给系数；
+        // 而仓库变卖走的是五因子乘积（地区×品质×批次折价×供给）。
+        // 于是玩家看到「收割提示净收益 X 元」，进仓库一卖却拿不到 X 元，
+        // 两个数字自相矛盾（这正是 :1390 注释想避免的问题，但只修了 qualityFactor）。
+        //
+        // 现在改走 estimateRevenue() → WarehouseEngine.value() ——
+        // 与 sell() 用的是**同一个函数**，不可能再对不上。
+        // 供给压力用「入仓后的总库存」（含本批），
+        // 与 sell() 「按卖之前的库存算」的口径一致。
+        //
+        // ⚠️ qf（批次品质折价）与下面入库用的必须是**同一个值** ——
+        // 预估用 0.85、入库存 0.9，提示与到账就会差一截。
+        double storedKg = round(yield * PLOT_AREA_MU, 1);
+        double qf = round(priceFactor * toolBonusOf(userId).qualityFactor(), 4);
+        double revenue = estimateRevenue(userId, plot, today, storedKg, qf);
 
         // 归因明细塞进 extra，游戏历史里能看到"这次为什么减产"
         String extra;
@@ -1384,7 +1385,9 @@ public class FarmPlayService {
         //
         // 🔴 2026-10-26：这里改走 FarmUserClockService（用户级时钟的唯一入口），
         // 不再从地块反推 —— 那正是「plot27 偏移 660 天污染全用户」的根因。
-        double storedKg = round(yield * PLOT_AREA_MU, 1);
+        //
+        // ⚠️ storedKg / storeDate / qf 在上面的预估段已算好，这里直接复用 ——
+        // 预估与入库必须用**同一组参数**，否则「提示的价」与「入库存的价」又对不上。
         if (storedKg > 0) {
             LocalDate storeDate = userToday(userId);
             // 农残超标的粮收购价打 0.85 折 —— 这个折价是**入库时就注定**的，
@@ -1401,8 +1404,7 @@ public class FarmPlayService {
             // 「kg<=0 拦截」与「qualityFactor 上下界校验」，导致入库校验形同虚设。
             // 依赖方向 FarmPlayService → FarmWarehouseService → FarmShopService，不成环。
             warehouseService.store(userId, cropIdOf(plot), crop.name(), plot.getZoneId(),
-                    plot.getId(), plot.getFarmId(), storedKg, storeDate,
-                    round(priceFactor * toolBonusOf(userId).qualityFactor(), 4));
+                    plot.getId(), plot.getFarmId(), storedKg, storeDate, qf);
         }
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -1583,6 +1585,7 @@ public class FarmPlayService {
         // 水是**补救时**才检查的（这时拦就是断活路）——两者的软硬策略正好相反。
         double waterLeft = 0;
         boolean waterShort = false;
+        double waterCost = 0;
         if (type == FarmAction.Type.IRRIGATE) {
             // 三种水都是「次」为单位，直接按类别汇总
             double have = 0;
@@ -1604,6 +1607,14 @@ public class FarmPlayService {
                     try {
                         stockService.consume(userId, w.id(), 1);
                         waterLeft -= 1;
+                        // 🔴 2026-10-26 P0-1：灌溉也要扣钱。
+                        //
+                        // 口径：库存统一存「次」，但价格是按「份」定的
+                        // （自来水 ¥6/份 = 20 次）→ 每次的实际成本 = 份价 / 次数。
+                        // 之前灌水只扣额度不扣钱，等于水是白用的 ——
+                        // 而干旱减产（SoilEngine.droughtLoss）是真实存在的压力，
+                        // 不收成本就没有「要不要省着点用」的取舍。
+                        waterCost += perUseCost(w);
                     } catch (BusinessException ignored) {
                         // 该水源没有额度，试下一个
                     }
@@ -1634,6 +1645,15 @@ public class FarmPlayService {
         if (type == FarmAction.Type.IRRIGATE) {
             out.put("waterLeft", round(waterLeft, 1));
             out.put("waterShort", waterShort);
+            // 🔴 2026-10-26 P0-1：灌溉扣款结果
+            double paidWater = 0;
+            if (waterCost > 0) {
+                List<String> w = new ArrayList<>();
+                paidWater = chargeOrOwe(userId, waterCost, "灌溉水", w);
+                out.put("waterCost", round(waterCost, 2));
+                out.put("waterPaid", round(paidWater, 2));
+                out.put("waterWarnings", w);
+            }
             if (waterShort) {
                 out.put("waterHint",
                         "没有灌溉水额度了（这次没扣水）。去商店买水，否则干旱会持续减产。");
@@ -1641,6 +1661,60 @@ public class FarmPlayService {
         }
         out.put("balance", round(shopService.balanceOf(userId), 2));
         return out;
+    }
+
+    /**
+     * 预估一批货按当前行情能卖多少钱（2026-10-26 P0-2）。
+     *
+     * <p>🔴 这是「收割预估」与「季中预估」共用的<b>唯一</b>入口，
+     * 内部走 {@link WarehouseEngine#value} —— 与仓库变卖
+     * （{@code FarmWarehouseService.sell()}）用的是同一个函数。
+     * 三处（季中预估 / 收割预估 / 实际变卖）因此不可能出现口径漂移。
+     *
+     * <p>供给压力按「当前库存 + 本批」计算 —— 与 {@code sell()} 的
+     * 「按卖之前的库存算」一致。
+     *
+     * @param kg 预估重量（kg）
+     * @return 预估收入（元）
+     */
+    private double estimateRevenue(Long userId, FarmPlot plot, LocalDate today, double kg) {
+        return estimateRevenue(userId, plot, today, kg, 1.0);
+    }
+
+    /**
+     * 预估一批货按当前行情能卖多少钱（带批次品质折价）。
+     *
+     * @param kg          预估重量（kg）
+     * @param qualityFactor 批次品质折价（农残超标 0.85 / 正常 1.0 / 烘干机加成 &gt; 1）
+     */
+    private double estimateRevenue(Long userId, FarmPlot plot, LocalDate today, double kg,
+                                   double qualityFactor) {
+        if (kg <= 0) {
+            return 0;
+        }
+        String cropId = cropIdOf(plot);
+        LocalDate storeDate = userToday(userId);
+        double totalKg = warehouseService.storedKgOf(userId, cropId) + kg;
+        WarehouseEngine.Valuation val = WarehouseEngine.value(
+                cropId, plot.getZoneId(), kg, storeDate, storeDate, totalKg, qualityFactor);
+        return val.amount();
+    }
+
+    /**
+     * 一次灌溉的实际成本（2026-10-26 P0-1）。
+     *
+     * <p>口径说明：水的库存统一存「次」，但 {@link InputCatalog.Item#pricePerUnit()}
+     * 是按「份」定的（自来水 ¥6/份 = 20 次）。所以<b>每次灌溉的成本 = 份价 ÷ 该份含的次数</b>。
+     *
+     * <p>为什么不能直接用份价：那样灌一次水会收 ¥6，而买一份水能灌 20 次，
+     * 等于把成本放大了 20 倍，玩家会得出「不浇水更划算」的荒谬结论。
+     */
+    private static double perUseCost(InputCatalog.Item w) {
+        int timesPerPack = w.protectDays();
+        if (timesPerPack <= 0) {
+            return w.pricePerUnit();
+        }
+        return w.pricePerUnit() / timesPerPack;
     }
 
     /**
@@ -1919,7 +1993,10 @@ public class FarmPlayService {
         FarmPlot plot = getOrCreate(userId, slot);
         CropConfig crop = cropOf(plot);
         LocalDate today = growthToday(userId, plot);
-        SimEngine.SimResult r = replay(userId, plot, plot.getSowDate(), today);
+        // 🔴 2026-10-26 P0-3：请求级上下文 —— 下面的抗性 / 药害提示 / 除草提示
+        // 都要用到「窗口内农事」和「窗口内天气」，共用一份上下文。
+        SeasonContext ctx = seasonContext(userId, plot, today);
+        SimEngine.SimResult r = replay(userId, plot, plot.getSowDate(), today, ctx);
         if (r == null) {
             throw new BusinessException("地块数据异常：无法回放天气");
         }
@@ -1943,9 +2020,11 @@ public class FarmPlayService {
             throw new BusinessException("本季已被初霜终止，施药施肥没有意义了");
         }
 
+        // 🔴 2026-10-26 P0-3：请求级上下文 —— 下面的抗性 / 药害提示 / 除草提示
+        // 都要用到「窗口内农事」和「窗口内天气」，共用上面已建好的 ctx。
         boolean inWindow = InputCatalog.inWindow(it.id(), r.dvs());
         boolean overdose = InputCatalog.overdose(it, dose);
-        double resistance = resistanceFactor(userId, plot, it, today);
+        double resistance = resistanceFactor(userId, plot, it, today, ctx);
         double power = sprayPower(it, dose, r.dvs(), resistance);
         double cost = round(dose * it.pricePerUnit(), 2);
 
@@ -1961,7 +2040,7 @@ public class FarmPlayService {
         }
         if (it.kind() == InputCatalog.Kind.PEST) {
             List<String> active = new ArrayList<>();
-            PestEngine.Result pr = pests(userId, plot, r, today);
+            PestEngine.Result pr = pests(userId, plot, r, ctx);
             for (PestEngine.Instance p : pr.instances()) {
                 if (p.detected() && it.targets().contains(p.id())) {
                     active.add(p.name());
@@ -1970,7 +2049,7 @@ public class FarmPlayService {
             if (active.isEmpty()) {
                 warnings.add("当前田里没有 " + String.join("/", targetNames(it)) + " 的显症记录，这一喷是预防");
             }
-            int left = phiLeftToday(userId, plot, today);
+            int left = phiLeftToday(userId, plot, today, ctx);
             if (left >= 0 && left < it.phiDays()) {
                 warnings.add("安全间隔期：" + it.name() + " 需 " + it.phiDays()
                         + " 天，距采收只剩 " + left + " 天，会检出农残");
@@ -1980,7 +2059,7 @@ public class FarmPlayService {
             // 除草剂的专属提示（2026-10-22 需求 O）：
             // 除草剂没有农残问题（草不进人），但有两个别的坑：
             // ① 苗期打会伤苗 ② 封行后打杂草已经抢完水肥了。
-            WeedEngine.Result wr = weeds(userId, plot, r, today);
+            WeedEngine.Result wr = weeds(userId, plot, r, ctx);
             if (wr.level() == WeedEngine.Level.NONE || wr.level() == WeedEngine.Level.LIGHT) {
                 warnings.add("当前田间杂草很少（" + WeedEngine.levelCn(wr.level())
                         + "），这一喷基本是白花钱");
@@ -2047,12 +2126,25 @@ public class FarmPlayService {
         // 而真正库存见底时给警告提示去补货，不阻断正常操作。
         double stockLeft = stockService.available(userId, it.id());
         boolean stockShort = stockLeft + 1e-6 < dose;
+        double paid = 0;
         if (stockShort) {
             warnings.add("库存不足：仓库里只剩 " + trim(stockLeft) + it.unit()
                     + " " + it.name() + "，这次要 " + trim(dose) + it.unit()
                     + "（未扣库存，去仓库补货吧）");
         } else {
             stockService.consume(userId, it.id(), dose);
+            // 🔴 2026-10-26 P0-1：施用农资必须扣钱。
+            //
+            // 之前 spend() 从未被调用 → 化肥/农药/除草剂全是免费的，
+            // 玩家的现金支出只剩种子+农具+水，而所有精心设计的农艺机制
+            // （错窗减效、抗性累积、剂量报酬递减、杂草抢水肥）全都要靠
+            // 「省农资钱」来权衡 —— 成本恒为 0 时，这些机制在经济上毫无意义。
+            //
+            // ⚠️ **余额不足不能抛异常**：抛出去会回滚整个事务，
+            // 上面刚写的 FarmAction、刚扣的库存全部作废 ——
+            // 农事动作发生了却没记录，比「欠款」严重得多。
+            // 这与 FarmWarehouseService.sell() 的既有约定一致（spend() 注释已写明）。
+            paid = chargeOrOwe(userId, cost, it.name(), warnings);
         }
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -2062,6 +2154,8 @@ public class FarmPlayService {
         out.put("dose", round(dose, 2));
         out.put("unit", it.unit());
         out.put("cost", cost);
+        out.put("paid", round(paid, 2));
+        out.put("balance", round(shopService.balanceOf(userId), 2));
         out.put("inWindow", inWindow);
         out.put("overdose", overdose);
         out.put("power", round(power, 2));
@@ -2073,12 +2167,40 @@ public class FarmPlayService {
         return out;
     }
 
-    /** 货架视图：每件农资的当前适用性（窗口 / 抗性 / PHI / 预计效力）。 */
+    /**
+     * 扣款（2026-10-26 P0-1）：余额够就扣，不够就记欠款提示，**绝不抛异常**。
+     *
+     * <p>为什么余额不足不阻断：农事动作（写 {@code FarmAction}、扣库存）
+     * 已经发生了，回滚它会让玩家的操作凭空消失 —— 那比欠款严重得多。
+     * 欠款以警告形式告知玩家，让玩家自己决定是去卖货还是继续透支。
+     *
+     * @return 实际扣掉的钱（欠款时返回 0）
+     */
+    private double chargeOrOwe(Long userId, double amount, String label, List<String> warnings) {
+        if (amount <= 0) {
+            return 0;
+        }
+        if (shopService.spend(userId, amount)) {
+            return amount;
+        }
+        double balance = shopService.balanceOf(userId);
+        warnings.add(String.format(
+                "余额不足：%s 需要 ¥%.2f，当前只有 ¥%.2f，本次未扣款（记欠款 ¥%.2f）",
+                label, amount, balance, amount));
+        return 0;
+    }
+
+    /**
+     * 货架视图：每件农资的当前适用性（窗口 / 抗性 / PHI / 预计效力）。
+     *
+     * <p>🔴 2026-10-26 P0-3：接收 {@link SeasonContext}，农事列表不再自己查一遍。
+     */
     private List<FarmView.InputView> inputViews(Long userId, FarmPlot plot, LocalDate today,
-                                                SimEngine.SimResult r, SoilEngine.Result sr) {
+                                                SimEngine.SimResult r, SoilEngine.Result sr,
+                                                SeasonContext ctx) {
         Map<String, Integer> usedById = new HashMap<>();
         Map<String, Integer> groupUse = new HashMap<>();
-        for (FarmAction a : seasonActions(userId, plot, plot.getSowDate(), today)) {
+        for (FarmAction a : ctx.seasonActions()) {
             if (a.getItemId() != null) {
                 usedById.merge(a.getItemId(), 1, Integer::sum);
             }
@@ -2087,7 +2209,7 @@ public class FarmPlayService {
                 groupUse.merge(prev.modeGroup(), 1, Integer::sum);
             }
         }
-        int phiLeft = phiLeftToday(userId, plot, today);
+        int phiLeft = phiLeftToday(userId, plot, today, ctx);
         double dvs = r.dvs();
         List<FarmView.InputView> out = new ArrayList<>();
         for (InputCatalog.Item it : InputCatalog.all().values()) {
@@ -2154,17 +2276,21 @@ public class FarmPlayService {
         };
     }
 
-    /** 本季投入汇总：钱、氮、药、以及最近的 PHI 倒计时。 */
+    /**
+     * 本季投入汇总：钱、氮、药、以及最近的 PHI 倒计时。
+     *
+     * <p>🔴 2026-10-26 P0-3：接收 {@link SeasonContext}，农事列表不再自己查一遍。
+     */
     private FarmView.InputSummary inputSummary(Long userId, FarmPlot plot, LocalDate today,
                                                SimEngine.SimResult r, SoilEngine.Result sr,
-                                               double estimatedYield) {
+                                               double estimatedYield, SeasonContext ctx) {
         double cost = 0;
         int ferts = 0;
         int pests = 0;
         LocalDate lastSpray = null;
         double worstRisk = 1.0;
         Map<String, Integer> groupUse = new HashMap<>();
-        for (FarmAction a : seasonActions(userId, plot, plot.getSowDate(), today)) {
+        for (FarmAction a : ctx.seasonActions()) {
             if (a.getCost() != null) {
                 cost += a.getCost();
             }
@@ -2187,20 +2313,30 @@ public class FarmPlayService {
             }
             // cls == 0（HERB 除草剂）：只计成本，不进农药统计、不参与 PHI、不吃抗性累积
         }
-        double revenue = round(estimatedYield * priceOf(cropIdOf(plot)), 1);
+        // 🔴 2026-10-26 P0-2：季中预估收益同样走 WarehouseEngine.value()。
+        //
+        // 原来用 `estimatedYield × priceOf(...)`（裸价），与收割预估、实际卖价
+        // 三套口径 → 玩家季中看到的「预计净收益」和收割时看到的「净收益」
+        // 不一样（地区系数/供给系数都没进）。现在三者同源。
+        double revenue = estimateRevenue(userId, plot, today, estimatedYield);
         return new FarmView.InputSummary(
                 round(cost, 1), ferts, pests, round(sr.nApplied(), 2), sr.nNeed(),
-                phiLeftToday(userId, plot, today),
+                phiLeftToday(userId, plot, today, ctx),
                 lastSpray == null ? null : lastSpray.toString(),
                 round(worstRisk, 2), false, revenue, round(revenue - cost, 1));
     }
 
-    /** 同一作用机理连续使用 → 抗性累积（S9 §4.4.3 的货架层近似）。 */
-    private double resistanceFactor(Long userId, FarmPlot plot, InputCatalog.Item it, LocalDate today) {
+    /**
+     * 同一作用机理连续使用 → 抗性累积（S9 §4.4.3 的货架层近似）。
+     *
+     * <p>🔴 2026-10-26 P0-3：接收 {@link SeasonContext}，农事列表不再自己查一遍。
+     */
+    private double resistanceFactor(Long userId, FarmPlot plot, InputCatalog.Item it, LocalDate today,
+                                    SeasonContext ctx) {
         if (it.kind() != InputCatalog.Kind.PEST || it.category().endsWith("BIO")) {
             return 1.0;
         }        int used = 0;
-        for (FarmAction a : seasonActions(userId, plot, plot.getSowDate(), today)) {
+        for (FarmAction a : ctx.seasonActions()) {
             InputCatalog.Item prev = InputCatalog.get(a.getItemId());
             if (prev != null && it.modeGroup().equals(prev.modeGroup())) {
                 used++;
@@ -2231,8 +2367,16 @@ public class FarmPlayService {
     /**
      * 距离采收还剩几天（用于 PHI 倒计时）。已过黄熟期返回 0；
      * 若本季不会成熟（霜冻终止）返回 -1，表示"没有采收，谈不残"。
+     *
+     * <p>🔴 2026-10-26 P0-3：新增带 {@link SeasonContext} 的重载。
+     * {@code view()} 里这个方法被调 2 次（货架 + 投入汇总），
+     * 每次都重新跑一遍 {@code replay} —— 上下文让回放结果也能复用。
      */
     public int phiLeftToday(Long userId, FarmPlot plot, LocalDate today) {
+        return phiLeftToday(userId, plot, today, null);
+    }
+
+    private int phiLeftToday(Long userId, FarmPlot plot, LocalDate today, SeasonContext ctx) {
         SimEngine.SimResult r = replay(userId, plot, plot.getSowDate(), today);
         if (r == null) {
             return 0;
@@ -2268,16 +2412,69 @@ public class FarmPlayService {
      * 两者的天数基准不同（前者含今天共 431 天，后者含今天共 431 天但判定条件是 span > MAX）。
      * <b>必须直接用 sow / today / MAX_REPLAY_DAYS 重算</b>。
      *
+     * <p>🔴 2026-10-26 P0-3：实现委托给 {@link SeasonContext#windowStart}，
+     * 窗口口径从此<b>只有一个来源</b>。{@code doReplay} 也改用它，
+     * 彻底消除「窗口口径在两处各写一遍、改一处忘另一处」的隐患。
+     *
      * @param sow   播种日
      * @param today 今天（世界日期）
      * @return 窗口起点日期（与 doReplay 一致）
      */
     private LocalDate replayWindowStart(LocalDate sow, LocalDate today) {
-        long span = ChronoUnit.DAYS.between(sow, today);
-        if (span > MAX_REPLAY_DAYS) {
-            return today.minusDays(MAX_REPLAY_DAYS);
-        }
-        return sow;
+        return SeasonContext.windowStart(sow, today);
+    }
+
+    /**
+     * 构造本季的请求级上下文（2026-10-26 P0-3）。
+     *
+     * <p><b>这是消除重复查询的唯一入口</b>：一次调用把
+     * 「窗口内天气」与「窗口内农事」各取一次，
+     * 再由 {@link SeasonContext} 分发给 4 个子引擎 + 工序链 + 货架面板。
+     *
+     * <p>改造前 {@code view()} 的实际开销：
+     * <ul>
+     *   <li>{@code seasonActions(...)} × 8 → 8 次 DB 查询</li>
+     *   <li>{@code weather.range(...)} × 5 → 同一段 431 天天气构造 5 遍</li>
+     * </ul>
+     * 改造后：各 1 次。
+     *
+     * <p>⚠️ <b>上下文是请求级快照</b>：调用之后不要再往库里写农事，
+     * 否则上下文里的农事列表会与库里的不一致。
+     * 写路径（{@code performAction} / {@code applyInput}）都是
+     * 「先写库、再重算」，不会踩到这个坑。
+     */
+    private SeasonContext seasonContext(Long userId, FarmPlot plot, LocalDate today) {
+        LocalDate sow = plot == null ? null : plot.getSowDate();
+        LocalDate winStart = SeasonContext.windowStart(sow, today);
+        List<DayWeather> days = (sow == null || winStart == null)
+                ? List.of()
+                : weather.range(userId, zoneOf(plot), winStart, today);
+        List<FarmAction> winActions = (sow == null)
+                ? List.of()
+                : seasonActions(userId, plot, winStart, today);
+        // 全季农事（工序链 / 成本核算 / 货架面板用）：窗口截断会让「本季投入」少算，
+        // 所以这里单独取一份 [sow, today] 的完整列表。
+        List<FarmAction> fullActions = (sow == null)
+                ? List.of()
+                : seasonActions(userId, plot, sow, today);
+        return new SeasonContext(winStart, today, days, winActions, fullActions);
+    }
+
+    /**
+     * 只要农事、不要天气的轻量上下文（2026-10-26 P0-3）。
+     *
+     * <p>用于「待播种」视图：那块地没有本季作物，回放窗口无从谈起，
+     * 但货架面板仍要知道「上一季用过几次药 / 抗性累积到多少」——
+     * 那只需要农事列表。
+     *
+     * <p>顺带避免了「上一季播种日很早 → 为了拿 400 天天气而白白构造一遍」的浪费。
+     */
+    private SeasonContext actionsOnlyContext(Long userId, FarmPlot plot, LocalDate today) {
+        LocalDate sow = plot == null ? null : plot.getSowDate();
+        List<FarmAction> fullActions = (sow == null)
+                ? List.of()
+                : seasonActions(userId, plot, sow, today);
+        return new SeasonContext(today, today, List.of(), List.of(), fullActions);
     }
 
     /**
@@ -2295,17 +2492,23 @@ public class FarmPlayService {
         return Math.min(n - 1, idx);
     }
 
-    /** 跑一遍病虫害模拟：与生长共用一份天气与 DVS 轨迹，保证同一天结果可复现。 */
-    private PestEngine.Result pests(Long userId, FarmPlot plot, SimEngine.SimResult r, LocalDate today) {
+    /**
+     * 跑一遍病虫害模拟：与生长共用一份天气与 DVS 轨迹，保证同一天结果可复现。
+     *
+     * <p>🔴 2026-10-26 P0-3：改为接收 {@link SeasonContext} —— 天气与农事都从上下文取，
+     * 不再各自查一遍。原来这里每次都 {@code weather.range(...)} +
+     * {@code seasonActions(...)} 各查一次，而 {@code view()} 会调它 1 次、
+     * {@code applyInput()} 还会再调一次。
+     */
+    private PestEngine.Result pests(Long userId, FarmPlot plot, SimEngine.SimResult r, SeasonContext ctx) {
         CropConfig crop = cropOf(plot);
         LocalDate sow = plot.getSowDate();
         int n = r.dvsByDay() == null ? 0 : r.dvsByDay().size();
         if (n <= 0) {
             return PestEngine.Result.EMPTY;
         }
-        // 🔴 2026-10-25：窗口口径与 doReplay 对齐（原来按 sow 起算 → 与 DVS 轨迹错位）
-        LocalDate winStart = replayWindowStart(sow, today);
-        List<DayWeather> days = weather.range(userId, zoneOf(plot), winStart, today);
+        LocalDate winStart = ctx.winStart();
+        List<DayWeather> days = ctx.days();
         List<PestEngine.Spray> sprays = new ArrayList<>();
         Map<String, Integer> groupUse = new HashMap<>();
         // 🔴 S12 修复：是否含"旧数据"（无 itemId 的打药记录）。
@@ -2313,7 +2516,7 @@ public class FarmPlayService {
         // 防效只剩 5% —— 玩家在旧存档里补打一次药，药效几乎为零。
         // 现在按"本季是否出现旧记录"动态决定：旧记录按全靶标、满效力兼容。
         boolean anyLegacy = false;
-        for (FarmAction a : seasonActions(userId, plot, winStart, today)) {
+        for (FarmAction a : ctx.actions()) {
             if (a.getType() != FarmAction.Type.PESTICIDE) {
                 continue;
             }
@@ -2342,6 +2545,8 @@ public class FarmPlayService {
      *
      * <p>与 {@link #pests} 同构：共用同一份天气与 DVS 轨迹，所以同一天结果可复现。
      *
+     * <p>🔴 2026-10-26 P0-3：改为接收 {@link SeasonContext}，天气与农事都从上下文取。
+     *
      * <p><b>怎么区分人工除草和化学除草</b>：两者都记在 {@code t_farm_action} 里，
      * 用「有没有 itemId」区分——
      * <ul>
@@ -2350,23 +2555,20 @@ public class FarmPlayService {
      * </ul>
      * 这样不需要给农事表加新列，老数据也天然兼容（老数据里根本没有除草记录）。
      */
-    private WeedEngine.Result weeds(Long userId, FarmPlot plot, SimEngine.SimResult r, LocalDate today) {
+    private WeedEngine.Result weeds(Long userId, FarmPlot plot, SimEngine.SimResult r, SeasonContext ctx) {
         CropConfig crop = cropOf(plot);
         LocalDate sow = plot.getSowDate();
         int n = r.dvsByDay() == null ? 0 : r.dvsByDay().size();
         if (n <= 0) {
             return WeedEngine.Result.EMPTY;
         }
-        // 🔴 窗口口径必须与 doReplay 一致：**以今天结尾**往前推。
-        // 原来这里按 sow 起算 n 天，而 doReplay 的 days 是 [sow, sow+span]，
-        // 两者在「播种超过 430 天」时会错开 —— 杂草引擎读到的天气序列
-        // 与作物回放的不是同一段，导致 DVS 与天气对不上号。
-        // 🔴 2026-10-25：改用共用方法 replayWindowStart，与 pests/soil/disasters 统一口径，
-        // 避免再出现「同型代码只修一处」。
-        LocalDate winStart = replayWindowStart(sow, today);
-        List<DayWeather> days = weather.range(userId, zoneOf(plot), winStart, today);
+        // 🔴 窗口口径必须与 doReplay 一致 —— 由 SeasonContext 统一给出。
+        // 2026-10-25 曾把这段逻辑复制在 4 个地方，只修了 weeds 一处，
+        // 另外三处仍按 sow 起算 → 播种超 430 天时天气与 DVS 轨迹整体错位。
+        LocalDate winStart = ctx.winStart();
+        List<DayWeather> days = ctx.days();
         List<WeedEngine.WeedControl> controls = new ArrayList<>();
-        for (FarmAction a : seasonActions(userId, plot, winStart, today)) {
+        for (FarmAction a : ctx.actions()) {
             if (a.getType() != FarmAction.Type.WEED) {
                 continue;
             }
@@ -2674,21 +2876,23 @@ public class FarmPlayService {
         };
     }
 
-    /** 土壤水分与地力：与生长共用同一份天气和 DVS 轨迹。 */
-    private SoilEngine.Result soil(Long userId, FarmPlot plot, SimEngine.SimResult r, LocalDate today) {
+    /**
+     * 土壤水分与地力：与生长共用同一份天气和 DVS 轨迹。
+     *
+     * <p>🔴 2026-10-26 P0-3：改为接收 {@link SeasonContext}，天气与农事都从上下文取。
+     */
+    private SoilEngine.Result soil(Long userId, FarmPlot plot, SimEngine.SimResult r, SeasonContext ctx) {
         CropConfig crop = cropOf(plot);
-        LocalDate sow = plot.getSowDate();
         int n = r.dvsByDay() == null ? 0 : r.dvsByDay().size();
         if (n <= 0) {
             return SoilEngine.Result.EMPTY;
         }
-        // 🔴 2026-10-25：窗口口径与 doReplay 对齐（原来按 sow 起算 → 与 DVS 轨迹错位）
-        LocalDate winStart = replayWindowStart(sow, today);
-        List<DayWeather> days = weather.range(userId, zoneOf(plot), winStart, today);
+        LocalDate winStart = ctx.winStart();
+        List<DayWeather> days = ctx.days();
         java.util.Set<LocalDate> drains = new java.util.HashSet<>();
         java.util.Set<LocalDate> irrigates = new java.util.HashSet<>();
         Map<LocalDate, Double> nByDate = new HashMap<>();
-        for (FarmAction a : seasonActions(userId, plot, winStart, today)) {
+        for (FarmAction a : ctx.actions()) {
             switch (a.getType()) {
                 case DRAIN, DRY_FIELD, DRAIN_FINAL -> drains.add(a.getDate());
                 case IRRIGATE, PUDDLE -> irrigates.add(a.getDate());
@@ -2717,19 +2921,21 @@ public class FarmPlayService {
                 "rice".equals(crop.visual()));
     }
 
-    /** 灾害回放：同样只依赖天气与 DVS 轨迹。 */
-    private DisasterEngine.Result disasters(Long userId, FarmPlot plot, SimEngine.SimResult r, LocalDate today) {
-        LocalDate sow = plot.getSowDate();
+    /**
+     * 灾害回放：同样只依赖天气与 DVS 轨迹。
+     *
+     * <p>🔴 2026-10-26 P0-3：改为接收 {@link SeasonContext}，天气与农事都从上下文取。
+     */
+    private DisasterEngine.Result disasters(Long userId, FarmPlot plot, SimEngine.SimResult r, SeasonContext ctx) {
         int n = r.dvsByDay() == null ? 0 : r.dvsByDay().size();
         if (n <= 0) {
             return DisasterEngine.Result.EMPTY;
         }
-        // 🔴 2026-10-25：窗口口径与 doReplay 对齐（原来按 sow 起算 → 与 DVS 轨迹错位）
-        LocalDate winStart = replayWindowStart(sow, today);
-        List<DayWeather> days = weather.range(userId, zoneOf(plot), winStart, today);
+        LocalDate winStart = ctx.winStart();
+        List<DayWeather> days = ctx.days();
         java.util.Set<LocalDate> drains = new java.util.HashSet<>();
         java.util.Set<LocalDate> irrigates = new java.util.HashSet<>();
-        for (FarmAction a : seasonActions(userId, plot, winStart, today)) {
+        for (FarmAction a : ctx.actions()) {
             if (a.getType() == FarmAction.Type.DRAIN) drains.add(a.getDate());
             if (a.getType() == FarmAction.Type.IRRIGATE) irrigates.add(a.getDate());
         }
@@ -2879,10 +3085,20 @@ public class FarmPlayService {
         simCache.keySet().removeIf(k -> k.startsWith(prefix));
     }
 
-    /** 带记忆化的回放入口。 */
+    /**
+     * 带记忆化的回放入口。
+     *
+     * <p>🔴 2026-10-26 P0-3：新增带 {@link SeasonContext} 的重载。
+     * 传上下文时，缓存未命中会用上下文里的天气/农事回放，<b>不再查库</b>。
+     */
     private SimEngine.SimResult replay(Long userId, FarmPlot plot, LocalDate sow, LocalDate today) {
+        return replay(userId, plot, sow, today, null);
+    }
+
+    private SimEngine.SimResult replay(Long userId, FarmPlot plot, LocalDate sow, LocalDate today,
+                                       SeasonContext ctx) {
         if (plot == null || plot.getId() == null) {
-            return doReplay(userId, plot, sow, today);
+            return doReplay(userId, plot, sow, today, ctx);
         }
         long ep = simEpoch.getOrDefault(userId, 0L);
         String key = userId + "|" + plot.getId() + "|" + sow + "|" + today + "|" + ep;
@@ -2890,7 +3106,7 @@ public class FarmPlayService {
         if (hit != null) {
             return hit;
         }
-        SimEngine.SimResult r = doReplay(userId, plot, sow, today);
+        SimEngine.SimResult r = doReplay(userId, plot, sow, today, ctx);
         if (r != null) {
             if (simCache.size() >= SIM_CACHE_MAX) {
                 simCache.clear();
@@ -2901,6 +3117,18 @@ public class FarmPlayService {
     }
 
     private SimEngine.SimResult doReplay(Long userId, FarmPlot plot, LocalDate sow, LocalDate today) {
+        return doReplay(userId, plot, sow, today, null);
+    }
+
+    /**
+     * 回放（可复用已有上下文）。
+     *
+     * <p>🔴 2026-10-26 P0-3：传入 {@link SeasonContext} 时，
+     * 直接用上下文里的天气与农事，<b>不再查一遍库</b>。
+     * 这是「1 次 view 只查 1 次天气 + 1 次农事」的关键。
+     */
+    private SimEngine.SimResult doReplay(Long userId, FarmPlot plot, LocalDate sow, LocalDate today,
+                                          SeasonContext ctx) {
         CropConfig crop = cropOf(plot);
         if (sow.isAfter(today)) {
             return null;
@@ -2914,20 +3142,29 @@ public class FarmPlayService {
         // 正确口径：回放窗口应当**以今天结尾**，往前取最多 430 天。
         // 这样无论这季种了多久，玩家最近的每一次操作都在窗口内，
         // 而远古的播种期积温不再被错误地重复计入。
+        //
+        // 🔴 2026-10-26 P0-3：窗口起点统一走 SeasonContext.windowStart，
+        // 不再在这里另写一遍 —— 「同型代码只修一处」的教训。
         long span = ChronoUnit.DAYS.between(sow, today);
-        LocalDate winStart = sow;
+        LocalDate winStart = SeasonContext.windowStart(sow, today);
         if (span > MAX_REPLAY_DAYS) {
             span = MAX_REPLAY_DAYS;
-            winStart = today.minusDays(MAX_REPLAY_DAYS);
         }
-        List<DayWeather> days = weather.range(userId, zoneOf(plot), winStart, today);
+        List<DayWeather> days = (ctx != null)
+                ? ctx.days()
+                : weather.range(userId, zoneOf(plot), winStart, today);
 
         // 加载该用户在回放窗口内做过的农事, 按日期分组, 引擎按日应用。
         // 注: 只看 [winStart, today] 之间, 防止 demo 推进后查到"窗口之前"的动作污染回放。
         java.util.Map<String, java.util.List<SimEngine.ActionEffect>> actionsByDate = new java.util.HashMap<>();
-        List<FarmAction> actions = (plot == null)
-                ? actionRepo.findByUserIdAndDateBetweenOrderByDate(userId, winStart, today)
-                : seasonActions(userId, plot, winStart, today);
+        List<FarmAction> actions;
+        if (ctx != null) {
+            actions = ctx.actions();
+        } else if (plot == null) {
+            actions = actionRepo.findByUserIdAndDateBetweenOrderByDate(userId, winStart, today);
+        } else {
+            actions = seasonActions(userId, plot, winStart, today);
+        }
         for (FarmAction a : actions) {
             String dateKey = a.getDate().toString();
             SimEngine.ActionEffect base = SimEngine.ActionEffect.of(a.getType().name());

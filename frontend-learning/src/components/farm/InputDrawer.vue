@@ -200,7 +200,20 @@ async function apply(it) {
     if (warn) {
       ElMessage.warning({ message: warn, duration: 5200, showClose: true })
     } else {
-      ElMessage.success(t('farm.input.applied', { name: it.name, cost: d.cost }))
+      // 🔴 2026-10-26 P0-1：农资现在真的要扣钱了，必须告诉玩家「实付多少、余额还剩多少」。
+      //
+      // 原来只提示「花费 {cost} 元/亩」—— 那只是**成本口径**（用量 × 单价），
+      // 玩家不知道钱包里到底少了多少。而当余额不足时 paid < cost，
+      // 只显示 cost 会让人以为被扣了全额。
+      ElMessage.success({
+        message: t('farm.input.appliedPaid', {
+          name: it.name,
+          cost: d.cost,
+          paid: d.paid,
+          balance: d.balance
+        }),
+        duration: 3200
+      })
     }
     emit('applied')
   } catch (e) {

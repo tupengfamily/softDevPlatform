@@ -117,9 +117,14 @@ public final class WarehouseEngine {
      *   <li>仁果：梨耐储 → 45 天；葡萄不耐压 → 15 天。</li>
      * </ul>
      *
-     * <p>基准价与 {@code FarmPlayService.priceOf()} 同量级，但**这里另存一份**——
-     * 那份是「收割即结算」的旧口径，这份是「仓库变卖」的口径（带地区与供给系数）。
-     * 两份口径本来就该不同：同一批稻谷，在江南卖和在华南卖不是一个价。
+     * <p>🔴 2026-10-26 P0-2：这里是<b>收购基准价的唯一真源</b>。
+     * 原来 {@code FarmPlayService} 里还有一份 22 分支的 {@code priceOf()} 价表，
+     * 两份数值当前恰好一致但<b>靠人工同步维持</b>；现在 {@code priceOf} 已删除，
+     * 收割预估与仓库变卖都从这里取价，不会再对不上。
+     *
+     * <p>「地区系数」与「供给系数」不是这个档案的一部分 ——
+     * 它们是<b>行情</b>（同一批稻谷在江南卖和在华南卖不是一个价），
+     * 在 {@link #zonePriceFactor} 与 {@link #supplyFactor} 里单独计算。
      */
     private static final Map<String, Storage> STORAGES = new LinkedHashMap<>();
 

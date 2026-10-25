@@ -159,6 +159,41 @@ public class FarmWarehouseService {
     // ==================== 查询 ====================
 
     /**
+     * 某作物当前的可售总库存（kg）——供给压力的输入。
+     *
+     * <p>🔴 2026-10-26 P0-2 新增：收割时需要预估「这批货入仓后能卖多少钱」，
+     * 而卖价里的供给系数依赖「卖之前仓库里有多少这种货」。
+     * 之前没有这个查询入口，只能用裸价估算 → 收割提示与实际卖价对不上。
+     *
+     * <p>口径与 {@code panel()} / {@code sell()} <b>完全一致</b>：
+     * 只统计 {@code STORED} 状态且<b>未变质</b>的批次（已变质的货收购商不收，
+     * 压不了价，却会把可卖批次的单价算低）。
+     *
+     * @param cropId 作物 id
+     * @return 可售总库存（kg）；没有则返回 0
+     */
+    @Transactional(readOnly = true)
+    public double storedKgOf(Long userId, String cropId) {
+        if (userId == null || cropId == null || cropId.isBlank()) {
+            return 0;
+        }
+        LocalDate today = userWorldDate(userId);
+        double sum = 0;
+        for (FarmWarehouse w : warehouseRepo.findByUserIdAndStatusOrderByStoredDateAscIdAsc(
+                userId, FarmWarehouse.Status.STORED)) {
+            if (!cropId.equals(w.getCropId())) {
+                continue;
+            }
+            if (WarehouseEngine.grade(w.getCropId(), w.getStoredDate(), today)
+                    == WarehouseEngine.Grade.ROTTEN) {
+                continue;
+            }
+            sum += w.getQuantity() == null ? 0 : w.getQuantity();
+        }
+        return round(sum, 1);
+    }
+
+    /**
      * 仓库面板数据。
      *
      * @return 见 {@link #view} 的字段说明
@@ -515,14 +550,25 @@ public class FarmWarehouseService {
             }
             double cropKg = kgByCrop.getOrDefault(w.getCropId(), 0.0);
             double qf = w.getQualityFactor() == null || w.getQualityFactor() <= 0 ? 1.0 : w.getQualityFactor();
-            // ⚠️ 供给压力按「卖之前的库存」算：卖得越多，压价越狠的是卖之前的状态
-            double unit = round(WarehouseEngine.storage(w.getCropId()).basePrice()
-                    * WarehouseEngine.zonePriceFactor(w.getZoneId(), w.getCropId())
-                    * g.factor()
-                    * qf
-                    * WarehouseEngine.supplyFactor(cropKg), 3);
-
+            // 🔴 2026-10-26 P0-2：单价必须走 {@link WarehouseEngine#value} ——
+            // 这里是「实际卖价」的唯一出口，而它原来<b>手工展开</b>了五因子乘积：
+            //
+            //   basePrice × zonePriceFactor × grade.factor × qf × supplyFactor
+            //
+            // 而 {@code panel()}（仓库面板显示的预估）与
+            // {@code FarmPlayService.estimateRevenue()}（收割预估）都调 {@code value()}。
+            // 三处公式、三种写法 → 迟早对不上。而且这里手工展开时
+            // qf 的 0 处理与 {@code value()} 不一致（这里当 1.0，那里当「价值归零」）。
+            //
+            // 现在统一：实际卖价 = 预估卖价 = 同一个函数。
+            //
+            // ⚠️ 供给压力按「卖之前的库存」算：卖得越多，压价越狠的是卖之前的状态。
+            // （{@code value()} 的 totalKg 参数就是「卖之前的库存」）
             double take = Math.min(batchKg, wantKg - soldKg);
+            WarehouseEngine.Valuation val = WarehouseEngine.value(
+                    w.getCropId(), w.getZoneId(), take,
+                    w.getStoredDate(), today, cropKg, qf);
+            double unit = val.unitPrice();
             double amount = round(unit * take, 1);
 
             // ⚠️ 部分卖出：金额/重量要**累计**，不能覆盖。
@@ -662,14 +708,26 @@ public class FarmWarehouseService {
         return ids;
     }
 
-    /** 提醒文案里的价格提示（粗算当前单价，不含供给压力，避免文案过长）。 */
+    /**
+     * 提醒文案里的价格提示。
+     *
+     * <p>🔴 2026-10-26 P0-2：改走 {@link WarehouseEngine#value}，
+     * 不再手工展开价格公式。
+     *
+     * <p>原来这里手写了 {@code basePrice × zonePriceFactor × grade.factor × qf}，
+     * 与 {@code value()}（多了供给系数）与 {@code sell()}（供给基数不同）
+     * 各写一遍 —— 三处公式、两种口径。
+     *
+     * <p>文案里刻意<b>不含供给压力</b>：那是「你囤了太多」的整体行情，
+     * 塞进单批次提醒里会误导玩家以为这批货单独不值钱。
+     * 所以这里传 {@code totalKg = 0}（供给系数恒为 1），
+     * 但**乘积公式本身仍然来自引擎**，不会与实际卖价漂移。
+     */
     private String gradePriceHint(FarmWarehouse w, LocalDate today) {
-        WarehouseEngine.Grade g = WarehouseEngine.grade(w.getCropId(), w.getStoredDate(), today);
         double qf = w.getQualityFactor() == null || w.getQualityFactor() <= 0 ? 1.0 : w.getQualityFactor();
-        double unit = WarehouseEngine.storage(w.getCropId()).basePrice()
-                * WarehouseEngine.zonePriceFactor(w.getZoneId(), w.getCropId())
-                * g.factor()
-                * qf;
+        double unit = WarehouseEngine.value(w.getCropId(), w.getZoneId(),
+                w.getQuantity() == null ? 0 : w.getQuantity(),
+                w.getStoredDate(), today, 0, qf).unitPrice();
         return round(unit, 2) + " 元/kg";
     }
 

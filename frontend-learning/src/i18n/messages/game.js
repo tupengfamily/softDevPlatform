@@ -160,6 +160,8 @@ export default {
     'farm.input.herbDelayNote': '除草剂不是即时的：喷下后要等 {d} 天才起效，药效期内杂草不回升。',
     'farm.input.apply': '施用',
     'farm.input.applied': '已施用 {name}，花费 {cost} 元/亩',
+    // 🔴 2026-10-26 P0-1：农资现在真的要扣钱包了，必须如实告知「实付 + 余额」
+    'farm.input.appliedPaid': '已施用 {name}，实付 {paid} 元，余额 {balance} 元',
     'farm.input.fail': '施用失败',
     'farm.input.doseRequired': '用量必须大于 0',
     'farm.input.confirmOut': '{name} 不在适宜窗口内，效力只有一半。仍然施用吗？',
@@ -739,6 +741,8 @@ export default {
     'farm.input.herbDelayNote': 'Herbicides are not instant: it takes {d} days to act, and weeds do not recover during the residual period.',
     'farm.input.apply': 'Apply',
     'farm.input.applied': 'Applied {name} — {cost} CNY/mu',
+    // 🔴 2026-10-26 P0-1: inputs now actually cost money — report the real charge and balance
+    'farm.input.appliedPaid': 'Applied {name} — paid {paid} CNY, balance {balance} CNY',
     'farm.input.fail': 'Application failed',
     'farm.input.doseRequired': 'Dose must be greater than 0',
     'farm.input.confirmOut': '{name} is outside its window — only half effect. Apply anyway?',
