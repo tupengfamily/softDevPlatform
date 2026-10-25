@@ -204,20 +204,106 @@ public final class PestEngine {
                     "FLOWER", 0.30, 0.50, 0.058)
     );
 
-    /** 按作物取病虫害清单（visual: rice / wheat / corn / soybean / leafy / vine / bush / flower）。 */
+    /**
+     * 禾谷·杂粮（谷子）。谷子最典型的病是<b>谷瘟病</b>与<b>白粉病</b>，
+     * 另有一种独特的「谷子白发病」（菌核菌侵染，表现为主穗不结实）。
+     */
+    public static final List<PestConfig> MILLET = List.of(
+            new PestConfig("millet_blast", "谷子瘟病", "DISEASE", "FUNGUS",
+                    22, 30, 88, true, 0.30, 0.80, 4, 0.080,
+                    "LEAF", 0.35, 0.20, 0.055),
+            new PestConfig("millet_powdery", "谷子白粉病", "DISEASE", "FUNGUS",
+                    18, 26, 65, false, 0.25, 0.85, 5, 0.060,
+                    "LEAF", 0.25, 0.10, 0.045),
+            new PestConfig("millet_moth", "谷子螟", "INSECT", "INSECT",
+                    20, 30, 60, false, 0.45, 0.90, 3, 0.070,
+                    "GRAIN", 0.30, 0.10, 0.055)
+    );
+
+    /**
+     * 块茎（马铃薯）。<b>晚疫病</b>是马铃薯的存亡线——它可在 10 天内毁掉整块地，
+     * 而「马铃薯晚疫病」在中国是法定报告的检疫性病害。
+     * 环腐病是细菌性的，随带病种薯传播，无法靠打药治。
+     */
+    public static final List<PestConfig> TUBER = List.of(
+            new PestConfig("potato_late_blight", "马铃薯晚疫病", "DISEASE", "FUNGUS",
+                    16, 26, 92, true, 0.25, 0.90, 3, 0.120,
+                    "LEAF", 0.45, 0.25, 0.075),
+            new PestConfig("potato_early_blight", "马铃薯早疫病", "DISEASE", "FUNGUS",
+                    20, 28, 85, true, 0.30, 0.85, 4, 0.075,
+                    "LEAF", 0.30, 0.15, 0.050),
+            new PestConfig("potato_ringrot", "马铃薯环腐病", "DISEASE", "BACTERIA",
+                    15, 25, 80, false, 0.10, 0.70, 6, 0.060,
+                    "WHOLE", 0.35, 0.30, 0.045),
+            new PestConfig("potato_aphid", "马铃薯蚜虫", "INSECT", "INSECT",
+                    18, 26, 55, false, 0.20, 0.90, 3, 0.070,
+                    "WHOLE", 0.25, 0.10, 0.055)
+    );
+
+    /**
+     * 果树（梨）。<b>黑星病</b>是梨最重要的真菌病害，直接在果面形成黑斑、
+     * 造成落果，是商品性的头号杀手；梨树还常见<b>梨锈病</b>与<b>介壳虫</b>。
+     *
+     * <p><b>为什么梨黑星病打的是 FLOWER 通道</b>：引擎的损伤通道只有
+     * LEAF / STEM / FLOWER / GRAIN / WHOLE 五条，其中 FLOWER 这一条在
+     * {@code FarmPlayService.yields()} 里乘在「单株果数」上（花果期的损失
+     * 直接扣果数）。梨黑星病的后果正是「果面病斑 + 落果」，
+     * 走 FLOWER 通道比走 WHOLE（均摊到穗/粒/叶）更贴近真实机制。
+     */
+    public static final List<PestConfig> TREE = List.of(
+            new PestConfig("pear_scab", "梨黑星病", "DISEASE", "FUNGUS",
+                    15, 25, 88, true, 0.30, 0.90, 5, 0.100,
+                    "FLOWER", 0.40, 0.35, 0.065),
+            new PestConfig("pear_rust", "梨锈病", "DISEASE", "FUNGUS",
+                    12, 22, 85, true, 0.35, 0.75, 5, 0.070,
+                    "LEAF", 0.30, 0.15, 0.050),
+            new PestConfig("pear_scale", "梨介壳虫", "INSECT", "INSECT",
+                    20, 30, 60, false, 0.25, 0.80, 4, 0.060,
+                    "STEM", 0.30, 0.15, 0.050)
+    );
+
+    /**
+     * 按作物取病虫害清单。
+     *
+     * <p><b>🔴 2026-10-24 改造</b>：本方法<b>不能</b>直接 {@code switch (visual)}。
+     * visual 的语义已从「通用形态族」变成「作物 id」，直接 switch 会让
+     * 大白菜、番茄、黄瓜……全部落到 default 分支、拿到<b>水稻的病虫害清单</b>——
+     * 病虫压力凭空归零，等于给所有园艺作物开了无敌。
+     *
+     * <p>现在统一走 {@link CropVisual#formOf}：先把 visual 解析成形态族
+     * （存量旧值 {@code leafy/vine/bush/flower} 与新作物 id 都能解析），
+     * 再取对应清单。粮食作物有专属清单，按 visual 特判保留。
+     */
     public static List<PestConfig> forCrop(String visual) {
         if (visual == null) {
             return RICE;
         }
-        return switch (visual) {
-            case "wheat" -> WHEAT;
-            case "corn" -> CORN;
-            case "soybean" -> SOYBEAN;
-            case "leafy" -> LEAFY;
-            case "vine" -> VINE;
-            case "bush" -> BUSH;
-            case "flower" -> FLOWER;
-            default -> RICE;
+        // 粮食作物有专属清单（不是通用禾谷清单），按 visual 特判。
+        switch (visual) {
+            case "wheat", "wheat_winter" -> {
+                return WHEAT;
+            }
+            case "corn", "corn_spring" -> {
+                return CORN;
+            }
+            case "soybean" -> {
+                return SOYBEAN;
+            }
+            case "millet" -> {
+                return MILLET;
+            }
+            default -> {
+                // 其余按形态族取。
+            }
+        }
+        return switch (CropVisual.formOf(visual)) {
+            case GRAIN -> RICE;
+            case LEAFY -> LEAFY;
+            case VINE -> VINE;
+            case BUSH -> BUSH;
+            case FLOWER -> FLOWER;
+            case TUBER -> TUBER;
+            case TREE -> TREE;
         };
     }
 

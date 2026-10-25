@@ -11,6 +11,7 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -66,6 +67,22 @@ public class FarmStead {
     @Column(name = "zone_id", length = 32)
     private String zoneId;
 
+    /**
+     * 开垦日期（世界日期口径，YYYY-MM-DD）。
+     *
+     * <p><b>为什么农场也需要日期</b>（2026-10-22 需求）：玩家建农场是在「某个时候」
+     * 开垦的，这个时间决定了农场所在地的农时起点（比如 3 月建场 vs 9 月建场，
+     * 当季能种什么完全不同）。而且需求明确要求「新建农场时不能选今天之前的日期」。
+     *
+     * <p>⚠️ 存 {@code LocalDate} → Hibernate 写 epoch 毫秒 INTEGER。
+     * SQLite 是弱类型数据库，外部脚本写进去的 TEXT 日期会让整个查询报废
+     * （见 {@code FarmDateTypePatch}），所以这一列必须进 {@code TARGETS}。
+     *
+     * <p>老农场没有这个值 → 视为「今天建立」（null 时前端按今天显示）。
+     */
+    @Column(name = "opened_on")
+    private LocalDate openedOn;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -112,6 +129,9 @@ public class FarmStead {
 
     public String getZoneId() { return zoneId; }
     public void setZoneId(String v) { this.zoneId = v; }
+
+    public LocalDate getOpenedOn() { return openedOn; }
+    public void setOpenedOn(LocalDate v) { this.openedOn = v; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
 

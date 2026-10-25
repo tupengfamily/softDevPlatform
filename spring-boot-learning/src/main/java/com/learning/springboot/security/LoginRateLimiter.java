@@ -12,7 +12,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * - 维度: 用户名 + 客户端 IP(任一维度超限都拒绝)
  * - 策略: 窗口期内(15 分钟)失败 5 次即锁定, 锁 5 分钟(缩短)
- * - 成功登录后清零该用户名/该 IP 的失败计数
+ * - 成功登录后只清零该<b>用户名</b>的失败计数(🔴 2026-10-26 修复 M11: 不再清 IP 维度,
+ *   否则任意一次成功登录就能替攻击者抹掉整个 IP 的撞库进度)
  * - 注册等场景走通用次数限流({@code reg:ip:xxx} 前缀)
  * - 进程内内存实现(教学项目够用);多实例部署应换 Redis/数据库计数
  * - 内存 Map 设上限(5000 条): 超限先清理过期项,仍超限清理最老条目,防止垃圾键撑爆内存
@@ -93,25 +94,46 @@ public class LoginRateLimiter {
 
     /**
      * 记录一次登录失败
+     *
+     * <p>🔴 2026-10-26 修复 M11：原实现是「读 → 算 → 写回」的<b>非原子读改写</b>：
+     * <pre>{@code
+     * Failure prev = failures.get(key);          // 读
+     * int count = prev.count() + 1;              // 算
+     * failures.put(key, new Failure(count, ...)); // 写
+     * }</pre>
+     * 50 个并发失败请求时，各自读到的都是同一个旧值 {@code prev}，
+     * 写回时互相覆盖 → 计数只涨到 1~2，<b>限流形同虚设</b>。
+     *
+     * <p>现在改成 {@code ConcurrentHashMap.compute} 的原子读改写
+     * （与同文件 {@link #checkRegisterAllowed} 的 {@code attempts.compute} 同一范式）。
      */
     public void recordFailure(String username, String clientIp) {
         long now = System.currentTimeMillis();
         for (String key : keys(username, clientIp)) {
-            Failure prev = failures.get(key);
-            int count = (prev == null || prev.expired(now)) ? 1 : prev.count() + 1;
-            long firstAt = (prev == null || prev.expired(now)) ? now : prev.firstAt();
-            long lockedUntil = count >= MAX_FAILURES ? now + LOCK_MS : 0L;
-            putBounded(key, new Failure(count, firstAt, lockedUntil), now);
+            ensureCapacity(failures, now);
+            failures.compute(key, (k, prev) -> {
+                int count = (prev == null || prev.expired(now)) ? 1 : prev.count() + 1;
+                long firstAt = (prev == null || prev.expired(now)) ? now : prev.firstAt();
+                long lockedUntil = count >= MAX_FAILURES ? now + LOCK_MS : 0L;
+                return new Failure(count, firstAt, lockedUntil);
+            });
         }
     }
 
     /**
-     * 登录成功: 清零相关计数
+     * 登录成功: 清零该<b>用户名</b>的失败计数。
+     *
+     * <p>🔴 2026-10-26 修复 M11：原实现把 <b>IP 维度</b>的计数也一起清了。
+     * 后果是：攻击者用一个账号疯狂撞库（IP 维度计数飙到锁定阈值），
+     * 另一个正常用户只要登录成功一次，就把整个 IP 的失败计数清零 ——
+     * 攻击者的进度被抹掉，限流形同虚设。
+     *
+     * <p>现在只清用户名维度（{@code u:}）。IP 维度保留，
+     * 由窗口过期（15 分钟）或管理员 {@link #unlockUser} 处理。
      */
     public void recordSuccess(String username, String clientIp) {
-        for (String key : keys(username, clientIp)) {
-            failures.remove(key);
-        }
+        if (username == null) return;
+        failures.remove("u:" + username.toLowerCase());
     }
 
     /**
@@ -137,14 +159,6 @@ public class LoginRateLimiter {
         String u = username == null ? "" : username.toLowerCase();
         String ip = clientIp == null ? "" : clientIp;
         return new String[] { "u:" + u, "ip:" + ip };
-    }
-
-    /** 写入失败记录(带容量上限) */
-    private void putBounded(String key, Failure f, long now) {
-        if (failures.size() >= MAX_KEYS && !failures.containsKey(key)) {
-            ensureCapacity(failures, now);
-        }
-        failures.put(key, f);
     }
 
     /**

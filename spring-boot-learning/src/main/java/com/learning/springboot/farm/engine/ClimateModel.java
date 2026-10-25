@@ -303,6 +303,36 @@ public final class ClimateModel {
         return tmean >= 10.0 ? Math.min(tmean, 30.0) : 0.0;
     }
 
+    /**
+     * 单日活动积温（<b>作物基准</b>口径）。
+     *
+     * <p>🔴 2026-10-26 修复 M6：{@link #aatDay(double)} 写死了 10℃ 基准，
+     * 但各作物的基准温度并不相同（见 {@link CropConfig#aatRef()}）：
+     * <pre>
+     *   cabbage / tulip  → 5℃   （喜凉，越冬作物）
+     *   potato           → 7℃
+     *   tomato / rice    → 10℃  （禾谷与喜温作物）
+     * </pre>
+     * 拿 10℃ 基准去算白菜的积温供给，会**低估**白菜的有效积温
+     * （10–16℃ 的那些天本该计入，被全砍了），
+     * 于是「江南种白菜」被误判成「热量不足」。
+     *
+     * <p>正确范式已存在于 {@link SimEngine#aatDay(double, CropConfig)}：
+     * <pre>
+     *   tmean &gt;= c.aatRef() ? min(tmean, c.tOptUpper()) : 0
+     * </pre>
+     * 本方法与之<b>同式</b>，只是把基准参数化 —— 引擎回放与适区归因用同一套口径。
+     *
+     * @param tmean  日均温（℃）
+     * @param aatRef 作物基准温度（℃，即 {@code crop.aatRef()}）
+     * @param tOptUpper 有效积温上限（℃，即 {@code crop.tOptUpper()}）
+     */
+    public static double aatDay(double tmean, double aatRef, double tOptUpper) {
+        double base = aatRef <= 0 ? 10.0 : aatRef;
+        double cap = tOptUpper <= 0 ? 30.0 : tOptUpper;
+        return tmean >= base ? Math.min(tmean, cap) : 0.0;
+    }
+
     /** 从播种日（DOY）到该年初霜日的可获积温。 */
     public static double aatSupply(String zoneId, int year, int sowDoy) {
         List<DayWeather> s = series(zoneId, year);
@@ -310,6 +340,25 @@ public final class ClimateModel {
         double sum = 0;
         for (int i = Math.max(0, sowDoy - 1); i < Math.min(s.size(), end); i++) {
             sum += aatDay(s.get(i).tmean());
+        }
+        return sum;
+    }
+
+    /**
+     * 从播种日（DOY）到该年初霜日的可获积温（<b>作物基准</b>口径）。
+     *
+     * <p>🔴 2026-10-26 修复 M6：见 {@link #aatDay(double, double, double)} 的说明。
+     * 这里与 {@code SimEngine} 的回放用<b>同一个基准</b>，
+     * 于是「归因说热量够」与「回放算出来确实熟得了」不会再互相打架。
+     */
+    public static double aatSupply(String zoneId, int year, int sowDoy, CropConfig crop) {
+        List<DayWeather> s = series(zoneId, year);
+        int end = firstAutumnFrost(s);
+        double aatRef = crop == null ? 10.0 : crop.aatRef();
+        double tOpt = crop == null ? 30.0 : crop.tOptUpper();
+        double sum = 0;
+        for (int i = Math.max(0, sowDoy - 1); i < Math.min(s.size(), end); i++) {
+            sum += aatDay(s.get(i).tmean(), aatRef, tOpt);
         }
         return sum;
     }

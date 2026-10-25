@@ -38,15 +38,40 @@ public final class InputCatalog {
          * 而且它<b>没有安全间隔期意义上的 PHI 农残问题</b>（草不进人),
          * 但有<b>作死期</b>——苗后除草剂会伤苗，用错时期比用错药更致命。
          */
-        HERB
+        HERB,
+        /**
+         * 种子（2026-10-23 需求 R · 商店）。
+         *
+         * <p>单独一类而不是塞进 FERT：种子不是「撒下去就消失」的消耗品，
+         * 它是<b>播种的前置条件</b>——没有对应作物的种子就不能开田，
+         * 而且它的计量单位是「亩/千粒重」而不是 kg/g/ml。
+         */
+        SEED,
+        /**
+         * 农具（2026-10-23 需求 R · 商店）。
+         *
+         * <p>农具是<b>耐用品</b>：买一次长期持有，不按次消耗。
+         * 它的作用不是「提高某一项数值」，而是降低作业成本 / 放宽作业窗口
+         * （比如旋耕机让翻耕工序的农时窗口变宽）。
+         */
+        TOOL,
+        /**
+         * 水资源（2026-10-23 需求 R · 商店）。
+         *
+         * <p>水是<b>按次消耗</b>的：每灌一次地扣一次额度，
+         * 没额度就灌不了水 → 干旱损失无法规避。
+         * 这是「农业生产效率」里最容易被忽略但影响最大的一环。
+         */
+        WATER
     }
 
     /**
      * @param nContent    化肥的折纯养分含量（N / P₂O₅ / K₂O），农药为 0
-     * @param targets     农药可防治的病虫害 id（与 {@code PestEngine} 的 id 对齐）
-     * @param efficacy    对症时的基础防效（生物农药 0.8）
+     * @param targets     农药可防治的病虫害 id（与 {@code PestEngine} 的 id 对齐）；
+     *                   SEED 复用为「对应作物 id」，TOOL 复用为「作用工序 id」，WATER 复用为「适用气候区」
+     * @param efficacy    对症时的基础防效（生物农药 0.8）；SEED = 单价基准，TOOL = 效率加成系数，WATER = 单次灌溉补水系数
      * @param phiDays     安全间隔期（天）：距采收不足此天数施用 → 农残超标
-     * @param protectDays 持效期（天）
+     * @param protectDays 持效期（天）；SEED = 每包可播亩数，TOOL = 可用作业次数，WATER = 每份可灌次数
      */
     public record Item(
             String id,
@@ -66,6 +91,23 @@ public final class InputCatalog {
             int phiDays,
             int protectDays,
             String note) {
+
+        /**
+         * 是否是<b>耐用品</b>（农具）：买一次长期持有，不按次消耗。
+         *
+         * <p>耐用品与消耗品在库存语义上完全不同：
+         * 消耗品「数量」会随使用减少（种子播掉、水灌掉、药打掉），
+         * 耐用品的「数量」是<b>拥有/未拥有</b>（0 或 1），重复购买是浪费。
+         */
+        public boolean durable() {
+            return kind == Kind.TOOL;
+        }
+
+        /** 种子对应的作物 id（非种子返回 null）。 */
+        public String cropId() {
+            return kind == Kind.SEED && targets != null && !targets.isEmpty()
+                    ? targets.get(0) : null;
+        }
     }
 
     /** 水稻全季需氮量（折纯，kg/亩）：数据卡「总 N 9–13」取中位。 */
@@ -115,13 +157,13 @@ public final class InputCatalog {
         ITEMS.put("COPPER", new Item(
                 "COPPER", "噻菌铜", Kind.PEST, "PEST_FUNGICIDE", "g",
                 30, 60, 100, 0.20, 0, "",
-                List.of("bacterial_blight", "soft_rot"), "铜制剂", 1.0, 14, 7,
+                List.of("bacterial_blight", "soft_rot", "potato_ringrot"), "铜制剂", 1.0, 14, 7,
                 "细菌性病害；台风暴雨后预防性用药，发病后再打收效有限"));
         ITEMS.put("IMIDACLOPRID", new Item(
                 "IMIDACLOPRID", "吡虫啉（10% WP）", Kind.PEST, "PEST_INSECTICIDE", "g",
                 10, 20, 35, 0.30, 0, "",
                 List.of("planthopper", "wheat_aphid", "soybean_aphid",
-                        "melon_aphid", "flower_aphid"), "新烟碱类", 1.0, 14, 10,
+                        "melon_aphid", "flower_aphid", "potato_aphid"), "新烟碱类", 1.0, 14, 10,
                 "稻飞虱；对蜜蜂高毒，花期禁用"));
         ITEMS.put("CHLORANTRANILIPROLE", new Item(
                 "CHLORANTRANILIPROLE", "氯虫苯甲酰胺", Kind.PEST, "PEST_INSECTICIDE", "ml",
@@ -132,17 +174,20 @@ public final class InputCatalog {
         ITEMS.put("CYPROCONAZOLE", new Item(
                 "CYPROCONAZOLE", "氰烯菌酯（25% SC）", Kind.PEST, "PEST_FUNGICIDE", "ml",
                 40, 80, 130, 0.42, 0, "",
-                List.of("wheat_scab", "leafy_downy", "cuc_downy", "flower_gray"), "氰基丙烯酸酯类", 1.0, 21, 14,
+                List.of("wheat_scab", "leafy_downy", "cuc_downy", "flower_gray",
+                        "millet_blast", "pear_scab"), "氰基丙烯酸酯类", 1.0, 21, 14,
                 "小麦赤霉病：扬花初期「见花打药」是唯一有效窗口，错过基本无解"));
         ITEMS.put("TRIADIMEFON", new Item(
                 "TRIADIMEFON", "三唑酮（20% EC）", Kind.PEST, "PEST_FUNGICIDE", "ml",
                 30, 60, 100, 0.26, 0, "",
-                List.of("stripe_rust", "powdery_mildew", "cuc_powdery", "flower_powdery"), "三唑类", 1.0, 21, 12,
+                List.of("stripe_rust", "powdery_mildew", "cuc_powdery", "flower_powdery",
+                        "millet_powdery", "pear_rust"), "三唑类", 1.0, 21, 12,
                 "条锈病/白粉病：发病初期用药，拔节期是最后窗口"));
         ITEMS.put("EMAMECTIN", new Item(
                 "EMAMECTIN", "甲维盐（5% WG）", Kind.PEST, "PEST_INSECTICIDE", "g",
                 8, 15, 25, 0.90, 0, "",
-                List.of("fall_armyworm", "corn_borer"), "生物衍生类", 1.0, 14, 10,
+                List.of("fall_armyworm", "corn_borer", "millet_moth", "pear_scale"),
+                "生物衍生类", 1.0, 14, 10,
                 "草地贪夜蛾/玉米螟：低龄幼虫期（3 龄前）才打得住"));
         ITEMS.put("RHIZOBIUM", new Item(
                 "RHIZOBIUM", "根瘤菌剂", Kind.FERT, "FERT_BIO", "g",
@@ -152,7 +197,8 @@ public final class InputCatalog {
         ITEMS.put("MANCOZEB", new Item(
                 "MANCOZEB", "代森锰锌（80% WP）", Kind.PEST, "PEST_FUNGICIDE", "g",
                 100, 180, 260, 0.22, 0, "",
-                List.of("early_blight", "gray_mold", "leafy_downy", "cuc_downy", "flower_gray"),
+                List.of("early_blight", "gray_mold", "leafy_downy", "cuc_downy", "flower_gray",
+                        "potato_late_blight", "potato_early_blight"),
                 "二硫代氨基甲酸酯", 1.0, 15, 12,
                 "广谱保护性杀菌剂：必须在发病前或初期用，病斑连片后再打只能控住不扩散"));
         ITEMS.put("ABAMECTIN", new Item(
@@ -181,6 +227,196 @@ public final class InputCatalog {
                 30, 60, 90, 0.32, 0, "",
                 List.of("weed"), "阔叶广谱", 0.90, 20, 18,
                 "广谱阔叶除草剂；见效慢（3–5 天），但对禾苗相对安全，封行前打最划算"));
+
+        // ---------------- 种子（2026-10-23 需求 R · 商店）----------------
+        // ⚠️ 种子是**播种的前置条件**：没有对应作物的种子就开不了田。
+        // 价格取「每公斤种子可播多少亩」反推（元/包，每包 1kg，protectDays = 可播亩数）。
+        // 大田作物种子便宜（几元/kg），蔬菜种子贵（几十元/kg，因为是精制粒）。
+        ITEMS.put("SEED_rice_mid", new Item(
+                "SEED_rice_mid", "中稻种子（1kg/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 28.0, 0, "",
+                List.of("rice_mid"), "常规种", 1.0, 0, 5,
+                "可播约 5 亩；育秧后移栽，注意秧田与本田的用种量差别"));
+        ITEMS.put("SEED_wheat_winter", new Item(
+                "SEED_wheat_winter", "冬小麦种子（1kg/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 18.0, 0, "",
+                List.of("wheat_winter"), "常规种", 1.0, 0, 6,
+                "可播约 6 亩；半冬性品种需春化，南方低纬种它只长草"));
+        ITEMS.put("SEED_corn_spring", new Item(
+                "SEED_corn_spring", "春玉米种子（1kg/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 35.0, 0, "",
+                List.of("corn_spring"), "杂交种", 1.0, 0, 4,
+                "可播约 4 亩；杂交种第二代会性状分离，别留种"));
+        ITEMS.put("SEED_soybean", new Item(
+                "SEED_soybean", "大豆种子（1kg/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 22.0, 0, "",
+                List.of("soybean"), "常规种", 1.0, 0, 5,
+                "可播约 5 亩；建议同时接种根瘤菌，否则固氮能力不足"));
+        ITEMS.put("SEED_cabbage", new Item(
+                "SEED_cabbage", "大白菜种子（100g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 26.0, 0, "",
+                List.of("cabbage"), "常规种", 1.0, 0, 3,
+                "可播约 3 亩；叶菜不耐存，种子也要买得勤"));
+        ITEMS.put("SEED_tomato", new Item(
+                "SEED_tomato", "番茄种子（100g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 42.0, 0, "",
+                List.of("tomato"), "蔬菜种", 1.0, 0, 3,
+                "可播约 3 亩（精制粒）；连作易萎蔫，注意轮作"));
+        ITEMS.put("SEED_cucumber", new Item(
+                "SEED_cucumber", "黄瓜种子（100g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 48.0, 0, "",
+                List.of("cucumber"), "蔬菜种", 1.0, 0, 2,
+                "可播约 2 亩；黄瓜种性易退化，建议每两年换一次种"));
+        ITEMS.put("SEED_chili", new Item(
+                "SEED_chili", "辣椒种子（100g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 52.0, 0, "",
+                List.of("chili"), "蔬菜种", 1.0, 0, 2,
+                "可播约 2 亩；喜温，北方过早播种会僵苗"));
+        ITEMS.put("SEED_strawberry", new Item(
+                "SEED_strawberry", "草莓种子（50g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 96.0, 0, "",
+                List.of("strawberry"), "精制种", 1.0, 0, 1,
+                "可播约 1 亩；草莓生产多用匍匐茎苗，种子育的苗商品性偏低"));
+        ITEMS.put("SEED_watermelon", new Item(
+                "SEED_watermelon", "西瓜种子（100g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 60.0, 0, "",
+                List.of("watermelon"), "瓜菜种", 1.0, 0, 2,
+                "可播约 2 亩；坐果期高温会化瓜，育苗别抢农时"));
+        ITEMS.put("SEED_melon", new Item(
+                "SEED_melon", "甜瓜种子（100g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 58.0, 0, "",
+                List.of("melon"), "瓜菜种", 1.0, 0, 2,
+                "可播约 2 亩；厚皮甜瓜靠昼夜温差积累糖分"));
+        ITEMS.put("SEED_chrysanthemum", new Item(
+                "SEED_chrysanthemum", "菊花种子（20g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 110.0, 0, "",
+                List.of("chrysanthemum"), "花卉种", 1.0, 0, 1,
+                "可播约 1 亩；短日植物，花期靠日照长度触发"));
+        ITEMS.put("SEED_sunflower", new Item(
+                "SEED_sunflower", "向日葵种子（1kg/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 40.0, 0, "",
+                List.of("sunflower"), "油料种", 1.0, 0, 5,
+                "可播约 5 亩；耐热耐旱，但不固氮，地力差时要补氮"));
+        ITEMS.put("SEED_tulip", new Item(
+                "SEED_tulip", "郁金香种子（10g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 140.0, 0, "",
+                List.of("tulip"), "球根种", 1.0, 0, 1,
+                "可播约 1 亩；生产用球根繁殖，种子苗要多年才能开花"));
+        // ---------------- 种子·新增 8 种（2026-10-24）----------------
+        // ⚠️ targets 里的作物 id 必须与 CropCatalog 的 id 完全一致，
+        //    否则商店里买了种子也开不了田（InputCatalog.seedOf 按这个反查）。
+        ITEMS.put("SEED_millet", new Item(
+                "SEED_millet", "谷子种子（1kg/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 24.0, 0, "",
+                List.of("millet"), "常规种", 1.0, 0, 5,
+                "可播约 5 亩；谷子粒小，千粒重约 8g，一包比水稻种便宜得多"));
+        ITEMS.put("SEED_potato", new Item(
+                "SEED_potato", "马铃薯种薯（5kg/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 45.0, 0, "",
+                List.of("potato"), "种薯", 1.0, 0, 3,
+                "可播约 3 亩；要买脱毒种薯，带病种薯等于把晚疫病一起买回来"));
+        ITEMS.put("SEED_eggplant", new Item(
+                "SEED_eggplant", "茄子种子（100g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 48.0, 0, "",
+                List.of("eggplant"), "蔬菜种", 1.0, 0, 3,
+                "可播约 3 亩；茄子喜温，北方过早播种会僵苗"));
+        ITEMS.put("SEED_yardlong_bean", new Item(
+                "SEED_yardlong_bean", "豆角种子（200g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 38.0, 0, "",
+                List.of("yardlong_bean"), "蔬菜种", 1.0, 0, 3,
+                "可播约 3 亩；豆角不耐连作，与黄瓜同棚要错开年份"));
+        ITEMS.put("SEED_radish", new Item(
+                "SEED_radish", "萝卜种子（150g/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 18.0, 0, "",
+                List.of("radish"), "常规种", 1.0, 0, 4,
+                "可播约 4 亩；根菜最怕积水，务必选排水好的地"));
+        ITEMS.put("SEED_grape", new Item(
+                "SEED_grape", "葡萄苗木（5株/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 220.0, 0, "",
+                List.of("grape"), "果树苗", 1.0, 0, 2,
+                "可播约 2 亩；葡萄苗定植后要几年才丰产，本作按一年生简化建模"));
+        ITEMS.put("SEED_pear", new Item(
+                "SEED_pear", "梨苗木（5株/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 260.0, 0, "",
+                List.of("pear"), "果树苗", 1.0, 0, 2,
+                "可播约 2 亩；梨树苗定植要 3–5 年才结果，本作按一年生简化建模"));
+        ITEMS.put("SEED_rose", new Item(
+                "SEED_rose", "月季苗木（20株/包）", Kind.SEED, "SEED_CROP", "包",
+                1, 1, 1, 320.0, 0, "",
+                List.of("rose"), "花卉苗", 1.0, 0, 1,
+                "可播约 1 亩；月季是长日照植物，花期与菊花正好相反"));
+
+        // ---------------- 农具（2026-10-23 需求 R · 商店）----------------
+        // ⚠️ 农具是**耐用品**：买一次长期持有（quantity 0/1），重复购买是浪费。
+        // 它的作用不是提高某个数值，而是**降低作业成本 / 放宽作业窗口 / 提高作业效率**。
+        // efficacy 字段复用为「效率加成系数」，protectDays 复用为「可作业次数（无限次记 -1）」。
+        ITEMS.put("TOOL_TILLER", new Item(
+                "TOOL_TILLER", "旋耕机", Kind.TOOL, "TOOL_MACHINE", "台",
+                1, 1, 1, 12000.0, 0, "",
+                List.of("TILL"), "动力机械", 0.12, 0, -1,
+                "整地效率 +12%，并放宽翻耕农时窗口（±10 天）；农机是大额长期投资"));
+        ITEMS.put("TOOL_SPRAYER", new Item(
+                "TOOL_SPRAYER", "背负式喷雾器", Kind.TOOL, "TOOL_MACHINE", "台",
+                1, 1, 1, 680.0, 0, "",
+                List.of("SPRAY"), "植保机械", 0.08, 0, -1,
+                "施药作业效率 +8%，雾化更均匀，药液附着率更高"));
+        ITEMS.put("TOOL_IRRIGATION", new Item(
+                "TOOL_IRRIGATION", "滴灌系统", Kind.TOOL, "TOOL_MACHINE", "套",
+                1, 1, 1, 5600.0, 0, "",
+                List.of("IRRIGATE"), "水肥设备", 0.18, 0, -1,
+                "灌溉节水 +18%，干旱损失减半；一次性投入，但长期最划算"));
+        ITEMS.put("TOOL_HARVESTER", new Item(
+                "TOOL_HARVESTER", "小型收割机", Kind.TOOL, "TOOL_MACHINE", "台",
+                1, 1, 1, 38000.0, 0, "",
+                List.of("HARVEST"), "收获机械", 0.10, 0, -1,
+                "收割效率 +10%，减少收获期损失（错过窗口的损失也变小）"));
+        ITEMS.put("TOOL_DRONE", new Item(
+                "TOOL_DRONE", "植保无人机", Kind.TOOL, "TOOL_MACHINE", "台",
+                1, 1, 1, 46000.0, 0, "",
+                List.of("SPRAY"), "智慧农业", 0.22, 0, -1,
+                "施药效率 +22%（作业快、覆盖匀），但对蜜蜂等传粉昆虫有风险，花期慎用"));
+        ITEMS.put("TOOL_SEEDER", new Item(
+                "TOOL_SEEDER", "精量播种机", Kind.TOOL, "TOOL_MACHINE", "台",
+                1, 1, 1, 9800.0, 0, "",
+                List.of("SOW"), "播种机械", 0.10, 0, -1,
+                "播种质量 +10%，出苗率提升、群体密度更均匀（省种）"));
+        ITEMS.put("TOOL_GRAIN_DRYER", new Item(
+                "TOOL_GRAIN_DRYER", "粮食烘干机", Kind.TOOL, "TOOL_MACHINE", "台",
+                1, 1, 1, 24000.0, 0, "",
+                List.of("HARVEST"), "产后处理", 0.12, 0, -1,
+                "入库品质 +12%：烘干降低含水率，仓储期更难变质"));
+        ITEMS.put("TOOL_GREENHOUSE", new Item(
+                "TOOL_GREENHOUSE", "连栋温室", Kind.TOOL, "TOOL_MACHINE", "栋",
+                1, 1, 1, 68000.0, 0, "",
+                List.of("PROTECT"), "设施农业", 0.15, 0, -1,
+                "设施产量 +15%，并削弱极端天气（暴雨/高温/霜冻）造成的损失"));
+
+        // ---------------- 水资源（2026-10-23 需求 R · 商店）----------------
+        // ⚠️ 水是**按次消耗**：每灌一次扣一次额度。
+        //
+        // 🔴 **库存单位统一成「次」**，不是「份」——这是本轮踩过的坑：
+        // 如果库存存「份」，那消费时就得做「份 → 剩余次数」的换算，
+        // 而这需要额外存一个「已用次数」字段（否则 20 次的份灌了 19 次后
+        // 库存还是 1 份，下次扣减会算错）。直接存「次」就没有这个问题：
+        // 买 1 份 = 20 次，库存加 20；灌一次扣 1。
+        // protectDays 复用为「每份可灌次数」，购买时用它换算入库量。
+        //
+        // 三种水对应不同来源与成本：自来水便宜、山泉水中等、灌溉水权最贵但最可靠。
+        ITEMS.put("WATER_TAP", new Item(
+                "WATER_TAP", "自来水灌溉额度", Kind.WATER, "WATER_SOURCE", "次",
+                1, 1, 1, 6.0, 0, "",
+                List.of("jiangnan", "huanan", "huanghuaihai", "dongbei"), "市政供水", 1.0, 0, 20,
+                "1 份含 20 次灌溉；成本最低，但枯水期限水（缺水时效率打折）"));
+        ITEMS.put("WATER_SPRING", new Item(
+                "WATER_SPRING", "山泉灌溉额度", Kind.WATER, "WATER_SOURCE", "次",
+                1, 1, 1, 10.0, 0, "",
+                List.of("jiangnan", "huanan", "huanghuaihai", "dongbei"), "山泉水", 1.25, 0, 24,
+                "1 份含 24 次灌溉；水质好、温度稳定，对喜温作物（如蔬菜）更友好"));
+        ITEMS.put("WATER_CANAL", new Item(
+                "WATER_CANAL", "灌区水权", Kind.WATER, "WATER_SOURCE", "次",
+                1, 1, 1, 14.0, 0, "",
+                List.of("huanghuaihai", "jiangnan", "dongbei"), "灌区配水", 1.40, 0, 30,
+                "1 份含 30 次灌溉；最贵但最可靠，干旱年也不断供（大田作物首选）"));
     }
 
     public static Map<String, Item> all() {
@@ -202,6 +438,44 @@ public final class InputCatalog {
     /** 除草剂货架（2026-10-22 需求 O）。 */
     public static List<Item> herbicides() {
         return ITEMS.values().stream().filter(i -> i.kind() == Kind.HERB).toList();
+    }
+
+    /** 种子货架（2026-10-23 需求 R · 商店）。 */
+    public static List<Item> seeds() {
+        return ITEMS.values().stream().filter(i -> i.kind() == Kind.SEED).toList();
+    }
+
+    /** 农具货架（2026-10-23 需求 R · 商店）。耐用品，买一次长期持有。 */
+    public static List<Item> tools() {
+        return ITEMS.values().stream().filter(i -> i.kind() == Kind.TOOL).toList();
+    }
+
+    /** 水资源货架（2026-10-23 需求 R · 商店）。 */
+    public static List<Item> waters() {
+        return ITEMS.values().stream().filter(i -> i.kind() == Kind.WATER).toList();
+    }
+
+    /** 取某作物对应的种子（没有返回 null）。 */
+    public static Item seedOf(String cropId) {
+        if (cropId == null || cropId.isBlank()) {
+            return null;
+        }
+        for (Item i : ITEMS.values()) {
+            if (i.kind() == Kind.SEED && cropId.equals(i.cropId())) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    /** 某用户在用的农具集合（已拥有的 tool id → 定义）。 */
+    public static List<Item> toolsOwned(java.util.Set<String> ownedIds) {
+        if (ownedIds == null || ownedIds.isEmpty()) {
+            return List.of();
+        }
+        return ITEMS.values().stream()
+                .filter(i -> i.kind() == Kind.TOOL && ownedIds.contains(i.id()))
+                .toList();
     }
 
     /**

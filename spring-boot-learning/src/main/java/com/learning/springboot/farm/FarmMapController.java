@@ -2,6 +2,7 @@ package com.learning.springboot.farm;
 
 import com.learning.springboot.annotation.OperationLog;
 import com.learning.springboot.common.Result;
+import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.security.CurrentUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -104,9 +106,37 @@ public class FarmMapController {
     @OperationLog(module = "娱乐", action = "地图建农场")
     public ResponseEntity<?> create(@RequestBody Map<String, Object> body,
                                     @CurrentUser Long userId) {
-        int adcode = body.get("adcode") == null ? 0 : ((Number) body.get("adcode")).intValue();
+        // 🔴 adcode 可能是数字也可能是字符串（JSON 里 `"360111"` 和 `360111` 都合法），
+        // 直接 ((Number) body.get("adcode")) 会在字符串时抛 ClassCastException → 500。
+        // 这里统一按字符串解析再转 int，两种写法都能吃。
+        int adcode = parseAdcode(body.get("adcode"));
         String name = body.get("name") == null ? null : String.valueOf(body.get("name"));
-        return Result.ok(mapService.create(userId, adcode, name));
+        // 开垦日期（可选）：不能早于今天，由 Service 校验
+        LocalDate openedOn = null;
+        Object raw = body.get("openedOn");
+        if (raw != null) {
+            try {
+                openedOn = LocalDate.parse(String.valueOf(raw));
+            } catch (Exception ex) {
+                throw new BusinessException("开垦日期格式不对：" + raw);
+            }
+        }
+        return Result.ok(mapService.create(userId, adcode, name, openedOn));
+    }
+
+    /** adcode 兼容数字 / 字符串两种形态；解析不出来按 0 处理（Service 会拒绝）。 */
+    private int parseAdcode(Object raw) {
+        if (raw == null) {
+            return 0;
+        }
+        if (raw instanceof Number n) {
+            return n.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(raw).trim());
+        } catch (NumberFormatException ex) {
+            throw new BusinessException("adcode 格式不对：" + raw);
+        }
     }
 
     @GetMapping("/farms/{id}")

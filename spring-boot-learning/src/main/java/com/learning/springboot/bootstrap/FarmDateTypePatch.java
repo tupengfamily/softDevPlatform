@@ -52,10 +52,20 @@ public class FarmDateTypePatch {
             {"t_farm_action", "updated_at"},
             {"t_farm_stead", "created_at"},
             {"t_farm_stead", "updated_at"},
+            // 农场开垦日期（S25）
+            {"t_farm_stead", "opened_on"},
             {"t_farm_season", "sow_date"},
             {"t_farm_season", "harvest_date"},
             {"t_farm_season", "created_at"},
             {"t_farm_season", "updated_at"},
+            // 仓库（S24）：一批 TEXT 日期能让整个仓库列表查询报废
+            {"t_farm_warehouse", "stored_date"},
+            {"t_farm_warehouse", "sold_date"},
+            {"t_farm_warehouse", "create_time"},
+            {"t_farm_warehouse", "update_time"},
+            // 农资库存（S25）：同理
+            {"t_farm_stock", "create_time"},
+            {"t_farm_stock", "update_time"},
     };
 
     private final JdbcTemplate jdbc;

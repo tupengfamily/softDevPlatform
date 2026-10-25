@@ -76,10 +76,18 @@ public class ForumServiceImpl implements ForumService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ForumVO.PostDetailVO getPost(Long id, Long currentUserId, boolean admin) {
+        // 🔴 2026-10-26 修复 M10：浏览数不能「原子 +1 之后再用内存旧值覆盖写回」。
+        //
+        // 原实现：
+        //     postRepository.incrementViewCount(id);          // 原子 +1（但上下文里还是旧实体）
+        //     post.setViewCount(post.getViewCount() + 1);     // 内存旧值 +1
+        //     postRepository.save(post);                      // ← 把旧值写回，覆盖了刚 +1 的结果
+        // 并发下：A 读到 100 写回 101，B 读到 100 写回 101 → 实际只 +1，丢了一半。
+        //
+        // 现在：原子 +1（带 clearAutomatically）→ **重查**实体拿到最新值 → 直接返回。
+        postRepository.incrementViewCount(id);
         ForumPost post = postRepository.findById(id)
             .orElseThrow(() -> new NoSuchElementException("帖子不存在: " + id));
-        postRepository.incrementViewCount(id);
-        post.setViewCount(post.getViewCount() + 1);
         return toDetailVO(post, subjectNameMap(), currentUserId, admin);
     }
 
@@ -130,45 +138,85 @@ public class ForumServiceImpl implements ForumService {
 
     // ==================== 点赞 / 收藏 / 转发 ====================
 
+    /**
+     * 点赞 / 取消点赞（🔴 2026-10-26 修复 M12）。
+     *
+     * <p><b>原实现的两个并发缺陷</b>：
+     * <ol>
+     *   <li>计数是「查 count → 写回」覆盖写（{@code post.setLikeCount(count); postRepository.save(post)}），
+     *       两个并发点赞会互相覆盖 → 计数大量丢失；</li>
+     *   <li>「查是否存在 → 再插入」是 check-then-act，并发同用户双击可插入两条点赞记录，
+     *       计数与真实记录数从此永久对不上。</li>
+     * </ol>
+     *
+     * <p><b>现在的做法</b>：
+     * <ul>
+     *   <li>计数改用数据库原子更新 {@code SET likeCount = likeCount ± 1}；</li>
+     *   <li>插入走「先插、撞唯一约束就视为已点赞」的乐观路径 —— 唯一索引由
+     *       {@code ForumInteractSchemaPatch} 补建；</li>
+     *   <li>计数更新后<b>重查实体</b>再组装返回值（{@code clearAutomatically} 会清空持久化上下文）。</li>
+     * </ul>
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ForumVO.InteractVO toggleLike(Long postId, Long userId) {
-        ForumPost post = requirePost(postId);
-        ForumPostLike existing = likeRepository.findByPostIdAndUserId(postId, userId).orElse(null);
-        if (existing != null) {
-            likeRepository.delete(existing);
+        requirePost(postId);
+        boolean liked;
+        if (likeRepository.existsByPostIdAndUserId(postId, userId)) {
+            likeRepository.deleteByPostIdAndUserId(postId, userId);
+            likeRepository.flush();
+            postRepository.incrementLikeCount(postId, -1);
+            liked = false;
         } else {
-            likeRepository.save(new ForumPostLike(postId, userId));
+            // 🔴 用 INSERT OR IGNORE 而不是「先查后插」：
+            //   唯一索引 + 原子插入 → 并发双击只插一条，且不抛异常污染事务。
+            //   返回受影响行数：1=本次插入成功，0=已存在（并发撞车）。
+            int inserted = likeRepository.insertIgnore(postId, userId);
+            if (inserted > 0) {
+                postRepository.incrementLikeCount(postId, 1);
+            }
+            liked = true;
         }
-        post.setLikeCount((int) likeRepository.countByPostId(postId));
-        postRepository.save(post);
-        log.info("用户 {} {} 帖子 {}", userId, existing != null ? "取消点赞" : "点赞", postId);
-        return interactState(post, userId);
+        log.info("用户 {} {} 帖子 {}", userId, liked ? "点赞" : "取消点赞", postId);
+        return interactState(requirePost(postId), userId);
     }
 
+    /**
+     * 收藏 / 取消收藏（🔴 2026-10-26 修复 M12），与 {@link #toggleLike} 同构。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ForumVO.InteractVO toggleFavorite(Long postId, Long userId) {
-        ForumPost post = requirePost(postId);
-        ForumPostFavorite existing = favoriteRepository.findByPostIdAndUserId(postId, userId).orElse(null);
-        if (existing != null) {
-            favoriteRepository.delete(existing);
+        requirePost(postId);
+        boolean favorited;
+        if (favoriteRepository.existsByPostIdAndUserId(postId, userId)) {
+            favoriteRepository.deleteByPostIdAndUserId(postId, userId);
+            favoriteRepository.flush();
+            postRepository.incrementFavoriteCount(postId, -1);
+            favorited = false;
         } else {
-            favoriteRepository.save(new ForumPostFavorite(postId, userId));
+            int inserted = favoriteRepository.insertIgnore(postId, userId);
+            if (inserted > 0) {
+                postRepository.incrementFavoriteCount(postId, 1);
+            }
+            favorited = true;
         }
-        post.setFavoriteCount((int) favoriteRepository.countByPostId(postId));
-        postRepository.save(post);
-        log.info("用户 {} {} 帖子 {}", userId, existing != null ? "取消收藏" : "收藏", postId);
-        return interactState(post, userId);
+        log.info("用户 {} {} 帖子 {}", userId, favorited ? "收藏" : "取消收藏", postId);
+        return interactState(requirePost(postId), userId);
     }
 
+    /**
+     * 转发数 +1（🔴 2026-10-26 修复 M12）。
+     *
+     * <p>原实现是读改写（{@code getShareCount() + 1} → save），并发转发丢计数。
+     * 现在用数据库原子自增，更新后重查实体再返回。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ForumVO.InteractVO sharePost(Long postId, Long currentUserId) {
-        ForumPost post = requirePost(postId);
-        post.setShareCount((post.getShareCount() == null ? 0 : post.getShareCount()) + 1);
-        postRepository.save(post);
-        return interactState(post, currentUserId);
+        requirePost(postId);
+        postRepository.incrementShareCount(postId);
+        return interactState(requirePost(postId), currentUserId);
     }
 
     /** 最新互动状态(计数 + 当前用户标记) */

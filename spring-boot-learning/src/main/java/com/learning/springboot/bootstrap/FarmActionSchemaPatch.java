@@ -74,6 +74,11 @@ public class FarmActionSchemaPatch {
         // ⑨ 待播种标志（2026-10-22）：收割 / 绝收 / 重开后置 1，建田清 0
         // 老库没有这列 → 全部补 0（历史地块都按「在长的地」处理，与旧行为一致）
         ensureColumn("t_farm_plot", "awaiting_sow", "boolean not null default 0");
+
+        // ⑩ 本季独立时钟（2026-10-23）：演示模式「只预测走向，不改时间轴」后，
+        //     生长时钟与世界日期彻底分离 —— 这一列记录「本季作物长到第几天」。
+        //     老库没有这列 → 全部补 0（等价于「生长 0 天」，与旧行为一致）。
+        ensureColumn("t_farm_plot", "season_progress_days", "integer not null default 0");
     }
 
     /**
@@ -138,6 +143,7 @@ public class FarmActionSchemaPatch {
                     lng float not null,
                     lat float not null,
                     zone_id varchar(32),
+                    opened_on date,
                     created_at timestamp not null,
                     updated_at timestamp not null
                 )
@@ -146,6 +152,8 @@ public class FarmActionSchemaPatch {
                 + "ON t_farm_stead (user_id, adcode)");
         executeQuietly("CREATE INDEX IF NOT EXISTS idx_farm_stead_user ON t_farm_stead (user_id)");
         executeQuietly("CREATE INDEX IF NOT EXISTS idx_farm_plot_farm ON t_farm_plot (farm_id)");
+        // S25：老农场补「开垦日期」列（可空 —— 老农场视为今天建立）
+        ensureColumn("t_farm_stead", "opened_on", "date");
     }
 
     /**
@@ -243,6 +251,7 @@ public class FarmActionSchemaPatch {
                         last_harvest_date date,
                         last_yield float,
                         demo_offset_days integer not null,
+                        season_progress_days integer not null default 0,
                         season_started_at timestamp,
                         created_at timestamp not null,
                         updated_at timestamp not null
@@ -251,11 +260,11 @@ public class FarmActionSchemaPatch {
             jdbc.execute("""
                     INSERT INTO t_farm_plot (id, user_id, slot, sow_date, crop_id, field_name, zone_id,
                                              zone_chosen, awaiting_sow, seasons, best_yield, last_harvest_date,
-                                             last_yield, demo_offset_days, season_started_at,
+                                             last_yield, demo_offset_days, season_progress_days, season_started_at,
                                              created_at, updated_at)
                     SELECT id, user_id, COALESCE(slot, 0), sow_date, crop_id, field_name, zone_id,
                            COALESCE(zone_chosen, 0), COALESCE(awaiting_sow, 0), seasons, best_yield, last_harvest_date,
-                           last_yield, demo_offset_days, season_started_at,
+                           last_yield, demo_offset_days, COALESCE(season_progress_days, 0), season_started_at,
                            created_at, updated_at
                     FROM t_farm_plot_old
                     """);

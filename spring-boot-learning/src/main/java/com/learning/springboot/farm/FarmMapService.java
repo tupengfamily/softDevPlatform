@@ -36,19 +36,30 @@ public class FarmMapService {
     private final DistrictCropService districtCrops;
     private final FarmPlayService play;
     private final FarmWeather weather;
+    /**
+     * 用户级世界时钟（2026-10-26）：地图「今天」的唯一来源。
+     */
+    private final FarmUserClockService clock;
+    /** 演示模式开关（决定「今天」是世界日期还是现实日期） */
+    private final boolean demoMode;
 
     public FarmMapService(FarmSteadRepository steadRepo,
                           FarmPlotRepository plotRepo,
                           DistrictIndex districts,
                           DistrictCropService districtCrops,
                           FarmPlayService play,
-                          FarmWeather weather) {
+                          FarmWeather weather,
+                          FarmUserClockService clock,
+                          @org.springframework.beans.factory.annotation.Value("${farm.demo-mode:true}")
+                          boolean demoMode) {
         this.steadRepo = steadRepo;
         this.plotRepo = plotRepo;
         this.districts = districts;
         this.districtCrops = districtCrops;
         this.play = play;
         this.weather = weather;
+        this.clock = clock;
+        this.demoMode = demoMode;
     }
 
     // ==================================================================
@@ -95,7 +106,10 @@ public class FarmMapService {
         for (FarmStead s : steadRepo.findByUserIdOrderByIdAsc(userId)) {
             mine.put(s.getAdcode(), s);
         }
-        LocalDate today = LocalDate.now();
+        // 🔴 2026-10-23：改用**世界日期**。原来用 LocalDate.now()（现实日期），
+        // 演示模式下世界日期已推进（实测 2027-11-21），会导致地图上区县作物
+        // 的「当前物候」按 2026-10-23 算，与玩家自己的地块差了整整一年。
+        LocalDate today = userWorldDate(userId);
         List<DistrictIndex.District> list = isCityAdcode(adcode)
                 ? districts.ofCity(adcode)
                 : districts.ofProvince(adcode);
@@ -127,7 +141,8 @@ public class FarmMapService {
     /** 单区县详情：气候、四作物评级与当前物候、我的农场。 */
     @Transactional(readOnly = true)
     public Map<String, Object> districtDetail(Long userId, int adcode) {
-        Map<String, Object> m = districtCrops.detail(adcode, LocalDate.now());
+        // 🔴 2026-10-23：同 districtMap —— 用世界日期，不用现实日期。
+        Map<String, Object> m = districtCrops.detail(adcode, userWorldDate(userId));
         if (m == null) {
             throw new BusinessException("未找到该区县：" + adcode);
         }
@@ -174,6 +189,23 @@ public class FarmMapService {
      */
     @Transactional
     public Map<String, Object> create(Long userId, int adcode, String name) {
+        return create(userId, adcode, name, null);
+    }
+
+    /**
+     * 在地图上选点建农场（可指定开垦日期）。
+     *
+     * <p><b>开垦日期不能早于今天</b>（2026-10-22 需求）：农场是在「某个时候」
+     * 开垦的，往前填日期会让农时起点凭空提前，还可能与已有地块的季次冲突。
+     *
+     * <p>基准是<b>用户级世界日期</b>（{@link FarmUserClockService}），不是 {@code LocalDate.now()}——
+     * 演示模式下世界日期被推进过，用现实日期会把玩家已推进的那一季判成非法。
+     *
+     * <p>🔴 2026-10-26：原来这里写的是「用户级最靠后的地块日期」——
+     * 那正是「plot27 偏移污染全用户」的根因，已改为只读用户级时钟。
+     */
+    @Transactional
+    public Map<String, Object> create(Long userId, int adcode, String name, LocalDate openedOn) {
         DistrictIndex.District d = districts.get(adcode)
                 .orElseThrow(() -> new BusinessException("未知区县代码：" + adcode));
         FarmStead exist = steadRepo.findByUserIdAndAdcode(userId, adcode).orElse(null);
@@ -184,6 +216,13 @@ public class FarmMapService {
         }
         if (steadRepo.countByUserId(userId) >= MAX_FARMS) {
             throw new BusinessException("农场数量已达上限（" + MAX_FARMS + " 个）");
+        }
+        // 开垦日期校验：不得早于世界日期
+        // 🔴 2026-10-26：改走用户级时钟，不再从地块反推
+        LocalDate minDate = clock.today(userId);
+        LocalDate opened = openedOn == null ? minDate : openedOn;
+        if (opened.isBefore(minDate)) {
+            throw new BusinessException("开垦日期不能早于今天（" + minDate + "）");
         }
         String zoneId = districtCrops.zoneOf(d);
         FarmStead s = new FarmStead();
@@ -196,6 +235,7 @@ public class FarmMapService {
         s.setLng(d.lng());
         s.setLat(d.lat());
         s.setZoneId(zoneId);
+        s.setOpenedOn(opened);
         steadRepo.save(s);
 
         Map<String, Object> m = farmView(userId, s, true);
@@ -291,7 +331,11 @@ public class FarmMapService {
         out.put("farms", farms);
         out.put("unassigned", unassigned);
         out.put("summary", summary);
-        out.put("today", LocalDate.now().toString());
+        // 🔴 S25：这里必须给**世界日期**而不是 LocalDate.now()——
+        // 演示模式下玩家已推进过时间轴，真实「今天」可能已经是 2027 年。
+        // 前端建农场/种庄稼的日期选择器要用它来禁用「今天之前」的日期。
+        // 🔴 2026-10-26：改走用户级时钟（唯一来源），不再从地块反推。
+        out.put("today", clock.today(userId).toString());
         return out;
     }
 
@@ -301,7 +345,8 @@ public class FarmMapService {
         FarmStead s = steadRepo.findByIdAndUserId(farmId, userId)
                 .orElseThrow(() -> new BusinessException("农场不存在"));
         Map<String, Object> m = farmView(userId, s, true);
-        Map<String, Object> d = districtCrops.detail(s.getAdcode(), LocalDate.now());
+        // 🔴 2026-10-23：同 districtMap —— 用世界日期，不用现实日期。
+        Map<String, Object> d = districtCrops.detail(s.getAdcode(), userWorldDate(userId));
         if (d != null) {
             m.put("district", d);
         }
@@ -348,6 +393,10 @@ public class FarmMapService {
         m.put("zoneId", s.getZoneId());
         m.put("zoneName", ClimateModel.zone(s.getZoneId()).name());
         m.put("createdAt", s.getCreatedAt() == null ? null : s.getCreatedAt().toString());
+        // 开垦日期（S25）：老农场没有这个值 → 退化为世界日期（前端显示「今天」）
+        m.put("openedOn", s.getOpenedOn() == null
+                ? farmWorldDate(userId, s.getId()).toString()
+                : s.getOpenedOn().toString());
         m.put("plotCount", plotRepo.countByUserIdAndFarmId(userId, s.getId()));
         // 当前天气（2026-10-22 需求 O）：地图悬浮面板要显示「这个农场今天什么天气」。
         // 天气按农场所在农业区取，与地块用的是同一份数据源（FarmWeather）。
@@ -392,22 +441,39 @@ public class FarmMapService {
     }
 
     /**
-     * 农场的世界日期 = 该农场下所有地块里<b>最靠后</b>的那个有效日期。
+     * 农场的世界日期 = <b>用户级</b>世界日期。
      *
-     * <p>演示模式下每块地的偏移量独立（有的推进了 334 天，有的没推进），
-     * 悬浮面板只显示一份天气，所以取最靠后的那天——
-     * 与玩家在 3D 场景里看到的最新日期对齐。
+     * <p>🔴 2026-10-26：原先是「该农场下所有地块里最靠后的那个有效日期」。
+     * 那个口径有两个问题：
+     * <ol>
+     *   <li><b>口径分裂</b>：同一个农场，地图面板显示的日期可能和仓库老化基准
+     *       （用户级）不是同一天 → 玩家看到「仓库里刚收的菜已经开始变质」；
+     *   <li><b>污染扩散</b>：任何一块无关地块的残留偏移会把整个农场面板的日期带偏。</li>
+     * </ol>
      *
-     * <p>没有地块的农场（或全部未种植）：退回真实今天。
+     * <p>现在两级时钟已分离（用户级世界日期 vs 地块级生长时钟），
+     * 农场面板显示的「今天」是<b>用户级</b>语义 → 直接取用户级时钟。
+     * 地块各自的生长进度仍在 {@code FarmPlayService.growthToday} 里按地块算。
      */
     private LocalDate farmWorldDate(Long userId, Long farmId) {
-        LocalDate max = null;
-        for (FarmPlot p : plotRepo.findByUserIdAndFarmIdOrderBySlotAsc(userId, farmId)) {
-            LocalDate d = play.effectiveToday(p);
-            if (d != null && (max == null || d.isAfter(max))) {
-                max = d;
-            }
-        }
-        return max == null ? LocalDate.now() : max;
+        return clock.today(userId);
+    }
+
+    /**
+     * <b>用户级</b>世界日期。
+     *
+     * <p>🔴 <b>2026-10-23 新增</b>，<b>2026-10-26 改口径</b>。
+     *
+     * <p>用途：区县地图的作物概览（{@code districtMap} / {@code districtDetail}）
+     * 与农场详情里的区县信息，都是<b>账号级</b>的视图，不属于某个具体农场，
+     * 所以要用用户级日期，否则地图上的物候会和玩家自己的地块对不上。
+     *
+     * <p>🔴 原实现是「该用户所有地块里最靠后的那个日期」——
+     * 正是 2026-10-25「plot27 残留偏移污染全用户」的根因。
+     * 现在改读 {@link FarmUserClockService}，与 {@code FarmPlayService#userToday(Long)}
+     * 完全同源，避免两处算出两个「今天」。
+     */
+    private LocalDate userWorldDate(Long userId) {
+        return clock.today(userId);
     }
 }

@@ -19,6 +19,8 @@ import com.learning.springboot.service.GameService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -77,19 +79,27 @@ public class FarmPlayService {
             case "wheat_winter" -> 2.40;
             case "corn_spring" -> 2.30;
             case "soybean" -> 5.00;
+            case "millet" -> 3.20;
             // 蔬菜
             case "cabbage" -> 1.20;
             case "tomato" -> 4.50;
             case "cucumber" -> 3.20;
             case "chili" -> 6.00;
+            case "eggplant" -> 3.60;
+            case "yardlong_bean" -> 6.00;
+            case "radish" -> 1.50;
+            case "potato" -> 1.60;
             // 水果
             case "strawberry" -> 20.00;
             case "watermelon" -> 2.00;
             case "melon" -> 5.00;
+            case "grape" -> 12.00;
+            case "pear" -> 5.00;
             // 花卉
             case "chrysanthemum" -> 15.00;
             case "sunflower" -> 8.00;
             case "tulip" -> 25.00;
+            case "rose" -> 18.00;
             default -> RICE_PRICE;
         };
     }
@@ -97,8 +107,13 @@ public class FarmPlayService {
     /** 可收获的 DVS 门槛（黄熟期起点） */
     private static final double HARVEST_DVS = 0.92;
 
-    /** 演示推进上限：约 10 年，够跑十季；1:1 正式模式不生效 */
-    private static final int MAX_DEMO_OFFSET_DAYS = 3650;
+    /**
+     * 单块地的面积（亩）——S24 仓库入库量换算用。
+     *
+     * <p>本项目的产量口径是「kg/亩」，每块地统一按 1 亩计。
+     * 若将来支持大地块，只需改这一处。
+     */
+    public static final double PLOT_AREA_MU = 1.0;
 
     /** 江西中稻适宜播期窗口（4/20 – 6/20），窗口外重开会自动落到下一个 5/20 */
     private static final java.time.MonthDay SOW_START = java.time.MonthDay.of(4, 20);
@@ -111,11 +126,50 @@ public class FarmPlayService {
 
     private final FarmPlotRepository plotRepo;
     private final FarmSteadRepository steadRepo;
-    private final FarmWeatherMockRepository mockRepo;
     private final FarmActionRepository actionRepo;
     private final FarmSeasonRepository seasonRepo;
+    /**
+     * 仓库服务（2026-10-26）：收割入库走它，校验（kg&gt;0、品质折价上下界）才生效。
+     *
+     * <p>⚠️ 依赖方向仍是单向的：{@code Play → Warehouse → Shop → Stock}。
+     * 不要让 {@code FarmWarehouseService} 反过来依赖 {@code FarmPlayService} ——
+     * 那样就成环了（application.yml 未开 {@code allow-circular}）。
+     */
+    private final FarmWarehouseService warehouseService;
+    /** 农资库存服务（S25）：施用时扣库存 */
+    private final FarmStockService stockService;
+    /**
+     * 商店服务（2026-10-23 需求 R）：种子门槛、灌溉用水、农具加成、余额。
+     *
+     * <p>⚠️ 依赖方向：{@code Play → Shop → Stock}。不要让 Shop 反过来依赖 Play，
+     * 否则构造器注入成环（application.yml 未开 allow-circular）。
+     */
+    private final FarmShopService shopService;
     private final FarmWeather weather;
     private final GameService gameService;
+    /**
+     * 事件发布器（S2）：用于广播「模拟天气已变更」，让读侧丢弃回放缓存。
+     *
+     * <p>🔴 为什么不是直接调 {@code mockWeatherService.invalidateSim()}：
+     * 直接调用会让读侧与写侧产生编译期双向依赖 —— 写侧要知道读侧的方法名，
+     * 读侧也要知道谁会触发它。改成事件后，两边都只认事件契约。
+     * 将来真拆成微服务时，这个事件类可以直接改成 MQ 消息，调用方无需改动。
+     */
+    private final ApplicationEventPublisher eventPublisher;
+    /**
+     * 农艺目录服务（S3）：区域列表 / 作物库 / 适宜性评级 / 种植风险。
+     *
+     * <p>🔴 依赖方向：{@code Play → Catalog}（单向）。Catalog 不依赖 Play ——
+     * 它回答「农业知识是什么」，与「玩家这块地怎么样了」是两条独立的线。
+     */
+    private final FarmCatalogService catalog;
+    /**
+     * 用户级世界时钟（2026-10-26）：用户级「今天」的唯一来源。
+     *
+     * <p>🔴 修复前用户级日期是从地块反推的（「取最靠后的那块地」），
+     * 导致一个无关地块的偏移能污染全用户 —— 见 {@link FarmUserClockService} 类注释。
+     */
+    private final FarmUserClockService clock;
     /** 默认作物（老数据没有 crop_id 时按水稻处理） */
     private static final CropConfig DEFAULT_CROP = RiceConfig.indicaMidSeason();
 
@@ -162,26 +216,40 @@ public class FarmPlayService {
 
     public FarmPlayService(FarmPlotRepository plotRepo,
                            FarmSteadRepository steadRepo,
-                           FarmWeatherMockRepository mockRepo,
                            FarmActionRepository actionRepo,
                            FarmSeasonRepository seasonRepo,
                            FarmWeather weather,
-                           GameService gameService) {
+                           GameService gameService,
+                           FarmWarehouseService warehouseService,
+                           FarmStockService stockService,
+                           FarmShopService shopService,
+                           FarmCatalogService catalog,
+                           FarmUserClockService clock,
+                           ApplicationEventPublisher eventPublisher) {
         this.plotRepo = plotRepo;
         this.steadRepo = steadRepo;
-        this.mockRepo = mockRepo;
         this.actionRepo = actionRepo;
         this.seasonRepo = seasonRepo;
         this.weather = weather;
         this.gameService = gameService;
-        // 启动时按 userId 分组, 把所有用户的 mock 灌入内存。
-        // 注意: ApplicationReadyEvent 之后所有 mock 写入都会走 applyMock/resetMock,
-        // 内存层与 DB 始终一致, 不需要再监听。
-        java.util.Map<Long, java.util.List<FarmWeatherMock>> byUser = new java.util.HashMap<>();
-        for (FarmWeatherMock m : mockRepo.findAll()) {
-            byUser.computeIfAbsent(m.getUserId(), k -> new java.util.ArrayList<>()).add(m);
-        }
-        byUser.forEach(weather::loadUserMocks);
+        this.warehouseService = warehouseService;
+        this.stockService = stockService;
+        this.shopService = shopService;
+        this.catalog = catalog;
+        this.clock = clock;
+        this.eventPublisher = eventPublisher;
+    }
+
+    /**
+     * 模拟天气变更 → 丢弃该用户的回放缓存（S2）。
+     *
+     * <p>🔴 <b>这个监听器不能删</b>：天气变了但回放缓存没清，玩家注入一段高温后
+     * 面板上看到的还是注入前的旧 DVS —— 表现为「点了没反应」。
+     * 抽取 {@code MockWeatherService} 时如果忘了接上事件，就会引入这个回归。
+     */
+    @EventListener
+    public void onMockWeatherChanged(FarmMockWeatherChangedEvent event) {
+        invalidateSim(event.userId());
     }
 
     // ==================================================================
@@ -247,14 +315,19 @@ public class FarmPlayService {
             FarmPlot empty = new FarmPlot();
             empty.setUserId(userId);
             empty.setSlot(slot);
-            empty.setSowDate(LocalDate.now());
+            // 🔴 M1：走用户级世界日期，不再用现实日期
+            empty.setSowDate(userToday(userId));
             empty.setZoneChosen(false);
             empty.setSeasons(0);
             empty.setBestYield(0.0);
-            empty.setDemoOffsetDays(0);
+            // 🔴 2026-10-26：demoOffsetDays 是用户级时钟的镜像
+            empty.setDemoOffsetDays(clock.offsetDays(userId));
+            // 🔴 2026-10-23：本季独立时钟归零（见 FarmWorldDate.growthToday）
+            empty.setSeasonProgressDays(0);
             return plotRepo.save(empty);
         }
-        LocalDate today = LocalDate.now();
+        // 🔴 M1：走用户级世界日期，不再用现实日期
+        LocalDate today = userToday(userId);
         LocalDate bestSow = null;
         double bestScore = Double.MAX_VALUE;
 
@@ -286,6 +359,8 @@ public class FarmPlayService {
         plot.setSeasons(0);
         plot.setBestYield(0.0);
         plot.setDemoOffsetDays(0);
+        plot.setSeasonProgressDays(0);
+        // 🔴 2026-10-23：本季独立时钟归零（见 FarmWorldDate.growthToday）
         FarmPlot saved = plotRepo.save(plot);
         log.info("[稼穑] 用户 {} 接手地块：播种日 {}（今日 {}）", userId, bestSow, today);
         return saved;
@@ -308,14 +383,29 @@ public class FarmPlayService {
         if (sow == null) {
             return new GerminationEngine.Result(1.0, 0, 0, false, null, null, List.of());
         }
-        LocalDate today = effectiveToday(plot);
+        LocalDate today = growthToday(userId, plot);
         if (sow.isAfter(today)) {
             // 还没播：出苗率未知，按 100% 处理
             return new GerminationEngine.Result(1.0, 0, 0, false, null, null, List.of());
         }
-        int span = (int) Math.min(GerminationEngine.EMERGENCE_WINDOW + GerminationEngine.SEEDLING_WINDOW,
-                ChronoUnit.DAYS.between(sow, today));
-        List<DayWeather> days = weather.range(userId, zoneOf(plot), sow, sow.plusDays(Math.max(0, span)));
+        // 🔴 2026-10-26 修复 M3：出苗窗口不能随「已过天数」收缩。
+        //
+        // 原实现：span = min(出苗窗口+苗期窗口, sow→today 的天数)。
+        // 建田当天 span = 0 → 只取到播种日 1 天的天气 → 出苗率被**单日天气**决定：
+        //   那天恰好一场大雨 → waterMm 暴增 / 或恰好干旱 → rate 被单日打崩
+        //   → 玩家刚建田就看到「出苗率 0%，缺苗 100%」，与事实完全不符。
+        //
+        // 正确语义：**出苗率是「这一季会怎样」的预判**，应当用完整的出苗窗口
+        // （播种后 12 天的天气）来评估，而不是只用「到今天为止」的那几天。
+        // 这样「刚建田」与「种了 12 天」看到的出苗率一致 —— 它本来就是同一个季的结论。
+        //
+        // 苗期窗口（枯死判定）仍按实际已过天数取 —— 未来的天气还没发生，不能判枯死。
+        int elapsed = (int) Math.max(0, ChronoUnit.DAYS.between(sow, today));
+        int emergenceSpan = GerminationEngine.EMERGENCE_WINDOW;
+        int seedlingSpan = Math.min(GerminationEngine.SEEDLING_WINDOW,
+                Math.max(0, elapsed - emergenceSpan));
+        int span = Math.max(0, emergenceSpan + seedlingSpan);
+        List<DayWeather> days = weather.range(userId, zoneOf(plot), sow, sow.plusDays(span));
         try {
             return GerminationEngine.evaluate(days, crop);
         } catch (Exception e) {
@@ -447,11 +537,19 @@ public class FarmPlayService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> plotSummaries(Long userId) {
         List<Map<String, Object>> out = new ArrayList<>();
+        // 农场名 → 地块归属：前端要按「当前农场」过滤地块切换条，
+        // 名字得跟 farmId 一起过去。前端不必再单独拉一次农场详情
+        // （detail() 会跑一整轮 SimEngine 回放，只为拿个名字太贵）。
+        java.util.Map<Long, String> farmNames = new java.util.HashMap<>();
+        for (FarmStead s : steadRepo.findByUserIdOrderByIdAsc(userId)) {
+            farmNames.put(s.getId(), s.getName());
+        }
         for (FarmPlot p : listPlots(userId)) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("slot", p.getSlot());
             m.put("plotId", p.getId());
             m.put("farmId", p.getFarmId());
+            m.put("farmName", p.getFarmId() == null ? null : farmNames.get(p.getFarmId()));
             m.put("cropId", p.getCropId());
             m.put("fieldName", p.getFieldName());
             m.put("zoneId", p.getZoneId());
@@ -474,7 +572,7 @@ public class FarmPlayService {
             WeedEngine.Result wr = null;
             SimEngine.SimResult sim = null;
             if (chosen && p.getSowDate() != null) {
-                LocalDate today = effectiveToday(p);
+                LocalDate today = growthToday(userId, p);
                 if (!p.getSowDate().isAfter(today)) {
                     sim = safeReplay(userId, p, p.getSowDate(), today);
                     if (sim != null) {
@@ -605,7 +703,7 @@ public class FarmPlayService {
     public FarmView view(Long userId, int slot) {
         FarmPlot plot = getOrCreate(userId, slot);
         CropConfig crop = cropOf(plot);
-        LocalDate today = effectiveToday(plot);
+        LocalDate today = growthToday(userId, plot);
 
         // 🔴 2026-10-22：待播种的地块（收完一季等玩家选下一季）没有"本季"可看，
         // 走专门的分支返回，避免把空地的零值当成"刚种下、什么都还没长"渲染给玩家。
@@ -619,7 +717,7 @@ public class FarmPlayService {
         }
 
         PestEngine.Result pr = pests(userId, plot, r, today);
-        DisasterEngine.Result dr = disasters(userId, plot, r);
+        DisasterEngine.Result dr = disasters(userId, plot, r, today);
         SoilEngine.Result sr = soil(userId, plot, r, today);
         List<FarmAction> acts = seasonActions(userId, plot, plot.getSowDate(), today);
         List<OpChain.Step> chain = OpChain.build(plot.getSowDate(), r.dvsByDay(), acts,
@@ -628,7 +726,8 @@ public class FarmPlayService {
         GerminationEngine.Result ger = germination(userId, plot, crop);
         // 杂草压力（2026-10-22 需求 O）：争水争光争肥，折进产量
         WeedEngine.Result wr = weeds(userId, plot, r, today);
-        Yields y = yields(r, pr, dr, sr, chain, crop, ger, wr);
+        // 🔴 2026-10-23 需求 R：农具加成（温室提产量 / 滴灌减干旱 / 烘干机提品质）
+        Yields y = yields(r, pr, dr, sr, chain, crop, ger, wr, toolBonusOf(userId));
 
         String zoneId = zoneOf(plot);
         DayWeather w = weather.forDate(userId, zoneId, today);
@@ -711,7 +810,7 @@ public class FarmPlayService {
             log.debug("[稼穑] 取历史成绩失败（不影响主流程）: {}", e.getMessage());
         }
 
-        SuitabilityEngine.Report suit = suitabilityOf(zoneId, plot.getSowDate(), cropIdOf(plot));
+        SuitabilityEngine.Report suit = catalog.suitabilityOf(zoneId, plot.getSowDate(), cropIdOf(plot));
 
         return new FarmView(
                 today.toString(),
@@ -803,7 +902,7 @@ public class FarmPlayService {
 
         // 适区评级：按「上一季的作物 + 上次的播期」给一份参考。
         // 玩家下一步会重新选作物与播期，这里只是让他知道这块地大概是什么条件。
-        SuitabilityEngine.Report suit = suitabilityOf(zoneId,
+        SuitabilityEngine.Report suit = catalog.suitabilityOf(zoneId,
                 plot.getSowDate() == null ? today : plot.getSowDate(), cropIdOf(plot));
 
         List<String> changes = new ArrayList<>();
@@ -923,6 +1022,24 @@ public class FarmPlayService {
      * <p>🔴 <b>正式版必须关闭</b>（{@code farm.demo-mode=false}）。
      * 1:1 实时下"推进时间"违反基线 D2「禁止任何形式的时间加速」。
      * 这里存在的唯一理由是：平台是通用学习系统，玩家不会为了看一季稻子等 140 天。
+     *
+     * <h2>🔴 2026-10-26：推进要同时走**两个时钟</h2>
+     *
+     * <p>修复前，用户级的「今天」是「取所有地块里最靠后的那个」，
+     * 所以「推进时间」这个动作只能写到<b>某一块地</b>上 ——
+     * 推进 A 地不影响仓库老化（因为 B 地的偏移更大，取的是 B），
+     * 推进 B 地又会把 A 的世界日期带偏。<b>用户的直觉完全落空</b>。
+     *
+     * <p>现在推进是<b>用户级</b>的：
+     * <ul>
+     *   <li>{@code clock.advance(userId, days)} → <b>用户级世界日期</b>前进
+     *       （仓库老化 / 天气取段 / 推荐播期 全部同步）；</li>
+     *   <li>{@code seasonProgressDays += days} → <b>目标地块的生长时钟</b>前进
+     *       （这株作物长到第几天）；</li>
+     *   <li>所有地块的 {@code demoOffsetDays} 同步为新的用户偏移
+     *       —— 它退化为用户级时钟的<b>冗余镜像</b>，
+     *       不再是「谁被推进了」的独立状态，也就不会再出现口径分裂。</li>
+     * </ul>
      */
     @Transactional
     public Map<String, Object> advance(Long userId, int slot, int days) {
@@ -934,16 +1051,27 @@ public class FarmPlayService {
             throw new BusinessException("单次推进 1–60 天");
         }
         FarmPlot plot = getOrCreate(userId, slot);
-        int next = plot.getDemoOffsetDays() + days;
-        if (next > MAX_DEMO_OFFSET_DAYS) {
-            throw new BusinessException("演示推进已达上限（约 10 年），请重开一季");
+
+        // ① 用户级时钟前进（唯一的世界日期来源）
+        int userOffset = clock.advance(userId, days);
+
+        // ② 目标地块的生长时钟前进
+        plot.setSeasonProgressDays((plot.getSeasonProgressDays() == null ? 0 : plot.getSeasonProgressDays()) + days);
+
+        // ③ 地块的 demoOffsetDays 退化为用户级时钟的镜像（保持各地块一致）
+        for (FarmPlot p : plotRepo.findByUserIdOrderBySlotAsc(userId)) {
+            p.setDemoOffsetDays(userOffset);
+            if (p.getId() == null || !p.getId().equals(plot.getId())) {
+                plotRepo.save(p);
+            }
         }
-        plot.setDemoOffsetDays(next);
+        plot.setDemoOffsetDays(userOffset);
         plotRepo.save(plot);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
-        out.put("worldDate", effectiveToday(plot).toString());
+        out.put("worldDate", userToday(userId).toString());
+        out.put("growthDate", growthToday(userId, plot).toString());
         out.put("note", "演示用推进，非游戏功能");
         return out;
     }
@@ -971,8 +1099,12 @@ public class FarmPlayService {
             throw new BusinessException("这块地当前没有在长的作物，无需结季");
         }
         CropConfig crop = cropOf(plot);
-        LocalDate today = effectiveToday(plot);
-        SimEngine.SimResult r = replay(userId, plot, plot.getSowDate(), today);
+        LocalDate today = growthToday(userId, plot);
+        // 🔴 2026-10-25：本季原始播种日必须在改写 plot.sowDate 之前抓住。
+        // 下面会 setSowDate(today) 把地块切到下一季，
+        // 若之后再拿 plot.getSowDate() 算本季天数，会永远得到 today-today=0 → 天数恒为 1。
+        LocalDate seasonSowDate = plot.getSowDate();
+        SimEngine.SimResult r = replay(userId, plot, seasonSowDate, today);
         if (r == null) {
             throw new BusinessException("地块数据异常：无法回放天气");
         }
@@ -987,7 +1119,7 @@ public class FarmPlayService {
 
         // 沉没成本：本季已经花出去的农资照记
         double inputCost = 0;
-        for (FarmAction a : seasonActions(userId, plot, plot.getSowDate(), today)) {
+        for (FarmAction a : seasonActions(userId, plot, seasonSowDate, today)) {
             if (a.getCost() != null) {
                 inputCost += a.getCost();
             }
@@ -1026,7 +1158,10 @@ public class FarmPlayService {
         // 地块进入待播种
         plot.setZoneChosen(false);
         plot.setAwaitingSow(true);
-        plot.setDemoOffsetDays(0);
+        // 🔴 2026-10-26：demoOffsetDays 是用户级时钟的镜像，不能清零
+        plot.setDemoOffsetDays(clock.offsetDays(userId));
+        plot.setSeasonProgressDays(0);
+        // 🔴 2026-10-23：本季独立时钟归零（见 FarmWorldDate.growthToday）
         plot.setSowDate(today);
         plot.setSeasonStartedAt(java.time.LocalDateTime.now());
         plotRepo.save(plot);
@@ -1041,7 +1176,10 @@ public class FarmPlayService {
         out.put("failed", true);
         out.put("yieldKgPerMu", 0);
         out.put("dvs", round(r.dvs(), 3));
-        out.put("days", (int) ChronoUnit.DAYS.between(plot.getSowDate(), today) + 1);
+        // 🔴 2026-10-25：用 seasonSowDate（本季原始播种日）算天数，
+        // 不用已被改写成 today 的 plot.getSowDate()，否则恒为 1。
+        int seasonDays = (int) ChronoUnit.DAYS.between(seasonSowDate, today) + 1;
+        out.put("days", seasonDays);
         out.put("germination", ger == null ? null : round(ger.rate(), 3));
         out.put("withered", withered);
         out.put("failureType", failureType);
@@ -1063,7 +1201,7 @@ public class FarmPlayService {
         invalidateSim(userId);
         FarmPlot plot = getOrCreate(userId, slot);
         CropConfig crop = cropOf(plot);
-        LocalDate today = effectiveToday(plot);
+        LocalDate today = growthToday(userId, plot);
         SimEngine.SimResult r = replay(userId, plot, plot.getSowDate(), today);
         if (r == null) {
             throw new BusinessException("地块数据异常：无法回放天气");
@@ -1079,7 +1217,7 @@ public class FarmPlayService {
         }
 
         PestEngine.Result pr = pests(userId, plot, r, today);
-        DisasterEngine.Result dr = disasters(userId, plot, r);
+        DisasterEngine.Result dr = disasters(userId, plot, r, today);
         SoilEngine.Result sr = soil(userId, plot, r, today);
         List<FarmAction> acts = seasonActions(userId, plot, plot.getSowDate(), today);
         List<OpChain.Step> chain = OpChain.build(plot.getSowDate(), r.dvsByDay(), acts,
@@ -1088,7 +1226,7 @@ public class FarmPlayService {
         GerminationEngine.Result gerEarly = germination(userId, plot, crop);
         // 杂草压力（2026-10-22 需求 O）：收割时的最终产量也要扣杂草的争水争肥
         WeedEngine.Result wrEarly = weeds(userId, plot, r, today);
-        Yields y = yields(r, pr, dr, sr, chain, crop, gerEarly, wrEarly);
+        Yields y = yields(r, pr, dr, sr, chain, crop, gerEarly, wrEarly, toolBonusOf(userId));
         double yield = round(y.ey(), 1);
         int days = (int) ChronoUnit.DAYS.between(plot.getSowDate(), today) + 1;
 
@@ -1216,9 +1354,15 @@ public class FarmPlayService {
         //
         // demoOffsetDays 的自洽性：这里把偏移清零、sowDate 设为今天——
         // 待播种期间没有"本季"可回放，等玩家选完作物后 createField 会重设两者。
+        //
+        // 🔴 2026-10-26：demoOffsetDays 现在是**用户级时钟的镜像**，不再是独立状态。
+        // 所以这里不能清零（清零会让它与用户时钟分裂，又回到「两处算出两个今天」），
+        // 必须重置为当前的用户级偏移。
         plot.setZoneChosen(false);
         plot.setAwaitingSow(true);
-        plot.setDemoOffsetDays(0);
+        plot.setDemoOffsetDays(clock.offsetDays(userId));
+        plot.setSeasonProgressDays(0);
+        // 🔴 2026-10-23：本季独立时钟归零（见 FarmWorldDate.growthToday）
         plot.setSowDate(today);
         plot.setSeasonStartedAt(java.time.LocalDateTime.now());
         plotRepo.save(plot);
@@ -1228,6 +1372,38 @@ public class FarmPlayService {
                 inputCost, revenue, extra,
                 withered ? FarmSeason.Status.FAILED : FarmSeason.Status.HARVESTED,
                 failureType, failureNote);
+
+        // 🔴 S24（需求 P）：收获物**入库**，不直接折钱。
+        //
+        // 原来收割就把产量 × 单价算成 revenue 一次性结清，玩家没有「什么时候卖」的决策。
+        // 现在：收割 → 入库 → 玩家在仓库里自己选时机变卖。
+        // 入库量按「亩产 × 面积」算；本项目每块地按 1 亩计（亩产口径本就是 kg/亩）。
+        //
+        // ⚠️ 入库日期必须用**用户级**世界日期（FarmWarehouseService 的老化基准就是它）。
+        // 用地块自己的日期会出「刚收的菜秒变已变质」——因为别的地块可能推进得更远。
+        //
+        // 🔴 2026-10-26：这里改走 FarmUserClockService（用户级时钟的唯一入口），
+        // 不再从地块反推 —— 那正是「plot27 偏移 660 天污染全用户」的根因。
+        double storedKg = round(yield * PLOT_AREA_MU, 1);
+        if (storedKg > 0) {
+            LocalDate storeDate = userToday(userId);
+            // 农残超标的粮收购价打 0.85 折 —— 这个折价是**入库时就注定**的，
+            // 必须固化到批次上，否则玩家会看到「收割提示净收益 X 元，
+            // 仓库里却卖不出这个价」，两次提示自相矛盾。
+            //
+            // 🔴 2026-10-23 需求 R：粮食烘干机提升入库品质。
+            // 现实中烘干降低含水率 → 仓储期更难变质 → 售价更高。
+            // 这里乘在 qualityFactor 上（与农残折价相乘，不是相加——
+            // 农残是硬伤，烘干救不了）。
+            //
+            // 🔴 2026-10-26：改调 {@code FarmWarehouseService.store()}，
+            // 不再手工构造实体 —— 手工构造会绕过该方法里的
+            // 「kg<=0 拦截」与「qualityFactor 上下界校验」，导致入库校验形同虚设。
+            // 依赖方向 FarmPlayService → FarmWarehouseService → FarmShopService，不成环。
+            warehouseService.store(userId, cropIdOf(plot), crop.name(), plot.getZoneId(),
+                    plot.getId(), plot.getFarmId(), storedKg, storeDate,
+                    round(priceFactor * toolBonusOf(userId).qualityFactor(), 4));
+        }
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
@@ -1241,6 +1417,12 @@ public class FarmPlayService {
         out.put("inputCost", inputCost);
         out.put("revenue", revenue);
         out.put("net", round(revenue - inputCost, 1));
+        // S24：这次收获进仓库了（钱要等玩家自己变卖）
+        out.put("storedKg", storedKg);
+        out.put("warehouseStored", storedKg > 0);
+        out.put("warehouseNote", storedKg > 0
+                ? "已入仓 " + storedKg + " kg。去仓库看看什么时候卖合算——放久了会变质，囤多了会压价。"
+                : null);
         out.put("phiViolated", phiViolated);
         out.put("phiItem", phiItem);
         out.put("phiViolations", phiViolations);
@@ -1268,15 +1450,29 @@ public class FarmPlayService {
     /**
      * 重开一季（提前放弃当前作物）：不记成绩。
      *
-     * <p>演示模式下播种日会落到**最近的水稻适宜播期**（4/20–6/20，取 5/20），
-     * 而不是"今天"——否则在 10 月重开，整季都撞在低温里，积温几乎不涨，
-     * 玩家会看到"过了 60 天还是秧苗"，与真实的 130–140 天生育期完全对不上。
+     * <p>🔴 2026-10-26 修复 M2：<b>本方法的注释与行为自相矛盾</b>，现已对齐。
+     *
+     * <p><b>原注释</b>说：「演示模式下播种日会落到<b>最近的水稻适宜播期</b>（4/20–6/20，取 5/20）」。
+     * <b>原行为</b>却是：{@code sowDate = LocalDate.now()}（现实日期），
+     * 且 2026-10-22 已经改成「回到待播种，由玩家自己选作物与播期」。
+     * 注释承诺的行为在 2026-10-22 就被移除了，但注释没跟着改 ——
+     * 后来者读注释会以为「重开会自动定好播期」，从而做出错误假设。
+     *
+     * <p><b>现在的口径（以行为为准）</b>：
+     * <ul>
+     *   <li>重开 = 放弃本季 → 回到「待播种」，<b>不替玩家定作物与播期</b>；</li>
+     *   <li>播种日重置为<b>用户级世界日期</b>（不是现实日期）：
+     *       演示模式下玩家已推进过时间轴，用现实日期会让「今天」和地块对不上；</li>
+     *   <li>返回值里的 {@code worldDate} 也必须是用户级世界日期，
+     *       否则前端头部显示的日期与地块显示的日期会打架。</li>
+     * </ul>
      */
     @Transactional
     public Map<String, Object> restart(Long userId, int slot) {
         invalidateSim(userId);
         FarmPlot plot = getOrCreate(userId, slot);
-        LocalDate real = LocalDate.now();
+        // 🔴 M2：走用户级世界日期，不再用现实日期
+        LocalDate real = userToday(userId);
 
         // 旧的一季标记为「放弃」（2026-10-22）：重开是玩家的主动决定，
         // 历史档案里要如实体现，不能让它一直挂在 GROWING。
@@ -1294,7 +1490,10 @@ public class FarmPlayService {
         // 原来这里把播种日钉到"最近的水稻适宜播期"，等于替玩家把两件事都定了。
         plot.setZoneChosen(false);
         plot.setAwaitingSow(true);
-        plot.setDemoOffsetDays(0);
+        // 🔴 2026-10-26：demoOffsetDays 是用户级时钟的镜像，不能清零
+        plot.setDemoOffsetDays(clock.offsetDays(userId));
+        plot.setSeasonProgressDays(0);
+        // 🔴 2026-10-23：本季独立时钟归零（见 FarmWorldDate.growthToday）
         plot.setSowDate(real);
         plot.setSeasonStartedAt(java.time.LocalDateTime.now());
         plotRepo.save(plot);
@@ -1322,105 +1521,6 @@ public class FarmPlayService {
     }
 
     // ==================================================================
-    //  测试用 mock 天气
-    // ==================================================================
-
-    /**
-     * 注入一段模拟天气。🔴 演示/测试模式专用。正式部署应让 {@code farm.demo-mode=false}，
-     * Controller 闸门会拦截该请求（{@code FarmController#applyMock}）。
-     *
-     * <p>语义：把 [fromDate, toDate] 闭区间内每一天强制使用同一组 (tmax/tmin/precip)；
-     * 区间外回落到演示回放。这覆盖了"测一次连续 3 天 36℃ 高温逼熟""测一次 100mm 暴雨"
-     * 两种最常见场景。多次调用会追加（不同区间可叠加）。
-     */
-    @Transactional
-    public Map<String, Object> applyMock(Long userId, LocalDate fromDate, LocalDate toDate,
-                                         double tmax, double tmin, double precip, String label) {
-        invalidateSim(userId);
-        if (!demoMode) {
-            throw new BusinessException("演示模式未开启：正式环境不允许注入模拟天气");
-        }
-        if (fromDate == null || toDate == null || fromDate.isAfter(toDate)) {
-            throw new BusinessException("日期范围无效：from 必须 ≤ to");
-        }
-        long days = ChronoUnit.DAYS.between(fromDate, toDate) + 1;
-        if (days > 90) {
-            throw new BusinessException("单次注入区间最多 90 天（避免大面积污染回放）");
-        }
-        if (tmax < tmin) {
-            throw new BusinessException("tmax 必须 ≥ tmin");
-        }
-        if (precip < 0 || precip > 500) {
-            throw new BusinessException("precip 必须在 [0, 500] mm/天");
-        }
-
-        FarmWeatherMock m = new FarmWeatherMock();
-        m.setUserId(userId);
-        m.setFromDate(fromDate);
-        m.setToDate(toDate);
-        m.setTmax(tmax);
-        m.setTmin(tmin);
-        m.setPrecip(precip);
-        m.setLabel(label);
-        mockRepo.save(m);
-
-        // 内存层追加（与 DB 同步）
-        List<FarmWeatherMock> list = new java.util.ArrayList<>(weather.mockedSegments(userId));
-        list.add(m);
-        weather.loadUserMocks(userId, list);
-
-        log.info("[稼穑] 用户 {} 注入模拟天气: {} → {}  tmax={} tmin={} precip={}mm  ({})",
-                userId, fromDate, toDate, tmax, tmin, precip, label);
-
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true);
-        out.put("id", m.getId());
-        out.put("fromDate", fromDate.toString());
-        out.put("toDate", toDate.toString());
-        out.put("tmax", tmax);
-        out.put("tmin", tmin);
-        out.put("precip", precip);
-        out.put("label", label);
-        out.put("totalSegments", list.size());
-        return out;
-    }
-
-    /** 列出该用户当前生效的全部 mock 段。 */
-    @Transactional(readOnly = true)
-    public List<Map<String, Object>> listMocks(Long userId) {
-        List<Map<String, Object>> out = new java.util.ArrayList<>();
-        for (FarmWeatherMock m : weather.mockedSegments(userId)) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("id", m.getId());
-            row.put("fromDate", m.getFromDate().toString());
-            row.put("toDate", m.getToDate().toString());
-            row.put("tmax", m.getTmax());
-            row.put("tmin", m.getTmin());
-            row.put("precip", m.getPrecip());
-            row.put("label", m.getLabel());
-            row.put("createdAt", m.getCreatedAt() == null ? null : m.getCreatedAt().toString());
-            out.add(row);
-        }
-        return out;
-    }
-
-    /** 清空该用户的所有 mock 段（不影响其他用户）。 */
-    @Transactional
-    public Map<String, Object> resetMocks(Long userId) {
-        invalidateSim(userId);
-        if (!demoMode) {
-            throw new BusinessException("演示模式未开启");
-        }
-        int n = mockRepo.deleteByUserId(userId);
-        weather.clearUserMocks(userId);
-        log.info("[稼穑] 用户 {} 清空全部模拟天气 ({} 段)", userId, n);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true);
-        out.put("removed", n);
-        return out;
-    }
-
-    // ==================================================================
     //  农事操作（核心玩法）
     // ==================================================================
 
@@ -1436,7 +1536,7 @@ public class FarmPlayService {
         invalidateSim(userId);
         FarmPlot plot = getOrCreate(userId, slot);
         CropConfig crop = cropOf(plot);
-        LocalDate today = effectiveToday(plot);
+        LocalDate today = growthToday(userId, plot);
 
         // 施肥/打药必须走 S12（带具体农资），否则就绕过了"对的物"这道闸门
         if (type == FarmAction.Type.PESTICIDE || type == FarmAction.Type.FERTILIZE
@@ -1450,7 +1550,7 @@ public class FarmPlayService {
             throw new BusinessException("地块数据异常：无法回放");
         }
         double dvs = r.dvs();
-        validateActionWindow(type, dvs, crop);
+        validateActionWindow(type, dvs, crop, userId);
 
         int duration = switch (type) {
             case FERTILIZE -> 7;
@@ -1467,6 +1567,48 @@ public class FarmPlayService {
         // 待播种 / 待开垦的地块没有杂草可除——放行只会让玩家对着空地除草。
         if (type == FarmAction.Type.WEED && !plot.getZoneChosen()) {
             throw new BusinessException("这块地还没种东西，没有杂草可除");
+        }
+
+        // 🔴 2026-10-23 需求 R：**灌溉要消耗水资源额度**。
+        //
+        // 「有这些东西后才能种植 或者提高农业生产效率」——
+        // 水就是那个「没有就寸步难行」的东西：没额度灌不了地，
+        // 干旱损失（SoilEngine 的 droughtLoss）就无法规避。
+        //
+        // ⚠️ **软扣减**：额度不足时照常灌溉，只给警告。
+        // 为什么不是硬拒绝？因为灌溉是「补救动作」——
+        // 玩家发现天要旱才想起来买水，如果这时候卡死，他连补救的机会都没有。
+        // 硬拒绝在这个场景下是惩罚玩家（越缺水越买不到水，越买不到水越旱）。
+        // 对比：种子是**开田前**就要检查的（那时不拦就是白占地），
+        // 水是**补救时**才检查的（这时拦就是断活路）——两者的软硬策略正好相反。
+        double waterLeft = 0;
+        boolean waterShort = false;
+        if (type == FarmAction.Type.IRRIGATE) {
+            // 三种水都是「次」为单位，直接按类别汇总
+            double have = 0;
+            for (InputCatalog.Item w : InputCatalog.waters()) {
+                have += stockService.available(userId, w.id());
+            }
+            waterLeft = have;
+            if (have + 1e-6 < 1) {
+                waterShort = true;
+            } else {
+                // 三种水按「先便宜的后贵的」顺序扣（先用自来水，省钱）
+                for (InputCatalog.Item w : InputCatalog.waters()) {
+                    if (waterLeft < 1) {
+                        break;
+                    }
+                    if (stockService.available(userId, w.id()) + 1e-6 < 1) {
+                        continue;
+                    }
+                    try {
+                        stockService.consume(userId, w.id(), 1);
+                        waterLeft -= 1;
+                    } catch (BusinessException ignored) {
+                        // 该水源没有额度，试下一个
+                    }
+                }
+            }
         }
 
         FarmAction a = new FarmAction();
@@ -1488,6 +1630,16 @@ public class FarmPlayService {
         out.put("durationDays", duration);
         out.put("dvsAtAction", round(dvs, 3));
         out.put("stage", SimEngine.phenologyAt(dvs, crop));
+        // 🔴 2026-10-23 需求 R：灌溉的水资源提示
+        if (type == FarmAction.Type.IRRIGATE) {
+            out.put("waterLeft", round(waterLeft, 1));
+            out.put("waterShort", waterShort);
+            if (waterShort) {
+                out.put("waterHint",
+                        "没有灌溉水额度了（这次没扣水）。去商店买水，否则干旱会持续减产。");
+            }
+        }
+        out.put("balance", round(shopService.balanceOf(userId), 2));
         return out;
     }
 
@@ -1535,14 +1687,30 @@ public class FarmPlayService {
      * 实际上一行都走不到。
      * 现在把这两个类型从 switch 里移除，让"死配置"不再存在。
      */
-    private void validateActionWindow(FarmAction.Type type, double dvs, CropConfig crop) {
+    private void validateActionWindow(FarmAction.Type type, double dvs, CropConfig crop, Long userId) {
+        // 🔴 2026-10-23 需求 R：农具**放宽作业窗口**。
+        //
+        // 「提高农业生产效率」最真实的含义不是「产量变多」，
+        // 而是「原来做不了/做不成的农事，现在能做」。
+        // 现实里旋耕机、无人机、播种机的价值正在于此——
+        // 它们让你在更宽的时间窗里完成作业，错过窗口的惩罚变小了。
+        //
+        // 放宽幅度：旋耕机/播种机 ±0.06 DVS（约 6~9 天），
+        // 无人机/喷雾器对施药窗口也放宽（但施药走 applyInput 通道，另算）。
+        double slack = 0.0;
+        if (userId != null) {
+            java.util.Set<String> owned = shopService.ownedToolIds(userId);
+            if (owned.contains("TOOL_TILLER") || owned.contains("TOOL_SEEDER")) {
+                slack = 0.06;
+            }
+        }
         boolean ok = switch (type) {
             case IRRIGATE -> true;
-            case DRAIN, DRY_FIELD    -> dvs >= 0.36 && dvs < 0.44;
-            case UNCOVER             -> dvs < 0.36;
-            case PUDDLE, TRANSPLANT  -> dvs < 0.06;
-            case DRAIN_FINAL         -> dvs >= 0.90;
-            case DRY_GRAIN           -> dvs >= 0.92;
+            case DRAIN, DRY_FIELD    -> dvs >= 0.36 - slack && dvs < 0.44 + slack;
+            case UNCOVER             -> dvs < 0.36 + slack;
+            case PUDDLE, TRANSPLANT  -> dvs < 0.06 + slack;
+            case DRAIN_FINAL         -> dvs >= 0.90 - slack;
+            case DRY_GRAIN           -> dvs >= 0.92 - slack;
             // 人工除草（需求 O）：全期可做。
             // 封行后杂草被郁闭自然抑制，除草收益低，但不该硬拦——
             // 玩家的直觉是"看到草就该拔"，拦住反而像 bug。
@@ -1581,7 +1749,58 @@ public class FarmPlayService {
     private Yields yields(SimEngine.SimResult r, PestEngine.Result pr,
                           DisasterEngine.Result dr, SoilEngine.Result sr,
                           List<OpChain.Step> chain, CropConfig crop) {
-        return yields(r, pr, dr, sr, chain, crop, null, null);
+        return yields(r, pr, dr, sr, chain, crop, null, null, ToolBonus.NONE);
+    }
+
+    /**
+     * 农具带来的加成（2026-10-23 需求 R）。
+     *
+     * <p><b>为什么农具要单独算，而不是塞进某个引擎</b>：农具是<b>用户级</b>的
+     * （买了就是全农场通用），而产量引擎（SimEngine）是<b>地块级</b>的。
+     * 把它做成一个「在最终折算处乘上去」的系数，是唯一不污染引擎的口子。
+     *
+     * @param yieldFactor  产量乘数（1.0 = 无加成）
+     * @param droughtRelief 干旱损失减免比例（0 = 不减免；0.5 = 干旱损失减半）
+     * @param qualityFactor 入库品质乘数（1.0 = 无加成；烘干机提升品质）
+     */
+    private record ToolBonus(double yieldFactor, double droughtRelief, double qualityFactor) {
+        static final ToolBonus NONE = new ToolBonus(1.0, 0.0, 1.0);
+    }
+
+    /**
+     * 统计用户已拥有农具带来的加成。
+     *
+     * <p>⚠️ 每次调用都要查库（农具会变），所以调用点要少。
+     * {@code yields()} 每次收割/预览只调一次，可以接受。
+     *
+     * <p><b>农具效果对照</b>：
+     * <ul>
+     *   <li>{@code TOOL_GREENHOUSE} 连栋温室 → 产量 +15%，并削弱极端天气损失</li>
+     *   <li>{@code TOOL_IRRIGATION} 滴灌系统 → 干旱损失减半（节水 18%）</li>
+     *   <li>{@code TOOL_GRAIN_DRYER} 粮食烘干机 → 入库品质 +12%（更难变质）</li>
+     *   <li>其它机械（旋耕机/播种机/喷雾器/收割机/无人机）→ 作业效率，
+     *       体现在「窗口放宽」和「漏工序惩罚减轻」，不直接乘产量</li>
+     * </ul>
+     */
+    private ToolBonus toolBonusOf(Long userId) {
+        java.util.Set<String> owned = shopService.ownedToolIds(userId);
+        if (owned.isEmpty()) {
+            return ToolBonus.NONE;
+        }
+        double yieldFactor = 1.0;
+        double droughtRelief = 0.0;
+        double quality = 1.0;
+        for (InputCatalog.Item t : InputCatalog.toolsOwned(owned)) {
+            switch (t.id()) {
+                case "TOOL_GREENHOUSE" -> yieldFactor += t.efficacy();
+                case "TOOL_IRRIGATION" -> droughtRelief = Math.max(droughtRelief, 0.5);
+                case "TOOL_GRAIN_DRYER" -> quality += t.efficacy();
+                default -> {
+                    // 作业效率类机械：放宽作业窗口（在 validateActionWindow 里生效）
+                }
+            }
+        }
+        return new ToolBonus(yieldFactor, droughtRelief, quality);
     }
 
     /**
@@ -1600,13 +1819,22 @@ public class FarmPlayService {
                           DisasterEngine.Result dr, SoilEngine.Result sr,
                           List<OpChain.Step> chain, CropConfig crop,
                           GerminationEngine.Result ger, WeedEngine.Result wr) {
+        return yields(r, pr, dr, sr, chain, crop, ger, wr, ToolBonus.NONE);
+    }
+
+    private Yields yields(SimEngine.SimResult r, PestEngine.Result pr,
+                          DisasterEngine.Result dr, SoilEngine.Result sr,
+                          List<OpChain.Step> chain, CropConfig crop,
+                          GerminationEngine.Result ger, WeedEngine.Result wr,
+                          ToolBonus tool) {
         double stem = clamp01(pr.stemLoss(), 0.60);
         double leaf = clamp01(pr.leafLoss(), 0.60);
         double grainL = clamp01(pr.grainLoss(), 0.60);
         double flower = clamp01(pr.flowerLoss(), 0.60);
 
         double dis = clamp01(dr.totalLoss(), 0.60);
-        double drought = clamp01(sr.droughtLoss(), 0.30);
+        // 🔴 2026-10-23 需求 R：滴灌系统减弱干旱损失（干旱损失 × (1 - relief)）
+        double drought = clamp01(sr.droughtLoss(), 0.30) * (1 - tool.droughtRelief());
         double waterlog = clamp01(sr.waterlogLoss(), 0.20);
         double soil = clamp01(sr.soilCoef(), 1.0);
 
@@ -1636,9 +1864,14 @@ public class FarmPlayService {
             weedLoss = clamp01(wr.waterLoss(), 0.35);
         }
         // 与 SimEngine 同一口径：除以 (1000 × weightPer)，禾谷 = 千粒重，园艺 = 单果重
+        //
+        // 🔴 2026-10-23 需求 R：农具加成在这里乘进去。
+        // · tool.yieldFactor()：设施农业（温室）→ 产量提升
+        // · tool.qualityFactor()：烘干机 → 品质提升（乘在 qualityFactor 上）
         double ey = Math.min(
                 panicles * germ * tillerMiss * grains * panicleMiss * weight * dryFieldMiss * drainMiss
-                        / (1e3 * Math.max(1, crop.weightPer())) * soil * qualityFactor * (1 - weedLoss),
+                        / (1e3 * Math.max(1, crop.weightPer())) * soil * qualityFactor * (1 - weedLoss)
+                        * tool.yieldFactor() * tool.qualityFactor(),
                 crop.yieldCap());
         if (withered) {
             // 枯死 = 整季绝收：一苗不活，穗也不会有
@@ -1685,7 +1918,7 @@ public class FarmPlayService {
         }
         FarmPlot plot = getOrCreate(userId, slot);
         CropConfig crop = cropOf(plot);
-        LocalDate today = effectiveToday(plot);
+        LocalDate today = growthToday(userId, plot);
         SimEngine.SimResult r = replay(userId, plot, plot.getSowDate(), today);
         if (r == null) {
             throw new BusinessException("地块数据异常：无法回放天气");
@@ -1805,6 +2038,23 @@ public class FarmPlayService {
             }
         }
 
+        // 🔴 S25：施用要扣农资库存。
+        //
+        // **软扣减**（库存不足只警告不阻断）而不是硬拒绝，原因是：
+        // 硬拒绝会让「库存表为空的老玩家」完全无法施药 —— 仓库系统是本次需求
+        // 才加的，他的库存表里本来就没有任何货，一刀切拒绝等于功能表现为"坏了"。
+        // 现在首次进仓库会自动补一份初始备货（FarmStockService.ensureInitialStock），
+        // 而真正库存见底时给警告提示去补货，不阻断正常操作。
+        double stockLeft = stockService.available(userId, it.id());
+        boolean stockShort = stockLeft + 1e-6 < dose;
+        if (stockShort) {
+            warnings.add("库存不足：仓库里只剩 " + trim(stockLeft) + it.unit()
+                    + " " + it.name() + "，这次要 " + trim(dose) + it.unit()
+                    + "（未扣库存，去仓库补货吧）");
+        } else {
+            stockService.consume(userId, it.id(), dose);
+        }
+
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
         out.put("itemId", it.id());
@@ -1817,6 +2067,8 @@ public class FarmPlayService {
         out.put("power", round(power, 2));
         out.put("resistance", round(resistance, 2));
         out.put("nAdded", nAdded);
+        out.put("stockLeft", stockLeft);
+        out.put("stockShort", stockShort);
         out.put("warnings", warnings);
         return out;
     }
@@ -1839,6 +2091,14 @@ public class FarmPlayService {
         double dvs = r.dvs();
         List<FarmView.InputView> out = new ArrayList<>();
         for (InputCatalog.Item it : InputCatalog.all().values()) {
+            // 🔴 2026-10-23 需求 R：种子 / 农具 / 水**不是「农资」**，
+            // 不该出现在「农资」抽屉的货架里（那里只有能喷、能撒的肥和药）。
+            // 它们在商店里买、在仓库的「农资」区看。
+            if (it.kind() == InputCatalog.Kind.SEED
+                    || it.kind() == InputCatalog.Kind.TOOL
+                    || it.kind() == InputCatalog.Kind.WATER) {
+                continue;
+            }
             int used = usedById.getOrDefault(it.id(), 0);
             double risk;
             if (it.kind() == InputCatalog.Kind.PEST && !it.category().endsWith("BIO")) {
@@ -1877,7 +2137,7 @@ public class FarmPlayService {
      * <p>抽成包级静态方法是为了能被单测直接覆盖 —— 这类"归类错了但不出错、
      * 只是数字不对"的 bug，光靠端到端点一遍是发现不了的。
      *
-     * @return FERT → 1；PEST → 2；HERB → 0
+     * @return FERT → 1；PEST → 2；HERB / SEED / TOOL / WATER → 0
      */
     static int inputClassOf(InputCatalog.Kind kind) {
         return switch (kind) {
@@ -1885,6 +2145,12 @@ public class FarmPlayService {
             case PEST -> 2;
             // 除草剂只计成本，不进农药统计、不参与 PHI、不吃抗性累积
             case HERB -> 0;
+            // 🔴 2026-10-23 需求 R：种子 / 农具 / 水同样只计成本。
+            // 它们都不是「喷洒」——不该进农药次数、不该吃抗性累积、
+            // 也不该参与 PHI 倒计时（种子不进人、水不进作物、农具更不进人）。
+            // 特别提醒：**农具是耐用品，购买成本记在钱包上，不该混进本季投入**
+            // （否则「买台拖拉机」会被算成这季的化肥开支，投入产出比全乱）。
+            case SEED, TOOL, WATER -> 0;
         };
     }
 
@@ -1981,6 +2247,54 @@ public class FarmPlayService {
         return estimateDaysTo(userId, zoneOf(plot), plot.getSowDate(), today, r.dvs(), 1.0, cropOf(plot));
     }
 
+    /**
+     * 计算子引擎（病虫 / 土壤 / 灾害 / 杂草）共用的回放窗口起点。
+     *
+     * <p>🔴 2026-10-25：**口径必须与 {@link #doReplay} 完全一致** —— 以今天结尾往前推，
+     * 且不早于播种日。
+     *
+     * <p><b>为什么必须抽成共用方法</b>：2026-10-25 代码检视发现，这段逻辑原本被复制在
+     * 4 个地方（pests / soil / disasters / weeds）。当时只修了 weeds 一处，
+     * 另外三处仍按 {@code sow} 起算 —— 而 {@code r.dvsByDay()} 是从 {@code winStart} 起记的，
+     * 于是「本季超过 430 天」时**天气序列与 DVS 轨迹整体错位**，
+     * 病虫害 / 土壤退化 / 灾害三类损失全部算错。
+     *
+     * <p>抽成共用方法就是为了根除「同型代码只修一处」的隐患：以后改窗口口径只改这一处。
+     *
+     * <p>🔴 <b>注意：不能用 {@code n} 反推窗口起点</b>。{@code n} 是
+     * {@code r.dvsByDay().size()}，而它已被引擎按 {@code MAX_REPLAY_DAYS} <b>截断</b> ——
+     * 长季时 {@code n} 恒为 431，用 {@code n-1} 反推会得到「今天往前 430 天」，
+     * 但真正的窗口起点是 {@code doReplay} 里算的 {@code today - MAX_REPLAY_DAYS}，
+     * 两者的天数基准不同（前者含今天共 431 天，后者含今天共 431 天但判定条件是 span > MAX）。
+     * <b>必须直接用 sow / today / MAX_REPLAY_DAYS 重算</b>。
+     *
+     * @param sow   播种日
+     * @param today 今天（世界日期）
+     * @return 窗口起点日期（与 doReplay 一致）
+     */
+    private LocalDate replayWindowStart(LocalDate sow, LocalDate today) {
+        long span = ChronoUnit.DAYS.between(sow, today);
+        if (span > MAX_REPLAY_DAYS) {
+            return today.minusDays(MAX_REPLAY_DAYS);
+        }
+        return sow;
+    }
+
+    /**
+     * 把某个农事动作日期映射到 DVS 轨迹的下标。
+     *
+     * <p>🔴 2026-10-25：基准必须用 {@link #replayWindowStart} 算出的窗口起点，
+     * 不能用 {@code sow} —— 否则窗口外的早期农事会被夹到 idx=0，
+     * 导致「错窗打五折」判定（{@code InputCatalog.inWindow}）出错。
+     */
+    private int dvsIndex(LocalDate winStart, LocalDate actionDate, int n) {
+        int idx = (int) ChronoUnit.DAYS.between(winStart, actionDate);
+        if (idx < 0) {
+            return 0;
+        }
+        return Math.min(n - 1, idx);
+    }
+
     /** 跑一遍病虫害模拟：与生长共用一份天气与 DVS 轨迹，保证同一天结果可复现。 */
     private PestEngine.Result pests(Long userId, FarmPlot plot, SimEngine.SimResult r, LocalDate today) {
         CropConfig crop = cropOf(plot);
@@ -1989,7 +2303,9 @@ public class FarmPlayService {
         if (n <= 0) {
             return PestEngine.Result.EMPTY;
         }
-        List<DayWeather> days = weather.range(userId, zoneOf(plot), sow, sow.plusDays(n - 1));
+        // 🔴 2026-10-25：窗口口径与 doReplay 对齐（原来按 sow 起算 → 与 DVS 轨迹错位）
+        LocalDate winStart = replayWindowStart(sow, today);
+        List<DayWeather> days = weather.range(userId, zoneOf(plot), winStart, today);
         List<PestEngine.Spray> sprays = new ArrayList<>();
         Map<String, Integer> groupUse = new HashMap<>();
         // 🔴 S12 修复：是否含"旧数据"（无 itemId 的打药记录）。
@@ -1997,7 +2313,7 @@ public class FarmPlayService {
         // 防效只剩 5% —— 玩家在旧存档里补打一次药，药效几乎为零。
         // 现在按"本季是否出现旧记录"动态决定：旧记录按全靶标、满效力兼容。
         boolean anyLegacy = false;
-        for (FarmAction a : seasonActions(userId, plot, sow, today)) {
+        for (FarmAction a : seasonActions(userId, plot, winStart, today)) {
             if (a.getType() != FarmAction.Type.PESTICIDE) {
                 continue;
             }
@@ -2008,7 +2324,7 @@ public class FarmPlayService {
                 anyLegacy = true;
                 continue;
             }
-            int idx = Math.max(0, Math.min(n - 1, (int) ChronoUnit.DAYS.between(sow, a.getDate())));
+            int idx = dvsIndex(winStart, a.getDate(), n);
             double dvs = r.dvsByDay().get(idx);
             String group = it.modeGroup();
             int used = groupUse.merge(group, 1, Integer::sum) - 1;
@@ -2045,10 +2361,9 @@ public class FarmPlayService {
         // 原来这里按 sow 起算 n 天，而 doReplay 的 days 是 [sow, sow+span]，
         // 两者在「播种超过 430 天」时会错开 —— 杂草引擎读到的天气序列
         // 与作物回放的不是同一段，导致 DVS 与天气对不上号。
-        LocalDate winStart = today.minusDays(Math.max(0, n - 1L));
-        if (winStart.isBefore(sow)) {
-            winStart = sow;
-        }
+        // 🔴 2026-10-25：改用共用方法 replayWindowStart，与 pests/soil/disasters 统一口径，
+        // 避免再出现「同型代码只修一处」。
+        LocalDate winStart = replayWindowStart(sow, today);
         List<DayWeather> days = weather.range(userId, zoneOf(plot), winStart, today);
         List<WeedEngine.WeedControl> controls = new ArrayList<>();
         for (FarmAction a : seasonActions(userId, plot, winStart, today)) {
@@ -2114,102 +2429,16 @@ public class FarmPlayService {
         return ClimateModel.zone(zoneId).name() + "一号田";
     }
 
-    /** 评级结果按「区 + 播期」缓存：10 年回放单次约 40ms，同一组合不重复算。 */
-    private final Map<String, SuitabilityEngine.Report> suitCache = new java.util.concurrent.ConcurrentHashMap<>();
 
-    public SuitabilityEngine.Report suitabilityOf(String zoneId, LocalDate sow) {
-        return suitabilityOf(zoneId, sow, "rice_mid");
-    }
 
-    public SuitabilityEngine.Report suitabilityOf(String zoneId, LocalDate sow, String cropId) {
-        String z = (zoneId == null || zoneId.isBlank()) ? "jiangnan" : zoneId;
-        String c = cropId == null || cropId.isBlank() ? "rice_mid" : cropId;
-        return suitCache.computeIfAbsent(z + ":" + c + ":" + sow,
-                k -> SuitabilityEngine.evaluate(z, sow, CropCatalog.get(c).config()));
-    }
 
-    /** 可选区域列表 + 各区在「推荐播期」下的水稻评级摘要，用于建田选地页。 */
-    public List<Map<String, Object>> zones() {
-        return zones("rice_mid");
-    }
 
-    public List<Map<String, Object>> zones(String cropId) {
-        CropCatalog.Crop cc = CropCatalog.get(cropId);
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (ClimateModel.Zone z : ClimateModel.zones().values()) {
-            ClimateModel.Stats st = ClimateModel.stats(z.id());
-            SuitabilityEngine.Report rep = suitabilityOf(z.id(),
-                    CropCatalog.defaultSow(cc.id(), z.id(), LocalDate.now()), cc.id());
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", z.id());
-            m.put("cropId", cc.id());
-            m.put("cropName", cc.name());
-            m.put("name", z.name());
-            m.put("site", z.site());
-            m.put("region", z.region());
-            m.put("lat", z.lat());
-            m.put("open", z.open());
-            m.put("seasonHint", z.seasonHint());
-            m.put("dataSource", rep.dataSource());
-            m.put("sowDate", rep.sowDate());
-            m.put("level", rep.level());
-            m.put("levelCode", rep.levelCode());
-            m.put("levelName", rep.levelName());
-            m.put("pPass", rep.pPass());
-            m.put("samples", rep.samples());
-            m.put("yieldBandLo", rep.yieldBandLo());
-            m.put("yieldBandHi", rep.yieldBandHi());
-            m.put("yieldMedian", rep.yieldMedian());
-            m.put("primaryFactor", rep.primaryFactor());
-            m.put("primaryFactorName", rep.primaryFactorName());
-            m.put("sowCost", rep.sowCost());
-            m.put("aatP50", Math.round(st.aatP50()));
-            m.put("aatP10", Math.round(st.aatP10()));
-            m.put("frostFreeP50", st.frostFreeP50());
-            m.put("winterTminP50", st.winterTminP50());
-            m.put("annualPrecip", st.annualPrecip());
-            m.put("ph", z.ph());
-            m.put("etcSeasonMm", z.etcSeasonMm());
-            out.add(m);
-        }
-        return out;
-    }
 
-    /** 指定区 + 播期的完整评级报告（建田页随播期拖动实时刷新）。 */
-    public SuitabilityEngine.Report suitability(String zoneId, LocalDate sow) {
-        return suitability(zoneId, sow, "rice_mid");
-    }
 
-    public SuitabilityEngine.Report suitability(String zoneId, LocalDate sow, String cropId) {
-        if (!ClimateModel.zones().containsKey(zoneId)) {
-            throw new BusinessException("未知农业区：" + zoneId);
-        }
-        return suitabilityOf(zoneId, sow, cropId);
-    }
 
-    /** 作物库：给建田页的作物选择器。 */
-    public List<Map<String, Object>> crops() {
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (CropCatalog.Crop c : CropCatalog.list()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", c.id());
-            m.put("name", c.name());
-            m.put("shortName", c.shortName());
-            m.put("category", c.category());
-            m.put("desc", c.desc());
-            m.put("visual", c.config().visual());
-            m.put("nNeed", c.config().nNeed());
-            m.put("yieldRef", c.config().yieldRef());
-            m.put("winterHardy", c.config().winterHardy());
-            m.put("vernalizationDays", c.config().vernalizationDays());
-            m.put("sowByZone", c.sowByZone().entrySet().stream()
-                    .collect(java.util.stream.Collectors.toMap(
-                            Map.Entry::getKey, e -> e.getValue().toString(),
-                            (a, b) -> a, LinkedHashMap::new)));
-            out.add(m);
-        }
-        return out;
-    }
+
+
+
 
     /** 建田 / 换地：确定区域与播期，重置本季。 */
     @Transactional
@@ -2233,6 +2462,8 @@ public class FarmPlayService {
     public Map<String, Object> createField(Long userId, int slot, Long farmId, String zoneId,
                                            LocalDate sow, String fieldName, String cropId) {
         invalidateSim(userId);
+        /** 缺种子的提示（2026-10-23 需求 R）；null = 种子充足。 */
+        String seedHint = null;
         FarmStead stead = null;
         if (farmId != null) {
             stead = steadRepo.findByIdAndUserId(farmId, userId)
@@ -2248,7 +2479,17 @@ public class FarmPlayService {
         }
         CropCatalog.Crop cc = CropCatalog.get(cropId);
         if (sow == null) {
-            sow = CropCatalog.defaultSow(cc.id(), zoneId, LocalDate.now());
+            // 🔴 2026-10-23：这里原来用 LocalDate.now()（现实日期）。
+            // 演示模式下世界日期已推进（实测 2027-11-21），用现实日期（2026-10-23）
+            // 会算出「2027-09-20」这种已经过去的默认播期 —— 新田一建出来
+            // 就带着一个过去的播种日，而下方「播期不能早于今天」的校验
+            // 又会用世界日期把它判成非法，两处自相矛盾。
+            //
+            // 正确口径：默认播期 = **距今最近**的适合日期（≥ 世界日期）。
+            // 🔴 2026-10-23 再修正：用 nearestWindow 而不是 nextSow ——
+            // 前者在「本期窗口尾巴还没过」时给今天（今天就能种），
+            // 后者会无脑跳到明年。
+            sow = cc.nearestWindow(zoneId, catalog.userToday(userId)).recommended();
         }
         if (sow.getYear() < 2000 || sow.getYear() > 2100) {
             throw new BusinessException("播期不合法：" + sow);
@@ -2260,12 +2501,57 @@ public class FarmPlayService {
         // 注意：只有「新增地块」才受限；在已有地块上换作物/换播期不算新建。
         boolean isNewPlot = !plot.getZoneChosen() && plot.getSeasons() == 0 && plot.getLastHarvestDate() == null
                 && plot.getCropId() == null;
+
+        // 🔴 2026-10-22 需求：新建地块时，播期不能选今天之前。
+        //
+        // 基准是**用户级世界日期**，不是 LocalDate.now()——
+        // 演示模式下世界日期被推进过（可能已是 2027 年），
+        // 用现实日期当基准会把玩家已经推进到的那一季判成「非法」。
+        //
+        // 🔴 2026-10-26：改走 FarmUserClockService（用户级时钟），
+        // 不再从地块反推 —— 后者会被无关地块的偏移污染。
+        //
+        // ⚠️ 只对**新建地块**生效：已有地块换作物/换播期时允许选过去，
+        // 那是给「已经种下去的地补录」用的。
+        if (isNewPlot) {
+            LocalDate minDate = userToday(userId);
+            if (sow.isBefore(minDate)) {
+                throw new BusinessException("播期不能早于今天（" + minDate + "）");
+            }
+        }
+
         if (farmId != null && isNewPlot) {
             long owned = plotRepo.countByUserIdAndFarmId(userId, farmId);
             if (owned >= MAX_PLOTS_PER_FARM) {
                 throw new BusinessException(String.format(
                         "这个农场最多 %d 块地（已建 %d 块）。要多种地，先在别的农场开垦。",
                         MAX_PLOTS_PER_FARM, owned));
+            }
+        }
+
+        // 🔴 2026-10-23 需求 R：**种子是开田的前置条件**。
+        //
+        // 「有这些东西后才能种植」——没种子就开不了田，这是商店存在的意义之一：
+        // 原来种什么都行，种子只是个概念；现在它是真实的投入。
+        //
+        // ⚠️ 只对**新建地块**校验：已有地块换作物/补录播期时不该被拦
+        //（那块地上一季已经种过了，种子早就用掉了）。
+        //
+        // ⚠️ 用**软校验**：库存不足时给提示但不阻断地块创建。
+        // 为什么？—— ① 老玩家（商店上线前就开始玩的）库存表里没有种子，
+        // 一刀切拒绝等于「所有老玩家都不能种地」；② 地块已经建了，
+        // 再拒绝会让玩家手里那块地变成「已占用但没种」的尴尬状态。
+        // 正确做法：提示「去商店买 X 种子」，同时允许开田（种子算赊账）。
+        if (isNewPlot) {
+            InputCatalog.Item seed = InputCatalog.seedOf(cc.id());
+            if (seed != null) {
+                double seedLeft = stockService.available(userId, seed.id());
+                if (seedLeft + 1e-6 < 1) {
+                    // 记一条提示：让前端在开田结果里显示「缺种子，去商店」
+                    seedHint = String.format(
+                            "还没有 %s 的种子（%s 需 ¥%.0f/包），去商店买一包再种。",
+                            cc.shortName(), seed.name(), seed.pricePerUnit());
+                }
             }
         }
 
@@ -2293,18 +2579,24 @@ public class FarmPlayService {
         // 它们跨季保留；SoilEngine 的连作地力衰减也正是靠 seasons 累计生效的。
         // 只有「从没开垦过的新地块」本来就是 0，无需特殊处理。
         plot.setSeasonStartedAt(java.time.LocalDateTime.now());
-        if (demoMode) {
-            long offset = Math.max(0, ChronoUnit.DAYS.between(LocalDate.now(), sow));
-            int capped = (int) Math.min(offset, MAX_DEMO_OFFSET_DAYS);
-            // 🔴 S12 修复：偏移触顶时播种日跟着回落，保持 sowDate 与 effectiveToday 自洽。
-            if (capped < offset) {
-                sow = LocalDate.now().plusDays(capped);
-                plot.setSowDate(sow);
-            }
-            plot.setDemoOffsetDays(capped);
-        } else {
-            plot.setDemoOffsetDays(0);
-        }
+        // 🔴 2026-10-23 需求：演示模式「只是预测作物的走向，不应该实际改变游戏的时间轴」。
+        //
+        // 改造前（这里把 demoOffsetDays 设成「现实今天 → 播期」的天数）：
+        //   建一块 2027-05-20 的水稻田 ⇒ 整块地的世界日期被推到 2027-05-20
+        //   ⇒ 「计划播期 2029 年」「仓库老化 500 天」「用户级今天停在 2027」全冒出来了。
+        //
+        // 改造后：
+        //   · **建田不改时间轴** —— demoOffsetDays 保持与用户级时钟一致，世界日期不受影响；
+        //   · **预测走向由独立时钟承担** —— 生长模拟走 growthToday()，
+        //     播期在未来时从播期当天起算（见 FarmWorldDate.growthToday）；
+        //   · **玩家想推进时间**有明确的显式入口 —— 前端「+1/+7/+30 天」按钮（advance）。
+        //
+        // 🔴 2026-10-26：demoOffsetDays 退化为**用户级时钟的镜像**，
+        // 语义仍是「该用户推进了多少天」，但不再被建田偷偷写入，
+        // 也必须与用户级时钟保持一致（否则又会出现两处算出两个「今天」）。
+        plot.setDemoOffsetDays(clock.offsetDays(userId));
+        plot.setSeasonProgressDays(0);
+        // 🔴 2026-10-23：本季独立时钟归零（见 FarmWorldDate.growthToday）
         plotRepo.save(plot);
 
         // 季节档案：开一条新的「种植记录」（2026-10-22）
@@ -2320,13 +2612,32 @@ public class FarmPlayService {
         GerminationEngine.Result ger = germination(userId, plot, cc.config());
         openSeason(userId, plot, cc, sow, ger);
 
-        SuitabilityEngine.Report rep = suitabilityOf(zoneId, sow, cc.id());
+        // 🔴 2026-10-23 需求 R：种子在**开田时**消耗（不是播种时）——
+        // 对玩家来说「开田」和「播种」是同一个动作。
+        // 只有库存真的够时才扣；不够的走上面的软提示（算赊账，不阻断）。
+        if (isNewPlot) {
+            InputCatalog.Item seed = InputCatalog.seedOf(cc.id());
+            if (seed != null && seedHint == null) {
+                try {
+                    stockService.consume(userId, seed.id(), 1);
+                } catch (BusinessException ignored) {
+                    // 理论上上面已经校验过了；这里兜底防止并发下扣穿
+                }
+            }
+        }
+
+        SuitabilityEngine.Report rep = catalog.suitabilityOf(zoneId, sow, cc.id());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
         out.put("zoneId", zoneId);
         out.put("cropId", cc.id());
         out.put("cropName", cc.name());
         out.put("fieldName", plot.getFieldName());
+        // 🔴 2026-10-22：把 slot / farmId 一并回传。
+        // 新建地块时前端只知道"建了一块地"，不知道落在哪个槽位、挂在哪个农场，
+        // 于是无法精确跳转（只能猜"取最大 slot"，而农场内 slot 未必递增）。
+        out.put("slot", plot.getSlot());
+        out.put("farmId", plot.getFarmId());
         out.put("sowDate", sow.toString());
         out.put("level", rep.level());
         out.put("levelName", rep.levelName());
@@ -2338,6 +2649,12 @@ public class FarmPlayService {
             out.put("germination", round(ger.rate(), 3));
             out.put("cautions", ger.cautions());
         }
+        // 🔴 2026-10-23 需求 R：缺种子提示 + 余额（前端提示去商店买）
+        if (seedHint != null) {
+            out.put("seedHint", seedHint);
+            out.put("needSeed", true);
+        }
+        out.put("balance", round(shopService.balanceOf(userId), 2));
         return out;
     }
 
@@ -2365,17 +2682,19 @@ public class FarmPlayService {
         if (n <= 0) {
             return SoilEngine.Result.EMPTY;
         }
-        List<DayWeather> days = weather.range(userId, zoneOf(plot), sow, sow.plusDays(n - 1));
+        // 🔴 2026-10-25：窗口口径与 doReplay 对齐（原来按 sow 起算 → 与 DVS 轨迹错位）
+        LocalDate winStart = replayWindowStart(sow, today);
+        List<DayWeather> days = weather.range(userId, zoneOf(plot), winStart, today);
         java.util.Set<LocalDate> drains = new java.util.HashSet<>();
         java.util.Set<LocalDate> irrigates = new java.util.HashSet<>();
         Map<LocalDate, Double> nByDate = new HashMap<>();
-        for (FarmAction a : seasonActions(userId, plot, sow, sow.plusDays(n - 1))) {
+        for (FarmAction a : seasonActions(userId, plot, winStart, today)) {
             switch (a.getType()) {
                 case DRAIN, DRY_FIELD, DRAIN_FINAL -> drains.add(a.getDate());
                 case IRRIGATE, PUDDLE -> irrigates.add(a.getDate());
                 case FERTILIZE, BASE_FERT, TILLER_FERT, PANICLE_FERT -> {
                     InputCatalog.Item it = InputCatalog.get(a.getItemId());
-                    int idx = Math.max(0, Math.min(n - 1, (int) ChronoUnit.DAYS.between(sow, a.getDate())));
+                    int idx = dvsIndex(winStart, a.getDate(), n);
                     double dvs = r.dvsByDay().get(idx);
                     double timing = InputCatalog.inWindow(a.getItemId(), dvs) ? 1.0 : 0.5;
                     double nAmt;
@@ -2399,16 +2718,18 @@ public class FarmPlayService {
     }
 
     /** 灾害回放：同样只依赖天气与 DVS 轨迹。 */
-    private DisasterEngine.Result disasters(Long userId, FarmPlot plot, SimEngine.SimResult r) {
+    private DisasterEngine.Result disasters(Long userId, FarmPlot plot, SimEngine.SimResult r, LocalDate today) {
         LocalDate sow = plot.getSowDate();
         int n = r.dvsByDay() == null ? 0 : r.dvsByDay().size();
         if (n <= 0) {
             return DisasterEngine.Result.EMPTY;
         }
-        List<DayWeather> days = weather.range(userId, zoneOf(plot), sow, sow.plusDays(n - 1));
+        // 🔴 2026-10-25：窗口口径与 doReplay 对齐（原来按 sow 起算 → 与 DVS 轨迹错位）
+        LocalDate winStart = replayWindowStart(sow, today);
+        List<DayWeather> days = weather.range(userId, zoneOf(plot), winStart, today);
         java.util.Set<LocalDate> drains = new java.util.HashSet<>();
         java.util.Set<LocalDate> irrigates = new java.util.HashSet<>();
-        for (FarmAction a : seasonActions(userId, plot, sow, sow.plusDays(n - 1))) {
+        for (FarmAction a : seasonActions(userId, plot, winStart, today)) {
             if (a.getType() == FarmAction.Type.DRAIN) drains.add(a.getDate());
             if (a.getType() == FarmAction.Type.IRRIGATE) irrigates.add(a.getDate());
         }
@@ -2476,13 +2797,39 @@ public class FarmPlayService {
         return String.valueOf(Math.round(v * 100.0) / 100.0);
     }
 
-    /** 演示偏移只对演示模式生效；正式模式一律用真实今天。 */
-    LocalDate effectiveToday(FarmPlot plot) {
-        LocalDate today = LocalDate.now();
-        if (demoMode && plot.getDemoOffsetDays() != null && plot.getDemoOffsetDays() > 0) {
-            return today.plusDays(plot.getDemoOffsetDays());
+    /**
+     * <b>用户级世界日期</b>（唯一权威来源）。
+     *
+     * <p>🔴 2026-10-26：改读 {@link FarmUserClockService}，不再从地块反推。
+     * 之前「取所有地块里最靠后的那个」会让<b>任何一个无关地块的偏移污染全用户</b>
+     * （2026-10-25 实测：{@code plot27} 的残留偏移把用户推到 2028-08-15，
+     * 仓库 6 件商品全部「已变质 ¥0」）。
+     *
+     * @param userId 用户 id；null 时退回现实日期（无用户上下文的场景）
+     */
+    LocalDate userToday(Long userId) {
+        if (userId == null) {
+            return LocalDate.now();
         }
-        return today;
+        return clock.today(userId);
+    }
+
+    /**
+     * <b>生长时钟</b>：作物模拟专用的「今天」。
+     *
+     * <p>🔴 2026-10-23 需求：「演示模式只是预测作物的走向，不应该实际改变游戏的时间轴」。
+     *
+     * <p>生长模拟还要处理「播期在未来」的情况 —— 那时作物从<b>播期当天</b>起算，
+     * 走一条独立于世界日期的时钟。这就是「预测走向」的语义：
+     * 站在今天看「如果那时种下，会怎么长」。
+     *
+     * <p>注意：播期在过去时（正常情形），本方法 == 用户级世界日期。
+     *
+     * @param userId 当前用户（决定「今天」的口径）
+     * @param plot 地块
+     */
+    LocalDate growthToday(Long userId, FarmPlot plot) {
+        return FarmWorldDate.growthToday(userToday(userId), plot);
     }
 
     /**

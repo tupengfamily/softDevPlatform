@@ -109,6 +109,24 @@ public class FarmPlot {
     private Integer demoOffsetDays = 0;
 
     /**
+     * <b>本季独立时钟的推进天数</b>（2026-10-23 新增）。
+     *
+     * <p>🔴 需求：「演示模式只是预测作物的走向，不应该实际改变游戏的时间轴」。
+     *
+     * <p>改造后两个时钟彻底分离：
+     * <ul>
+     *   <li>{@link #demoOffsetDays} = <b>世界日期</b>的推进量（玩家主动推进）→ 决定「今天是哪天」，
+     *       影响仓库老化、天气数据取哪一段；</li>
+     *   <li>本字段 = <b>生长时钟</b>的推进量 → 决定「这株作物长到第几天」。
+     *       播期在未来时，作物从播期当天起算，玩家推进 N 天 = 长 N 天。</li>
+     * </ul>
+     *
+     * <p>两者的区别只在「播期在未来」时显现；播期在过去时二者等价（都等于现实今天起的偏移）。
+     */
+    @Column(name = "season_progress_days", nullable = false)
+    private Integer seasonProgressDays = 0;
+
+    /**
      * 本季开始的真实时刻。重开/收割后写 now，用于把「上一季的操作」挡在本季回放之外——
      * 否则同一天数的两季会共用同一批动作（日期相同 → 旧打药/晒田被重放）。
      */
@@ -171,6 +189,8 @@ public class FarmPlot {
 
     public Integer getDemoOffsetDays() { return demoOffsetDays; }
     public void setDemoOffsetDays(Integer v) { this.demoOffsetDays = v; }
+    public Integer getSeasonProgressDays() { return seasonProgressDays; }
+    public void setSeasonProgressDays(Integer v) { this.seasonProgressDays = v; }
     public Double getLastYield() { return lastYield; }
     public void setLastYield(Double y) { this.lastYield = y; }
     public LocalDateTime getCreatedAt() { return createdAt; }

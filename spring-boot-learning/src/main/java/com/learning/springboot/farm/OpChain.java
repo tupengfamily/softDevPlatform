@@ -130,6 +130,62 @@ public final class OpChain {
         );
     }
 
+    /** 块茎（马铃薯）：培土与垄作是核心，中耕除草次数决定薯形与产量。 */
+    private static List<Def> tuberDefs() {
+        return List.of(
+                new Def("BASE_FERT", "施基肥（有机肥+钾肥）", "整地播种", 0.00, 0.10, false, true),
+                new Def("TRANSPLANT", "切块催芽播种", "整地播种", 0.00, 0.10, false, true),
+                new Def("TILLER_FERT", "苗期追肥 + 第一次培土", "田间管理", 0.15, 0.40, false, false),
+                new Def("PANICLE_FERT", "块茎膨大期追钾", "田间管理", 0.45, 0.75, false, false),
+                new Def("IRRIGATE", "灌水（现蕾至块茎膨大最关键）", "田间管理", 0.00, 1.00, true, false),
+                new Def("PESTICIDE", "植保（晚疫病/早疫病）", "田间管理", 0.00, 1.00, true, false),
+                new Def("HARVEST", "收获", "收获", 0.90, 1.30, false, false),
+                new Def("DRY_GRAIN", "窖藏（避光防发芽）", "收获", 0.94, 1.30, false, false)
+        );
+    }
+
+    /** 豆角（荚菜）：搭架摘心是产量关键，抽蔓前不搭架等于白种。 */
+    private static List<Def> beanDefs() {
+        return List.of(
+                new Def("BASE_FERT", "施基肥", "整地播种", 0.00, 0.10, false, true),
+                new Def("TRANSPLANT", "直播/育苗移栽", "整地播种", 0.00, 0.08, false, true),
+                new Def("TILLER_FERT", "搭架 + 摘心", "田间管理", 0.15, 0.40, false, false),
+                new Def("PANICLE_FERT", "盛荚期追肥", "田间管理", 0.50, 0.75, false, false),
+                new Def("IRRIGATE", "灌水（花荚期缺水会落荚）", "田间管理", 0.00, 1.00, true, false),
+                new Def("PESTICIDE", "植保（锈病/豆荚螟）", "田间管理", 0.00, 1.00, true, false),
+                new Def("HARVEST", "分批采收", "收获", 0.85, 1.30, false, false),
+                new Def("DRY_GRAIN", "分级整理", "收获", 0.90, 1.30, false, false)
+        );
+    }
+
+    /** 果树（梨）：疏果是产量控制的关键，留果太多反而压品质。 */
+    private static List<Def> treeDefs() {
+        return List.of(
+                new Def("BASE_FERT", "施基肥（秋施有机肥）", "整地定植", 0.00, 0.15, false, true),
+                new Def("TRANSPLANT", "定植", "整地定植", 0.00, 0.10, false, true),
+                new Def("TILLER_FERT", "萌芽前追肥 + 疏果", "田间管理", 0.35, 0.60, false, false),
+                new Def("PANICLE_FERT", "果实膨大期追肥", "田间管理", 0.60, 0.85, false, false),
+                new Def("IRRIGATE", "灌水（花期与膨大期）", "田间管理", 0.00, 1.00, true, false),
+                new Def("PESTICIDE", "植保（黑星病/介壳虫）", "田间管理", 0.00, 1.00, true, false),
+                new Def("HARVEST", "采收", "收获", 0.90, 1.30, false, false),
+                new Def("DRY_GRAIN", "分级预冷", "收获", 0.94, 1.30, false, false)
+        );
+    }
+
+    /** 谷子（杂粮）：蹲苗期不能追肥，灌浆期是决定粒重的关键。 */
+    private static List<Def> milletDefs() {
+        return List.of(
+                new Def("BASE_FERT", "施基肥（种肥同播）", "整地播种", 0.00, 0.10, false, true),
+                new Def("TRANSPLANT", "播种", "整地播种", 0.00, 0.06, false, true),
+                new Def("TILLER_FERT", "拔节期追氮（蹲苗后再追）", "田间管理", 0.30, 0.50, false, false),
+                new Def("PANICLE_FERT", "抽穗期追肥", "田间管理", 0.50, 0.70, false, false),
+                new Def("IRRIGATE", "灌水（谷子耐旱，但灌浆期不能断）", "田间管理", 0.00, 1.00, true, false),
+                new Def("PESTICIDE", "植保（谷瘟病/谷子螟）", "田间管理", 0.00, 1.00, true, false),
+                new Def("HARVEST", "收获", "收获", 0.92, 1.30, false, false),
+                new Def("DRY_GRAIN", "脱粒晾晒", "收获", 0.96, 1.30, false, false)
+        );
+    }
+
     private static final Map<String, List<Def>> DEFS_BY_CROP = new HashMap<>();
 
     private static final List<Def> RICE_DEFS = List.of(
@@ -202,6 +258,19 @@ public final class OpChain {
         DEFS_BY_CROP.put("chrysanthemum", flower);
         DEFS_BY_CROP.put("sunflower", flower);
         DEFS_BY_CROP.put("tulip", flower);
+        // ---------------- 2026-10-24 新增 8 种 ----------------
+        List<Def> tuber = tuberDefs();
+        List<Def> bean = beanDefs();
+        List<Def> tree = treeDefs();
+        List<Def> millet = milletDefs();
+        DEFS_BY_CROP.put("potato", tuber);
+        DEFS_BY_CROP.put("eggplant", fruitVeg);
+        DEFS_BY_CROP.put("yardlong_bean", bean);
+        DEFS_BY_CROP.put("radish", leafy);
+        DEFS_BY_CROP.put("grape", vine);
+        DEFS_BY_CROP.put("pear", tree);
+        DEFS_BY_CROP.put("rose", flower);
+        DEFS_BY_CROP.put("millet", millet);
     }
 
     private static List<Def> defsOf(String cropId) {

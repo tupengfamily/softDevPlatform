@@ -49,7 +49,28 @@ public record CropConfig(
         double nNeed,
         /** 参照产量 kg/亩（S23 的 Y_ref，也是达标线的分母） */
         double yieldRef,
-        /** 3D 形态族：rice / wheat / corn / soybean / leafy / vine / bush / flower */
+        /**
+         * 3D 形态标识（贴图键）：<b>每种作物自己的标识</b>。
+         *
+         * <p><b>🔴 语义在 2026-10-24 变过</b>：
+         * <ul>
+         *   <li><b>旧</b>：通用形态族 —— {@code rice / wheat / corn / soybean / leafy / vine / bush / flower}。
+         *       10 种园艺作物挤在 4 个族里，番茄/辣椒都叫 {@code bush}、黄瓜/西瓜都叫 {@code vine}，
+         *       前端只能按族加载贴图，于是「草莓长得像番茄」。</li>
+         *   <li><b>新</b>：<b>作物 id</b>（园艺作物如 {@code cabbage} / {@code grape} / {@code rose}），
+         *       前端可以按作物 id 加载专属贴图。</li>
+         * </ul>
+         *
+         * <p><b>粮食作物例外</b>：水稻/冬小麦/玉米/大豆的 visual 保持
+         * {@code rice / wheat / corn / soybean} 不变 —— 前端已有这 4 套贴图，
+         * 且存量数据库 {@code t_farm_season.visual} 存的就是这些值，
+         * 改动会让历史数据失效。
+         *
+         * <p><b>存量兼容</b>：历史季节记录里的 visual 仍是旧值（{@code leafy/vine/bush/flower}），
+         * <b>不做数据库迁移</b>（风险大且没必要，前端会做兜底映射）。
+         * 因此凡是「按形态族取参数」的逻辑（无霜期、适宜 pH、病虫害清单），
+         * <b>不能直接 switch 这个字段</b>，必须先经 {@link CropVisual#formOf} 解析。
+         */
         String visual,
         /**
          * 重量基准：{@code weightPot} 是「每多少个单果的重量」。
