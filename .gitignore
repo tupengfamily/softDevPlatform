@@ -121,3 +121,24 @@ frontend-learning/public/__design*.html
 # 沙箱删除守卫（safe-delete）拦截时归档下来的旧产物目录
 frontend-learning/.trash_*/
 frontend-learning/dist.bak-*/
+
+# 画质调试用的实验页归档（天空/阴影/四季验证页）
+frontend-learning/.archive-lab/
+
+# ============================================================
+#  开发过程截图与素材源文件（2026-10-26 提交前清理）
+# ============================================================
+# 浏览器验收截图：单次迭代产物，体积大且无长期参考价值
+# （docs/farm-shots/ 66MB / farm-scene-shots 19MB / farm-shop-shots 3.1MB / farm-sow-shots 2.5MB）
+docs/farm-shots/
+docs/farm-scene-shots/
+docs/farm-shop-shots/
+docs/farm-sow-shots/
+docs/farm-map-shots/
+docs/login-shots/
+frontend-learning/docs/
+
+# 贴图「源」素材：运行时只用 public/farm/tex/web/（已入库），
+# hort/src/ 是从 Blender 导出的中间产物（59MB），不入库
+frontend-learning/public/farm/tex/hort/
+frontend-learning/public/farm/render-lab.html
