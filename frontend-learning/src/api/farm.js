@@ -100,6 +100,19 @@ export const getFarmSuitability = (zone, sowDate, crop = 'rice_mid') =>
   request({ url: '/games/farm/suitability', method: 'get', params: { zone, sowDate, crop } })
 
 /**
+ * 种植风险提示（2026-10-22）。
+ *
+ * 把「选错区」与「选错时机」分开报：
+ * - AREA：当前区与该作物最佳区的评级差
+ * - TIMING：当前播期与该区推荐播期的偏离
+ * - STRUCTURE：结构性硬闸（pH / 盐碱 / 土层 / 水源）
+ *
+ * 每项带针对性说明与可操作建议。**只提示不拦截**（S23 §2.1）。
+ */
+export const getFarmPlantingRisk = (zone, sowDate, crop = 'rice_mid') =>
+  request({ url: '/games/farm/planting-risk', method: 'get', params: { zone, sowDate, crop } })
+
+/**
  * 建田 / 换地：确定区域与播期。
  * @param {object} body  { zoneId, sowDate?, fieldName?, cropId? }
  * @param {number} slot  -1 表示新建一块地（自动分配空槽位）；≥0 表示在该槽位上重建
@@ -163,9 +176,16 @@ export const getFarmCropDistributionProvinces = (crops) =>
 export const listFarmSteads = () =>
   request({ url: '/games/farm/farms', method: 'get' })
 
-/** 在地图上选点建农场；重复点击同一区县返回已有农场 */
-export const createFarmStead = (adcode, name) =>
-  request({ url: '/games/farm/farms', method: 'post', data: { adcode, name } })
+/**
+ * 在地图上选点建农场；重复点击同一区县返回已有农场。
+ *
+ * @param {string|number} adcode 6 位 adcode
+ * @param {string} name 农场名
+ * @param {string} [openedOn] 开垦日期 YYYY-MM-DD（不能早于世界日期）。
+ *   缺省 = 世界日期（= 今天）。
+ */
+export const createFarmStead = (adcode, name, openedOn) =>
+  request({ url: '/games/farm/farms', method: 'post', data: { adcode, name, openedOn } })
 
 /** 农场详情（含地块与所在区县作物画像） */
 export const getFarmStead = (id) =>
@@ -180,3 +200,68 @@ export const deleteFarmStead = (id) =>
 /** 统一看板：农场分组 → 地块 → 作物状态 */
 export const getFarmBoard = () =>
   request({ url: '/games/farm/board', method: 'get' })
+
+// ==================== 仓库（S24：收获物入库 / 变卖 / 变质） ====================
+
+/**
+ * 仓库面板：存货清单 + 估值 + 临期提醒。
+ *
+ * 每个批次含：数量、入库日、已仓储天数、距变质天数、品质分级、
+ * 当前单价与总价、地区与供给压力系数。
+ */
+export const getFarmWarehouse = () =>
+  request({ url: '/games/farm/warehouse', method: 'get' })
+
+/**
+ * 变卖：把仓库里的货卖掉。
+ *
+ * @param {object} body  { cropId?, kg? }
+ *   cropId 缺省 = 全部卖掉；kg 缺省或 ≤0 = 该作物全部卖掉
+ * 后端按「先过期先卖」选择批次。
+ */
+export const sellFarmWarehouse = (body = {}) =>
+  request({ url: '/games/farm/warehouse/sell', method: 'post', data: body })
+
+/**
+ * 购买农资入库（S25）。
+ *
+ * @param {object} body  { itemId, qty, farmId? }
+ *   farmId 缺省 = 全局库存
+ */
+export const buyFarmStock = (body = {}) =>
+  request({ url: '/games/farm/warehouse/stocks/buy', method: 'post', data: body })
+
+/**
+ * 农资库存视图（S25）：仓库面板的「农资」区。
+ *
+ * @param {object} params  { farmId?, kind? }
+ */
+export const getFarmStocks = (params = {}) =>
+  request({ url: '/games/farm/warehouse/stocks', method: 'get', params })
+
+// ==================== 商店（2026-10-23 需求 R） ====================
+
+/**
+ * 商店面板：买种子、农具、农资、水资源。
+ *
+ * @param {object} params  { kind? }
+ *   kind = SEED / TOOL / FERT / PEST / HERB / WATER，缺省 = 全部
+ * 响应含 `balance`（钱包余额）与每件商品的 `owned` / `affordable` / `alreadyOwned`。
+ */
+export const getFarmShop = (params = {}) =>
+  request({ url: '/games/farm/shop', method: 'get', params })
+
+/**
+ * 购买商品。
+ *
+ * @param {object} body  { itemId, qty }
+ *   农具固定 qty=1（耐用品，重复买会被后端拒绝）
+ */
+export const buyFarmShopItem = (body = {}) =>
+  request({ url: '/games/farm/shop/buy', method: 'post', data: body })
+
+/**
+ * 钱包余额（顶部栏显示）。
+ */
+export const getFarmWallet = () =>
+  request({ url: '/games/farm/shop/wallet', method: 'get' })

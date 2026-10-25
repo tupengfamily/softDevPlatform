@@ -1,52 +1,62 @@
 {
- "plant_rice_young": {
-  "w": 443,
-  "h": 481,
-  "size": 512
- },
- "plant_rice_ripe": {
-  "w": 361,
-  "h": 481,
-  "size": 512
- },
- "plant_wheat_young": {
-  "w": 333,
-  "h": 481,
-  "size": 512
- },
- "plant_wheat_ripe": {
-  "w": 283,
-  "h": 481,
-  "size": 512
- },
- "plant_corn_young": {
-  "w": 364,
-  "h": 481,
-  "size": 512
- },
- "plant_corn_ripe": {
-  "w": 297,
-  "h": 480,
-  "size": 512
- },
- "plant_soybean_young": {
-  "w": 440,
-  "h": 481,
-  "size": 512
- },
- "plant_soybean_ripe": {
-  "w": 394,
-  "h": 481,
-  "size": 512
- },
- "plant_tree": {
-  "w": 306,
-  "h": 481,
-  "size": 512
- },
- "plant_grass_tuft": {
-  "w": 340,
-  "h": 481,
-  "size": 512
- }
+  "plant_bush_ripe": 0.634,
+  "plant_bush_young": 0.607,
+  "plant_cabbage_ripe": 0.784,
+  "plant_cabbage_young": 1.036,
+  "plant_chili_ripe": 0.708,
+  "plant_chili_young": 0.475,
+  "plant_chrysanthemum_ripe": 0.77,
+  "plant_chrysanthemum_young": 1.152,
+  "plant_corn_ripe": 0.505,
+  "plant_corn_spring_ripe": 0.505,
+  "plant_corn_spring_young": 0.732,
+  "plant_corn_young": 0.732,
+  "plant_cucumber_ripe": 0.997,
+  "plant_cucumber_young": 0.766,
+  "plant_eggplant_ripe": 0.643,
+  "plant_eggplant_young": 0.771,
+  "plant_flower_ripe": 0.77,
+  "plant_flower_young": 1.152,
+  "plant_grape_ripe": 0.555,
+  "plant_grape_young": 0.493,
+  "plant_grass_tuft": 0.736,
+  "plant_leafy_ripe": 0.784,
+  "plant_leafy_young": 1.036,
+  "plant_melon_ripe": 0.827,
+  "plant_melon_young": 0.762,
+  "plant_millet_ripe": 0.501,
+  "plant_millet_young": 0.641,
+  "plant_pear_ripe": 0.641,
+  "plant_pear_young": 0.478,
+  "plant_potato_ripe": 0.818,
+  "plant_potato_young": 1.228,
+  "plant_radish_ripe": 0.753,
+  "plant_radish_young": 0.374,
+  "plant_rice_mid_ripe": 0.645,
+  "plant_rice_mid_young": 0.91,
+  "plant_rice_ripe": 0.645,
+  "plant_rice_young": 0.91,
+  "plant_rose_ripe": 0.754,
+  "plant_rose_young": 0.658,
+  "plant_soybean_ripe": 0.665,
+  "plant_soybean_young": 0.924,
+  "plant_strawberry_ripe": 0.745,
+  "plant_strawberry_young": 0.827,
+  "plant_sunflower_ripe": 0.637,
+  "plant_sunflower_young": 0.958,
+  "plant_tomato_ripe": 0.634,
+  "plant_tomato_young": 0.607,
+  "plant_tree": 0.665,
+  "plant_tulip_ripe": 0.264,
+  "plant_tulip_young": 0.466,
+  "plant_vine_ripe": 0.997,
+  "plant_vine_young": 0.766,
+  "plant_watermelon_ripe": 0.9,
+  "plant_watermelon_young": 0.934,
+  "plant_wheat_ripe": 0.482,
+  "plant_wheat_winter_ripe": 0.482,
+  "plant_wheat_winter_young": 0.701,
+  "plant_wheat_young": 0.701,
+  "plant_yardlong_bean_ripe": 0.642,
+  "plant_yardlong_bean_young": 0.503
 }

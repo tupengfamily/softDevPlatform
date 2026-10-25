@@ -30,30 +30,57 @@
         </template>
       </div>
 
-      <el-autocomplete
-        v-model="keyword"
-        class="wm-search"
-        :fetch-suggestions="suggest"
-        placeholder="搜索区县 / 地点，如 鄱阳县"
-        :trigger-on-focus="false"
-        value-key="value"
-        clearable
-        @select="onSuggestSelect"
-      >
-        <template #default="{ item }">
-          <div class="sug">
-            <b>{{ item.name }}</b>
-            <span>{{ item.province }} {{ item.city !== item.name ? item.city : '' }}</span>
-            <i class="sug-tag" :class="'t-' + (item.source || 'local')">{{ item.typeLabel || '区县' }}</i>
-          </div>
-        </template>
-      </el-autocomplete>
+      <!--
+        🔴 搜索框必须套一层自己的 wrapper（2026-10-22 实测踩坑）。
+
+        <p>直接给 `<el-autocomplete class="wm-search">` 加 class 是不行的：
+        Element Plus 会在组件内部**再渲染一层** `.el-input.wm-search`，
+        而 Vue 的 scoped CSS 只把 `data-v-xxx` 加在**组件根元素**上，
+        子组件内部渲染的节点拿不到这个属性 → 选择器 `.wm-search[data-v-xxx]`
+        一个都匹配不上 → 样式整条失效（实际表现：搜索框仍是 804px 宽的默认值）。
+
+        <p>套 wrapper 后 `data-v-xxx` 落在 wrapper 上，`:deep()` 就能稳定命中内部的
+        `.el-input__wrapper` / `.el-input__inner`。
+      -->
+      <div class="wm-search">
+        <el-autocomplete
+          v-model="keyword"
+          :fetch-suggestions="suggest"
+          placeholder="搜索区县 / 地点"
+          :trigger-on-focus="false"
+          value-key="value"
+          clearable
+          @select="onSuggestSelect"
+        >
+          <template #default="{ item }">
+            <div class="sug">
+              <b>{{ item.name }}</b>
+              <span>{{ item.province }} {{ item.city !== item.name ? item.city : '' }}</span>
+              <i class="sug-tag" :class="'t-' + (item.source || 'local')">{{ item.typeLabel || '区县' }}</i>
+            </div>
+          </template>
+        </el-autocomplete>
+      </div>
 
       <div class="wm-stat">
         我的农场 <b>{{ allFarms.length }}</b>
         <span class="dot-sep">·</span>
         地块 <b>{{ totalPlots }}</b>
       </div>
+
+      <!-- 仓库入口（S25）：地图旁边直接看仓库里的作物 + 农资 -->
+      <button class="wm-warehouse" :class="{ 'has-warn': warehouseWarn > 0 }" @click="$emit('open-warehouse')">
+        <span class="wh-ico">📦</span>
+        <span class="wh-txt">仓库</span>
+        <i v-if="warehouseWarn > 0" class="wh-dot">{{ warehouseWarn }}</i>
+      </button>
+
+      <!-- 🔴 商店入口（需求 R）：紧挨仓库——仓库看已有货，商店买新货 -->
+      <button class="wm-warehouse wm-shop" :class="{ 'has-warn': shopShort > 0 }" @click="$emit('open-shop')">
+        <span class="wh-ico">🛒</span>
+        <span class="wh-txt">商店</span>
+        <i v-if="shopShort > 0" class="wh-dot">{{ shopShort }}</i>
+      </button>
 
       <!-- 图层切换：底图 + 注记 -->
       <div class="wm-layer-ctl">
@@ -582,8 +609,10 @@
             <div class="lg-tip">{{ cropDistLegend.tip }}</div>
           </template>
           <template v-else-if="hasDistricts">
-            <div class="lg-row" v-for="l in cropLegend" :key="l.id">
-              <i class="lg-box" :style="{ background: l.color }"></i>{{ l.name }}
+            <div class="lg-grid">
+              <div class="lg-row" v-for="l in cropLegend" :key="l.id">
+                <i class="lg-box" :style="{ background: l.color }"></i>{{ l.name }}
+              </div>
             </div>
             <div class="lg-row"><i class="lg-dot"></i>我的农场</div>
             <div class="lg-tip">点区县看气候与主栽作物</div>
@@ -904,7 +933,7 @@
                   v-for="c in detail.mainCrops"
                   :key="c.cropId"
                   class="crop-card"
-                  :class="'v-' + c.visual"
+                  :style="{ borderLeftColor: cropColor(c.visual) }"
                 >
                   <div class="cc-top">
                     <b>{{ c.shortName }}</b>
@@ -955,12 +984,47 @@
         </template>
       </aside>
     </div>
+
+    <!-- 建农场弹窗（S25）：名称 + 开垦日期（不能早于今天） -->
+    <el-dialog
+      v-model="buildOpen"
+      title="建农场"
+      width="380px"
+      class="wm-build-dlg"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <div class="wb-form">
+        <label class="wb-label">位置</label>
+        <div class="wb-static">{{ buildForm.district }}</div>
+
+        <label class="wb-label">农场名</label>
+        <el-input v-model="buildForm.name" maxlength="20" placeholder="1–20 字" />
+
+        <label class="wb-label">开垦日期</label>
+        <el-date-picker
+          v-model="buildForm.openedOn"
+          type="date"
+          value-format="YYYY-MM-DD"
+          format="YYYY-MM-DD"
+          placeholder="选择开垦日期"
+          :disabled-date="disabledOpenedOn"
+          :clearable="false"
+          style="width: 100%"
+        />
+        <p class="wb-hint">不能早于今天（{{ worldDate || '—' }}）。开垦日期决定这块地的起始赛季。</p>
+      </div>
+      <template #footer>
+        <button class="wb-btn ghost" @click="buildOpen = false">取消</button>
+        <button class="wb-btn primary" :disabled="buildBusy" @click="submitBuildFarm">建场</button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   getFarmMapDistricts, getFarmMapDistrict, getFarmCropDistribution,
   getFarmCropDistributionProvinces,
@@ -972,7 +1036,27 @@ import {
 } from '../../api/map'
 import FarmOverviewPanel from './FarmOverviewPanel.vue'
 
-const emit = defineEmits(['close', 'enter-plot', 'state-changed', 'open-inputs'])
+const emit = defineEmits(['close', 'enter-plot', 'state-changed', 'open-inputs', 'open-warehouse', 'open-shop'])
+
+/**
+ * 仓库角标（S25）：临期 + 已变质的批次数。
+ *
+ * <p>由父组件 {@code GameFarm.vue} 传入 —— 角标的数据源和顶部那个「仓库」chip
+ * 是同一份（{@code refreshWarehouseBadge()}），**不能在这里自己再拉一次接口**：
+ * 仓库面板的 {@code getFarmWarehouse()} 会顺带跑一次临期/变质检查并写站内通知，
+ * 重复调用会产生重复通知。
+ */
+const props = defineProps({
+  warehouseWarn: { type: Number, default: 0 },
+  /**
+   * 商店角标（需求 R）：「缺货提醒」条数。
+   *
+   * <p>语义与仓库角标相反：仓库角标是「有坏货要处理」，
+   * 商店角标是「有缺口要补」——比如没有种子、没有灌溉水。
+   * 同样由父组件传入，地图自己不拉接口。
+   */
+  shopShort: { type: Number, default: 0 }
+})
 
 const loading = ref(false)
 const loadingText = ref('')
@@ -1049,6 +1133,18 @@ const keyword = ref('')
 const allFarms = ref([])
 /** 还没归属农场的老地块（早期建田没有 farmId） */
 const unassignedPlots = ref([])
+/**
+ * 世界日期（S25）—— 用户级「今天」。
+ *
+ * <p>🔴 **不能用 `new Date()`**：演示模式下用户可推进时间轴，
+ * 世界日期被推进过（可能已经是 2027 年）。日期选择器禁用「今天之前」
+ * 必须按世界日期算，否则玩家会被禁掉一大片合法日期（或反过来能选过去）。
+ */
+const worldDate = ref('')
+/** 建农场弹窗（S25） */
+const buildOpen = ref(false)
+const buildBusy = ref(false)
+const buildForm = reactive({ name: '', openedOn: '', district: '' })
 /** 已加载的省份区县图层：provAdcode -> { items, districts } */
 const districtLayers = ref({})
 /** 已加载的地级市图层：cityAdcode -> { items }（该市下辖区县边界） */
@@ -1155,26 +1251,165 @@ function seasonStatusText(status) {
   return SEASON_STATUS_TEXT[status] || status || '—'
 }
 
+/**
+ * 作物 → 图例颜色。
+ *
+ * ⚠️ 2026-10-24：从 8 个通用形态族扩到 **22 种作物专属颜色**。
+ *
+ * 约束：**同族作物不能撞色** —— 茄子/番茄/辣椒/草莓都属茄果族，
+ * 但它们必须一眼能分开（茄子偏紫、番茄红、辣椒深红、草莓玫红）。
+ * 存量旧值（leafy/vine/bush/flower/millet/tuber/tree）**保留原色**，
+ * 因为存量数据里仍可能出现这些值。
+ */
 const CROP_COLOR = {
+  // ---- 粮食（保持原值）----
   rice: '#5aa654',
   wheat: '#c9a441',
   corn: '#cf8536',
   soybean: '#87944a',
-  // 园艺作物：叶菜浅绿、瓜类翠绿、茄果红、花卉紫——与粮食的绿/金/橙区分开
+  // ---- 粮食·新增：谷子（黄绿，比大豆更黄）----
+  millet: '#9aa84e',
+
+  // ---- 蔬菜 ----
+  // 大白菜：黄绿偏亮
+  cabbage: '#7fc45c',
+  // 萝卜：青绿（根菜，叶色偏深）
+  radish: '#5fae52',
+  // 番茄：正红
+  tomato: '#c8563f',
+  // 辣椒：深红（比番茄更暗更红）
+  chili: '#a83b30',
+  // 茄子：紫红（茄果族里唯一偏紫的）
+  eggplant: '#8e4a72',
+  // 豆角：嫩绿（荚菜，叶色偏亮）
+  yardlong_bean: '#4f9e5c',
+  // 黄瓜：翠绿（瓜类）
+  cucumber: '#3f9e72',
+
+  // ---- 水果 ----
+  // 草莓：玫红（浆果，与番茄红要能分开）
+  strawberry: '#d05a72',
+  // 西瓜：深绿（瓜类，比黄瓜深）
+  watermelon: '#2f8259',
+  // 甜瓜：浅黄绿（厚皮甜瓜，色偏暖）
+  melon: '#7ab469',
+  // 葡萄：紫（藤果）
+  grape: '#7a5a9e',
+  // 梨：橄榄绿（仁果）
+  pear: '#6f8f3f',
+
+  // ---- 花卉 ----
+  // 菊花：淡紫（切花菊常见白/紫/黄，紫最好认）
+  // ⚠️ 不能用金黄 —— 冬小麦已经是 #c9a441，图例里两个作物同色会看错
+  chrysanthemum: '#a878c8',
+  // 向日葵：亮黄橙
+  sunflower: '#e0b83a',
+  // 郁金香：粉红
+  tulip: '#d4788e',
+  // 月季：深玫红
+  rose: '#b83f66',
+
+  // ---- 块茎 ----
+  // 马铃薯：土黄褐（地上部是绿的，但收的是地下块茎，
+  // 用一个偏土的色把「根茎类」和「叶菜类」区分开）
+  potato: '#b08d57',
+
+  // ---- 存量旧形态族（保留原色与原名，存量数据仍可能出现）----
   leafy: '#7fc45c',
   vine: '#3f9e72',
   bush: '#c8563f',
   flower: '#a06bbf',
+  tuber: '#b08d57',
+  tree: '#6f8f3f',
+
   none: '#33452f'
 }
+
+/**
+ * 作物 → 中文名。
+ *
+ * ⚠️ 同 CROP_COLOR：22 种作物各有名字，旧的 4 族名保留兼容存量数据。
+ */
 const CROP_NAME = {
+  // ---- 粮食 ----
   rice: '水稻', wheat: '冬小麦', corn: '玉米', soybean: '大豆',
-  leafy: '叶菜', vine: '瓜类', bush: '茄果', flower: '花卉'
+  millet: '谷子',
+  // ---- 蔬菜 ----
+  cabbage: '大白菜', tomato: '番茄', cucumber: '黄瓜', chili: '辣椒',
+  eggplant: '茄子', yardlong_bean: '豆角', radish: '萝卜',
+  // ---- 水果 ----
+  strawberry: '草莓', watermelon: '西瓜', melon: '甜瓜', grape: '葡萄', pear: '梨',
+  // ---- 花卉 ----
+  chrysanthemum: '菊花', sunflower: '向日葵', tulip: '郁金香', rose: '月季',
+  // ---- 块茎 ----
+  potato: '马铃薯',
+  // ---- 存量旧形态族（保留原名）----
+  leafy: '叶菜', vine: '瓜类', bush: '茄果', flower: '花卉',
+  tuber: '块茎', tree: '仁果'
 }
 
+/**
+ * 作物 id → 形态族（用于取颜色）。
+ *
+ * ⚠️ 2026-10-24：后端 `visual` 的语义变了 —— 园艺作物的 visual 现在是**作物 id**
+ * （cabbage / grape / rose …），不再是 leafy/vine/bush/flower 这类通用族。
+ *
+ * ⚠️ 这里做的是**单向**归族（旧 id → 族），且**不再用于颜色**——
+ * 22 种作物现在各有专属颜色（CROP_COLOR 里直接就有 22 个 key），
+ * 归族只在「取旧族的颜色」时用得上，存量旧值本身就在 CROP_COLOR 里。
+ */
+const CROP_FAMILY = {
+  rice_mid: 'rice', wheat_winter: 'wheat', corn_spring: 'corn', soybean: 'soybean',
+  millet: 'millet',
+  cabbage: 'cabbage', radish: 'radish',
+  tomato: 'tomato', chili: 'chili', eggplant: 'eggplant', strawberry: 'strawberry',
+  cucumber: 'cucumber', watermelon: 'watermelon', melon: 'melon', yardlong_bean: 'yardlong_bean',
+  potato: 'potato',
+  grape: 'grape', pear: 'pear',
+  chrysanthemum: 'chrysanthemum', sunflower: 'sunflower', tulip: 'tulip', rose: 'rose',
+  // 存量旧形态族 → 代表作物（与 scene/config.js 的 LEGACY_VISUAL 保持一致）
+  leafy: 'cabbage', vine: 'cucumber', bush: 'tomato', flower: 'chrysanthemum'
+}
+
+/**
+ * visual → 颜色。
+ *
+ * 解析顺序：作物 id 直接命中 → 旧 id 归族 → 兜底到「无作物」的土褐色。
+ * 认不出来时兜底到「无作物」的土褐色。
+ */
+function cropColor(visual) {
+  if (!visual) return CROP_COLOR.none
+  if (CROP_COLOR[visual]) return CROP_COLOR[visual]
+  const fam = CROP_FAMILY[visual]
+  if (fam && CROP_COLOR[fam]) return CROP_COLOR[fam]
+  return CROP_COLOR.none
+}
+
+/** visual → 中文名。 */
+function cropName(visual) {
+  if (!visual) return '—'
+  if (CROP_NAME[visual]) return CROP_NAME[visual]
+  const fam = CROP_FAMILY[visual]
+  if (fam && CROP_NAME[fam]) return CROP_NAME[fam]
+  return visual
+}
+
+/**
+ * 图例：**只列 22 种新作物**。
+ *
+ * ⚠️ 不能把旧的 leafy/vine/bush/flower 也列进来 —— 那会让图例出现
+ * 「叶菜」和「大白菜」两条几乎同色的项，看起来像 bug。
+ * 旧值只在数据层保留兼容（颜色/名字表里还在），不进图例。
+ */
+const LEGEND_CROPS = [
+  'rice', 'wheat', 'corn', 'soybean', 'millet',
+  'cabbage', 'tomato', 'cucumber', 'chili', 'eggplant', 'yardlong_bean', 'radish',
+  'strawberry', 'watermelon', 'melon', 'grape', 'pear',
+  'chrysanthemum', 'sunflower', 'tulip', 'rose',
+  'potato'
+]
 const cropLegend = computed(() =>
-  ['rice', 'wheat', 'corn', 'soybean', 'leafy', 'vine', 'bush', 'flower']
-    .map((k) => ({ id: k, name: CROP_NAME[k], color: CROP_COLOR[k] }))
+  LEGEND_CROPS.map((k) => ({ id: k, name: CROP_NAME[k], color: CROP_COLOR[k] }))
 )
 const totalPlots = computed(() =>
   allFarms.value.reduce((a, f) => a + (f.plotCount || 0), 0) + unassignedPlots.value.length
@@ -3290,7 +3525,7 @@ function toRegionItem(f, type, meta) {
     name: p.name,
     d: featurePath(f.geometry, PROJ.project),
     bbox: geometryBbox(f.geometry),
-    baseColor: d ? (CROP_COLOR[d.visual] || CROP_COLOR.none) : '#33452f',
+    baseColor: d ? cropColor(d.visual) : '#33452f',
     shadeK: 0.87 + ((p.adcode % 11) / 11) * 0.26,
     crop: d ? d.mainCrop : null,
     farm: farmByAdcode.value.get(p.adcode) || null
@@ -3599,6 +3834,8 @@ async function loadFarms() {
   const res = await getFarmBoard()
   allFarms.value = res?.data?.farms || []
   unassignedPlots.value = res?.data?.unassigned || []
+  // 🔴 S25：/board 的 today 是**世界日期**（后端已改），不是 LocalDate.now()
+  worldDate.value = res?.data?.today || ''
 }
 
 async function loadCountry() {
@@ -3781,7 +4018,7 @@ const provinceCrops = computed(() => {
   }
   return [...m.entries()]
     .sort((a, b) => b[1] - a[1])
-    .map(([k, c]) => ({ key: k, name: CROP_NAME[k] || '—', color: CROP_COLOR[k] || '#8ba07c', count: c }))
+    .map(([k, c]) => ({ key: k, name: cropName(k), color: cropColor(k), count: c }))
 })
 
 /**
@@ -3987,12 +4224,25 @@ function placeFarmCard(m, ax, ay, host) {
 
   const el = svgEl.value
   const rect = host.getBoundingClientRect()
-  const CARD_W = 252
+  // 卡片宽度随「有没有地块」而变（.farm-card / .farm-card.wide 两档），
+  // 且窄屏下还有一条 media query 兜底 —— 所以这里**不能**再硬编码一个常量，
+  // 否则翻转判断用的宽度会和真实渲染宽度对不上。
+  // 🔴 历史 bug：这里写死 252，而卡片实际是 320px（.wide），
+  //    差 68px → 卡片右边缘被 .wm-canvas 的 overflow:hidden 裁掉。
+  //
+  // 宽度来源用 CSS 变量（--farm-card-w / --farm-card-w-wide），
+  // JS 和 CSS 共用同一份定义，不会再各自写死数字而对不上。
+  // ⚠️ 不能靠 querySelector 量 DOM：farmHover.value = m 之后 DOM 还没重渲染，
+  //    此时量到的是**上一张卡**的宽度（可能正好对、也可能不对）——不可靠。
+  const rows = (m.plots || []).length
+  const cssVar = rows ? '--farm-card-w-wide' : '--farm-card-w'
+  const cs = getComputedStyle(host)
+  const declared = parseFloat(cs.getPropertyValue(cssVar))
+  const CARD_W = declared > 0 ? declared : (rows ? 380 : 268)
   // 卡片高度随农田行数增长，但**封顶**（列表内部滚动）。
   // 不封顶的话 20 块地的农场会把卡片撑到屏幕外，底部按钮点不到。
   const CARD_MIN_H = 176
   const CARD_MAX_H = 420
-  const rows = (m.plots || []).length
   const CARD_H = Math.min(CARD_MAX_H, Math.max(CARD_MIN_H, CARD_MIN_H + rows * 30 + 34))
 
   // 标记点的屏幕位置：用 SVG 的 CTM 把用户坐标换算成屏幕坐标
@@ -4009,7 +4259,11 @@ function placeFarmCard(m, ax, ay, host) {
   let x = ax - rect.left + 14
   let y = ay - rect.top + 14
   // 右边放不下就翻到标记点左侧
-  if (x + CARD_W > rect.width - 8) x = ax - rect.left - CARD_W - 14
+  if (x + CARD_W > rect.width - 8) {
+    x = ax - rect.left - CARD_W - 14
+    // 连左侧也放不下（地图区太窄）→ 贴左边距，别让它跑出容器被裁掉
+    if (x < 8) x = 8
+  }
   // 下边放不下就往上翻；连上方也放不下就贴顶（卡片内部会滚动）
   if (y + CARD_H > rect.height - 8) {
     y = ay - rect.top - CARD_H - 14
@@ -4250,8 +4504,12 @@ async function enterFarmScene(farmId) {
   const f = allFarms.value.find((x) => x.farmId === farmId)
   const plots = (f && f.plots) || []
   if (!plots.length) {
-    ElMessage.warning('这个农场还没有地块，先去农场里建一块地吧')
-    await enterFarmFromHover(farmId)
+    // 🔴 2026-10-23：空农场没有地就没有场景可进 —— 直接进建田流程。
+    // 原来这里调 enterFarmFromHover（只开右侧面板），玩家点了「进入农场」
+    // 却什么都没发生；而另一条路（侧栏的 enterFarm）会发出 slot: 0 串到别的农场。
+    // 两条路现在统一：slot = -1 → 建田。
+    ElMessage.info('这个农场还没有地块，先开垦第一块地吧')
+    emit('enter-plot', { farmId, slot: -1 })
     return
   }
   const chosen = plots.filter((p) => p.chosen)
@@ -4432,26 +4690,52 @@ function onHover(f, e) {
   }
 }
 
-async function buildFarm() {  const d = detail.value
+/**
+ * 建农场（S25）：打开「名称 + 开垦日期」表单弹窗。
+ *
+ * <p>🔴 为什么不用 {@code ElMessageBox.prompt}：它只能收一个纯文本输入框，
+ * 塞不进日期选择器（而且 {@code ElMessageBox} 里放 {@code el-date-picker}
+ * 需要自己挂 DOM，很脆）。需求要求「新建农场不能选择今天之前的日期」，
+ * 所以这里用一个正经的 {@code el-dialog}。
+ */
+function buildFarm() {
+  const d = detail.value
   if (!d) return
+  buildForm.name = `${d.name}农场`
+  buildForm.openedOn = worldDate.value || ''
+  buildForm.district = d.fullName || d.name
+  buildOpen.value = true
+}
+
+/** 禁用「今天之前」的日期（按世界日期算，不是 LocalDate.now()）。 */
+function disabledOpenedOn(date) {
+  if (!worldDate.value) return false
+  const base = new Date(worldDate.value + 'T00:00:00')
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return d.getTime() < base.getTime()
+}
+
+async function submitBuildFarm() {
+  const d = detail.value
+  if (!d || buildBusy.value) return
+  const name = (buildForm.name || '').trim()
+  if (!name || name.length > 20) {
+    ElMessage.error('农场名 1–20 字')
+    return
+  }
+  buildBusy.value = true
   try {
-    const { value } = await ElMessageBox.prompt('给农场起个名字', `在 ${d.fullName || d.name} 建农场`, {
-      confirmButtonText: '建场',
-      cancelButtonText: '取消',
-      inputValue: `${d.name}农场`,
-      inputPattern: /^.{1,20}$/,
-      inputErrorMessage: '名称 1–20 字'
-    })
-    const res = await createFarmStead(d.adcode, value)
+    const res = await createFarmStead(d.adcode, name, buildForm.openedOn || undefined)
     ElMessage.success(res?.data?.created ? '农场已建立' : '你在这里已经有农场了')
+    buildOpen.value = false
     await loadFarms()
     await ensureProvince(Math.floor(d.adcode / 10000) * 10000)
     await openDistrict(d.adcode)
     emit('state-changed')
   } catch (e) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e?.message || '建场失败')
-    }
+    ElMessage.error(e?.message || '建场失败')
+  } finally {
+    buildBusy.value = false
   }
 }
 
@@ -4638,10 +4922,26 @@ async function fetchLocalSuggest(q) {
   }
 }
 
+/**
+ * 从农场详情面板点「进入农场」。
+ *
+ * <p>🔴 2026-10-23 事故修复：原来空农场（0 地块）会回退到 {@code slot: 0}，
+ * 而 slot 0 是**别的农场**的地 —— 玩家点了「五台县农场」却落进了别人的农场。
+ * slot 是用户范围内全局唯一的，绝不能猜。
+ *
+ * <p>空农场没有地，就没有 3D 场景可进。这里直接进**建田流程**
+ * （{@code slot: -1} 表示「在这个农场里新开一块地」），
+ * 玩家建完第一块地才进场景 —— 这才是「进入农场」该有的结果。
+ */
 function enterFarm(f) {
   const plots = f.plots || []
+  if (!plots.length) {
+    ElMessage.info('这个农场还没有地块，先开垦第一块地吧')
+    emit('enter-plot', { farmId: f.farmId, slot: -1 })
+    return
+  }
   const target = plots.find((p) => p.chosen) || plots[0]
-  emit('enter-plot', { farmId: f.farmId, slot: target ? target.slot : 0 })
+  emit('enter-plot', { farmId: f.farmId, slot: target.slot })
 }
 
 function enterPlot(slot) {
@@ -4763,18 +5063,90 @@ onBeforeUnmount(() => {
 .crumb-cur.clickable { cursor: pointer; }
 .crumb-cur.clickable:hover { color: #b7dcff; text-decoration: underline; }
 
-.wm-search { flex: 0 1 240px; min-width: 120px; margin-left: auto; }
+/* 搜索框：wrapper 控宽，内部 el-autocomplete 撑满 */
+.wm-search {
+  flex: 0 1 168px;
+  min-width: 92px;
+  margin-left: auto;
+  display: flex;
+}
+.wm-search :deep(.el-autocomplete) { flex: 1 1 auto; min-width: 0; }
 .wm-search :deep(.el-input__wrapper) {
   background: rgba(255, 255, 255, 0.06);
   box-shadow: 0 0 0 1px rgba(160, 200, 150, 0.22) inset;
-  border-radius: 16px;
+  border-radius: 14px;
+  padding: 1px 9px;
 }
-.wm-search :deep(.el-input__inner) { color: #e8f2e4; }
-.wm-search :deep(.el-input__inner::placeholder) { color: rgba(206, 228, 196, 0.42); }
+/* 搜索框整体压小：字号 12.5 → 11.5，行高也收一点 */
+.wm-search :deep(.el-input__inner) {
+  color: #e8f2e4;
+  font-size: 11.5px;
+  line-height: 22px;
+  height: 24px;
+}
+.wm-search :deep(.el-input__inner::placeholder) { color: rgba(206, 228, 196, 0.42); font-size: 11.5px; }
+.wm-search :deep(.el-input__prefix) { font-size: 12px; }
+.wm-search :deep(.el-input__clear) { font-size: 12px; }
 
 .wm-stat { flex: 0 0 auto; font-size: 12px; color: rgba(210, 232, 200, 0.62); white-space: nowrap; }
 .wm-stat b { color: #ffd86b; font-variant-numeric: tabular-nums; }
 .dot-sep { margin: 0 5px; opacity: 0.4; }
+
+/* ---- 仓库入口（S25） ---- */
+.wm-warehouse {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 14px;
+  border: 1px solid rgba(160, 200, 150, 0.24);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(220, 238, 212, 0.78);
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.wm-warehouse:hover { background: rgba(255, 255, 255, 0.12); }
+.wh-ico { font-size: 12px; line-height: 1; }
+/* 🔴 商店（需求 R）：紧挨仓库，但配色区分开——仓库是「存」，商店是「买」 */
+.wm-shop {
+  border-color: rgba(255, 196, 108, 0.28);
+  background: rgba(255, 196, 108, 0.08);
+  color: rgba(255, 226, 176, 0.85);
+}
+.wm-shop:hover { background: rgba(255, 196, 108, 0.18); }
+.wm-shop.has-warn {
+  border-color: rgba(224, 85, 47, 0.5);
+  background: rgba(214, 106, 40, 0.28);
+  color: #ffd9c8;
+}
+/* 有临期/变质批次时点亮，和顶部 chip 的告警色一致 */
+.wm-warehouse.has-warn {
+  border-color: rgba(224, 85, 47, 0.5);
+  background: rgba(214, 106, 40, 0.28);
+  color: #ffd9c8;
+}
+.wh-dot {
+  position: absolute;
+  top: -5px;
+  right: -4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #e0552f;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+}
 
 .wm-base {
   flex: 0 0 auto;
@@ -5012,6 +5384,11 @@ onBeforeUnmount(() => {
   touch-action: none;
   background:
     radial-gradient(100% 90% at 50% 40%, rgba(30, 46, 34, 0.55) 0%, rgba(8, 14, 10, 0) 70%);
+  /* 悬浮卡片宽度：JS 侧 placeFarmCard 读同一份变量做翻转判断，
+     保证「CSS 渲染宽度」和「JS 认为的宽度」永远一致。
+     （历史 bug：JS 写死 252、CSS 实际 320 → 卡片被 overflow:hidden 裁掉） */
+  --farm-card-w: 268px;
+  --farm-card-w-wide: 380px;
 }
 .wm-page.grabbing .wm-canvas { cursor: grabbing; }
 
@@ -5155,11 +5532,19 @@ onBeforeUnmount(() => {
 .wm-tip b { display: block; font-size: 12.5px; margin-bottom: 2px; }
 .wm-tip span { display: block; color: rgba(206, 228, 196, 0.62); }
 
-/* ---- 农场标记悬浮预览卡片 ---- */
+/* ---- 农场标记悬浮预览卡片 ----
+   宽度用 CSS 变量定义（在 .wm-canvas 上），JS 侧 placeFarmCard 读同一份变量
+   做翻转判断 —— 这样「CSS 改宽度」和「JS 判断放不放得下」永远一致，
+   不会再出现「JS 以为 252、CSS 实际 320」导致卡片被 overflow:hidden 裁掉的 bug。 */
 .farm-card {
   position: absolute;
   z-index: 6;
-  width: 252px;
+  width: var(--farm-card-w);
+  /* ⚠️ max-width 是防裁切的最后一道闸门：
+     .wm-canvas 是 overflow:hidden，卡片超出容器宽度会被**直接裁掉**（不是滚动）。
+     窄屏 / 折叠侧栏后地图区可能只剩几百 px，靠 JS 翻转兜底不够稳，
+     这里再按容器宽度夹一次，保证任何情况下都不会被裁。 */
+  max-width: calc(100% - 16px);
   padding: 11px 13px 12px;
   border-radius: 10px;
   background: rgba(12, 20, 14, 0.96);
@@ -5176,9 +5561,12 @@ onBeforeUnmount(() => {
   gap: 8px;
   margin-bottom: 4px;
 }
-/* 有地块时卡片加宽：地块行要放得下「地块名 + 作物 + 阶段 + 播期 + 4 个操作按钮」 */
+/* 有地块时卡片加宽：地块行要放得下「地块名 + 作物 + 阶段 + 播期 + 4 个操作按钮」。
+   2026-10-22 再放宽到 380px —— 320px 时长地块名（如「南昌县水稻田」）和
+   阶段描述（如「出苗不整齐（缺苗 85%）」）仍会被 ellipsis 截断，
+   加宽后这些关键信息能完整显示。 */
 .farm-card.wide {
-  width: 320px;
+  width: var(--farm-card-w-wide);
 }
 .fc-name {
   font-size: 13.5px;
@@ -5202,6 +5590,9 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* 2026-10-22：卡片加宽后让位置描述能用更多像素，
+     原来 320px 下「江西省南昌市南昌县」这类完整地址会显示不全。 */
+  max-width: 100%;
 }
 /* 天气区（需求 O）：一眼看清今天能不能浇水 / 打药。
    ⚠️ 数值是当日实测/推算值，不是预报，所以数据来源单独占一行如实标注。 */
@@ -5378,7 +5769,9 @@ onBeforeUnmount(() => {
 .fpl-crop {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 46px;
+  /* 2026-10-22：卡片加宽后放开 46px 上限 —— 原来「水稻」「郁金香」之类
+     短名没问题，但「西瓜」「观赏菊」等一旦被截成「观赏…」就没法看了。 */
+  max-width: 64px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5386,7 +5779,9 @@ onBeforeUnmount(() => {
 }
 .fpl-stage {
   flex: 0 0 auto;
-  min-width: 40px;
+  /* 阶段描述是玩家判断「该不该浇水/打药」的关键信息，
+     不能被压缩（原来 min-width:40px 会让「出苗不整齐（缺苗 85%）」挤成一团）。 */
+  min-width: 0;
   color: rgba(200, 224, 190, 0.5);
   text-align: left;
 }
@@ -5455,20 +5850,36 @@ onBeforeUnmount(() => {
 }
 .fc-enter:hover { filter: brightness(1.12); }
 
-/* 窄屏：悬浮卡片宽 252px，在 375px 手机上贴边只剩 260px 左右，
-   地块行里的「作物 + 阶段 + 播种日 + 4 个按钮」会挤成一条线。
-   这里让元信息换行、按钮缩小，保证 375px 下零溢出。 */
+/* 窄屏（≤480px）：手机竖屏宽度有限，卡片不能照搬桌面的 380px。
+   2026-10-22 原来固定 252px，在 375px 手机上只用了 71% 的宽度就截断，
+   现在放宽到 min(340px, 100vw-20px) —— 375px 机型得到 340px，
+   地块名/阶段不再被 ellipsis 砍掉，同时仍然留 10px 安全边距不贴边。 */
 @media (max-width: 480px) {
+  .wm-canvas {
+    /* 窄屏也要覆盖变量本身，不能只覆盖 width ——
+       否则 JS 读 --farm-card-w-wide 拿到 380，而实际渲染是 340，两者对不上。 */
+    --farm-card-w: 268px;
+    --farm-card-w-wide: 340px;
+  }
+  /* ⚠️ 两档必须分开写：.farm-card 只能用 --farm-card-w，
+     如果合并成 `.farm-card, .farm-card.wide { width: var(--farm-card-w-wide) }`，
+     无地块的窄卡片会变成 340px，而 JS 按 --farm-card-w(268) 判断 → 又对不上了。 */
+  .farm-card {
+    width: min(var(--farm-card-w), calc(100vw - 20px));
+  }
+  .farm-card.wide {
+    width: min(var(--farm-card-w-wide), calc(100vw - 20px));
+  }
   .farm-card,
   .farm-card.wide {
-    width: min(252px, calc(100vw - 24px));
     padding: 9px 11px 10px;
   }
   .fc-plots { margin: 0 -11px 8px; padding: 6px 11px 7px; }
   .fpl-list { max-height: 150px; }
+  /* 窄屏仍要让元信息换行，否则「作物+阶段+播期+4 个按钮」会挤成一条线 */
   .fpl-meta { flex-wrap: wrap; row-gap: 1px; }
   .fpl-stage { min-width: 0; }
-  .fpl-crop { max-width: 38px; }
+  .fpl-crop { max-width: 44px; }
   .fpl-btn { min-width: 18px; height: 18px; padding: 0 3px; font-size: 9.5px; }
   .fpl-ops { gap: 2px; }
 }
@@ -5534,6 +5945,13 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
+/*
+ * ⚠️ 2026-10-24：图例从 11 项扩到 **22 项**。
+ *
+ * 单列排下来 22 行 × 18px ≈ 400px，在 768px 高的窗口里会顶出屏幕，
+ * 所以改成**两列网格**：宽 2 列（约 260px），窄屏 1 列。
+ * 容器仍然 absolute 定位在左下角，但给一个 max-height + overflow 兜底。
+ */
 .wm-legend {
   position: absolute;
   left: 18px;
@@ -5546,6 +5964,14 @@ onBeforeUnmount(() => {
   font-size: 11.5px;
   color: rgba(216, 236, 208, 0.78);
   pointer-events: none;
+  max-width: min(300px, calc(100% - 36px));
+  max-height: calc(100% - 36px);
+  overflow: hidden;
+}
+.lg-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 12px;
 }
 .lg-row { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
 .lg-box { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
@@ -5714,6 +6140,18 @@ onBeforeUnmount(() => {
 .crop-card.v-wheat { border-left-color: #c9a441; }
 .crop-card.v-corn { border-left-color: #cf8536; }
 .crop-card.v-soybean { border-left-color: #87944a; }
+/* ⚠️ 2026-10-24：22 种作物的边框色不再用 CSS 类，而是**内联**取 CROP_COLOR
+   （:style="{ borderLeftColor: cropColor(c.visual) }"）。
+   原因：作物专属色有 22 种，用类名要写 22 条 CSS 规则，且新增作物时
+   很容易漏掉一条 —— 漏掉就会退回默认的绿色，和图例对不上。
+   下面的旧族类名保留，作为存量 class 的兜底。 */
+.crop-card.v-leafy { border-left-color: #7fc45c; }
+.crop-card.v-vine { border-left-color: #3f9e72; }
+.crop-card.v-bush { border-left-color: #c8563f; }
+.crop-card.v-flower { border-left-color: #a06bbf; }
+.crop-card.v-millet { border-left-color: #9aa84e; }
+.crop-card.v-tuber { border-left-color: #b08d57; }
+.crop-card.v-tree { border-left-color: #6f8f3f; }
 .cc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
 .cc-top b { font-size: 13px; }
 .cc-meta {
@@ -5915,6 +6353,53 @@ onBeforeUnmount(() => {
 }
 .btn.ghost:hover { background: rgba(255, 255, 255, 0.12); }
 
+/* ---- 建农场弹窗（S25） ---- */
+.wb-form { display: flex; flex-direction: column; gap: 6px; }
+.wb-label {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7d8b7e;
+}
+.wb-label:first-child { margin-top: 0; }
+.wb-static {
+  padding: 8px 11px;
+  border-radius: 8px;
+  background: #f4f8f1;
+  border: 1px solid #e3eae0;
+  font-size: 13px;
+  color: #334436;
+}
+.wb-hint {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #97a598;
+}
+.wb-btn {
+  min-width: 84px;
+  height: 34px;
+  padding: 0 18px;
+  border-radius: 17px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  cursor: pointer;
+  transition: filter 0.15s, background 0.15s;
+}
+.wb-btn.primary {
+  background: linear-gradient(135deg, #6aa94b, #8bc466);
+  color: #0d1a0f;
+  font-weight: 600;
+}
+.wb-btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.wb-btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.wb-btn.ghost {
+  background: #f4f8f1;
+  border-color: #dbe4d6;
+  color: #5a6a5b;
+}
+.wb-btn.ghost:hover { background: #eaf0e6; }
+
 .sug { display: flex; align-items: baseline; gap: 8px; }
 .sug b { font-size: 12.5px; }
 .sug span { font-size: 10.5px; color: #9aa894; }
@@ -5971,9 +6456,12 @@ onBeforeUnmount(() => {
   }
   .wm-layer-panel { width: 200px; }
   .lp-item { padding: 7px 8px; }
+  /* 仓库入口是主功能，窄屏也必须留图标（文字省掉） */
+  .wm-warehouse { padding: 0 9px; }
+  .wm-warehouse .wh-txt { display: none; }
 }
 
-/* 400px：极窄屏（iPhone SE 竖屏）—— 顶栏只留返回 + 搜索 + 图层 */
+/* 400px：极窄屏（iPhone SE 竖屏）—— 顶栏只留返回 + 搜索 + 仓库 + 图层 */
 @media (max-width: 400px) {
   .wm-back { padding: 0 9px; font-size: 12px; }
   .wm-back .wm-arrow { display: none; }

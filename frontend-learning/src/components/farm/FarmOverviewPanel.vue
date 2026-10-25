@@ -254,21 +254,65 @@ function cropTags(f) {
     const text = cropShort(p.cropName)
     if (!text || seen.has(text)) continue
     seen.add(text)
-    out.push({ text, color: CROP_COLOR[p.visual] || '#8ba07c' })
+    out.push({ text, color: cropColor(p.visual) })
     if (out.length >= 3) break
   }
   return out
 }
 
+/**
+ * 作物 → 颜色。
+ *
+ * ⚠️ 2026-10-24：从 8 个通用形态族扩到 **22 种作物专属颜色**，
+ * 与 FarmWorldMap.vue 的 CROP_COLOR 保持一致（同族作物不撞色）。
+ * 存量旧值（leafy/vine/bush/flower/millet/tuber/tree）**保留原色**。
+ */
 const CROP_COLOR = {
-  rice: '#5aa654',
-  wheat: '#c9a441',
-  corn: '#cf8536',
-  soybean: '#87944a',
-  leafy: '#7fc45c',
-  vine: '#3f9e72',
-  bush: '#c8563f',
-  flower: '#a06bbf'
+  // ---- 粮食 ----
+  rice: '#5aa654', wheat: '#c9a441', corn: '#cf8536', soybean: '#87944a',
+  millet: '#9aa84e',
+  // ---- 蔬菜 ----
+  cabbage: '#7fc45c', radish: '#5fae52', tomato: '#c8563f', chili: '#a83b30',
+  eggplant: '#8e4a72', yardlong_bean: '#4f9e5c', cucumber: '#3f9e72',
+  // ---- 水果 ----
+  strawberry: '#d05a72', watermelon: '#2f8259', melon: '#7ab469',
+  grape: '#7a5a9e', pear: '#6f8f3f',
+  // ---- 花卉 ----
+  chrysanthemum: '#a878c8', sunflower: '#e0b83a', tulip: '#d4788e', rose: '#b83f66',
+  // ---- 块茎 ----
+  potato: '#b08d57',
+  // ---- 存量旧形态族（保留原色）----
+  leafy: '#7fc45c', vine: '#3f9e72', bush: '#c8563f', flower: '#a06bbf',
+  tuber: '#b08d57', tree: '#6f8f3f'
+}
+
+/**
+ * 作物 id → 形态族（用于取颜色）。
+ *
+ * ⚠️ 2026-10-24：园艺作物的 visual 现在是**作物 id**（cabbage / grape / rose …），
+ * 不再是 leafy/vine/bush/flower 这类通用族。
+ * 22 种作物各有专属颜色，所以这里只在「取不到专属色」时作为退路。
+ */
+const CROP_FAMILY = {
+  rice_mid: 'rice', wheat_winter: 'wheat', corn_spring: 'corn', soybean: 'soybean',
+  millet: 'millet',
+  cabbage: 'cabbage', radish: 'radish',
+  tomato: 'tomato', chili: 'chili', eggplant: 'eggplant', strawberry: 'strawberry',
+  cucumber: 'cucumber', watermelon: 'watermelon', melon: 'melon', yardlong_bean: 'yardlong_bean',
+  potato: 'potato',
+  grape: 'grape', pear: 'pear',
+  chrysanthemum: 'chrysanthemum', sunflower: 'sunflower', tulip: 'tulip', rose: 'rose',
+  // 存量旧形态族 → 代表作物
+  leafy: 'cabbage', vine: 'cucumber', bush: 'tomato', flower: 'chrysanthemum'
+}
+
+/** visual → 颜色：作物 id 直接命中 → 归族 → 兜底灰绿。 */
+function cropColor(visual) {
+  if (!visual) return '#8ba07c'
+  if (CROP_COLOR[visual]) return CROP_COLOR[visual]
+  const fam = CROP_FAMILY[visual]
+  if (fam && CROP_COLOR[fam]) return CROP_COLOR[fam]
+  return '#8ba07c'
 }
 
 const subtitle = computed(() => {
@@ -311,7 +355,7 @@ const cropRows = computed(() => {
     const key = String(p.cropName).split(/[（(]/)[0]
     const cur = map.get(key)
     if (cur) cur.count++
-    else map.set(key, { name: key, count: 1, color: CROP_COLOR[p.visual] || '#8ba07c' })
+    else map.set(key, { name: key, count: 1, color: cropColor(p.visual) })
   }
   return [...map.values()].sort((a, b) => b.count - a.count)
 })

@@ -1,12 +1,17 @@
 <template>
   <FieldSetup
     v-if="setupVisible"
-    :initial-zone="state?.plot?.zoneId || ''"
+    :initial-zone="targetFarmZone || state?.plot?.zoneId || ''"
     :initial-crop="state?.plot?.cropId || 'rice_mid'"
-    :has-field="!!(state && state.plot && state.plot.chosen)"
+    :has-field="setupReplacesField"
     :slot="effectiveSetupSlot"
     :farm-id="pendingFarmId || currentFarmId"
+    :farm-name="targetFarmName"
+    :farm-zone="targetFarmZone"
+    :today="userWorldDate || state?.worldDate || ''"
     @created="onFieldCreated"
+    @cancel="onSetupCancel"
+    @need-shop="onNeedShop"
   />
 
   <div v-else class="fm-page" :class="`season-${seasonBg.season}`">
@@ -75,6 +80,12 @@
         </a>
         <h2 class="title">{{ $t('farm.title') }}</h2>
         <span class="head-sep"></span>
+        <!-- 🔴 2026-10-23：农场标识放在**前面**。
+             原来它排在最后，头部空间不够时被 flex 挤成 20px
+             （文字全被 ellipsis 吃掉，看上去像没有农场名）。
+             「当前在哪个农场」是身份信息，优先级高于 DVS / 季数这类数值，
+             必须排在前面才不会被挤没。 -->
+        <span v-if="farmLabel" class="hchip farm-chip" :title="farmName">{{ farmLabel }}</span>
         <span v-if="state" class="hchip">
           <b>DVS</b> {{ state.crop.dvs.toFixed(2) }}
         </span>
@@ -94,18 +105,71 @@
         <span class="hchip board-chip" @click="boardOpen = true">
           看板{{ plots.length ? ' ' + plots.length : '' }}
         </span>
+        <!-- S24 仓库入口：临期时红点提醒 -->
+        <span
+          class="hchip board-chip wh-chip"
+          :class="{ 'has-warn': warehouseWarn > 0 }"
+          @click="openWarehouse"
+        >
+          仓库{{ warehouseCount ? ' ' + warehouseCount : '' }}
+          <i v-if="warehouseWarn > 0" class="wh-dot">{{ warehouseWarn }}</i>
+        </span>
       </header>
 
-      <!-- 左下角天气 / 气温标签 -->
-      <div v-if="state" class="fm-weatherbar">
-        <span class="wx-icon" :class="'wx-' + weatherFx.kind">{{ weatherIcon }}</span>
-        <span class="wb-strong">{{ state.weather.tmax.toFixed(0) }}° / {{ state.weather.tmin.toFixed(0) }}°C</span>
-        <span class="wb-item">💧 {{ state.weather.precip.toFixed(1) }} mm</span>
-        <span class="wb-item" :class="{ hot: state.weather.heatTier >= 2 }">
-          {{ $t('farm.heatTier.' + state.weather.heatTier) }}
-        </span>
-        <span class="wb-sep"></span>
-        <span class="wb-item muted">{{ state.weatherSource }}</span>
+      <!-- 左下角：天气条 + 地块切换条（同一列 flex 堆叠，见 .fm-bottom-stack）
+           🔴 2026-10-22：原先两者各自 position:absolute + bottom 定位，
+           窄屏下**完全重叠**（天气数值压在 chip 上），桌面端也压掉 4px。
+           改成同一容器内上下排列，高度由内容决定，永远不会打架。 -->
+      <div v-if="state" class="fm-bottom-stack">
+        <div class="fm-weatherbar">
+          <span class="wx-icon" :class="'wx-' + weatherFx.kind">{{ weatherIcon }}</span>
+          <span class="wb-strong">{{ state.weather.tmax.toFixed(0) }}° / {{ state.weather.tmin.toFixed(0) }}°C</span>
+          <span class="wb-item">💧 {{ state.weather.precip.toFixed(1) }} mm</span>
+          <span class="wb-item" :class="{ hot: state.weather.heatTier >= 2 }">
+            {{ $t('farm.heatTier.' + state.weather.heatTier) }}
+          </span>
+          <span class="wb-sep"></span>
+          <span class="wb-item muted">{{ state.weatherSource }}</span>
+        </div>
+
+        <!-- 地块切换条：只列**当前农场**的地块，横向滚动
+             （2026-10-22：此前列的是该用户全部地块，进入一个农场后
+               切换条上仍挤着其它农场与 v1 遗留老田的地） -->
+        <div v-if="farmPlots.length" class="fm-plotrail-wrap">
+          <button
+            class="pr-nav pr-nav-l"
+            :class="{ off: railScroll.left <= 1 }"
+            aria-label="向左滚动"
+            @click="railScrollBy(-1)"
+          >‹</button>
+          <div ref="plotRailEl" class="fm-plotrail" @scroll="onRailScroll">
+            <button
+              v-for="p in farmPlots"
+              :key="p.slot"
+              :class="['pr-chip', 'pr-chip-' + p.slot, { on: p.slot === currentSlot, empty: !p.chosen }]"
+              :title="p.fieldName || ('第 ' + (p.slot + 1) + ' 号田')"
+              @click="selectPlot(p.slot)"
+            >
+              <b>{{ p.slot + 1 }}</b>
+              <span class="pr-crop">{{ shortCrop(p.cropName) }}</span>
+              <i class="pr-stage">{{ p.stage }}</i>
+            </button>
+            <button
+              class="pr-chip pr-add"
+              :class="{ full: farmPlots.length >= MAX_PLOTS_PER_FARM }"
+              @click="newPlot"
+            >＋</button>
+          </div>
+          <button
+            class="pr-nav pr-nav-r"
+            :class="{ off: railScroll.right <= 1 }"
+            aria-label="向右滚动"
+            @click="railScrollBy(1)"
+          >›</button>
+          <!-- 溢出提示：右侧渐隐 + "当前是第几块/共几块"计数 + 所属农场 -->
+          <span class="pr-count mono">{{ plotIndexLabel }}</span>
+          <span class="pr-farm mono" :title="farmName">{{ farmLabel }}</span>
+        </div>
       </div>
 
       <!-- 霜冻终止：本季已经结束，只能重开 -->
@@ -139,41 +203,6 @@
       <!-- 病虫害告警（只在已显症且达到偏重时出现） -->
       <div v-if="pestAlert" class="fm-pest-alert">
         <span class="pa-icon">🐛</span>{{ pestAlert }}
-      </div>
-
-      <!-- 地块切换条：一个地区最多 100 块地，横向滚动 -->
-      <div v-if="plots.length" class="fm-plotrail-wrap">
-        <button
-          class="pr-nav pr-nav-l"
-          :class="{ off: railScroll.left <= 1 }"
-          aria-label="向左滚动"
-          @click="railScrollBy(-1)"
-        >‹</button>
-        <div ref="plotRailEl" class="fm-plotrail" @scroll="onRailScroll">
-          <button
-            v-for="p in plots"
-            :key="p.slot"
-            :class="['pr-chip', 'pr-chip-' + p.slot, { on: p.slot === currentSlot, empty: !p.chosen }]"
-            @click="selectPlot(p.slot)"
-          >
-            <b>{{ p.slot + 1 }}</b>
-            <span class="pr-crop">{{ shortCrop(p.cropName) }}</span>
-            <i class="pr-stage">{{ p.stage }}</i>
-          </button>
-          <button
-            class="pr-chip pr-add"
-            :class="{ full: plots.length >= 100 }"
-            @click="newPlot"
-          >＋</button>
-        </div>
-        <button
-          class="pr-nav pr-nav-r"
-          :class="{ off: railScroll.right <= 1 }"
-          aria-label="向右滚动"
-          @click="railScrollBy(1)"
-        >›</button>
-        <!-- 溢出提示：右侧渐隐 + "当前是第几块/共几块"计数 -->
-        <span class="pr-count mono">{{ plotIndexLabel }}</span>
       </div>
 
       <!-- 右下角交互提示 -->
@@ -553,11 +582,15 @@
     </el-dialog>
   </div>
   <FarmWorldMap
-    v-if="worldMapOpen"
+    v-if="worldMapOpen && !setupVisible"
+    :warehouse-warn="warehouseWarn"
+    :shop-short="shopShort"
     @close="worldMapOpen = false"
     @state-changed="load"
     @enter-plot="onWorldEnterPlot"
     @open-inputs="onWorldOpenInputs"
+    @open-warehouse="openWarehouse"
+    @open-shop="openShop"
   />
 
   <FarmBoard
@@ -567,6 +600,23 @@
     @select="onBoardSelect"
     @action="onBoardAction"
     @harvest="onBoardHarvest"
+  />
+
+  <!-- S24 仓库：收获物入库 → 变卖 -->
+  <FarmWarehouse
+    v-if="warehouseOpen"
+    ref="warehouseRef"
+    :busy="busy"
+    @close="closeWarehouse"
+    @sold="onWarehouseSold"
+  />
+
+  <!-- 🔴 需求 R 商店：买种子 / 农具 / 农资 / 水资源 -->
+  <FarmShop
+    v-if="shopOpen"
+    :busy="busy"
+    @close="closeShop"
+    @bought="onShopBought"
   />
 
   <InputDrawer
@@ -580,7 +630,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -589,18 +639,40 @@ import FarmScene3D from '../../components/farm/FarmScene3D.vue'
 import FieldSetup from '../../components/farm/FieldSetup.vue'
 import InputDrawer from '../../components/farm/InputDrawer.vue'
 import FarmBoard from '../../components/farm/FarmBoard.vue'
+import FarmWarehouse from '../../components/farm/FarmWarehouse.vue'
+import FarmShop from '../../components/farm/FarmShop.vue'
 import FarmWorldMap from '../../components/farm/FarmWorldMap.vue'
 import { sanitizeHtml } from '../../utils/markdown'
+import { readFarmContext, writeFarmContext, clearFarmContext } from '../../utils/farmContext'
+import { useNotificationStore } from '../../store/notification'
 import {
   getFarmState, listFarmPlots, advanceFarm, harvestFarm, restartFarm,
   mockFarmWeather, listFarmMockWeather, resetFarmMockWeather,
-  performFarmAction, listFarmActions, closeFailedFarmSeason
+  performFarmAction, listFarmActions, closeFailedFarmSeason,
+  getFarmWarehouse, getFarmBoard, getFarmShop
 } from '../../api/farm'
 
 const router = useRouter()
 const { t } = useI18n()
+/** 消息中心 store（S24：仓库临期通知要同步刷新铃铛未读数） */
+const notifStore = useNotificationStore()
 
 const state = ref(null)
+/**
+ * 🔴 S25：用户级世界日期（YYYY-MM-DD）——「今天」的统一定义。
+ *
+ * <p>「不能选今天之前」这个约束必须是全局一致的，否则会出现：
+ * <ul>
+ *   <li>玩家在「落后」的地块上打开选地面板 → 能选到对全局来说已经过去的日子</li>
+ *   <li>新建地块时后端按 `userWorldDate` 校验，前端却按单地块日期放行 → 两端口径打架</li>
+ * </ul>
+ *
+ * <p>🔴 2026-10-26：后端已把用户级时钟提到 {@code t_farm_user_clock} 表，
+ * 世界日期 = 现实今天 + 用户推进量，<b>不再受任何单块地偏移影响</b>
+ * （原来取「所有地块里最靠后的那个」，一个无关地块的残留偏移就能污染全用户）。
+ * 后端 `/board` 的 `today` 就是这个用户级世界日期。
+ */
+const userWorldDate = ref('')
 const busy = ref(false)
 const rulesVisible = ref(false)
 const mocks = ref([])
@@ -615,19 +687,163 @@ const currentSlot = ref(0)
 const plots = ref([])
 /** 建田目标槽位：-1 = 新建一块地，≥0 = 在指定地块上重建 */
 const setupSlot = ref(-1)
+/** 用户级地块总数上限（后端 FarmPlayService.MAX_PLOTS） */
 const MAX_PLOTS = 100
+/** 单个农场的地块数上限（后端 FarmPlayService.MAX_PLOTS_PER_FARM，2026-10-22） */
+const MAX_PLOTS_PER_FARM = 12
+const boardOpen = ref(false)
+/** S24 仓库面板开关 */
+const warehouseOpen = ref(false)
+/** 仓库组件实例（变卖后要刷新顶部角标） */
+const warehouseRef = ref(null)
+/** 仓库里的批次数（顶部 chip 显示） */
+const warehouseCount = ref(0)
+/** 仓库里临期的批次数（顶部红点提醒） */
+const warehouseWarn = ref(0)
+
+/** 🔴 需求 R：商店面板是否打开 */
+const shopOpen = ref(false)
+/** 商店缺货提醒条数（地图「商店」按钮上的红点） */
+const shopShort = ref(0)
+/** 钱包余额（顶部显示） */
+const shopBalance = ref(0)
+/**
+ * 中国地图（区县选点建农场）——进入游戏先看地图概览，符合「先看全局再下地」的操作顺序。
+ *
+ * <p>🔴 2026-10-23 需求「刷新保持当前画面」：
+ * 首次进入游戏 → 打开地图（默认行为不变）；
+ * 刷新页面 → 恢复上次的位置（地块 + 农场），<b>地图不自动弹出</b>，
+ * 否则玩家刚刷新就被地图糊一脸，等于没保持住。
+ */
+const worldMapOpen = ref(true)
+/** 从地图「进入农场」时指定的归属农场：新开地块要挂在它下面 */
+const pendingFarmId = ref(null)
+/**
+ * 进选地面板**之前**的农场上下文（2026-10-23）。
+ *
+ * <p>用途：玩家从地图进了一个空农场的建田页，又点了「返回」——
+ * 必须把农场上下文还原成他进来之前的样子，
+ * 否则顶部标识写着「格尔木市农场」而 3D 场景里是别家的地。
+ *
+ * <p>{@code undefined} = 没有快照（正常流程不需要还原）。
+ * {@code null} 是**有效值**，表示「未归属的老田」——两者必须区分开。
+ */
+const prevFarmId = ref(undefined)
+/** field = 近景；map = 俯瞰选点 */
+const sceneView = ref('field')
+
+/**
+ * 当前所在的农场（null = 未归属 / v1 遗留的老田）。
+ *
+ * <p>🔴 2026-10-22：这里从「按 currentSlot 反查 plots」改成**独立状态源**。
+ * 原因：地块切换条要按「当前农场」过滤（只显示本农场的地块），
+ * 而过滤后的列表又会参与 currentFarmId 的推导 —— 形成自依赖。
+ * 独立 ref 之后：切换条怎么过滤都不会反过来影响「当前在哪个农场」。
+ *
+ * <p>赋值时机：
+ * <ul>
+ *   <li>从地图「进入农场/地块」→ 由 {@code onWorldEnterPlot} 写入；</li>
+ *   <li>看板里点某块地 → 由 {@code onBoardSelect} 写入（该地的 farmId）；</li>
+ *   <li>3D 场景里点到别农场的邻田 → 由 {@code selectPlot} 跟随切换；</li>
+ *   <li>首次进入 / 兜底回退 → {@code load()} 里按当前地块的 farmId 兜底。</li>
+ * </ul>
+ */
+const activeFarmId = ref(null)
+
+/**
+ * 该用户的**全部**农场（来自 {@code /board} 的 {@code farms} 数组）。
+ *
+ * <p>🔴 2026-10-23 需求：农场详情要显示「当前是哪个农场」。
+ * 原先农场名只能从地块摘要（{@code plots}）里找，而**没有地块的农场
+ * 根本不在 plots 里** —— 顶部标识退化成「#2」，玩家不知道自己在哪。
+ *
+ * <p>{@code /board} 的 {@code farms} 数组包含全部农场（含 0 地块的），
+ * 每项带 {@code name} / {@code zoneId} / {@code districtName}，
+ * 是「农场名 + 农业区」的唯一权威来源。
+ */
+const boardFarms = ref([])
+
 /** 当前地块所属农场（地图建场后，新开的地块默认挂到这里） */
 const currentFarmId = computed(() => {
   const p = plots.value.find((x) => x.slot === currentSlot.value)
   return p && p.farmId ? p.farmId : null
 })
-const boardOpen = ref(false)
-/** 中国地图（区县选点建农场）——进入游戏先看地图概览，符合「先看全局再下地」的操作顺序 */
-const worldMapOpen = ref(true)
-/** 从地图「进入农场」时指定的归属农场：新开地块要挂在它下面 */
-const pendingFarmId = ref(null)
-/** field = 近景；map = 俯瞰选点 */
-const sceneView = ref('field')
+
+/**
+ * 当前农场的地块（切换条只显示这些）。
+ *
+ * <p>需求（2026-10-22）：「农场详情内的作物切换功能只显示当前农场内的地块，
+ * 不显示其他农场的」。此前切换条直接渲染 {@code plots}（该用户**全部**地块），
+ * 于是进入南昌县的农场后，切换条上仍挤着 10 块其它农场与历史老田的地。
+ *
+ * <p>判定口径：{@code (p.farmId ?? null) === (activeFarmId ?? null)}。
+ * <ul>
+ *   <li>在某个农场里（{@code activeFarmId != null}）：
+ *       只列该农场的地，{@code farmId=null} 的 v1 遗留老田属于「其他农场」，排除；</li>
+ *   <li>没进任何农场（{@code activeFarmId == null}）：
+ *       列 {@code farmId=null} 的老田 —— 它们自成一组，
+ *       否则玩家关掉地图站在老田上时切换条会一条都不显示。</li>
+ *   <li>玩家在 3D 场景里点到别农场的邻田时，{@code selectPlot} 会把
+ *       {@code activeFarmId} 一起切过去，切换条随之换成那个农场 —— 上下文始终自洽。</li>
+ * </ul>
+ */
+const farmPlots = computed(() => {
+  const fid = activeFarmId.value ?? null
+  return plots.value.filter((p) => (p.farmId ?? null) === fid)
+})
+
+/**
+ * 农场名（切换条与顶部标识用）。
+ *
+ * <p>🔴 2026-10-23：原来只从 {@code plots}（地块摘要）里找 farmName，
+ * 于是**没有地块的农场拿不到名字** —— 顶部标识退化成「#2」这种 ID，
+ * 玩家根本不知道自己在哪个农场。
+ *
+ * <p>正确来源是 {@code /board} 的 {@code farms} 数组：它包含该用户的
+ * **全部**农场（含 0 地块的），每项都带 {@code name}。
+ * 两级兜底：地块摘要（最新，可能带别名）→ board.farms（权威，覆盖无地块农场）。
+ */
+const farmName = computed(() => {
+  const fid = activeFarmId.value
+  if (fid == null) return ''
+  const hit = plots.value.find((p) => p.farmId === fid && p.farmName)
+  if (hit?.farmName) return hit.farmName
+  // 🔴 无地块的农场根本不在 plots 里 —— 必须从 board.farms 兜底
+  return boardFarms.value.find((f) => f.farmId === fid)?.name || ''
+})
+
+/**
+ * 这次要操作的目标农场（无地块农场也要能显示出来）。
+ *
+ * <p>口径：{@code pendingFarmId}（从地图点「进入农场」带过来的）
+ * 优先于 {@code activeFarmId}（当前上下文）。
+ */
+const targetFarmId = computed(() => pendingFarmId.value ?? activeFarmId.value ?? null)
+
+/**
+ * 目标农场的名字（地图侧栏与选地面板顶部都用它）。
+ */
+const targetFarmName = computed(() => {
+  const fid = targetFarmId.value
+  if (fid == null) return ''
+  const hit = plots.value.find((p) => p.farmId === fid && p.farmName)
+  if (hit?.farmName) return hit.farmName
+  return boardFarms.value.find((f) => f.farmId === fid)?.name || ''
+})
+
+/**
+ * 目标农场的农业区（区县决定气候，不能手改）。
+ *
+ * <p>🔴 2026-10-23：无地块农场的 {@code state.plot.zoneId} 是空的
+ * （那块地还没建），但农场的 zone 是确定的 —— 建田时必须用它，
+ * 否则选地面板会退回默认的「江南」区，在东北的农场里种江南作物，
+ * 风险评估全都算错。
+ */
+const targetFarmZone = computed(() => {
+  const fid = targetFarmId.value
+  if (fid == null) return ''
+  return boardFarms.value.find((f) => f.farmId === fid)?.zoneId || ''
+})
 
 /** 未建田或主动换地时，整页展示选地流程 */
 const setupVisible = computed(() => showSetup.value || !!(state.value?.plot && !state.value.plot.chosen))
@@ -648,6 +864,32 @@ const setupVisible = computed(() => showSetup.value || !!(state.value?.plot && !
 const effectiveSetupSlot = computed(() => {
   if (showSetup.value) return setupSlot.value
   return state.value?.plot && !state.value.plot.chosen ? currentSlot.value : -1
+})
+
+/**
+ * 这次提交是「替换已有地块」还是「开一块新地」。
+ *
+ * <p>🔴 2026-10-22 修复：原先 {@code has-field} 直接绑 {@code state.plot.chosen}
+ * （= **当前**地块有没有种），于是点了「＋ 开垦新地」也会弹出
+ * 「换一块地会放弃当前这一季」的确认框 —— 新地根本没种过，
+ * 放弃的是**别的**地的那一季，提示词张冠李戴，玩家会以为要毁掉当前地。
+ *
+ * <p>正确口径：看<b>这次要提交的那个槽位</b>（{@link effectiveSetupSlot}）上
+ * 是否已经种过东西：
+ * <ul>
+ *   <li>槽位 ≥ 0 且该槽位已种 → 替换，要警告；</li>
+ *   <li>槽位 = -1（新建）→ 不警告；</li>
+ *   <li>槽位 ≥ 0 但还没开垦（空地 / 待播种）→ 不警告
+ *       （待播种是「选下一季」，不是「放弃这一季」）。</li>
+ * </ul>
+ */
+const setupReplacesField = computed(() => {
+  const slot = effectiveSetupSlot.value
+  if (slot < 0) return false
+  const p = plots.value.find((x) => x.slot === slot)
+  if (!p) return false
+  // 已经开垦过（种过或收过）才算「替换」；纯空地 / 待播种不算
+  return !!p.chosen || !!p.awaitingSowing || (p.seasons || 0) > 0
 })
 
 /**
@@ -681,12 +923,32 @@ const railScroll = reactive({ left: 0, right: 0 })
  *
  * 不能用 currentSlot+1：槽位号是后端分配的，可以跳跃（11 号槽位之后可能是 15 号），
  * 那样会显示成 12/11 这种反常数字。要用当前地块在列表中的实际序号。
+ *
+ * 🔴 2026-10-22：分母改用 {@link farmPlots}（当前农场的地块数），
+ * 与切换条上实际显示的条目数保持一致。
  */
 const plotIndexLabel = computed(() => {
-  const total = plots.value.length
+  const total = farmPlots.value.length
   if (!total) return '0/0'
-  const idx = plots.value.findIndex((p) => p.slot === currentSlot.value)
+  const idx = farmPlots.value.findIndex((p) => p.slot === currentSlot.value)
   return `${idx >= 0 ? idx + 1 : 0}/${total}`
+})
+
+/**
+ * 切换条与顶部的农场标识（例：「南昌县农场 · 3 块地」）。
+ *
+ * <p>没有归属农场（v1 遗留老田）时显示「未归属」——
+ * 那些地自成一群，不该伪装成某个农场，也不能什么都不显示
+ * （否则玩家不知道切换条上那一排是什么）。
+ */
+const farmLabel = computed(() => {
+  const fid = activeFarmId.value
+  const n = farmPlots.value.length
+  if (fid == null) {
+    return n ? `未归属 · ${n} 块地` : ''
+  }
+  const name = farmName.value || `#${fid}`
+  return n ? `${name} · ${n} 块地` : name
 })
 
 function onRailScroll() {
@@ -721,40 +983,155 @@ function scrollRailTo(slot) {
   }
 }
 
-/** 建田完成：关掉选地页，新建时自动跳到新地块 */
-async function onFieldCreated() {
+/**
+ * 打开选地/建田面板的统一入口。
+ *
+ * <p>🔴 2026-10-22：必须先关掉中国地图浮层。
+ * {@code FarmWorldMap} 的根节点是 {@code .wm-page}（position:fixed; z-index:60），
+ * 而选地面板 {@code .fs-page} 是普通文档流（z-index:auto）——
+ * 两者同时存在时地图会**整个盖住**选地面板，表现为「点了＋却什么都没发生」。
+ * 这个坑在 1600 视口下尤其隐蔽：DOM 里 .fs-page 明明在、风险评估也照常发请求，
+ * 但玩家视线里只有地图。
+ */
+function openSetup() {
+  worldMapOpen.value = false
+  // 🔴 2026-10-23：记下进来之前的农场上下文，取消时要还原。
+  // ⚠️ 这里只在**还没有快照**时记（`undefined`）——
+  // 从地图进空农场时 `onWorldEnterPlot` 已经先记过了，
+  // 这时再记一遍记到的就是目标农场，取消时还原不回去。
+  if (prevFarmId.value === undefined) {
+    prevFarmId.value = activeFarmId.value
+  }
+  showSetup.value = true
+}
+
+/**
+ * 取消选地（2026-10-23）。
+ *
+ * <p>🔴 空农场点「进入农场」会直接进选地面板（那里没有地可进），
+ * 必须给一条退路 —— 否则玩家被关在选地页里，连地图都回不去。
+ *
+ * <p>🔴 取消时必须**还原农场上下文**：玩家进来时我们把 {@code activeFarmId}
+ * 切成了目标农场（空农场），但 3D 场景里的地还是原来那块（别的农场）。
+ * 不还原的话顶部写着「格尔木市农场」、场景里却是别家的地 ——
+ * 正是用户报的「进入了其他的农场」。
+ *
+ * <p>退到哪里：
+ * <ul>
+ *   <li>还原到进来前的农场 + 重新拉数据 → 回 3D 场景（回到他刚才待的地方）；</li>
+ *   <li>一个地块都没有 → 打开中国地图，让他去别处建农场。</li>
+ * </ul>
+ */
+async function onSetupCancel() {
+  showSetup.value = false
+  setupSlot.value = -1
+  pendingFarmId.value = null
+  // 🔴 还原农场上下文（undefined = 没有快照，别动）
+  if (prevFarmId.value !== undefined) {
+    activeFarmId.value = prevFarmId.value
+  }
+  prevFarmId.value = undefined
+  if (!plots.value.length) {
+    worldMapOpen.value = true
+    return
+  }
+  await load()
+}
+
+/**
+ * 建田完成：关掉选地页，新建时自动跳到新地块。
+ *
+ * <p>🔴 2026-10-22：不再用「取最大 slot」猜新地块落在哪 ——
+ * 槽位是后端按「全局第一个空位」分配的，农场内的 slot 并不一定连续或递增，
+ * 猜最大 slot 会跳到别的农场的地上。改为用后端回传的 slot（{@code info.slot}）。
+ */
+async function onFieldCreated(info = {}) {
   showSetup.value = false
   const wasNew = setupSlot.value < 0
   setupSlot.value = -1
   pendingFarmId.value = null
+  prevFarmId.value = undefined
   await load()
-  if (wasNew && plots.value.length) {
+  const newSlot = Number.isInteger(info?.slot) ? info.slot : null
+  if (wasNew && newSlot != null) {
+    currentSlot.value = newSlot
+    await load()
+  } else if (wasNew && plots.value.length) {
+    // 兜底：后端没回 slot（老接口）时退回「取最大 slot」
     const last = plots.value.reduce((a, b) => (a.slot >= b.slot ? a : b))
     currentSlot.value = last.slot
     await load()
   }
 }
 
-/** 地图里点「进入农场/地块」：切到那块地并关掉地图 */
+/**
+ * 地图里点「进入农场/地块」：切到那块地并关掉地图。
+ *
+ * <p>🔴 2026-10-22：同时写入 {@link activeFarmId} —— 切换条按它过滤，
+ * 不写的话进了农场仍会显示其它农场的地块。
+ *
+ * <p>🔴 2026-10-23 事故修复：**地块必须属于目标农场**，否则会串场。
+ *
+ * <p>原实现只校验「slot 存在」：
+ * <pre>{@code const exists = plots.value.some((p) => p.slot === slot)}</pre>
+ * 而 slot 是**用户范围内全局唯一**的，空农场（0 地块）进来时
+ * 前端传了个 {@code slot: 0}（slot 0 属于别的农场），
+ * 于是玩家点了「五台县农场」（0 地块）却落进了 slot 0 那个农场。
+ *
+ * <p>正确口径：{@code (p.farmId ?? null) === (farmId ?? null)} ——
+ * 既要 slot 对上，也要归属农场对上。
+ *
+ * <p>{@code slot = -1} 是「这个农场还没有地，去开垦第一块」的信号
+ * （空农场点「进入农场」时地图侧就是这么发的）。
+ */
 async function onWorldEnterPlot({ farmId, slot }) {
   worldMapOpen.value = false
+  // 🔴 2026-10-23：先记快照，再切上下文 ——
+  // 顺序反了的话，快照记下来的已经是目标农场，取消时就还原不回去了。
+  prevFarmId.value = activeFarmId.value
+  if (farmId != null) {
+    activeFarmId.value = farmId
+  } else {
+    // 未归属的老田：清掉农场上下文
+    activeFarmId.value = null
+  }
   await load()
-  const exists = plots.value.some((p) => p.slot === slot)
+  // 🔴 空农场：直接进建田流程，slot = -1 表示「在这个农场里新开一块地」
+  if (slot < 0) {
+    pendingFarmId.value = farmId || null
+    setupSlot.value = -1
+    openSetup()
+    return
+  }
+  // 🔴 归属校验：slot 存在 **且** 属于目标农场
+  const exists = plots.value.some(
+    (p) => p.slot === slot && (p.farmId ?? null) === (farmId ?? null)
+  )
   if (exists) {
     currentSlot.value = slot
     await load()
     return
   }
   // 这个农场下还没有对应地块：直接进建田流程，新地挂在目标农场下
-  currentSlot.value = slot
+  //
+  // 🔴 2026-10-23：**不要**把 currentSlot 设成这个不存在的 slot。
+  // slot 是用户范围内全局唯一的，前端传的 slot 往往属于**别的农场**；
+  // 一旦设上去，state 就变成了别家的地 —— 顶部显示「五台县农场」，
+  // 3D 场景里却是另一块田，正是用户报的「进入了其他的农场」。
+  // 保持 currentSlot 不动，FieldSetup 靠 pendingFarmId 拿到归属农场。
   pendingFarmId.value = farmId || null
   setupSlot.value = -1
-  showSetup.value = true
+  openSetup()
 }
 
 /** 看板里点某块地：切过去并关掉看板 */
 async function onBoardSelect(slot) {
   boardOpen.value = false
+  // 看板跨农场：切换到那块地时把农场上下文也切过去
+  const p = plots.value.find((x) => x.slot === slot)
+  if (p) {
+    activeFarmId.value = p.farmId ?? null
+  }
   await selectPlot(slot)
 }
 
@@ -797,14 +1174,33 @@ async function onBoardHarvest(slot) {
     await load()
     const y = r?.data?.yield || r?.data?.y
     ElMessage.success(t('farm.harvestOk', { y: y ?? '—', best: '' }))
+    // S24：看板收割同样入仓
+    if (r?.data?.warehouseStored) {
+      refreshWarehouseBadge()
+      ElMessage.info(t('farm.warehouse.stored', { kg: r.data.storedKg }))
+    }
   } catch (e) {
     ElMessage.error(e?.message || t('farm.opFail'))
   }
 }
 
-/** 切换到另一块地 */
+/**
+ * 切换到另一块地。
+ *
+ * <p>🔴 2026-10-22：同步切换 {@link activeFarmId}。
+ * 3D 场景里相邻的田可能属于**别的农场**（玩家在地图上建的多个农场
+ * 各自有地，槽位在全局网格上相邻）。点过去时若不切农场上下文，
+ * 切换条会停留在原农场、当前高亮的地却不在列表里（计数变成 0/N）。
+ */
 async function selectPlot(slot) {
   if (slot === currentSlot.value || busy.value) return
+  const p = plots.value.find((x) => x.slot === slot)
+  if (p) {
+    const nextFarm = p.farmId ?? null
+    if (nextFarm !== (activeFarmId.value ?? null)) {
+      activeFarmId.value = nextFarm
+    }
+  }
   currentSlot.value = slot
   await load()
   // 高亮的 chip 必须留在视野里，否则第 80 块被选中时用户看不到自己在哪
@@ -817,26 +1213,148 @@ function toggleMap() {
   sceneView.value = sceneView.value === 'map' ? 'field' : 'map'
 }
 
+/**
+ * 打开仓库（S24）。
+ *
+ * <p>🔴 必须先关掉中国地图浮层 —— {@code .wm-page} 是 fixed/z-index:60，
+ * 会整个盖住仓库面板（与选地面板同一个坑）。
+ */
+function openWarehouse() {
+  worldMapOpen.value = false
+  boardOpen.value = false
+  warehouseOpen.value = true
+}
+
+function closeWarehouse() {
+  warehouseOpen.value = false
+}
+
+/**
+ * 建田后提示「缺种子」，玩家点了「去商店」→ 直接开商店面板。
+ *
+ * <p>⚠️ 必须先关掉选地面板（{@code setupVisible}）——
+ * 它是全屏的，不关的话商店面板会开在选地面板下面，玩家看不到。
+ */
+function onNeedShop() {
+  showSetup.value = false
+  worldMapOpen.value = false
+  boardOpen.value = false
+  warehouseOpen.value = false
+  shopOpen.value = true
+}
+
+/** 变卖完成：刷新顶部角标 */
+function onWarehouseSold() {
+  refreshWarehouseBadge()
+}
+
+// ==================== 商店（需求 R） ====================
+
+/** 打开商店（地图顶栏「商店」按钮）。 */
+function openShop() {
+  worldMapOpen.value = false
+  boardOpen.value = false
+  warehouseOpen.value = false
+  shopOpen.value = true
+}
+
+function closeShop() {
+  shopOpen.value = false
+}
+
+/**
+ * 买完东西：刷新顶部余额 + 商店角标 + 仓库（种子/水进了库存）。
+ *
+ * <p>⚠️ 种子和水的库存变化会影响「仓库」的农资区显示，
+ * 所以这里除了刷商店角标，还要刷一次仓库角标。
+ */
+function onShopBought() {
+  refreshShopBadge()
+  refreshWarehouseBadge()
+}
+
+/**
+ * 刷新商店角标：缺货提醒条数。
+ *
+ * <p>语义：「有该补的东西」——比如没有种子、没有灌溉水。
+ * 玩家看到红点就知道该去商店了。
+ *
+ * <p>⚠️ 静默失败：角标只是提示，拉不到就保持原样。
+ */
+async function refreshShopBadge() {
+  try {
+    const res = await getFarmShop()
+    const d = res?.data || {}
+    shopBalance.value = d.balance || 0
+    const items = d.items || []
+    let short = 0
+    for (const it of items) {
+      // 种子：库存为 0 → 缺货（但耐用品「已拥有」不算缺）
+      if (it.kind === 'SEED' && !it.owned) short++
+      // 水：灌溉额度为 0 → 缺水
+      if (it.kind === 'WATER' && !it.owned) short++
+    }
+    shopShort.value = short
+  } catch (e) {
+    // 静默
+  }
+}
+
+/**
+ * 刷新顶部仓库角标（批次数 + 待处理数）。
+ *
+ * <p>静默失败：角标只是提示，拉不到就保持原样，不能因此弹错误提示打断玩家。
+ *
+ * <p>⚠️ {@code getFarmWarehouse()} 后端会顺带跑一次临期/变质检查并生成站内通知，
+ * 所以拿到数据后要同步刷新消息中心未读数，否则玩家收不到「该卖了」的铃铛提醒。
+ */
+async function refreshWarehouseBadge() {
+  try {
+    const res = await getFarmWarehouse()
+    const d = res?.data || {}
+    warehouseCount.value = (d.items || []).length
+    // 临期 + 已变质都要玩家处理，一起算进红点
+    warehouseWarn.value = (d.expiringCount || 0) + (d.rottenCount || 0)
+    // 顺带刷新铃铛（后端刚生成过临期/变质通知）
+    notifStore.fetchUnread()
+  } catch (e) {
+    // 静默
+  }
+}
+
 /** 在 3D 场景里点空地：直接在那一格建田 */
 function onSceneCreatePlot(slot) {
   setupSlot.value = slot
-  showSetup.value = true
+  openSetup()
 }
 
-/** 新建一块地（后端自动分配槽位） */
+/**
+ * 新建一块地（后端自动分配槽位）。
+ *
+ * <p>🔴 2026-10-22：上限判断从「用户总量 100」改成「**当前农场 12 块**」
+ * —— 后端 {@code MAX_PLOTS_PER_FARM} 才是真正的闸门（超了后端直接拒绝），
+ * 前端还用总量判断会让玩家在还有余量时就被拦住。
+ * 没有归属农场（v1 老田）时退回用户级总量。
+ */
 function newPlot() {
-  if (plots.value.length >= MAX_PLOTS) {
+  const fid = activeFarmId.value
+  if (fid != null) {
+    if (farmPlots.value.length >= MAX_PLOTS_PER_FARM) {
+      ElMessage.warning(t('farm.plotLimitPerFarm', { n: MAX_PLOTS_PER_FARM }))
+      return
+    }
+  } else if (plots.value.length >= MAX_PLOTS) {
     ElMessage.warning(t('farm.plotLimit', { n: MAX_PLOTS }))
     return
   }
   setupSlot.value = -1
-  showSetup.value = true
+  openSetup()
 }
 
 /** 在当前地块上换作物/换播期 */
 function rebuildPlot() {
   setupSlot.value = currentSlot.value
-  showSetup.value = true
+  openSetup()
 }
 
 const STAGE_SEGMENTS = [
@@ -870,6 +1388,10 @@ const rules = computed(() => [
 ].filter(Boolean))
 
 function gotoCenter() {
+  // 🔴 2026-10-23：主动离开游戏 → 清除画面上下文。
+  // 否则下次进「稼穑」会直接落到上次那块地（虽然也能刷新保持，
+  // 但玩家明明是从游戏中心重新进来的，落到旧位置反而突兀）。
+  clearFarmContext()
   router.push('/games')
 }
 
@@ -885,12 +1407,32 @@ async function load() {
       const again = await getFarmState(currentSlot.value)
       state.value = again?.data || null
     }
+    // 🔴 S25：用户级世界日期。/board 的 today 是「今天」唯一的统一定义。
+    // 🔴 2026-10-26：后端已改为只读用户级时钟表（t_farm_user_clock），
+    // 不再是「所有地块里最靠后的那个」—— 一个无关地块的偏移曾把整个用户推到 2028 年。
+    const board = await getFarmBoard()
+    userWorldDate.value = board?.data?.today || ''
+    // 🔴 2026-10-23：把 farms 存下来 —— 农场名与农业区要靠它，
+    // 无地块的农场不在 plots 里（地块摘要），只能从这里拿。
+    boardFarms.value = board?.data?.farms || []
+    // 🔴 2026-10-22：农场上下文兜底。
+    // 首次进入（直接打开「稼穑」路由）时 activeFarmId 还是 null，
+    // 这时按当前地块的 farmId 推断 —— 否则切换条会一条都不显示。
+    const cur = plots.value.find(p => p.slot === currentSlot.value)
+    const curFarm = cur?.farmId ?? null
+    if (activeFarmId.value == null && curFarm != null) {
+      activeFarmId.value = curFarm
+    }
     if (state.value?.demoMode) {
       const m = await listFarmMockWeather()
       mocks.value = m?.data || []
     }
     const a = await listFarmActions(currentSlot.value)
     actions.value = a?.data || []
+    // S24：仓库角标（批次数 + 临期数）——静默刷新，不打断主流程
+    refreshWarehouseBadge()
+    // 🔴 需求 R：商店角标（缺种子 / 缺水）+ 余额——同样静默
+    refreshShopBadge()
     // 切换条：等 DOM 出来再同步滚动位置与余量
     await nextTick()
     onRailScroll()
@@ -963,6 +1505,11 @@ async function harvest() {
       t('farm.harvestCappedTitle'),
       { type: 'info', confirmButtonText: t('farm.input.phiAck') }
     )
+  }
+  // S24：收割后进仓库了 —— 提示玩家货入仓，什么时候卖得自己算
+  if (d && d.warehouseStored) {
+    refreshWarehouseBadge()
+    ElMessage.info(t('farm.warehouse.stored', { kg: d.storedKg }))
   }
 }
 
@@ -1043,7 +1590,77 @@ function doAction(type) {
   )
 }
 
-onMounted(load)
+onMounted(async () => {
+  // 🔴 2026-10-23 需求：「在游戏内刷新的时候应该还保持在当前游戏画面」。
+  //
+  // 做法：把「当前地块 + 当前农场 + 地图开合」写进 sessionStorage，
+  // 刷新时读回来。有记录 → 回到上次那块地、地图不弹；无记录 → 保持默认（打开地图）。
+  //
+  // ⚠️ 恢复必须在 load() **之前**设好 currentSlot / activeFarmId，
+  // 否则 load() 会先按默认 slot 拉一次数据，再被覆盖（多余请求 + 闪一下别的地）。
+  const ctx = readFarmContext()
+  if (ctx) {
+    currentSlot.value = ctx.slot
+    activeFarmId.value = ctx.farmId
+    worldMapOpen.value = ctx.mapOpen
+  }
+  await load()
+  // load() 之后 plots 才有内容 —— 此时校正农场上下文并落盘
+  //
+  // ⚠️ 无论有没有 ctx 都要落盘：首次进入时 ctx 为 null（sessionStorage 还是空的），
+  // 但**这一次的画面就是玩家下次刷新要回来的地方**，必须记下来。
+  if (ctx) {
+    // 🔴 2026-10-23：地块要按 **(slot, farmId) 组合**定位，不能只按 slot 反查 farmId。
+    //
+    // 为什么：slot 在用户范围内唯一，但**不同农场的地可以有各自的 slot 0**
+    // （slot 是「农场内」的槽位，v1 遗留的老田还占着用户级的 slot 0）。
+    // 只按 slot 找会把「农场 3 的第 0 块地」错认成「未归属的老田」→ farmId 被抹成 null，
+    // 刷新后顶部农场名就没了 —— 正是本需求要修的东西自己出了 bug。
+    const fid = ctx.farmId ?? null
+    const hit = plots.value.find(
+      (p) => p.slot === currentSlot.value && (p.farmId ?? null) === fid
+    )
+    if (hit) {
+      // 组合命中 → 上下文正确，保持原样
+      activeFarmId.value = hit.farmId ?? null
+    } else {
+      // 组合没命中（地块被删了 / 归属变了）→ 退回该 farmId 下的第一块地；
+      // 连一块都没有就回退到用户级第一块（load() 已做过）
+      const sameFarm = plots.value.filter((p) => (p.farmId ?? null) === fid)
+      if (sameFarm.length) {
+        currentSlot.value = sameFarm[0].slot
+        await load()
+      }
+    }
+  }
+  persistContext()
+})
+
+/**
+ * 把当前画面上下文落盘（刷新后据此恢复）。
+ *
+ * <p>只在「玩家已经进入某个具体画面」时保存 —— 地图概览态也保存，
+ * 这样刷新后仍然停在地图上（保持一致），而不是莫名跳到某块地。
+ */
+function persistContext() {
+  writeFarmContext({
+    slot: currentSlot.value,
+    farmId: activeFarmId.value ?? null,
+    mapOpen: worldMapOpen.value
+  })
+}
+
+/**
+ * 画面上下文变化 → 落盘。
+ *
+ * <p>🔴 2026-10-23：覆盖三条路径 —— 切换地块、切换农场、开关中国地图。
+ * 用 watch 而不是手动在每个函数里调，是因为这些状态散落在
+ * {@code selectPlot} / {@code onWorldEnterPlot} / 模板里的直接赋值，
+ * 手动补容易漏（漏一处 = 刷新后跳错地方）。
+ */
+watch([currentSlot, activeFarmId, worldMapOpen], () => {
+  persistContext()
+})
 
 const dvs = computed(() => state.value?.crop?.dvs ?? 0)
 
@@ -1262,10 +1879,20 @@ const cells = computed(() => {
  * 园艺作物的对应关系是：株数 / 单株果数 / 单果重 —— 数值口径一致，
  * 只是标签必须换，否则"番茄的每穗粒数"会让玩家一头雾水。
  */
+/**
+ * 是否禾谷口径（决定产量文案用「穗/粒/千粒重」还是「株/果/单果重」）。
+ *
+ * ⚠️ 2026-10-24：不能用 visual 判断 —— visual 现在是作物 id（谷子是 `millet`），
+ * 而且 visual 是「3D 形态标识」，本就不该拿来区分作物类别。用 cropId。
+ */
+const isGrainCrop = computed(() =>
+  ['rice_mid', 'wheat_winter', 'corn_spring', 'soybean', 'millet'].includes(state.value?.plot?.cropId)
+)
+
 const yieldRows = computed(() => {
   const y = state.value?.yield
   if (!y) return []
-  const grain = ['rice', 'wheat', 'corn', 'soybean'].includes(cropVisual.value)
+  const grain = isGrainCrop.value
   return [
     {
       name: t(grain ? 'farm.col.panicles' : 'farm.col.plants'),
@@ -1310,14 +1937,11 @@ function fmtTime(v) {
    滚动列表两侧用渐隐遮罩提示"还有内容在边上"，否则用户根本不知道能横滚。
    翻页按钮在两端溢出时自动禁用（.off）。 */
 .fm-plotrail-wrap {
-  position: absolute;
-  left: 16px;
-  bottom: 48px;
-  right: 16px;
+  position: relative;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 6px;
-  z-index: 6;
   pointer-events: none;
 }
 .fm-plotrail-wrap > * { pointer-events: auto; }
@@ -1417,12 +2041,67 @@ function fmtTime(v) {
   line-height: 1;
 }
 .pr-add.full { opacity: 0.4; cursor: not-allowed; }
+
+/* 当前农场标识（切换条右端）：告诉玩家「这条切换条只列这个农场的地」 */
+.pr-farm {
+  flex: 0 0 auto;
+  max-width: 168px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: rgba(238, 245, 234, 0.92);
+  background: rgba(52, 92, 44, 0.72);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(180, 232, 150, 0.45);
+  border-radius: 12px;
+  padding: 0 10px;
+  height: 26px;
+  line-height: 24px;
+}
+
+/* 顶部：农场名 chip（顶部是白色面板，用浅底深字，与其它 .hchip 一致） */
+.farm-chip {
+  cursor: default;
+  color: #2f6b34;
+  background: rgba(96, 156, 72, 0.16);
+  border: 1px solid rgba(96, 156, 72, 0.32);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 🔴 2026-10-23：农场名是**身份信息**，不许被 flex 挤扁。
+     原来它排在头部最后，空间不足时被压成 20px，文字全被 ellipsis 吃掉
+     —— 玩家看到的就是「没有农场名」。 */
+  flex: none;
+  font-weight: 600;
+}
 .board-chip {
   cursor: pointer;
   background: rgba(255, 255, 255, 0.16);
 }
 .board-chip:hover { background: rgba(255, 255, 255, 0.3); }
 .board-chip.on { background: rgba(96, 156, 72, 0.9); }
+
+/* S24 仓库 chip：临期红点 */
+.wh-chip { position: relative; }
+.wh-chip.has-warn { background: rgba(214, 106, 40, 0.55); }
+.wh-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #e0552f;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+}
 
 /* ============================================================
    PC 端布局：左侧 3D 农田自适应铺满 + 右侧 400–480 固定操作栏
@@ -1464,6 +2143,11 @@ function fmtTime(v) {
   left: 14px;
   display: flex;
   align-items: center;
+  /* 🔴 2026-10-23：允许换行。头部 chip 越来越多（仓库/商店/看板/地图/农场名），
+     1600 视口下内容宽度 1044px 已经超出可用空间，
+     不换行就必然把某个 chip 挤扁 —— 而挤扁的那个往往正是玩家要看的信息。 */
+  flex-wrap: wrap;
+  row-gap: 6px;
   gap: 10px;
   padding: 8px 14px;
   border-radius: 12px;
@@ -1509,7 +2193,13 @@ function fmtTime(v) {
   cursor: pointer;
   background: rgba(47, 127, 208, 0.10);
   color: #1d5f96;
+  /* 🔴 2026-10-23：作物名可能很长（「水稻·中稻/一季稻（籼）」），
+     不限量的话它一个人就把头部撑到 282px，把后面的 chip 全挤没。 */
+  max-width: 210px;
+  overflow: hidden;
 }
+.plot-chip b, .plot-chip em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plot-chip i { flex: none; }
 .plot-chip:hover { background: rgba(47, 127, 208, 0.18); }
 .plot-chip em { font-style: normal; font-size: 11px; color: #64748b; }
 .plot-chip i { font-style: normal; font-size: 10px; padding: 0 4px; border-radius: 4px; background: #eef7e7; color: #2f7a2a; }
@@ -1518,11 +2208,25 @@ function fmtTime(v) {
 .plot-chip i.l-5 { background: #f3eefe; color: #7c3aed; }
 
 /* 左下天气条 */
-.fm-weatherbar {
+/* 左下角堆叠容器：天气条 + 地块切换条
+   🔴 2026-10-22：两者原先各自 position:absolute + bottom 定位，
+   窄屏下**完全重叠**（天气数值压在 chip 上），桌面端也压掉 4px。
+   改成同一容器内 flex 纵向排列：高度由内容决定，两者永远不打架。 */
+.fm-bottom-stack {
   position: absolute;
   z-index: 6;
-  left: 14px;
+  left: 16px;
   bottom: 14px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+.fm-bottom-stack > * { pointer-events: auto; }
+
+.fm-weatherbar {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2263,15 +2967,25 @@ function fmtTime(v) {
   .fb-scroll { overflow: visible; }
   .fm-hint { display: none; }
   .fm-weatherbar { font-size: 11.5px; gap: 8px; padding: 6px 10px; }
-  /* 地块条跟着场景一起上移（场景只有 56vh），别压在场景外 */
-  .fm-plotrail-wrap { bottom: 8px; left: 8px; right: 8px; }
+  /* 堆叠容器跟着场景一起上移（场景只有 56vh），别压在场景外 */
+  .fm-bottom-stack { bottom: 8px; left: 8px; right: 8px; gap: 6px; }
 }
 
 @media (max-width: 480px) {
   .fm-head { left: 8px; right: 8px; top: 8px; padding: 6px 10px; gap: 8px; }
   .fm-head .back-txt { display: none; }
   .hchip { display: none; }
-  .fm-weatherbar { left: 8px; bottom: 8px; }
+  /* 🔴 2026-10-23：农场名 chip 必须留着 ——
+     「当前在哪个农场」是身份信息，窄屏上恰恰更需要它
+     （玩家分不清哪个农场）。上面的 `.hchip{display:none}` 是为了省空间，
+     但把身份信息一起藏了就本末倒置了。 */
+  .fm-head .farm-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 46vw;
+    font-size: 11.5px;
+    padding: 3px 8px;
+  }
   .fm-weatherbar .wb-sep, .fm-weatherbar .wb-item.muted { display: none; }
   .fm-weatherbar { gap: 6px; }
   .fb-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2280,7 +2994,7 @@ function fmtTime(v) {
   /* ---- 地块条紧凑模式 ----
      窄屏一屏放不下几个 chip，作物名+阶段全显示的话更看不到几块。
      改成只显示编号，选中块才展开显示作物名。 */
-  .fm-plotrail-wrap { gap: 4px; bottom: 6px; }
+  .fm-plotrail-wrap { gap: 4px; }
   .pr-nav { width: 24px; height: 30px; font-size: 15px; }
   .pr-count { height: 24px; line-height: 22px; padding: 0 7px; font-size: 11px; }
   .fm-plotrail { gap: 6px; padding: 5px 2px; }
