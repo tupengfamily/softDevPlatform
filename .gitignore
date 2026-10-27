@@ -142,3 +142,33 @@ frontend-learning/docs/
 # hort/src/ 是从 Blender 导出的中间产物（59MB），不入库
 frontend-learning/public/farm/tex/hort/
 frontend-learning/public/farm/render-lab.html
+
+# ============================================================
+#  构建残留与过程产物（2026-10-27 提交前清理）
+# ============================================================
+# vite 构建产物备份：沙箱删除守卫拦截 vite 清空 dist 时 mv 出来的旧产物，
+# 每个约 133MB，6 个就是 800MB —— 纯构建垃圾，绝不能进版本库。
+# 根目录的 dist/ 已被上面的 `dist/` 规则覆盖，但备份目录名不是 dist，
+# 需要单独加规则。
+.vite_dist_old_*/
+frontend-learning/dist_new/
+frontend-learning/dist.bak.*/
+frontend-learning/dist_old_*/
+
+# 验收截图（单次迭代产物，无长期参考价值）
+docs/farm-verify/
+# 本轮新功能（成就/相册/洞察面板/地块详情）的验收截图：
+# 没有任何 markdown 引用它们 —— 文档配图会被引用，验收截图不会。
+# （docs/ 下已入库的 34 张 png 都是被文档引用的配图，性质不同）
+docs/farm-achievement-*.png
+docs/farm-album-*.png
+docs/farm-insight-*.png
+docs/farm-plot-detail.png
+# 贴图抠图过程图（素材制作中间产物，非产品功能截图）
+docs/farm-asset-*.png
+
+# 贴图抠图「诊断」脚本：盆栽贴图逐版对比（v4→v8 共 21 个迭代版本），
+# 属于一次性调试过程，不是可复用的生产脚本。
+# 生产脚本（prep_crops.py / cutout_core.py 等）仍在库内。
+scripts/farm-assets/diag_pot_*.py
+scripts/farm-assets/eval_pot_*.py
