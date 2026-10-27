@@ -33,10 +33,16 @@ const mix = (a, b, t) => [
  * @param {object} cfg      SEASON 项（skyTop/skyMid/skyLow/skyHorizon）
  * @param {number} sunAz    太阳方位角（弧度）
  * @param {number} sunEl    太阳高度角（弧度）
+ * @param {number} [resW]   贴图宽（画质档位决定，见 quality.js）
+ * @param {number} [resH]   贴图高
  */
-export function makeSkyTexture(cfg, sunAz = -0.62, sunEl = 0.735) {
-  const W = 1024
-  const H = 512
+export function makeSkyTexture(cfg, sunAz = -0.62, sunEl = 0.735, resW = 1024, resH = 512) {
+  // 🔴 **分辨率必须按画质档位参数化**（2026-10-26 画质分级）。
+  //   原来写死 1024×512 → 4K 屏上天空是一张放大 2 倍的糊图（"天空不够精细"
+  //   的主要来源之一）；而低端机又被迫逐像素合成 1024×512 白跑一遍。
+  //   注意：合成成本 ∝ 像素数，2048×1024 是 1024×512 的 4 倍。
+  const W = resW
+  const H = resH
   const c = document.createElement('canvas')
   c.width = W
   c.height = H
@@ -344,8 +350,10 @@ export function makeRidgeTexture(W, H, seed, topColor, bottomColor, roughness = 
  * @param {object} THREE
  * @param {string} [tint] 季节色相微调（hex）。秋天给暖褐、冬天给冷灰，
  *                         让山体在当季雾色下仍有存在感又不偏色。
+ * @param {number} [texWidth]  山体贴图宽（画质档位决定）
+ * @param {number} [anisotropy] 各向异性过滤上限（画质档位决定）
  */
-export function makeRidgeLayers(THREE, tint = '#ffffff') {
+export function makeRidgeLayers(THREE, tint = '#ffffff', texWidth = 1024, anisotropy = 4) {
   // ⚠️ z 是**局部坐标**（挂在 fieldGroup 下，随主田平移）。
   // 必须排在树带之后：树带最远到 z≈-160，
   // 远山若更近会把树挡在山后面 —— 那是"树被山盖住"问题的另一种形态。
@@ -406,10 +414,12 @@ export function makeRidgeLayers(THREE, tint = '#ffffff') {
     { w: 780, h: 58, z: -204, seed: 29, top: '#4a584f', bottom: '#7d8b80', rough: 0.55, sharp: 1.05, op: 0.9 }
   ]
   return defs.map((d) => {
-    const canvas = makeRidgeTexture(1024, 200, d.seed, d.top, d.bottom, d.rough, d.sharp)
+    const canvas = makeRidgeTexture(texWidth, 200, d.seed, d.top, d.bottom, d.rough, d.sharp)
     const tex = new THREE.CanvasTexture(canvas)
     tex.colorSpace = THREE.SRGBColorSpace
-    tex.anisotropy = 4
+    // 🔴 **各向异性按画质档位**（2026-10-26）：远山是极端斜视的大平面，
+    //   16× 各向异性能显著削掉地平线附近的锯齿，但低端档给 1× 就够。
+    tex.anisotropy = anisotropy
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(d.w, d.h),
       new THREE.MeshBasicMaterial({

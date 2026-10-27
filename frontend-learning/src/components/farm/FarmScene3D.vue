@@ -33,11 +33,12 @@ import {
 } from './scene/config.js'
 import {
   mulberry32, makeRowShadeTexture, makeSoilWetnessTexture, boxWithUV, buildCrossQuad,
-  spherifyNormals, addWindShader, tickAllWind, clearWindRegistry, clamp
+  spherifyNormals, addWindShader, addUvJitter, tickAllWind, clearWindRegistry, clamp
 } from './scene/util.js'
 import { makeSkyTexture, makeRidgeLayers } from './scene/sky.js'
 import { createAssetPipeline } from './scene/assets.js'
 import { createCropField } from './scene/crops.js'
+import { getQuality, getQualityParams, initQuality, onQualityChange, setQuality, requiresSceneRebuild } from './scene/quality.js'
 
 const props = defineProps({
   stage: { type: Number, default: 2 },
@@ -53,7 +54,10 @@ const props = defineProps({
   /** field = 贴近看作物；map = 俯瞰整片农场，用来选点建田 */
   view: { type: String, default: 'field' }
 })
-const emit = defineEmits(['ready', 'fail', 'select-plot', 'create-plot'])
+const emit = defineEmits([
+  'ready', 'fail', 'select-plot', 'create-plot',
+  'fps', 'auto-downgrade', 'quality-changed', 'rebuild-scene'
+])
 
 const wrap = ref(null)
 const canvas = ref(null)
@@ -89,7 +93,19 @@ let fillLight = null
 let weatherObj = null
 let treeMesh = null
 let weedMesh = null
+/** 草地第二层 detail（破平铺），仅精细档以上才有 */
+let grassDetailMesh = null
 let farFieldMeshes = []
+/**
+ * 🔴 **当前画质参数矩阵**（2026-10-26 画质分级）。
+ *
+ *   全部渲染相关数字都从这里读，组件里**不再写死任何画质相关的常量**。
+ *   画质切换时若参数变化需要重建场景（几何/贴图/着色器变了），
+ *   由 requiresSceneRebuild() 判定 —— 判定逻辑只在 quality.js 一处。
+ */
+let Q = getQualityParams()
+/** 取消订阅画质变化的句柄 */
+let unsubscribeQuality = null
 /** 主田（含作物/水面/田埂）挂在它下面，切换地块时整体平移到目标位置 */
 let fieldGroup = null
 /** 相邻田块（只看外观，不参与操作） */
@@ -355,6 +371,10 @@ function assetSpecs(cropId) {
     { key: 'soilRough', file: `${soil}_rough.jpg`, srgb: false, mirror: true },
     { key: 'grassMap', file: 'ground_grass_albedo.jpg', mirror: true },
     { key: 'grassNorm', file: 'ground_grass_normal.jpg', srgb: false, mirror: true },
+    // 🔴 **草地粗糙度图**（2026-10-26 真实感升级）：给草地 detail 层用。
+    //   细节层要打散平铺感，用**草地自己的**粗糙度图（不能借土的 ——
+    //   土的粗糙度分布叠在草地上会显出"土块"，更假）。
+    { key: 'grassRough', file: 'ground_grass_rough.jpg', srgb: false, mirror: true },
     { key: 'fieldMap', file: 'field_rice_albedo.jpg', mirror: true },
     { key: 'young', file: `plant_${cropId}_young.png`, fallbackFile },
     { key: 'ripe', file: `plant_${cropId}_ripe.png`, fallbackFile: fallbackRipe },
@@ -405,11 +425,11 @@ function buildSky() {
   //   实际光照却从 42° 来**，影子方向与太阳位置对不上，
   //   一眼假。现在统一走 SUN 状态对象（季节化后可随换季更新）。
   const sunEl = SUN.el
-  const canvasSky = makeSkyTexture(cfg, SUN.az, sunEl)
+  const canvasSky = makeSkyTexture(cfg, SUN.az, sunEl, Q.skyWidth, Q.skyHeight)
   const skyTex = new THREE.CanvasTexture(canvasSky)
   skyTex.colorSpace = THREE.SRGBColorSpace
   skyTex.mapping = THREE.EquirectangularReflectionMapping
-  skyTex.anisotropy = 4
+  skyTex.anisotropy = Math.min(Q.anisotropy, 4)
 
   skyMesh = new THREE.Mesh(
     // 半径必须 < camera.far（600），否则球面会被远裁剪面切掉，
@@ -439,15 +459,63 @@ function buildSky() {
   if (camera) skyMesh.position.copy(camera.position)
 
   // 天空图直接当 equirect 环境图：泥土与水面才有天光反射
+  // 🔴 **PMREM 按画质档位**（2026-10-26）：PMREM 是全屏多次模糊 pass，
+  //   在低端机上是一次明显的固定开销（换季重建时尤其明显）。
   try {
-    if (!pmrem) pmrem = new THREE.PMREMGenerator(renderer)
-    pmrem.compileEquirectangularShader()
-    envRT?.dispose?.()
-    envRT = pmrem.fromEquirectangular(skyTex)
-    scene.environment = envRT.texture
+    if (Q.envMapEnabled) {
+      if (!pmrem) pmrem = new THREE.PMREMGenerator(renderer)
+      pmrem.compileEquirectangularShader()
+      envRT?.dispose?.()
+      envRT = pmrem.fromEquirectangular(skyTex)
+      scene.environment = envRT.texture
+    } else {
+      envRT?.dispose?.()
+      envRT = null
+      scene.environment = null
+    }
   } catch (e) {
     /* 环境贴图失败不影响主流程 */
   }
+}
+
+/**
+ * 🔴 **地面微起伏**（2026-10-26 真实感升级）
+ *
+ *   对草地平面做低频顶点位移，让地面不再是一张绝对平的纸。
+ *   完全平的地面是「3D 场景」最明显的破绽：掠射角下没有任何明暗变化，
+ *   地平线附近也是一条死平的线。
+ *
+ *   位移量取两层不同频率的正弦叠加（比噪声便宜，且不会有高频毛刺）：
+ *   · 主层：波长约 47m、振幅 6cm（大尺度缓坡）
+ *   · 次层：波长约 13m、振幅 2.5cm（中尺度起伏）
+ *
+ *   ⚠️ **必须避开主田区域**：
+ *   主田是 x∈[-8.3,8.3] / z∈[-15.8,6.8] 的平整面（田面 y=0.004，
+ *   草地 y=-0.020，间距 2.4cm）。位移若超过 2.4cm 就会与田面穿插。
+ *   这里用一个椭圆「避开区」把主田附近的位移平滑压到 0。
+ *
+ *   ⚠️ **位移是在平面局部坐标上做的**（PlaneGeometry 未经旋转时 y=0），
+ *   旋转 -90° 之后 x→x、z→-y。所以这里改的是**局部 z**（旋转后变成世界 y）。
+ */
+function displaceGrass(geo) {
+  const pos = geo.attributes.position
+  const arr = pos.array
+  for (let i = 0; i < pos.count; i++) {
+    const o = i * 3
+    const x = arr[o]
+    const y = arr[o + 1]   // 平面未旋转时这是"未来的世界 z"
+    const d1 = Math.sin(x * 0.1337 + y * 0.0913) * 0.060
+    const d2 = Math.sin(x * 0.4831 - y * 0.3721 + 1.7) * 0.025
+    // 避开主田：椭圆距离 → 0~1 的权重（1 = 完全位移，0 = 不动）
+    const dx = (x - 0) / 13.5
+    const dz = (y - (FIELD_CZ - 4)) / 20
+    const dist = Math.sqrt(dx * dx + dz * dz)
+    const w = Math.max(0, Math.min(1, (dist - 1) / 0.55))
+    arr[o + 1] = (d1 + d2) * w * w
+  }
+  pos.needsUpdate = true
+  geo.computeVertexNormals()
+  return geo
 }
 
 function buildTerrain() {
@@ -457,10 +525,20 @@ function buildTerrain() {
   const paddy = cropId === 'rice'
 
   // ---------- 草地 ----------
-  A.grassMap.repeat.set(10, 8)
-  A.grassNorm.repeat.set(10, 8)
+  //
+  // 🔴 **草地 repeat 按画质档位**（2026-10-26）：平铺次数越高，
+  //   单块贴图覆盖的面积越小 → 近处草叶越细密、远处越不易露出重复网格。
+  //
+  //   ⚠️ **量级必须算对**（2026-10-26 实测贴图尺寸后修正）：
+  //   草地 albedo 是 1024×1024 的**实拍俯视近景**，单块真实尺度约 0.8m。
+  //   草地平面 240×200m → 要让草叶保持真实大小，repeat 必须到 **60**（单块 4m）。
+  //   原来的 repeat=10 意味着单块贴图铺满 24m → **草叶被放大了 30 倍**，
+  //   画面上就是「一大片一尺长的草」，这是草地不像真实的第一号原因。
+  const grassRep = Q.grassRepeat
+  A.grassMap.repeat.set(grassRep, Math.round(grassRep * 0.8))
+  A.grassNorm.repeat.set(grassRep, Math.round(grassRep * 0.8))
   grassMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(240, 200),
+    new THREE.PlaneGeometry(240, 200, 40, 34),
     new THREE.MeshStandardMaterial({
       map: A.grassMap,
       normalMap: A.grassNorm,
@@ -470,6 +548,21 @@ function buildTerrain() {
       color: cfg.grassTint
     })
   )
+  // 🔴 **地面微起伏**（2026-10-26 真实感升级）
+  //
+  //   完全平整的地面是「3D 游戏场景」最明显的标志之一：
+  //   真实田野有微起伏 → 掠射角下的明暗会随地形起伏变化，
+  //   草地的边缘轮廓也不是一条死平的线。
+  //
+  //   实现：对草地平面做**低频顶点位移**（不是噪声贴图 ——
+  //   顶点位移能改变**轮廓线**，法线贴图只能改明暗）。
+  //   幅度必须极小（±6cm）：大了会与田埂、主田面穿插；
+  //   小到 6cm 时只有掠射角才看得出来，正是真实感需要的量级。
+  //
+  //   ⚠️ **位移必须避开主田区域**：主田在 x∈[-8.3,8.3] / z∈[-15.8,6.8]，
+  //   那里要保持绝对平整（否则田面会与地面穿插）。
+  //   用一个平滑的"避开区"把主田附近的位移压到 0。
+  displaceGrass(grassMesh.geometry)
   grassMesh.rotation.x = -Math.PI / 2
   grassMesh.position.y = GRASS_Y
   grassMesh.receiveShadow = true
@@ -478,6 +571,55 @@ function buildTerrain() {
   // 挂在 scene 上（固定原点）时，切到后排地块就会站到草地之外 ——
   // 脚下直接是清屏色。挂在 fieldGroup 下，地块走到哪，草地就跟到哪。
   fieldGroup.add(grassMesh)
+
+  // 🔴 **草地第二层 detail**（2026-10-26 画质分级 · 真实感升级）
+  //
+  //   问题：单张草地贴图 repeat 30~60 遍后，**平铺网格肉眼可见** ——
+  //   远处草地上出现规则的重复色块，一眼假（"游戏场景"而非"照片"）。
+  //
+  //   解法（业界标准做法）：叠一层**不同平铺比例**的 detail 层，
+  //   用低对比度噪声打散重复感。两层的 repeat 比取**无理数比**，
+  //   这样两层永远不会在同一个位置重合 → 重复感被彻底打散。
+  //
+  //   ⚠️ **必须用草地的 roughness 图**（不是 soilRough）：
+  //   soilRough 是干土的粗糙度分布，叠在草地上会显出一片片"土块"，
+  //   反而更假。ground_grass_rough.jpg 才是草地自身的微观明暗。
+  if (Q.grassDetail) {
+    const detailTex = A.grassRough.clone()
+    // 无理数比：与主层的 repeat 不成整数倍关系
+    detailTex.repeat.set(grassRep * 0.73 + 0.31, grassRep * 0.47 + 0.17)
+    detailTex.offset.set(0.37, 0.61)
+    detailTex.needsUpdate = true
+    const detailGeo = new THREE.PlaneGeometry(240, 200, 40, 34)
+    // 🔴 **detail 层必须做与主草地完全相同的位移**：
+    //   否则草地起伏的地方，detail 层会浮在草地上方/沉在下方 → 穿插闪烁。
+    //   用同一个 displaceGrass 函数（唯一实现，不复制参数）。
+    displaceGrass(detailGeo)
+    const detail = new THREE.Mesh(
+      detailGeo,
+      cloneWithOffset(new THREE.MeshBasicMaterial({
+        map: detailTex,
+        blending: THREE.MultiplyBlending,
+        transparent: true,
+        depthWrite: false,
+        // 🔴 **压暗幅度要小**（0.28 而不是 0.34）：
+        //   MultiplyBlending 是"逐通道相乘"→ detail 图的暗处会把草地压到
+        //   近乎全黑。roughness 图本身是灰度，明暗范围有限，
+        //   0.28 已是"能看出层次又不脏"的上限。
+        opacity: 0.28,
+        color: 0xffffff,
+        fog: true
+      }), 90, 2)
+    )
+    detail.rotation.x = -Math.PI / 2
+    // 🔴 **必须与草地错开高度**（严格错高是本场景防 z-fighting 的唯一铁律）：
+    //   GRASS_Y = -0.020，detail 层取 -0.019（高 1mm）。
+    detail.position.y = GRASS_Y + 0.001
+    detail.receiveShadow = false
+    detail.renderOrder = -1
+    fieldGroup.add(detail)
+    grassDetailMesh = detail
+  }
 
   // ---------- 邻田（远处 + 左右两侧） ----------
   //
@@ -742,9 +884,12 @@ function buildTerrain() {
 
 function buildTrees() {
   const cfg = seasonCfg()
-  // 🔴 **树也细分**：树冠是画面里最大的一团绿，球面化法线只有 4 个顶点时
-  //   树冠受光后是"一竖条亮 + 两块死平"，不像一团树冠。
-  const treeGeo = buildCrossQuad(THREE, 11, SPRITE_ASPECT.plant_tree, 1.0, 4, 5)
+  // 🔴 **树也细分**（2026-10-26 画质分级）：面片分段数按档位走。
+  //   低端档 2×3（顶点少一半），精细/极致档 4×5。
+  //   树冠是画面里最大的一团绿，4 个顶点时球面化法线只有"一竖条亮 + 两块死平"。
+  const segX = Q.treeCount <= 30 ? 2 : 4
+  const segY = Q.treeCount <= 30 ? 3 : 5
+  const treeGeo = buildCrossQuad(THREE, 11, SPRITE_ASPECT.plant_tree, 1.0, segX, segY)
   // 球面化法线：树冠是球状的，平面法线受光后是一块死平的色块（像贴纸）。
   // 球面化后顶部亮、底部暗、边缘侧受光，才有"一团树冠"的体积感。
   spherifyNormals(THREE, treeGeo, 1.0)
@@ -761,8 +906,18 @@ function buildTrees() {
     envMapIntensity: 0.5
   })
   // 风动：树冠摆幅比作物大（枝条长、树冠软），但频率更低（惯性大）
-  addWindShader(treeMat, { amp: 0.13, speed: 0.62, height: 11 })
-  const TREE_N = 60
+  if (Q.windEnabled) {
+    addWindShader(treeMat, { amp: 0.13, speed: 0.62, height: 11 })
+  }
+  // 🔴 **树的 UV 抖动**（2026-10-26 真实感升级）：
+  //   60 棵树用同一张 511×768 的贴图 → 每棵树上的枝叶分布完全一样，
+  //   只是整体缩放/旋转不同。远看就是"同一棵树复制了 60 份"。
+  //   按实例位置哈希抖动 UV → 每棵树的枝叶图案不同。
+  addUvJitter(treeMat, { amount: 0.05, scale: 1.7 })
+  // 🔴 **树木数量按画质档位**（2026-10-26）：60 棵十字面片是 60 次绘制实例，
+  //   每棵还要参与阴影贴图重绘（若开启）。低端档降到 24 棵 —— 林带
+  //   在 95~165m 外，24 棵与 60 棵在画面上几乎看不出密度差。
+  const TREE_N = Q.treeCount
   treeMesh = new THREE.InstancedMesh(treeGeo, treeMat, TREE_N)
   treeMesh.frustumCulled = false
 
@@ -821,6 +976,11 @@ function buildTrees() {
   //   **远超阴影相机 34m 的覆盖范围** —— 给它们开 castShadow
   //   不会产生可见投影，只会白白浪费阴影贴图分辨率。
   //   （树影要落地需要树在 34m 内；远处树的影子在这个距离上只有几像素。）
+  //
+  // 🔴 **treeShadow 档位参数目前恒为 false**（2026-10-26）：
+  //   原因是几何事实 —— 树带在阴影正交视锥（±26m）之外，
+  //   开 castShadow 只增加阴影 pass 的绘制调用，产出 0 像素可见收益。
+  //   保留这个参数是为了将来「近景树带」方案落地时不必再改参数矩阵。
   treeMesh.castShadow = false
   treeMesh.receiveShadow = false
   fieldGroup.add(treeMesh)
@@ -848,8 +1008,13 @@ function buildWeeds() {
     envMapIntensity: 0.45
   })
   // 野草风动最明显（草叶最软），幅度小但频率快
-  addWindShader(weedMat, { amp: 0.05, speed: 2.1, height: 0.42 })
-  const N = 90
+  if (Q.windEnabled) {
+    addWindShader(weedMat, { amp: 0.05, speed: 2.1, height: 0.42 })
+  }
+  // 🔴 **野草 UV 抖动**（2026-10-26）：90 丛草共用一张贴图 → 同样的草叶形状重复。
+  addUvJitter(weedMat, { amount: 0.07, scale: 5.2 })
+  // 🔴 **野草数量按画质档位**（2026-10-26）
+  const N = Q.weedCount
   weedMesh = new THREE.InstancedMesh(weedGeo, weedMat, N)
   weedMesh.frustumCulled = false
   const dummy = new THREE.Object3D()
@@ -910,11 +1075,16 @@ function buildScene() {
   // 切到后排地块（slot>=12，主田已到 z=-77）后，远山会落到主田**后面**，
   // 变成"翻过山头看田"——视角关系彻底反了。
   // 挂在 fieldGroup 下，远山永远是"这片田的远方背景"。
-  fieldGroup.add(...makeRidgeLayers(THREE, seasonCfg().ridgeTint || '#ffffff'))
+  fieldGroup.add(...makeRidgeLayers(
+    THREE,
+    seasonCfg().ridgeTint || '#ffffff',
+    Q.skyWidth,
+    Math.min(Q.anisotropy, 4)
+  ))
   buildTerrain()
 
   cropField = createCropField(
-    THREE, fieldGroup, assets, currentCrop(), currentDensityKey(), usedTexFiles, renderer
+    THREE, fieldGroup, assets, currentCrop(), currentDensityKey(), usedTexFiles, renderer, Q
   )
   cropField.update(props.stage, props.season)
 
@@ -1196,7 +1366,11 @@ function buildNeighbors() {
         }
 
         // 荒草暗示：稀疏撒几丛野草，直接传达"荒着没人管"
-        if (assets.weed) {
+        // 🔴 **每块荒地的荒草数按画质档位**（2026-10-26）。
+        //   注意这是**每块 Mesh**（不是 InstancedMesh）→ 7 块邻田 × 7 丛 = 49 个
+        //   独立 Mesh = 49 次绘制调用。低端档直接置 0（省 49 个 draw call），
+        //   标准档 4 丛。这是「绘制调用数」比「像素数」更值钱的一个例子。
+        if (assets.weed && Q.neighborWeedPer > 0) {
           const weedGeo = buildCrossQuad(THREE, 0.7, SPRITE_ASPECT.plant_grass_tuft, 1.0, 2, 3)
           spherifyNormals(THREE, weedGeo, 1.0)
           // 与主田野草一样用受光材质（Basic 不受光 → 荒草像贴纸）
@@ -1206,10 +1380,12 @@ function buildNeighbors() {
             color: 0x8f8a62, fog: true,
             roughness: 0.94, metalness: 0, envMapIntensity: 0.4
           })
-          addWindShader(weedMat, { amp: 0.07, speed: 1.8, height: 0.7 })
+          if (Q.windEnabled) {
+            addWindShader(weedMat, { amp: 0.07, speed: 1.8, height: 0.7 })
+          }
           const rnd = mulberry32(slot * 977 + 13)
           const dummy = new THREE.Object3D()
-          const N = 7
+          const N = Q.neighborWeedPer
           for (let i = 0; i < N; i++) {
             dummy.position.set(
               o.x + (rnd() - 0.5) * (PADDY_W - 1.6),
@@ -1477,14 +1653,147 @@ function onWheel(e) {
 
 let lastFrame = 0
 
+/**
+ * 🔴 **帧率上限**（2026-10-26 画质分级）
+ *
+ *   requestAnimationFrame 在 120Hz/144Hz 屏上会以 120/144 次/秒回调，
+ *   但**画面内容没变**（只是风动和水波在动）→ GPU 白白渲染 2~3 倍的帧。
+ *   笔记本插电跑独显时这是实打实的发热与耗电。
+ *
+ *   实现：按 maxFps 计算最小帧间隔，到点才真正 render；
+ *   跳过的帧仍然走 tickAllWind（风动时间用真实时间，不受影响）。
+ *
+ *   ⚠️ 用**真实时间**而不是帧计数来算间隔 —— 帧计数在掉帧时会算错。
+ */
+let lastRenderAt = 0
+
+/**
+ * 🔴 **FPS 采样**（2026-10-26）：用于画质面板显示实测帧率 + 自动降档判定。
+ *
+ *   用**滑动窗口**而不是瞬时值：瞬时 FPS 在一次 GC 或着色器编译后会瞬间掉到 5，
+ *   直接拿去判定降档会误触发。
+ */
+const fpsSamples = []
+let fpsValue = 0
+let fpsWindowStart = 0
+let fpsFrameCount = 0
+
+/** 自动降档判定状态（见 #131） */
+let autoDowngradeArmed = false
+let autoDowngradeDone = false
+
+function sampleFps(now) {
+  if (!fpsWindowStart) {
+    fpsWindowStart = now
+    fpsFrameCount = 0
+    return
+  }
+  fpsFrameCount++
+  const elapsed = now - fpsWindowStart
+  // 1 秒一个窗口
+  if (elapsed >= 1000) {
+    fpsValue = Math.round((fpsFrameCount * 1000) / elapsed)
+    fpsSamples.push(fpsValue)
+    if (fpsSamples.length > 5) fpsSamples.shift()
+    fpsWindowStart = now
+    fpsFrameCount = 0
+    checkAutoDowngrade()
+    // 🔴 **上报实测帧率**（2026-10-26）：画质面板要显示「实测 FPS」，
+    //   让用户能判断当前档位是否合适 —— 而不是凭感觉猜。
+    emit('fps', { fps: fpsValue, quality: Q.id })
+  }
+}
+
+/**
+ * 🔴 **自动降档**（2026-10-26 · #131）
+ *
+ *   规则：
+ *   · 只降**一档**，且**只降一次**（避免在临界点反复抖动）
+ *   · 需要连续 2 个窗口都低于阈值才触发（一次卡顿不算）
+ *   · 阈值 24 FPS（低于此值用户已经能明显感到卡）
+ *   · **用户手动选过画质时不自动降档** —— 用户明确表达过偏好，
+ *     系统不该擅自改回去。这条比降档本身更重要。
+ */
+function checkAutoDowngrade() {
+  if (!autoDowngradeArmed || autoDowngradeDone) return
+  if (fpsSamples.length < 2) return
+  const q = getQuality()
+  // 🔴 **用户手动选过就不自动降**（见规则最后一条）
+  if (!q.auto) return
+  const last = fpsSamples[fpsSamples.length - 1]
+  const prev = fpsSamples[fpsSamples.length - 2]
+  if (last >= 24 || prev >= 24) {
+    // 恢复正常 → 重新武装（允许之后再降）
+    autoDowngradeArmed = true
+    return
+  }
+  autoDowngradeDone = true
+  const order = ['low', 'standard', 'high', 'ultra']
+  const idx = order.indexOf(q.id)
+  if (idx <= 0) return
+  const next = order[idx - 1]
+  console.info(`[farm] 实测帧率 ${last} FPS 偏低，画质自动降至「${next}」`)
+  // 🔴 **必须真的调用 setQuality**（只 emit 不会生效）：
+  //   setQuality 会写 localStorage + 通知所有订阅者 → 本组件的
+  //   onQualityChange 回调会走「热更新 / 重建」路径。
+  //   ⚠️ 写成固定档位而不是 'auto'：降完就固定下来，
+  //   否则下次探测又会回到高档 → 反复降档（抖动）。
+  setQuality(next)
+  emit('auto-downgrade', { from: q.id, to: next, fps: last })
+}
+
 function animate(now) {
   raf = requestAnimationFrame(animate)
   if (!renderer || !scene || !camera) return
+
+  // ⚠️ **dt 与 lastFrame 必须每帧都更新**（哪怕这一帧跳过渲染）。
+  //   否则跳过的那几帧时间会累积到下一帧的 dt 里 → 天气粒子突然跳一大段，
+  //   看起来像"卡了一下然后瞬移"。
   const dt = lastFrame ? Math.min(0.05, (now - lastFrame) / 1000) : 0.016
   lastFrame = now
   const t = now * 0.001
 
+  // 帧率上限：到点才渲染，中间帧跳过 GPU 工作
+  //
+  // ⚠️ **跳过的帧里仍要推进所有 CPU 侧逻辑**（风动 + 天气粒子 + 水面）。
+  //   只推进风动会让雨滴在低帧率档位下"卡住不动"（粒子位置只在渲染帧更新），
+  //   看起来像雨停了 —— 这是「帧率上限」最容易漏掉的配套改动。
+  const maxFps = Q.maxFps
+  if (maxFps > 0 && lastRenderAt > 0) {
+    const minGap = 1000 / maxFps
+    const since = now - lastRenderAt
+    if (since < minGap) {
+      stepScene(t, dt)
+      return
+    }
+    // 🔴🔴 **时间轴对齐**（2026-10-26 修复，实测依据）：
+    //   原来的写法是「渲染后 lastRenderAt = now」—— 只有当 rAF 频率是
+    //   maxFps 的整数倍时，名义帧率才等于实际帧率。
+    //   实测（无头 Chrome，rAF = 43.2Hz，maxFps = 30）：
+    //       43.2Hz 的帧间隔 23ms  <  minGap 33.3ms
+    //       → 每 2 个 rAF 帧才渲染 1 次 → **实际只有 21.5fps（比名义低 28%）**
+    //   修法：渲染后把 lastRenderAt **回退到最近的时间轴网格点**，
+    //         让帧间隔在长时间尺度上均匀分布 → 平均帧率 ≈ maxFps。
+    //   （`since % minGap` 保证回退量 < minGap，且 lastRenderAt 永远 ≤ now。）
+    lastRenderAt = now - (since % minGap)
+  } else {
+    lastRenderAt = now
+  }
+  sampleFps(now)
 
+  stepScene(t, dt)
+  renderer.render(scene, camera)
+}
+
+/**
+ * 推进场景的 CPU 侧动态（与是否渲染解耦）。
+ *
+ * 🔴 **抽成独立函数的原因**（2026-10-26 帧率上限）：
+ *   帧率上限会跳过一部分帧的渲染，但**动态元素必须照常推进** ——
+ *   否则雨滴会卡住、风动会变慢、水面会僵住。
+ *   把「推进」和「渲染」分成两步，跳过渲染时只调推进。
+ */
+function stepScene(t, dt) {
   if (waterMesh && waterMesh.visible) {
     waterMesh.material.opacity = Math.max(
       0.02,
@@ -1525,13 +1834,18 @@ function animate(now) {
     }
     attr.needsUpdate = true
   }
-
-  renderer.render(scene, camera)
 }
 
 // ---------------- 初始化 ----------------
 
 async function init() {
+  // 🔴 **必须先恢复画质设置**（2026-10-26 画质分级）：
+  //   quality.js 的内存态 currentSetting 默认是 'auto'，
+  //   用户在面板里选过的档位存在 localStorage 里。
+  //   不调用 initQuality() → 每次刷新都回到自动探测，
+  //   **用户的选择形同虚设**。
+  initQuality()
+  Q = getQualityParams()
   try {
     THREE = await import('three')
   } catch (e) {
@@ -1543,12 +1857,19 @@ async function init() {
   const w = wrap.value.clientWidth || 960
   const h = wrap.value.clientHeight || 600
 
+  // 🔴 **画质参数在此生效**（2026-10-26 画质分级）。
+  //   改造前这里是「一档写死」：antialias:true / powerPreference:'high-performance'
+  //   / setPixelRatio 上限 1.75 / 阴影 2048 —— 低端机被迫吃满 MSAA，
+  //   高端机却被 1.75 的 pixelRatio 卡住（4K 屏上细节糊）。
   try {
     renderer = new THREE.WebGLRenderer({
       canvas: canvas.value,
-      antialias: true,
+      // antialias 是**上下文创建参数**，运行时改不了 →
+      // 画质切换时若这一项变了，必须重建 renderer（见 requiresSceneRebuild）。
+      antialias: Q.antialias,
       alpha: false,
-      powerPreference: 'high-performance'
+      // 'low-power' 让浏览器挑集显/核显，避免强制独显把核显机器拖垮。
+      powerPreference: Q.powerPreference
     })
   } catch (e) {
     emit('fail', { reason: 'webgl' })
@@ -1559,7 +1880,7 @@ async function init() {
     return
   }
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75))
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.pixelRatioMax))
   renderer.setSize(w, h, false)
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -1574,8 +1895,15 @@ async function init() {
   //   假阴影的问题：影子是正下方的一个圆，**没有方向**，
   //   斜射阳光下物理上不可能 —— 这是画面"贴纸感"的最大来源之一。
   //   换成真实阴影后，太阳光从哪个方向来，影子就往哪个方向倒。
-  renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  //
+  // 🔴 **阴影按画质档位**（2026-10-26）：
+  //   低端档整个关掉 —— 2048² 阴影贴图每帧要重画一遍所有投射体，
+  //   在核显上这一项就能吃掉 30%+ 帧预算，而阴影在窄屏小画面上
+  //   几乎看不清，性价比极低。
+  renderer.shadowMap.enabled = Q.shadowEnabled
+  renderer.shadowMap.type = Q.shadowType === 'soft'
+    ? THREE.PCFSoftShadowMap
+    : THREE.PCFShadowMap
 
   const cfg = seasonCfg()
   renderer.toneMappingExposure = cfg.exposure
@@ -1628,8 +1956,12 @@ async function init() {
   // 取 26m 半宽：主田是 ±16.6 × ±22.6m，取 26 刚好盖住主田 + 田埂。
   // 远处树带（-95m 起）与远山不参与投影（它们离得太远，
   // 影子小到看不见，硬要投影只会浪费贴图分辨率）。
-  sunLight.castShadow = true
-  sunLight.shadow.mapSize.set(2048, 2048)
+  sunLight.castShadow = Q.shadowEnabled
+  // 🔴 **阴影贴图尺寸按画质档位**（2026-10-26）。
+  //   2048² = 16MB 显存/帧重绘；1024² = 4MB。
+  //   正交视锥只有 52m 宽（±26m），1024² 时每像素 5cm，
+  //   对作物投影来说已经够用了（作物本身才 20~40cm）。
+  sunLight.shadow.mapSize.set(Q.shadowMapSize, Q.shadowMapSize)
   sunLight.shadow.camera.left = -26
   sunLight.shadow.camera.right = 26
   sunLight.shadow.camera.top = 26
@@ -1645,7 +1977,7 @@ async function init() {
   scene.add(fillLight)
 
   // 资产：串行加载 + 真实进度；单张失败只退化那一块，不整页兜底
-  pipeline = createAssetPipeline(THREE, renderer)
+  pipeline = createAssetPipeline(THREE, renderer, Q)
   const specs = assetSpecs(currentCrop())
   const total = specs.length
   progress.value = 4
@@ -1687,7 +2019,33 @@ async function init() {
   cv.addEventListener('wheel', onWheel, { passive: false })
 
   lastFrame = 0
+  lastRenderAt = 0
   raf = requestAnimationFrame(animate)
+
+  // 🔴 **订阅画质变化**（2026-10-26 画质分级）。
+  //   画质切换有两条路径：
+  //   · **热更新**（只改 pixelRatio / 阴影尺寸 / 各向异性 / 帧率上限）→ 直接改
+  //   · **重建场景**（改了几何/贴图/着色器）→ 销毁并重新初始化
+  //   判定逻辑全在 quality.js 的 requiresSceneRebuild()，这里只负责执行。
+  unsubscribeQuality = onQualityChange((q) => {
+    if (disposed) return
+    const oldId = Q.id
+    const newId = q.id
+    if (oldId === newId) return
+    const { rebuild, context } = requiresSceneRebuild(oldId, newId)
+    if (!rebuild) {
+      // 热更新路径
+      Q = q.params
+      applyQualityHotUpdate()
+      emit('quality-changed', { id: newId, label: q.label, fps: fpsValue })
+      return
+    }
+    // 重建路径：整个场景重来
+    console.info(`[farm] 画质从「${oldId}」切到「${newId}」，重建场景（context=${context}）`)
+    Q = q.params
+    rebuildScene()
+    emit('quality-changed', { id: newId, label: q.label, fps: fpsValue })
+  })
 
   // ⚠️ **调试钩子**（仅开发环境）：把场景挂到 window，
   //   方便在浏览器控制台里 raycast 定位"屏幕上这块像素到底是什么物体"。
@@ -1737,10 +2095,80 @@ async function init() {
   }
 }
 
+/**
+ * 🔴 **画质热更新**（2026-10-26 画质分级）
+ *
+ *   只处理「改属性就生效」的那几项，不需要重建几何体/贴图：
+ *   · pixelRatio       —— setPixelRatio 即可
+ *   · 阴影开关/尺寸/类型 —— 需要 dispose 旧 shadow.map 让 three 重建
+ *   · 各向异性         —— 贴图上的 anisotropy 可逐张改
+ *   · 帧率上限         —— animate 里每帧读 Q.maxFps，自动生效
+ *
+ *   ⚠️ **阴影贴图尺寸改了必须 dispose 旧 map**：
+ *   three.js 只在 `shadow.map` 为 null 时才按新的 mapSize 创建贴图。
+ *   不 dispose 的话，旧的 2048² 贴图会一直用着，改了尺寸没反应。
+ */
+function applyQualityHotUpdate() {
+  if (renderer) {
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.pixelRatioMax))
+    renderer.shadowMap.enabled = Q.shadowEnabled
+    renderer.shadowMap.type = Q.shadowType === 'soft'
+      ? THREE.PCFSoftShadowMap
+      : THREE.PCFShadowMap
+  }
+  if (sunLight) {
+    sunLight.castShadow = Q.shadowEnabled
+    const size = Q.shadowMapSize
+    if (sunLight.shadow.mapSize.x !== size) {
+      sunLight.shadow.mapSize.set(size, size)
+      // 🔴 **必须 dispose 旧阴影贴图**，否则新尺寸不生效
+      sunLight.shadow.map?.dispose()
+      sunLight.shadow.map = null
+    }
+  }
+  // 各向异性：贴图上的值要逐张改（管线里的 maxAniso 固定了，改不了这里，
+  // 但可以按新上限把已有的贴图压下来）
+  const aniso = Math.max(1, Q.anisotropy)
+  scene?.traverse((o) => {
+    const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []
+    mats.forEach((m) => {
+      ;['map', 'normalMap', 'roughnessMap'].forEach((k) => {
+        const t = m[k]
+        if (t && t.anisotropy > aniso) {
+          t.anisotropy = aniso
+          t.needsUpdate = true
+        }
+      })
+    })
+  })
+}
+
+/**
+ * 🔴 **画质重建**（2026-10-26 画质分级）
+ *
+ *   画质切换改变了几何/贴图/着色器 → 必须整个场景重来。
+ *   做法：cleanup() 的资源释放逻辑抽出来复用，然后重新 init()。
+ *
+ *   ⚠️ **不能直接调 init()**：init() 里会 `new THREE.WebGLRenderer({ canvas })`，
+ *   而同一个 canvas 元素上不能创建第二个 WebGL 上下文（会拿到已废弃的上下文）。
+ *   正确做法：先 `renderer.dispose()` + `forceContextLoss()` 释放上下文，
+ *   再把 canvas 换成一个新的元素（或重建整个组件）。
+ *
+ *   ⚠️ **最稳的做法是让父组件用 :key 强制重建组件** ——
+ *   组件卸载 → 全新 canvas → 全新上下文，没有任何上下文复用的坑。
+ *   所以这里只做「请求父组件重建」，不自己折腾上下文。
+ */
+function rebuildScene() {
+  // 通过 emit 请求父组件用新的 :key 重挂载组件（见 GameFarm.vue）
+  emit('rebuild-scene', { quality: Q.id })
+}
+
 function cleanup() {
   disposed = true
   cancelAnimationFrame(raf)
   ro?.disconnect()
+  unsubscribeQuality?.()
+  unsubscribeQuality = null
   const cv = canvas.value
   if (cv) {
     cv.removeEventListener('pointerdown', onPointerDown)
@@ -1786,6 +2214,7 @@ function cleanup() {
   treeMesh = null
   weedMesh = null
   grassMesh = null
+  grassDetailMesh = null
   groundMesh = null
   waterMesh = null
   soilWetMesh = null

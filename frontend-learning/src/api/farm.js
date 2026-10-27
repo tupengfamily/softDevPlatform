@@ -265,3 +265,18 @@ export const buyFarmShopItem = (body = {}) =>
  */
 export const getFarmWallet = () =>
   request({ url: '/games/farm/shop/wallet', method: 'get' })
+
+// ==================== 成就 / 目标（S26） ====================
+
+/**
+ * 成就面板：概览 + 成就列表 + 作物图鉴。
+ *
+ * 🔴 口径说明（前端展示时必须遵守）：
+ * - 产量类成就的进度是**比值**（实收 ÷ 该作物参照产量），不是绝对公斤数 ——
+ *   22 种作物产量单位不可比（水稻 600 vs 白菜 5000 kg/亩），用绝对值等于
+ *   「只有种水稻的人能得成就」。
+ * - 「连季不断茬」是**当前连续**季数，断过茬就回退，不是历史最长段。
+ * - 图鉴只认正常收获（HARVESTED），失败/放弃的一季不算收集到。
+ */
+export const getFarmAchievements = () =>
+  request({ url: '/games/farm/achievements', method: 'get' })

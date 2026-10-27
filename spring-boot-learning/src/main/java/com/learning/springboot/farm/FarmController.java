@@ -2,6 +2,7 @@ package com.learning.springboot.farm;
 
 import com.learning.springboot.annotation.OperationLog;
 import com.learning.springboot.common.Result;
+import com.learning.springboot.farm.achievement.FarmAchievementService;
 import com.learning.springboot.security.CurrentUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -59,6 +60,10 @@ public class FarmController {
     /** 农艺目录（S3 从 FarmPlayService 抽出）：区域 / 作物 / 评级 / 风险 */
     @Autowired
     private FarmCatalogService catalogService;
+
+    /** 成就 / 目标层：成就列表 + 作物图鉴（纯函数算，无新增表） */
+    @Autowired
+    private FarmAchievementService achievementService;
 
     /** 当前农田状态（物候 / 天气 / 产量预览 / 今日变化 / 历史成绩） */
     @GetMapping("/state")
@@ -417,5 +422,49 @@ public class FarmController {
                                          @CurrentUser Long userId) {
         List<Map<String, Object>> out = farmService.listActions(userId, slot);
         return Result.ok(out);
+    }
+
+    // ==================== 成就 / 目标（S26） ====================
+
+    /**
+     * 成就面板：概览 + 成就列表 + 作物图鉴。
+     *
+     * <p>🔴 <b>成就是档案的纯函数，零新增表</b>：全部状态都由
+     * {@code t_farm_season} 重算得出 —— 同一份档案任何时候重算都得到同样的结果，
+     * 因此不存在「成就没弹窗所以没记录」这类静默失效，也不需要历史解锁数据迁移。
+     * 详见 {@link FarmAchievementService} 的类注释。
+     *
+     * <p>成就口径（跨作物可比）：产量类成就用「实收 / 该作物参照产量」的比值，
+     * 而非绝对公斤数 —— 22 种作物产量单位不可比（水稻 600 vs 白菜 5000 kg/亩），
+     * 用绝对值等于「只有种水稻的人能得成就」。
+     */
+    @GetMapping("/achievements")
+    public ResponseEntity<?> achievements(@CurrentUser Long userId) {
+        return Result.ok(achievementService.panel(userId));
+    }
+
+    // ==================== 科学解释层（2026-10-27 P1） ====================
+
+    /**
+     * 本季科学解释：有效积温 / 氮素报酬递减 / 产量四要素 / 土壤水分平衡。
+     *
+     * <p><b>与 {@code /state} 的关系</b>：{@code /state} 已经带 {@code insights} 字段
+     * （农场实时面板要一次拿全）。本端点是<b>同源数据的独立出口</b> ——
+     * 给「只想取解释、不想拉整个面板」的调用方用（比如建田选地页、
+     * 收割归因明细页），避免它们解析整个 {@code FarmView}。
+     *
+     * <p>🔴 <b>Controller 不拼文案</b>：解释文案的唯一出口是
+     * {@link FarmInsightService}。这里如果自己拼一份，就是本项目最常见的分叉来源
+     * ——同一个概念在三个界面出现，文案散落必然不一致。
+     *
+     * <p>🔴 <b>结构化 + 中文原文</b>：返回 {@code conceptId} + 四段文案 + metrics。
+     * 英文界面由前端按 {@code conceptId} 查 i18n（与 {@code /achievements} 同一模式）。
+     *
+     * <p>🔴 <b>缺数据不编造</b>：拿不到引擎数据的概念整条不出现在列表里。
+     */
+    @GetMapping("/insight")
+    public ResponseEntity<?> insight(@RequestParam(defaultValue = "0") int slot,
+                                     @CurrentUser Long userId) {
+        return Result.ok(farmService.insights(userId, slot));
     }
 }

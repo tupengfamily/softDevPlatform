@@ -214,4 +214,39 @@ public final class CropVisual {
         }
         return phRange(form);
     }
+
+    // ==================== 栽培属性判定（2026-10-26） ====================
+
+    /**
+     * 是否<b>水田</b>（需要淹水/保水，区别于旱地）。
+     *
+     * <p><b>🔴 为什么不能直接判形态族</b>：水稻的形态族是 {@link Form#GRAIN}，
+     * 但小麦/玉米/大豆/谷子也是 GRAIN —— 用 {@code form == GRAIN} 判水田会把
+     * <b>四种旱地粮食作物全判成水田</b>，水田分支（保水、缺氧、直播湿播）
+     * 会被错误套用到旱地作物上，产量与病虫害模型全错。
+     *
+     * <p><b>为什么必须收进本类</b>：{@code visual} 字段的语义在 2026-10-24 变过一次
+     * （通用形态族 → 作物 id），现在靠「4 个粮食作物保持旧值」兼容。
+     * 业务代码里散落着 {@code "rice".equals(crop.visual())} 这类判断，
+     * 一旦有人把 visual 统一改成 crop id，这些判断会<b>静默失效</b> ——
+     * 不报错，只是所有作物都走旱地分支，水稻完全算错。
+     * 收进本类后，改动点只有一处，且有测试守着。
+     *
+     * <p>取值覆盖：{@code rice}（粮食作物保持的旧值）+ {@code rice_mid}（新语义下的作物 id）。
+     */
+    public static boolean isPaddy(String visual) {
+        return "rice".equals(visual) || "rice_mid".equals(visual);
+    }
+
+    /**
+     * 是否<b>豆科</b>（有固氮机制，氮素账本走另一条路）。
+     *
+     * <p>当前只有大豆是豆科。与 {@link #isPaddy} 同理，
+     * 不能用形态族判（大豆是 GRAIN，但玉米/小麦/水稻不是豆科）。
+     *
+     * <p>取值覆盖：{@code soybean}（粮食作物保持的旧值）。
+     */
+    public static boolean isLegume(String visual) {
+        return "soybean".equals(visual);
+    }
 }

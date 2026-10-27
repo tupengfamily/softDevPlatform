@@ -78,12 +78,13 @@ def main():
             if not os.path.isfile(src):
                 missing.append("%s/%s" % (crop_id, stage))
                 continue
-            img = cutout(src)
+            # 🔴 **key 必须在这里就确定** —— 第 9 步「盆坨剔除」按 key 查标注表
+            key = "plant_%s_%s" % (crop_id, stage)
+            img = cutout(src, key=key)
             w, h = img.size
             nh = TARGET_H
             nw = max(1, round(w * nh / h))
             img = img.resize((nw, nh), Image.LANCZOS)
-            key = "plant_%s_%s" % (crop_id, stage)
             dst = os.path.join(OUT, "%s.png" % key)
             img.save(dst, optimize=True)
             aspects[key] = round(nw / nh, 3)

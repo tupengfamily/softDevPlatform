@@ -1,0 +1,38 @@
+{
+  "plant_chili_young": {
+    "pot_top_pct": 80.5,
+    "pot_w_pct": 57.0,
+    "pot_h_pct": 19.0,
+    "note": "黑塑料营养钵 + 营养土；钵沿反光（彩色判据抓不住，必须靠几何）"
+  },
+  "plant_eggplant_young": {
+    "pot_top_pct": 68.5,
+    "pot_w_pct": 38.0,
+    "pot_h_pct": 13.0,
+    "note": "深褐土坨（无盆），边缘带绿苔 → 绿苔把 y_green 拉到盆里"
+  },
+  "plant_pear_ripe": {
+    "pot_top_pct": 80.5,
+    "pot_w_pct": 62.0,
+    "pot_h_pct": 13.0,
+    "note": "深褐锥形土堆，梨树苗根颈处"
+  },
+  "plant_potato_young": {
+    "pot_top_pct": 64.5,
+    "pot_w_pct": 16.0,
+    "pot_h_pct": 9.0,
+    "note": "深褐土坨，茎从中间穿出"
+  },
+  "plant_tulip_young": {
+    "pot_top_pct": 65.5,
+    "pot_w_pct": 35.0,
+    "pot_h_pct": 26.0,
+    "note": "编织营养钵（土+椰糠），盆身有高光纹理"
+  },
+  "plant_grape_ripe": {
+    "pot_top_pct": 76.5,
+    "pot_w_pct": 34.0,
+    "pot_h_pct": 17.0,
+    "note": "深褐土堆，葡萄藤根颈处"
+  }
+}

@@ -20,7 +20,7 @@
       <!-- Three.js 场景 -->
       <FarmScene3D
         v-if="state && !sceneFailed"
-        :key="cropVisual"
+        :key="sceneKey"
         :stage="dvsStage"
         :crop="cropVisual"
         :season="seasonBg.season"
@@ -33,6 +33,10 @@
         @fail="sceneFailed = true"
         @select-plot="selectPlot"
         @create-plot="onSceneCreatePlot"
+        @fps="onSceneFps"
+        @auto-downgrade="onSceneAutoDowngrade"
+        @quality-changed="onSceneQualityChanged"
+        @rebuild-scene="onSceneRebuild"
       />
 
       <!-- WebGL 不可用时的 SVG 退化田地（结构与旧版一致） -->
@@ -89,6 +93,17 @@
         <span v-if="state" class="hchip">
           <b>DVS</b> {{ state.crop.dvs.toFixed(2) }}
         </span>
+        <!-- 🔴 2026-10-27：显示成熟阈值 + 还差多少 —— 讲清「为什么还不能收」 -->
+        <span
+          v-if="state && typeof state.crop.harvestDvs === 'number'"
+          class="hchip ripe-chip"
+          :class="{ ready: state.crop.harvestable }"
+          :title="state.crop.harvestable
+            ? $t('farm.ripeAt', { dvs: state.crop.harvestDvs.toFixed(2) })
+            : $t('farm.notRipeYet', { gap: ripeGap.toFixed(2) })"
+        >
+          {{ $t('farm.ripeAt', { dvs: state.crop.harvestDvs.toFixed(2) }) }}
+        </span>
         <span v-if="state" class="hchip">{{ state.crop.stage }}</span>
         <span v-if="state" class="hchip">第 {{ state.seasons }} 季</span>
         <span v-if="state && state.plot" class="hchip plot-chip" @click="rebuildPlot">
@@ -113,6 +128,16 @@
         >
           仓库{{ warehouseCount ? ' ' + warehouseCount : '' }}
           <i v-if="warehouseWarn > 0" class="wh-dot">{{ warehouseWarn }}</i>
+        </span>
+        <!-- S26 成就 / 图鉴入口 -->
+        <span class="hchip board-chip" @click="openAchievement">
+          {{ $t('farm.ach.title') }}
+        </span>
+        <!-- 🔴 画质设置入口（2026-10-26 画质分级）：
+             用户可自设画质档位，并看到实测帧率 -->
+        <span class="hchip board-chip" @click="qualityOpen = true">
+          {{ $t('farm.quality.short') }}
+          <i v-if="sceneFps > 0" class="wq-fps">{{ sceneFps }}</i>
         </span>
       </header>
 
@@ -172,15 +197,17 @@
         </div>
       </div>
 
+      <!-- 🔴 4 个告警浮层统一加 `.fm-scene-alert`（统一定位 + pointer-events:none），
+           避免遮住顶栏 chips（画质 / 成就 / 仓库）。定位规则见样式区注释。 -->
       <!-- 霜冻终止：本季已经结束，只能重开 -->
-      <div v-if="state && state.crop.frostStop && !state.crop.harvestable" class="fm-frost-alert">
+      <div v-if="state && state.crop.frostStop && !state.crop.harvestable" class="fm-scene-alert fm-frost-alert">
         <span class="fa-icon">❄️</span>
         <span>{{ $t('farm.frostStop', { dvs: state.crop.dvs.toFixed(2) }) }}</span>
         <el-button size="small" type="primary" link @click="restart">{{ $t('farm.restart') }}</el-button>
       </div>
 
       <!-- 苗期枯死：本季绝收，且永远到不了黄熟期，必须能「记为绝收」把这一季结掉 -->
-      <div v-if="state && state.crop.withered" class="fm-wither-alert">
+      <div v-if="state && state.crop.withered" class="fm-scene-alert fm-wither-alert">
         <span class="wa-icon">🥀</span>
         <span class="wa-text">
           苗期枯死：{{ state.crop.failureNote || '本季已绝收' }}
@@ -191,7 +218,7 @@
       <!-- 出苗不全：群体偏小，产量会相应打折 -->
       <div
         v-else-if="state && state.crop.germination != null && state.crop.germination < 0.85 && state.plot.chosen"
-        class="fm-germ-alert"
+        class="fm-scene-alert fm-germ-alert"
       >
         <span class="ga-icon">🌱</span>
         <span class="ga-text">
@@ -201,7 +228,7 @@
       </div>
 
       <!-- 病虫害告警（只在已显症且达到偏重时出现） -->
-      <div v-if="pestAlert" class="fm-pest-alert">
+      <div v-if="pestAlert" class="fm-scene-alert fm-pest-alert">
         <span class="pa-icon">🐛</span>{{ pestAlert }}
       </div>
 
@@ -283,7 +310,7 @@
             <div class="metric">
               <span class="m-lab">{{ $t('farm.estimate') }}</span>
               <span class="m-val mono strong">{{ state.yield.estimatedYieldKgPerMu.toFixed(0) }}</span>
-              <span class="m-sub">kg/亩</span>
+              <span class="m-sub">{{ $t('farm.unit.perMu') }}</span>
             </div>
           </section>
 
@@ -418,6 +445,15 @@
             <p class="soil-tip">{{ soilTip }}</p>
           </section>
 
+          <!-- 科学解释层（2026-10-27 P1）：有效积温 / 氮素 / 产量四要素 / 水分平衡 -->
+          <section v-if="state.insights && state.insights.length" class="fb-card fb-insight">
+            <div class="panel-head">
+              <h3>🔬 {{ $t('farm.insight.title') }}</h3>
+              <span class="insight-count mono muted">{{ state.insights.length }}</span>
+            </div>
+            <FarmInsightPanel :insights="state.insights" />
+          </section>
+
           <!-- 水稻工序链（S10） -->
           <section class="fb-card fm-chain">
             <div class="chain-head">
@@ -520,13 +556,31 @@
                 <h3>{{ $t('farm.recent') }}</h3>
                 <span class="muted">{{ $t('farm.best') }} {{ state.bestYield }}</span>
               </div>
-              <ul v-if="state.recentScores && state.recentScores.length" class="recent">
-                <li v-for="(s, i) in state.recentScores" :key="i">
-                  <span class="mono score">{{ s.score }}</span>
-                  <span class="muted">{{ fmtTime(s.createTime) }}</span>
-                </li>
-              </ul>
-              <p v-else class="muted empty">{{ $t('farm.noRecord') }}</p>
+              <!-- S26：最近几局 / 全服排行榜 两个标签页（分数口径 = 单产 kg/亩） -->
+              <el-tabs v-model="scoreTab" class="score-tabs" @tab-change="(t) => t === 'board' && loadLeaderboard()">
+                <el-tab-pane :label="$t('farm.scoreMine')" name="recent">
+                  <ul v-if="state.recentScores && state.recentScores.length" class="recent">
+                    <li v-for="(s, i) in state.recentScores" :key="i">
+                      <span class="mono score">{{ s.score }}</span>
+                      <span class="muted">{{ fmtTime(s.createTime) }}</span>
+                    </li>
+                  </ul>
+                  <p v-else class="muted empty">{{ $t('farm.noRecord') }}</p>
+                </el-tab-pane>
+
+                <el-tab-pane :label="$t('game.leaderboard')" name="board">
+                  <div v-if="lbLoading" class="muted empty">{{ $t('common.loading') }}</div>
+                  <div v-else-if="!leaderboard.length" class="muted empty">{{ $t('game.noRecord') }}</div>
+                  <ul v-else class="lb-list">
+                    <li v-for="r in leaderboard" :key="r.userId" class="lb" :class="{ me: r.isMe }">
+                      <span class="rank" :class="`r${r.rank <= 3 ? r.rank : 'n'}`">{{ r.rank }}</span>
+                      <span class="who" :title="r.username">{{ r.displayName }}</span>
+                      <span class="sc mono">{{ r.bestScore }}</span>
+                    </li>
+                  </ul>
+                  <p class="lb-foot muted">{{ $t('farm.scoreUnitNote') }}</p>
+                </el-tab-pane>
+              </el-tabs>
             </section>
 
             <section v-if="actions.length" class="fb-card">
@@ -591,6 +645,7 @@
     @open-inputs="onWorldOpenInputs"
     @open-warehouse="openWarehouse"
     @open-shop="openShop"
+    @open-achievement="openAchievement"
   />
 
   <FarmBoard
@@ -619,6 +674,17 @@
     @bought="onShopBought"
   />
 
+  <!-- S26 成就 / 目标 / 作物图鉴 -->
+  <FarmAchievement v-if="achievementOpen" @close="achievementOpen = false" />
+
+  <!-- 🔴 画质设置面板（2026-10-26 画质分级） -->
+  <FarmQuality
+    v-if="qualityOpen"
+    :fps="sceneFps"
+    @close="qualityOpen = false"
+    @changed="onQualityChanged"
+  />
+
   <InputDrawer
     v-if="state"
     v-model="inputOpen"
@@ -641,8 +707,13 @@ import InputDrawer from '../../components/farm/InputDrawer.vue'
 import FarmBoard from '../../components/farm/FarmBoard.vue'
 import FarmWarehouse from '../../components/farm/FarmWarehouse.vue'
 import FarmShop from '../../components/farm/FarmShop.vue'
+import FarmAchievement from '../../components/farm/FarmAchievement.vue'
+import FarmQuality from '../../components/farm/FarmQuality.vue'
 import FarmWorldMap from '../../components/farm/FarmWorldMap.vue'
+import FarmInsightPanel from '../../components/farm/FarmInsightPanel.vue'
+import { phenoStageKeyOf } from '../../components/farm/scene/config.js'
 import { sanitizeHtml } from '../../utils/markdown'
+import { getLeaderboard } from '../../api/game'
 import { readFarmContext, writeFarmContext, clearFarmContext } from '../../utils/farmContext'
 import { useNotificationStore } from '../../store/notification'
 import {
@@ -658,6 +729,34 @@ const { t } = useI18n()
 const notifStore = useNotificationStore()
 
 const state = ref(null)
+/**
+ * 农场排行榜（S26）：复用游戏中心的 {@code t_game_score}。
+ *
+ * <p>后端早就把每季收割的成绩写进 {@code t_game_score}（{@code game_code='farm'}），
+ * {@code GameService.leaderboard()} 也是全 gameCode 参数化的 —— 缺的只是前端一块 UI。
+ *
+ * <p>🔴 <b>成绩口径</b>：{@code score = 单产(kg/亩) × 农残折价}（不是收入）。
+ * 这是有意为之：跨作物「元/亩」不可比（草莓 ¥30240/亩 vs 谷子 ¥424/亩），
+ * 而「kg/亩」能直接反映管理水平。所以排行榜展示时<b>不能标「元」</b>。
+ */
+const leaderboard = ref([])
+const lbLoading = ref(false)
+/** 「历史成绩」卡片里的标签页：recent=我的最近几局 / board=全服排行 */
+const scoreTab = ref('recent')
+
+async function loadLeaderboard() {
+  if (lbLoading.value) return
+  lbLoading.value = true
+  try {
+    const res = await getLeaderboard('farm', 20)
+    leaderboard.value = (res && res.data) || []
+  } catch (e) {
+    // 排行榜是锦上添花，取不到不能影响主流程
+    leaderboard.value = []
+  } finally {
+    lbLoading.value = false
+  }
+}
 /**
  * 🔴 S25：用户级世界日期（YYYY-MM-DD）——「今天」的统一定义。
  *
@@ -700,6 +799,27 @@ const warehouseRef = ref(null)
 const warehouseCount = ref(0)
 /** 仓库里临期的批次数（顶部红点提醒） */
 const warehouseWarn = ref(0)
+
+/** S26 成就 / 图鉴面板开关 */
+const achievementOpen = ref(false)
+
+/**
+ * 🔴 **画质设置面板开关**（2026-10-26 画质分级）
+ */
+const qualityOpen = ref(false)
+/**
+ * 3D 场景上报的**实测帧率**（0 = 还没测到）。
+ *
+ * ⚠️ 必须是实测值，不能拿「理论帧率」冒充 ——
+ *   用户要靠这个数判断当前档位是否合适。
+ */
+const sceneFps = ref(0)
+/**
+ * 3D 场景的重建令牌（画质切换时 +1 → 触发 :key 变化 → 重挂载组件）。
+ *
+ * ⚠️ 与 cropVisual 合并成 sceneKey，见 sceneKey 的定义处说明。
+ */
+const sceneRebuildToken = ref(0)
 
 /** 🔴 需求 R：商店面板是否打开 */
 const shopOpen = ref(false)
@@ -905,6 +1025,21 @@ const ACTION_TYPES = ['IRRIGATE', 'DRAIN', 'FERTILIZE', 'PESTICIDE', 'UNCOVER']
 
 /** 作物形态：水稻/小麦/玉米/大豆，决定 3D 几何与配色 */
 const cropVisual = computed(() => state.value?.plot?.visual || 'rice')
+
+/**
+ * 🔴 **3D 场景的 :key**（2026-10-26 画质分级）
+ *
+ *   **两个触发源必须合并**：
+ *   ① 换作物 —— 作物贴图/密度全变，必须重建（改造前是 `:key="cropVisual"`）
+ *   ② 画质切换到「必须重建」的档位 —— WebGL 上下文的 `antialias`
+ *      是**创建参数**，运行时改不了；同一个 canvas 不能创建第二个上下文
+ *      → 只能让 Vue 卸载旧组件、挂载新组件（全新 canvas + 全新上下文）。
+ *
+ * ⚠️ 改造时若直接把 `:key` 从 cropVisual 换成别的单一来源，
+ *   **换作物就不再重建场景** —— 作物贴图不会更新（一屏旧稻子）。
+ *   这是「改 key 时漏了另一处依赖」的典型翻车。
+ */
+const sceneKey = computed(() => `${cropVisual.value}#${sceneRebuildToken.value}`)
 
 /** 作物全名太长，切换条上只留主名（去掉括号里的品种说明） */
 function shortCrop(name) {
@@ -1222,11 +1357,78 @@ function toggleMap() {
 function openWarehouse() {
   worldMapOpen.value = false
   boardOpen.value = false
+  achievementOpen.value = false
   warehouseOpen.value = true
 }
 
 function closeWarehouse() {
   warehouseOpen.value = false
+}
+
+/**
+ * 打开成就 / 图鉴面板（S26）。
+ *
+ * <p>🔴 必须先关掉中国地图浮层 —— {@code .wm-page} 是 fixed/z-index:60，
+ * 会整个盖住面板（与仓库面板同一个坑，见 {@code openWarehouse}）。
+ */
+function openAchievement() {
+  worldMapOpen.value = false
+  boardOpen.value = false
+  warehouseOpen.value = false
+  shopOpen.value = false
+  achievementOpen.value = true
+}
+
+/**
+ * 🔴 **3D 场景上报实测帧率**（2026-10-26 画质分级）
+ */
+function onSceneFps(payload) {
+  sceneFps.value = payload?.fps || 0
+}
+
+/**
+ * 🔴 **场景请求重建**（2026-10-26 画质分级）
+ *
+ *   画质切换改了「必须重建几何/贴图/着色器」的参数时，
+ *   WebGL 上下文无法原地改（antialias 是创建参数），
+ *   只能换掉 :key 让 Vue 挂载一个全新的组件实例。
+ */
+function onSceneRebuild(payload) {
+  sceneRebuildToken.value += 1
+}
+
+/**
+ * 🔴 **画质切换完成**（2026-10-26 画质分级）
+ *
+ *   场景组件自己会处理「热更新」还是「重建」，
+ *   这里只负责提示用户 + 刷新实测帧率（重建后旧帧率失效）。
+ */
+function onSceneQualityChanged() {
+  sceneFps.value = 0
+}
+
+/**
+ * 🔴 **场景自动降档**（2026-10-26 画质分级 · #131）
+ *
+ *   只有在用户**没有手动选过**画质时才会触发（场景组件里有判定）。
+ *   这里给一个提示，让用户知道系统为什么把画质降了。
+ */
+function onSceneAutoDowngrade(payload) {
+  ElMessage.info(
+    `${t('farm.quality.autoDowngraded', {
+      fps: payload?.fps || 0,
+      to: t('farm.quality.level.' + (payload?.to || 'standard'))
+    })}`
+  )
+}
+
+/**
+ * 用户在画质面板里切换档位。
+ */
+function onQualityChanged(payload) {
+  ElMessage.success(
+    t('farm.quality.changed', { level: t('farm.quality.level.' + (payload?.id || 'standard')) })
+  )
 }
 
 /**
@@ -1240,6 +1442,7 @@ function onNeedShop() {
   worldMapOpen.value = false
   boardOpen.value = false
   warehouseOpen.value = false
+  achievementOpen.value = false
   shopOpen.value = true
 }
 
@@ -1255,6 +1458,7 @@ function openShop() {
   worldMapOpen.value = false
   boardOpen.value = false
   warehouseOpen.value = false
+  achievementOpen.value = false
   shopOpen.value = true
 }
 
@@ -1357,25 +1561,38 @@ function rebuildPlot() {
   openSetup()
 }
 
-const STAGE_SEGMENTS = [
-  { key: 'seedling', from: 0, to: 0.16 },
-  { key: 'tiller', from: 0.16, to: 0.36 },
-  { key: 'dry', from: 0.36, to: 0.41 },
-  { key: 'boot', from: 0.41, to: 0.63 },
-  { key: 'head', from: 0.63, to: 0.72 },
-  { key: 'fill', from: 0.72, to: 0.92 },
-  { key: 'ripe', from: 0.92, to: 1.0 }
-]
-
-/** 生育进程时间轴：7 段，按 DVS 边界切分 */
+/**
+ * 生育进程时间轴：按**当前作物自己的**物候段切分。
+ *
+ * 🔴 **2026-10-26 重构**：原来是一套写死的 7 段（seedling/tiller/dry/boot/head/fill/ripe），
+ *   那是**水稻**的口径 —— 番茄的时间轴会显示出「晒田」「孕穗」这种番茄根本没有的阶段。
+ *   现在段数、段名、段边界全部来自后端下发的 `stageBounds` / `stageNames`，
+ *   与 3D 画面用的是同一份数据 —— 文案与画面必然一致。
+ */
 const timeline = computed(() => {
   const d = state.value?.crop?.dvs ?? 0
-  return STAGE_SEGMENTS.map(s => ({
-    ...s,
-    label: t('farm.stageShort.' + s.key),
-    done: d >= s.to,
-    active: d >= s.from && d < s.to
-  }))
+  const bounds = state.value?.crop?.stageBounds
+  const names = state.value?.crop?.stageNames
+  if (!Array.isArray(bounds) || !bounds.length) {
+    return []
+  }
+  return bounds.map((b, i) => {
+    const from = Array.isArray(b) ? b[0] : 0
+    // 末段右边界封到 1.0（后端末段 hi 常是 1.3，但进度条只画到 1）
+    const rawTo = Array.isArray(b) ? b[1] : 1
+    const to = i === bounds.length - 1 ? 1 : rawTo
+    const cn = Array.isArray(names) ? names[i] : ''
+    const key = phenoStageKeyOf(cn)
+    return {
+      key: key || cn || String(i),
+      from,
+      to,
+      // 未登记 i18n key 时回退到后端下发的中文名（不显示空白）
+      label: key ? t('farm.phenoStage.' + key) : (cn || '—'),
+      done: d >= to,
+      active: d >= from && d < to
+    }
+  })
 })
 
 function onMenu(cmd) {
@@ -1676,6 +1893,18 @@ const visiblePests = computed(() =>
   (state.value?.pests || []).filter(p => p.detected && p.severity >= 0.04)
 )
 
+/**
+ * 🔴 2026-10-27：距离成熟阈值还差多少 DVS。
+ *
+ * <p>有了这个数，「为什么还不能收」就不再是「进度条自己看着办」，
+ * 而是「差 0.07 到成熟期」—— 这正是农业科学模块该给出的解释。
+ */
+const ripeGap = computed(() => {
+  const c = state.value?.crop
+  if (!c || typeof c.harvestDvs !== 'number') return 0
+  return Math.max(0, c.harvestDvs - (c.dvs || 0))
+})
+
 const pestAlert = computed(() => {
   const list = visiblePests.value.filter(p => p.severity >= 0.15)
   if (!list.length) return ''
@@ -1755,15 +1984,33 @@ const heatLabel = computed(() => {
   return t('farm.heatTier.' + tier)
 })
 
-// DVS → 阶段 0-5
+// ==================== 物候段（2026-10-26 口径统一） ====================
+//
+// 🔴 **这里原来是一套写死的 DVS 切点**（0.16 / 0.36 / 0.63 / 0.72 / 0.92），
+//   那是**水稻**的口径 —— 恰好水稻是 7 段且切点一致，所以「水稻看着对」，
+//   但其余 21 种作物全错位：
+//   番茄 DVS 0.45 的真实阶段是「开花坐果」，这里却算成「拔节」。
+//
+// 现在改为**读后端下发的物候段索引**（`state.crop.stageIndex`），
+// 后端用 `SimEngine.phenologyIndex` 与阶段文案同源计算 ——
+// 文案与画面保证一致（这才是「阶段与真实情况相符」的真正含义）。
+//
+// 兜底：后端未下发索引时，用 `stageBounds` 自己切一次（仍比写死切点正确）。
 const dvsStage = computed(() => {
-  const d = dvs.value
-  if (d < 0.16) return 0
-  if (d < 0.36) return 1
-  if (d < 0.63) return 2
-  if (d < 0.72) return 3
-  if (d < 0.92) return 4
-  return 5
+  const idx = state.value?.crop?.stageIndex
+  if (typeof idx === 'number' && idx >= 0) return idx
+  // 兜底：按后端下发的段边界切（首段从 0 开始）
+  const bounds = state.value?.crop?.stageBounds
+  if (Array.isArray(bounds) && bounds.length) {
+    const d = dvs.value
+    for (let i = 0; i < bounds.length; i++) {
+      const b = bounds[i]
+      if (Array.isArray(b) && d >= b[0] && d < b[1]) return i
+    }
+    return bounds.length - 1
+  }
+  // 后端完全没下发（旧接口）→ 退回第一段，不要瞎猜
+  return 0
 })
 
 // ==================== 季节背景（3D 未加载时的退化层） ====================
@@ -1835,6 +2082,30 @@ function cellStyle(c) {
   return { '--cx': cx + '%', '--cy': cy + '%', '--cs': cs, '--cr': cr }
 }
 
+/**
+ * 按后端下发的物候段边界查表，得到某 DVS 落在第几段。
+ *
+ * 🔴 2026-10-27：**原来这里是一套写死的 6 段切点**
+ * （0.16 / 0.36 / 0.63 / 0.72 / 0.92）—— 那是**水稻**的口径。
+ * 番茄 DVS 0.45 的真实阶段是「开花坐果」，这里却算成第 3 段（拔节）。
+ *
+ * 现在改为查后端下发的 `stageBounds`（与 3D 场景、时间轴同一份数据），
+ * 口径与 `dvsStage`、`timeline` 完全一致 —— 三处不再各切各的。
+ *
+ * @param {number} dvs
+ * @param {Array<Array<number>>} bounds 后端下发的 [[lo, hi], ...]
+ * @returns {number} 段索引（0-based）；无边界时返回 0
+ */
+function stageIndexOfDvs(dvs, bounds) {
+  if (!Array.isArray(bounds) || !bounds.length) return 0
+  for (let i = 0; i < bounds.length; i++) {
+    const b = bounds[i]
+    if (Array.isArray(b) && dvs >= b[0] && dvs < b[1]) return i
+  }
+  // 超过最后一段的 hi（后端末段 hi 常是 1.30）→ 归入最后一段
+  return bounds.length - 1
+}
+
 const cells = computed(() => {
   const d = dvs.value
   const w = state.value?.weather
@@ -1843,6 +2114,10 @@ const cells = computed(() => {
   const tmin = w?.tmin ?? 18
   const precip = w?.precip ?? 0
 
+  // 🔴 后端下发的物候段边界（与 3D / 时间轴同源）
+  const bounds = state.value?.crop?.stageBounds
+  const segCount = Array.isArray(bounds) && bounds.length ? bounds.length : 0
+
   const COLS = 5
   const ROWS = 3
   return Array.from({ length: COLS * ROWS }, (_, i) => {
@@ -1850,13 +2125,13 @@ const cells = computed(() => {
     const row = Math.floor(i / COLS)
     const microOffset = ((i * 7) % 4) * 0.005
     const cellDvs = Math.min(1.0, d + microOffset)
-    let cellStage
-    if (cellDvs < 0.16) cellStage = 0
-    else if (cellDvs < 0.36) cellStage = 1
-    else if (cellDvs < 0.63) cellStage = 2
-    else if (cellDvs < 0.72) cellStage = 3
-    else if (cellDvs < 0.92) cellStage = 4
-    else cellStage = 5
+
+    // 段索引 → PlantCell 的 6 段形态模板（0..5）。
+    // 各作物段数不同（5/6/7），按比例映射到统一的 6 段画法。
+    const segIdx = stageIndexOfDvs(cellDvs, bounds)
+    const cellStage = segCount > 1
+      ? Math.min(5, Math.round(segIdx / (segCount - 1) * 5))
+      : 0
 
     return {
       key: i,
@@ -1897,8 +2172,8 @@ const yieldRows = computed(() => {
     {
       name: t(grain ? 'farm.col.panicles' : 'farm.col.plants'),
       value: grain
-        ? `${Math.round(y.panicles).toLocaleString()} 穗/亩`
-        : `${Math.round(y.panicles).toLocaleString()} 株/亩`,
+        ? `${Math.round(y.panicles).toLocaleString()} ${t('farm.unit.paniclePerMu')}`
+        : `${Math.round(y.panicles).toLocaleString()} ${t('farm.unit.plantPerMu')}`,
       dmg: y.dmgPanicle,
       from: t(grain ? 'farm.from.tiller' : 'farm.from.veg1')
     },
@@ -2186,6 +2461,16 @@ function fmtTime(v) {
   font-variant-numeric: tabular-nums;
 }
 .hchip b { font-weight: 600; color: #64748b; margin-right: 2px; }
+/* 🔴 2026-10-27：成熟阈值 chip —— 未熟时低调，熟了才变绿（视觉上与「可收」呼应） */
+.ripe-chip {
+  background: rgba(148, 163, 184, 0.18);
+  color: #475569;
+}
+.ripe-chip.ready {
+  background: rgba(34, 197, 94, 0.16);
+  color: #15803d;
+  font-weight: 600;
+}
 .plot-chip {
   display: inline-flex;
   align-items: center;
@@ -2270,69 +2555,72 @@ function fmtTime(v) {
 }
 .fm-hint i { opacity: 0.5; font-style: normal; }
 
-/* 病虫害告警 */
-.fm-pest-alert {
+/* 🔴🔴 **场景告警浮层的统一定位**（2026-10-26 修复「告警盖住顶栏按钮」）。
+ *
+ *   问题：4 个告警浮层（pest / frost / wither / germ）各自写死 `top: 64~66px`
+ *   且水平居中 → 落在**顶栏 chips 行**（y≈185~208）上，
+ *   把「画质 / 成就 / 仓库」等按钮**整个盖住**，
+ *   表现是「按钮在 DOM 里、但点不动」（elementFromPoint 返回告警层）。
+ *   —— 这正是本项目铁律「DOM 里有 ≠ 玩家看得见」的现实案例。
+ *
+ *   修法：统一用 `.fm-scene-alert` 定位类，浮层一律落在**顶栏下方**，
+ *   且 `pointer-events: none`（纯提示不该拦点击），仅按钮恢复 pointer-events。
+ *
+ *   ⚠️ 为什么不用 `top: 66px` 再加高 z-index：加高 z-index 只是把「盖住按钮」
+ *     换成「盖住更多东西」；真正的错位是**浮层与交互条抢同一条横向带**。
+ */
+.fm-scene-alert {
   position: absolute;
   z-index: 6;
-  top: 66px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  border-radius: 999px;
-  background: rgba(160, 42, 24, 0.82);
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 500;
-  box-shadow: 0 6px 20px rgba(120, 30, 10, 0.32);
-  backdrop-filter: blur(8px);
-  white-space: nowrap;
-  max-width: calc(100% - 40px);
-}
-.fm-pest-alert .pa-icon { font-size: 14px; }
-
-.fm-frost-alert {
-  position: absolute;
-  z-index: 7;
-  top: 64px;
+  /* 顶栏 header 高 74px（含 padding）→ 浮层从 header 之下开始 */
+  top: 86px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px 8px 16px;
   border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(120, 30, 10, 0.32);
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  max-width: calc(100% - 40px);
+  /* 🔴 纯提示不该拦点击（否则会盖住下层任何可点元素） */
+  pointer-events: none;
+}
+/* 浮层里的操作按钮要能点 → 恢复 pointer-events */
+.fm-scene-alert :deep(.el-button),
+.fm-scene-alert button {
+  pointer-events: auto;
+}
+
+/* 病虫害告警 */
+.fm-pest-alert {
+  gap: 6px;
+  padding: 7px 16px;
+  background: rgba(160, 42, 24, 0.82);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.fm-pest-alert .pa-icon { font-size: 14px; }
+
+.fm-frost-alert {
+  padding: 8px 10px 8px 16px;
   background: rgba(28, 58, 96, 0.86);
   color: #eaf4ff;
   font-size: 12.5px;
   box-shadow: 0 8px 24px rgba(10, 30, 60, 0.35);
-  backdrop-filter: blur(8px);
-  white-space: nowrap;
-  max-width: calc(100% - 40px);
 }
 .fm-frost-alert .fa-icon { font-size: 15px; }
 .fm-frost-alert :deep(.el-button) { color: #9ed0ff; font-size: 12.5px; }
 
 /* 苗期枯死告警（2026-10-22）：本季绝收，必须能结掉 */
 .fm-wither-alert {
-  position: absolute;
-  z-index: 7;
-  top: 64px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
   padding: 8px 10px 8px 16px;
-  border-radius: 999px;
   background: rgba(112, 38, 30, 0.88);
   color: #ffe8e2;
   font-size: 12.5px;
   box-shadow: 0 8px 24px rgba(60, 16, 10, 0.35);
-  backdrop-filter: blur(8px);
-  max-width: calc(100% - 40px);
 }
 .fm-wither-alert .wa-icon { font-size: 15px; }
 .fm-wither-alert .wa-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2340,22 +2628,11 @@ function fmtTime(v) {
 
 /* 出苗不全告警（2026-10-22） */
 .fm-germ-alert {
-  position: absolute;
-  z-index: 6;
-  top: 64px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
   gap: 7px;
   padding: 6px 14px;
-  border-radius: 999px;
   background: rgba(120, 96, 20, 0.86);
   color: #fff3cd;
   font-size: 12px;
-  backdrop-filter: blur(8px);
-  max-width: calc(100% - 40px);
-  white-space: nowrap;
   overflow: hidden;
 }
 .fm-germ-alert .ga-icon { font-size: 14px; }
@@ -2830,6 +3107,59 @@ function fmtTime(v) {
 }
 .recent .score { font-weight: 650; color: #0f172a; }
 .empty { margin: 4px 0; }
+
+/* ============ S26：历史成绩标签页 + 排行榜 ============ */
+.score-tabs { margin-top: -4px; }
+.score-tabs :deep(.el-tabs__header) { margin-bottom: 6px; }
+
+/* 🔴 画质入口上的实测帧率徽标（2026-10-26 画质分级） */
+.wq-fps {
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: #e2e8df;
+  color: #4d5f50;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.score-tabs :deep(.el-tabs__item) { font-size: 12px; height: 28px; line-height: 28px; }
+.lb-list { margin: 0; padding: 0; list-style: none; }
+.lb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+  border-bottom: 1px solid #f5f7fa;
+  font-size: 12px;
+}
+.lb:last-child { border-bottom: none; }
+/* 前三名用金/银/铜色，其余用中性灰 —— 与 2048 排行榜同一套视觉语言 */
+.lb .rank {
+  flex: 0 0 18px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 11px;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+.lb .rank.r1 { color: #d4a017; }
+.lb .rank.r2 { color: #94a3b8; }
+.lb .rank.r3 { color: #b45309; }
+.lb .who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #334155;
+}
+.lb .sc { font-weight: 650; color: #0f172a; font-variant-numeric: tabular-nums; }
+/* 自己的成绩高亮 —— 让玩家一眼找到「我排第几」 */
+.lb.me { background: #f0f9eb; }
+.lb.me .who { color: #4d7c2a; font-weight: 650; }
+.lb-foot { margin: 6px 0 0; font-size: 10.5px; line-height: 1.5; }
 .history { list-style: none; margin: 0; padding: 0; }
 .history li {
   display: flex;

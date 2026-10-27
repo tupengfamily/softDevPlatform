@@ -82,6 +82,12 @@
         <i v-if="shopShort > 0" class="wh-dot">{{ shopShort }}</i>
       </button>
 
+      <!-- S26 成就 / 图鉴入口：地图是玩家的落地页，成就面板必须从这里能进 -->
+      <button class="wm-warehouse wm-ach" @click="$emit('open-achievement')">
+        <span class="wh-ico">🏅</span>
+        <span class="wh-txt">成就</span>
+      </button>
+
       <!-- 图层切换：底图 + 注记 -->
       <div class="wm-layer-ctl">
         <button class="wm-base" :class="{ on: baseLayer !== 'vector' }" @click="layerPanelOpen = !layerPanelOpen">
@@ -506,7 +512,7 @@
                 v-for="p in farmHover.plots"
                 :key="p.slot"
                 class="fpl-row"
-                :class="{ empty: !p.chosen, ready: p.chosen && p.dvs >= 0.92 }"
+                :class="{ empty: !p.chosen, ready: p.chosen && isHarvestable(p) }"
                 role="button"
                 tabindex="0"
                 :title="'进入 ' + (p.fieldName || ('第 ' + (p.slot + 1) + ' 号田'))"
@@ -568,7 +574,7 @@
                     >药</button>
                     <button
                       class="fpl-btn ok"
-                      :disabled="busyPlot === p.slot || p.dvs < 0.92"
+                      :disabled="busyPlot === p.slot || !isHarvestable(p)"
                       title="收割"
                       @click.stop="hoverPlotHarvest(p.slot)"
                     >收</button>
@@ -866,7 +872,7 @@
                     <span class="mono">播 {{ r.sowDate || '—' }}</span>
                     <span class="mono">{{ r.harvestDate ? '收 ' + r.harvestDate : '未收' }}</span>
                     <span class="mono" :class="{ bad: r.status === 'FAILED' }">
-                      {{ r.yieldKgPerMu != null ? r.yieldKgPerMu.toFixed(1) + ' kg/亩' : '—' }}
+                      {{ r.yieldKgPerMu != null ? r.yieldKgPerMu.toFixed(1) + ' ' + $t('farm.unit.perMu') : '—' }}
                     </span>
                     <span
                       v-if="r.germination != null"
@@ -1025,6 +1031,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import {
   getFarmMapDistricts, getFarmMapDistrict, getFarmCropDistribution,
   getFarmCropDistributionProvinces,
@@ -1034,9 +1041,15 @@ import {
 import {
   getMapTdtStatus, searchMapPlaces, reverseGeocode, tdtTilePath, probeMapTdtTile
 } from '../../api/map'
+import { isHarvestable } from '../../utils/farmLabels'
 import FarmOverviewPanel from './FarmOverviewPanel.vue'
 
-const emit = defineEmits(['close', 'enter-plot', 'state-changed', 'open-inputs', 'open-warehouse', 'open-shop'])
+// 🔴 2026-10-27：本组件整体仍是硬编码中文（6712 行，i18n 化是独立任务），
+//    但「亩」这个单位必须走 i18n —— 否则英文界面的地图浮层会露中文。
+//    用 useI18n 局部取 t()，不与组件内既有的中文文案混为一谈。
+const { t } = useI18n()
+
+const emit = defineEmits(['close', 'enter-plot', 'state-changed', 'open-inputs', 'open-warehouse', 'open-shop', 'open-achievement'])
 
 /**
  * 仓库角标（S25）：临期 + 已变质的批次数。
@@ -2900,7 +2913,7 @@ function formatArea(sqm) {
   }
   const mu = sqm / 666.6667   // 1 亩 = 666.667 m²
   return {
-    text: `${mu.toFixed(2)} 亩`,
+    text: `${mu.toFixed(2)} ${t('farm.unit.mu')}`,
     sub: `${sqm.toFixed(0)} 平方米 · ${(sqm / 10000).toFixed(3)} 公顷`
   }
 }
@@ -4340,8 +4353,8 @@ const busyPlot = ref(-1)
 /** 地块状态分档（与右侧面板的 dotClass 同一套口径） */
 function plotDotClass(p) {
   if (!p.chosen) return 'idle'
+  if (isHarvestable(p)) return 'ready'
   const d = p.dvs || 0
-  if (d >= 0.92) return 'ready'
   if (d > 0) return 'grow'
   return 'sown'
 }
@@ -4421,7 +4434,7 @@ async function hoverPlotHarvest(slot) {
     const r = await harvestFarm(slot)
     await refreshFarms()
     const y = r?.data?.yieldKgPerMu ?? r?.data?.yield
-    ElMessage.success(y != null ? `已收割，产量 ${y} kg/亩` : '已收割')
+    ElMessage.success(y != null ? `已收割，产量 ${y} ${t('farm.unit.perMu')}` : '已收割')
   } catch (e) {
     ElMessage.error(e?.message || '收割失败')
   } finally {
@@ -5118,6 +5131,13 @@ onBeforeUnmount(() => {
   color: rgba(255, 226, 176, 0.85);
 }
 .wm-shop:hover { background: rgba(255, 196, 108, 0.18); }
+/* S26 成就入口：与仓库/商店同一排，绿色系区分「成就」 */
+.wm-ach {
+  border-color: rgba(126, 200, 128, 0.28);
+  background: rgba(126, 200, 128, 0.08);
+  color: rgba(206, 238, 208, 0.85);
+}
+.wm-ach:hover { background: rgba(126, 200, 128, 0.18); }
 .wm-shop.has-warn {
   border-color: rgba(224, 85, 47, 0.5);
   background: rgba(214, 106, 40, 0.28);

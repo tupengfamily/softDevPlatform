@@ -172,6 +172,7 @@
 
 <script setup>
 import { computed, ref, onBeforeUnmount } from 'vue'
+import { isHarvestable } from '../../utils/farmLabels'
 
 const props = defineProps({
   /** { type: 'all' | 'province' | 'district', title, badge, adcode } */
@@ -338,7 +339,7 @@ const totals = computed(() => {
     if (!p.chosen) continue
     chosen++
     const d = p.dvs || 0
-    if (d >= 0.92) ready++
+    if (isHarvestable(p)) ready++
     else if (d > 0) growing++
   }
   return { plots, chosen, growing, ready }
@@ -363,8 +364,8 @@ const cropRows = computed(() => {
 /** 地块小方块的状态分档：空 / 未出苗 / 生长 / 可收 */
 function dotClass(p) {
   if (!p.chosen) return 'idle'
+  if (isHarvestable(p)) return 'ready'
   const d = p.dvs || 0
-  if (d >= 0.92) return 'ready'
   if (d > 0) return 'grow'
   return 'sown'
 }

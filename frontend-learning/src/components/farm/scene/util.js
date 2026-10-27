@@ -466,7 +466,13 @@ export function addWindShader(material, { amp = 0.05, speed = 1.1, height = 1.0 
   material.userData.windTime = { value: 0 }
   // 登记到全局表，animate() 里统一推进
   windRegistry.add(material.userData.windTime)
-  material.onBeforeCompile = (shader) => {
+  const prevCompile = material.onBeforeCompile
+  material.onBeforeCompile = (shader, renderer) => {
+    // 🔴 **必须链式调用原有的 onBeforeCompile**（2026-10-26）。
+    //   addUvJitter 也是通过 onBeforeCompile 注入的；
+    //   如果风动直接覆盖 material.onBeforeCompile，
+    //   UV 抖动就会**随机消失**（取决于谁后设置）。
+    if (prevCompile) prevCompile.call(material, shader, renderer)
     shader.uniforms.uWindTime = material.userData.windTime
     shader.uniforms.uWindAmp = { value: amp }
     shader.uniforms.uWindSpeed = { value: speed }
@@ -506,15 +512,103 @@ export function addWindShader(material, { amp = 0.05, speed = 1.1, height = 1.0 
       )
   }
   // onBeforeCompile 改 shader 必须让材质重新编译，否则缓存里还是旧程序
-  material.customProgramCacheKey = () => `wind-${amp}-${speed}-${height}`
+  // 🔴 **cacheKey 必须链式合并**（2026-10-26）：
+  //   addUvJitter 也会设置 customProgramCacheKey；
+  //   如果风动直接覆盖，UV 抖动的 key 就丢了 →
+  //   带抖动的材质可能命中不带抖动的缓存 → 抖动随机失效。
+  const prevKey = material.customProgramCacheKey
+  material.customProgramCacheKey = () => {
+    const base = prevKey ? prevKey.call(material) : material.type
+    return `${base}-wind-${amp}-${speed}-${height}`
+  }
+  return material
+}
+
+/**
+ * 🔴 **实例级 UV 抖动**（2026-10-26 真实感升级）
+ *
+ *   问题：田里上千丛作物**共用同一张贴图、同一个 UV**。
+ *   即使每丛随机旋转 + 水平镜像，看上去仍然是「同一张照片复制了 1000 遍」——
+ *   尤其作物照片里有**固定的暗斑/枯叶/虫眼**，这些特征会整齐地重复出现，
+ *   是「贴图感」最强的来源之一。
+ *
+ *   解法：在顶点着色器里按**实例位置**给 UV 加一个确定性偏移。
+ *   偏移量由实例在世界中的位置哈希得到 → 同一丛每次打开偏移相同（可复现），
+ *   不同丛偏移不同 → 贴图里的固定特征被"打散"到不同位置。
+ *
+ *   ⚠️ **必须用位置哈希而不是 gl_InstanceID**：
+ *   gl_InstanceID 在每帧/每次 setMatrixAt 后可能重排，用它会导致
+ *   作物"抖动"（同一丛每帧 UV 都在变）。位置哈希是稳定的。
+ *
+ *   ⚠️ **UV 偏移量要小**（默认 ±0.06）：偏移太大，
+ *   贴图边缘（羽化边）会被移出面片 → alphaTest 啃出缺口。
+ *   作物贴图是居中裁切的白底图，边缘本来就有内容，
+ *   所以 0.03~0.08 是安全区。
+ *
+ * @param {object} material 要改的材质
+ * @param {object} [opts]
+ * @param {number} [opts.amount=0.06]  UV 抖动幅度
+ * @param {number} [opts.scale=3.1]    哈希的空间尺度（越大相邻丛越不同）
+ */
+export function addUvJitter(material, { amount = 0.06, scale = 3.1 } = {}) {
+  const prev = material.onBeforeCompile
+  material.onBeforeCompile = (shader, renderer) => {
+    // 先让原有的风动等回调跑完
+    if (prev) prev.call(material, shader, renderer)
+    shader.uniforms.uUvJitter = { value: amount }
+    shader.uniforms.uUvJitterScale = { value: scale }
+    // 声明：把偏移量塞进 varying（片元着色器也要用）
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uUvJitter;
+        uniform float uUvJitterScale;
+        // 位置哈希 → [0,1) 的两个独立随机数
+        vec2 farmUvHash(vec3 p) {
+          // 三个不同的大质数相乘再取小数，避免明显的规律
+          float h1 = fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+          float h2 = fract(sin(dot(p, vec3(63.7264, 10.873, 91.532))) * 24634.6345);
+          return vec2(h1, h2);
+        }`
+      )
+      // 注入到 uv_vertex 之后：改 vMapUv / vNormalMapUv
+      .replace(
+        '#include <uv_vertex>',
+        `#include <uv_vertex>
+        #ifdef USE_INSTANCING
+          vec3 farmInstPos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+        #else
+          vec3 farmInstPos = vec3(modelMatrix[3][0], modelMatrix[3][1], modelMatrix[3][2]);
+        #endif
+        {
+          vec2 farmHash = farmUvHash(farmInstPos * uUvJitterScale);
+          // 偏移量在 [-amount, +amount] 之间
+          vec2 farmUvOffset = (farmHash - 0.5) * 2.0 * uUvJitter;
+          #ifdef USE_MAP
+            vMapUv += farmUvOffset;
+          #endif
+          #ifdef USE_NORMALMAP
+            vNormalMapUv += farmUvOffset;
+          #endif
+        }`
+      )
+  }
+  // 🔴 **customProgramCacheKey 必须区分开**：
+  //   否则带 UV 抖动的材质会与不带抖动的材质**共用同一个编译后的 shader**
+  //   → 抖动的效果随机出现/消失（取决于谁先编译）。
+  const prevKey = material.customProgramCacheKey
+  material.customProgramCacheKey = () => {
+    const base = prevKey ? prevKey.call(material) : material.type
+    return `${base}-uvjit-${amount}-${scale}`
+  }
   return material
 }
 
 /**
  * 多倍频值噪声：用低分辨率随机图放大叠加近似 fBm。
  * 直接逐像素随机会有高频噪点，这里靠 drawImage 的双线性放大得到平滑场。
- */
-export function fbmCanvas(W, H, seed, octaves = 4) {
+ */export function fbmCanvas(W, H, seed, octaves = 4) {
   const base = document.createElement('canvas')
   base.width = W
   base.height = H

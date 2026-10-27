@@ -23,7 +23,7 @@
     ② `prep_legacy.py`    10 张旧图（src: src/plant_*.png）—— 本模块调用方
     另有 `prep_crops_normal.py` 由 albedo 派生法线图。
 
-核心算法（8 步，每步都有实测数据支撑）：
+核心算法（9 步，每步都有实测数据支撑）：
     1. 背景候选：低饱和 + 高亮
     2. 3×3 邻域去噪
     3. 闭运算 → 连通性判定（**只用于 flood，不当抠除掩码**）
@@ -32,7 +32,10 @@
     6. 孔洞抠除：在**前景掩码**上定义（fill_holes(~outside)）
     7. 近白边缘环抠除
     8. alpha 羽化 + 近白半透归零 + RGB 颜色扩散
+    9. **花盆 / 土坨剔除**（2026-10-26 新增）
 """
+import os
+
 import numpy as np
 from PIL import Image, ImageFilter
 
@@ -72,6 +75,114 @@ LUM_MIN = 140          # 亮度下限：背景/阴影亮度 > 140
 #     · 但黄色系主体的丢失像素 sat p50=0.32，**0.30 就贴着脸了**
 #     · 0.28 留一点余量，同时比 0.30 多抠一点背景
 SAT_MAX = 0.28
+
+# 🔴🔴 **花盆 / 土坨底座剔除 —— 标注表驱动**（2026-10-26）。
+#
+#   问题：22 种作物专属图里有 6 张底部带着**商品图的拍摄残留**（花盆 / 土坨），
+#        种到田里就是「地里立着花盆」—— 与真实状态不符。
+#
+#   为什么现有算法剔不掉它们：
+#     · 花盆/土坨与植株主体**连通** → 位置约束（reachable）失效
+#     · 颜色是暗褐/灰/黑 → 符合前景判据 → 颜色约束也失效
+#     → 必须新增一道**专属判据**，不能调 SAT_MAX（会伤黄色系主体）。
+#
+#   🔴🔴🔴 **为什么最终采用「标注表」而不是通用判据**（10 版实测记录）：
+#
+#     ① 暗 + 低饱和（lum<130 且 sat<0.30）
+#        → 报出 `eggplant_young = 95.8%`，**严重误报**。
+#          根因：**绿叶本身就暗**（lum 常 <130）。饱和度阈值一放宽到能抓住
+#          棕色编织花盆（sat 能到 0.35+），**绿叶就一起被抓进来**。
+#          教训：绿叶的「暗」是**通道关系**问题，不是亮度问题。
+#
+#     ② 触地 + 宽（与画面底边相连的段宽度）
+#        → 源图只命中 1 张。根因：**商品图有留白**，盆坨不连到画面底边。
+#          教训：不能假设素材构图。
+#
+#     ③ 暗 + 暖（R-B >= 20）
+#        → **24/44 命中** —— 红色果实（番茄/辣椒/萝卜）被误判成底座。
+#          教训：只看「红绿相对」无法区分「红果实」与「红陶盆」。
+#
+#     ④ 暗 + 灰褐（lum<60 且三通道极差<=35）
+#        → 只抓到 4 张。漏掉：灰塑料花盆（边缘反光）、深褐土堆、编织陶盆（高光纹理）。
+#          教训：**颜色阈值永远会漏** —— 同一个「盆」在不同光照下颜色千差万别。
+#
+#     ⑤ 剪影宽度剖面 + 绿区最低点
+#        → 细茎作物（辣椒苗）绿像素是**散点**，「连续绿段」判据失效；
+#          单绿像素又会被盆里土块的绿色反光噪点带偏。
+#          教训：绿像素的「成片程度」不可靠。
+#
+#     ⑥ 宽度断崖（最底宽段）
+#        → 宽叶作物（白菜/南瓜/草莓）**叶片本身就是宽的** → 「最底宽段」落在叶片上。
+#          教训：不能假设「底部最宽的东西就是盆」。
+#
+#     ⑦ 连通域分离
+#        → 盆里的土与植株茎**直接相连**，分不开。
+#          教训：连通性不是可靠的语义边界。
+#
+#     ⑧ 非绿 + 暗
+#        → 命中 12 张，但误判**投影阴影**（黄瓜）与**深色叶片**（番茄/菊花/玫瑰）。
+#          教训：暗 ≠ 盆。
+#
+#     ⑨ 触底 + 实体高度
+#        → 阴影薄片被排除，但真盆的辣椒/梨/土豆反而漏判。
+#          教训：排除阴影与抓住盆是**两件事**，不能用同一个条件。
+#
+#     ⑩ 像素级垂直台阶（3 倍跃升）
+#        → 碗形的盆是**渐变**的，没有单行 3 倍跃升 → 0/44。
+#          教训：碗形/梯形的盆没有真正的「垂直台阶」。
+#
+#     → **结论：单一通用规则无法覆盖 44 张多样素材**（每版都在某个作物上失效）。
+#     → **工程解法：标注表 + 自动应用** —— 准确、可回归、可维护、可增量扩展。
+#
+#   ✅ **最终方案**
+#     · 标注表 `scripts/farm-assets/pot_base_table.json`（**唯一真源**）
+#       记录每张带盆贴图的**盆顶位置**（占画布高的百分比）
+#     · `strip_pot_base()` 按表执行：把盆顶以下的**所有前景像素**抠掉
+#     · 标注表由 `diag_pot_profiles.py`（导出剖面）+ 人工核对生成
+#       —— 剖面图 `docs/farm-asset-pot-curves.png` 一眼可判
+#
+#   ⚠️ **新增/更换素材时必须重跑**：
+#       ① `python scripts/farm-assets/diag_pot_profiles.py`   导出剖面
+#       ② 看 `docs/farm-asset-pot-curves.png`，有盆的写进标注表
+#       ③ `python scripts/farm-assets/prep_crops.py` 重出贴图
+POT_TABLE_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "pot_base_table.json")
+_POT_TABLE = None
+
+
+def _pot_table():
+    """读取盆坨标注表（唯一真源）。文件不存在 → 空表（不剔除任何东西）。"""
+    global _POT_TABLE
+    if _POT_TABLE is None:
+        try:
+            import json
+            with open(POT_TABLE_PATH, encoding="utf-8") as f:
+                _POT_TABLE = json.load(f)
+        except (OSError, ValueError):
+            _POT_TABLE = {}
+    return _POT_TABLE
+
+
+def derive_key(path):
+    """
+    从源图路径推导贴图 key（`plant_<crop>_<stage>`）。
+
+    🔴 **为什么要有这个**：盆坨剔除依赖 key 查标注表，
+    如果每个调用点各自拼 key，就会出现「有的传了有的没传」的**同型分叉** ——
+    典型后果就是 `eval_subject_loss.py` 量出来的主体损失与实际产物对不上。
+    → 统一在这里推导，调用点可传可不传，结果一致。
+
+    识别路径形如：.../hort/src/<crop>/<stage>.png
+    """
+    p = os.path.abspath(path)
+    parts = p.replace("\\", "/").split("/")
+    if len(parts) < 3:
+        return None
+    stage = os.path.splitext(parts[-1])[0]
+    crop = parts[-2]
+    if stage not in ("young", "ripe"):
+        return None
+    return "plant_%s_%s" % (crop, stage)
 
 
 def np2img(a):
@@ -300,7 +411,8 @@ def color_bleed(rgba, iters=8):
     return res
 
 
-def cutout(path, target_h=None, keep_aspect=True, return_alpha=False, sat_max=None):
+def cutout(path, target_h=None, keep_aspect=True, return_alpha=False, sat_max=None,
+           key=None, strip_pot=True):
     """
     抠掉浅色背景 + 投影阴影，保留植物。
 
@@ -317,7 +429,7 @@ def cutout(path, target_h=None, keep_aspect=True, return_alpha=False, sat_max=No
 
     **新判据：低饱和 + 高亮 = 背景或阴影**，配合**绿-蓝差**做颜色确认。
 
-    管线 8 步（每步都有实测数据支撑，见模块头部注释）：
+    管线 9 步（每步都有实测数据支撑，见模块头部注释）：
       1. 背景候选：低饱和 + 高亮
       2. 3×3 邻域去噪
       3. 闭运算 → 连通性判定（**只用于 flood，不当抠除掩码**）
@@ -326,10 +438,16 @@ def cutout(path, target_h=None, keep_aspect=True, return_alpha=False, sat_max=No
       6. 孔洞抠除：在**前景掩码**上定义（fill_holes(~outside)）
       7. 近白边缘环抠除
       8. alpha 羽化 + 近白半透归零 + RGB 颜色扩散
+      9. 花盆 / 土坨剔除（**标注表驱动**，见 strip_pot_base）
 
     @param path       源图路径（RGB）
     @param target_h   输出高度（None = 不缩放）
     @param keep_aspect 保持宽高比
+    @param key        贴图 key（如 `plant_chili_young`）——
+                     供第 9 步查「盆坨标注表」；None → 从路径推导
+    @param strip_pot  是否执行第 9 步「盆坨剔除」。
+                     **仅供对照测量用**（要量「剔前 vs 剔后」的差），
+                     生产链路恒为 True。
     @return PIL RGBA 图（已裁掉透明边框）
     """
     im = Image.open(path).convert("RGB")
@@ -426,10 +544,25 @@ def cutout(path, target_h=None, keep_aspect=True, return_alpha=False, sat_max=No
     edge_ring = near_white & dilate(outside, 1) & (~outside)
     outside = outside | edge_ring
 
-    # ---- 8) alpha：背景 0，边缘 1 像素羽化，其余 255 ----
+    # ---- 8) 花盆 / 土坨剔除 ----
+    #
+    # 🔴 **必须在 alpha 计算之前做**（2026-10-26）。
+    #   顺序：先抠背景 → 得到 fg → 在 fg 上剔盆坨 → 再算 alpha。
+    #   反过来（先算 alpha 再剔）会留下「羽化带」（alpha=150 的花盆边缘），
+    #   渲染出来是一圈脏边。
+    fg = ~outside
+    # 🔴 **key 统一在这里推导**（调用点传了就用传的，没传就从路径推）
+    #    —— 避免「有的调用点传 key、有的不传」的同型分叉。
+    if key is None:
+        key = derive_key(path)
+    n_pot = strip_pot_base(fg, a, key) if strip_pot else 0
+    if n_pot:
+        outside = ~fg
+
+    # ---- 9) alpha：背景 0，边缘 1 像素羽化，其余 255 ----
     alpha = np.full((h, w), 255, dtype=np.float32)
     alpha[outside] = 0
-    fg = ~outside
+
     border = fg & dilate(outside, 1)
     alpha[border] = 150
 
@@ -447,7 +580,7 @@ def cutout(path, target_h=None, keep_aspect=True, return_alpha=False, sat_max=No
 
     rgba = np.dstack([a, alpha]).astype(np.uint8)
 
-    # ---- 9) RGB 颜色扩散（color bleed）----
+    # ---- RGB 颜色扩散（color bleed）----
     #   three.js alphaTest 材质在 transparent=false 时不做 alpha 混合，
     #   羽化带的 RGB 仍是白底色 → 通过 alphaTest → 叶缘白边。
     #   实测（半透带 vs 主体的亮度差）：甜瓜 +37 → +23，土豆 +13 → +7。
@@ -476,6 +609,47 @@ def cutout(path, target_h=None, keep_aspect=True, return_alpha=False, sat_max=No
         return out, src_alpha
     return out
 
+
+def strip_pot_base(fg, a, key=None):
+    """
+    剔除前景里的**花盆 / 土坨底座**（2026-10-26，标注表驱动）。
+
+    🔴 **为什么是标注表而不是通用判据**：
+        通用判据试了 10 版（颜色 4 版 / 几何 6 版），每一版都在某个作物上失效 ——
+        详见模块常量区的完整失败记录。
+        结论：**单一规则无法覆盖 44 张多样素材**，
+        → 用标注表把「盆顶在哪一行」固化下来，算法只负责执行。
+
+    @param fg  前景布尔掩码（True = 主体），会被就地修改
+    @param a   源图 RGB 数组（float32）
+    @param key 贴图 key（如 `plant_chili_young`）；None → 从路径推导
+    @return    被剔除的像素数
+    """
+    table = _pot_table()
+    if not table:
+        return 0
+    if key is None:
+        return 0
+    entry = table.get(key)
+    if not entry:
+        return 0
+
+    h, w = fg.shape
+    top_pct = float(entry.get("pot_top_pct", 0))
+    if top_pct <= 0:
+        return 0
+    y_top = int(round(h * top_pct / 100.0))
+    if y_top <= 0 or y_top >= h:
+        return 0
+
+    # 抠掉盆顶以下的**所有前景像素**
+    strip = np.zeros((h, w), dtype=bool)
+    strip[y_top:, :] = True
+    strip &= fg
+    n = int(strip.sum())
+    if n:
+        fg &= ~strip
+    return n
 
 def loose_mask(gb, lum, sat=None, sat_max=None):
     """

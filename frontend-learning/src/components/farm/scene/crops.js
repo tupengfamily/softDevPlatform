@@ -16,7 +16,7 @@
  */
 
 import { STAGE_PLAN, SPRITE_ASPECT, PADDY_W, PADDY_D, FIELD_CZ, SEASON, densityOf, alphaCutoffOf, QUAD_SEGMENTS, postureOf } from './config.js'
-import { buildCrossQuad, buildGroundQuad, mulberry32, spherifyNormals, addWindShader } from './util.js'
+import { buildCrossQuad, buildGroundQuad, mulberry32, spherifyNormals, addWindShader, addUvJitter } from './util.js'
 
 /**
  * 生成田地里的丛坐标（确定性随机，同一季每次打开位置一致）。
@@ -24,8 +24,11 @@ import { buildCrossQuad, buildGroundQuad, mulberry32, spherifyNormals, addWindSh
  * @param {string} cropId   贴图族名（决定用哪张精灵图）
  * @param {string} densityKey 作物 id（决定种多密）—— 与贴图族可以不同：
  *                           梨借用灌木的图，但株距是 2.0m，不是灌木的 0.62m。
+ * @param {number} [densityScale] 密度倍率（画质档位决定，见 quality.js）。
+ *        <1 时**按比例抽稀**（不是缩小间距）—— 抽稀后仍保持原定植间距的
+ *        视觉节奏，同时实例数直接减少，省下顶点/绘制调用开销。
  */
-export function buildClumpData(cropId, densityKey) {
+export function buildClumpData(cropId, densityKey, densityScale = 1) {
   const rnd = mulberry32(20261019)
   const D = densityOf(densityKey || cropId)
   const out = []
@@ -33,6 +36,10 @@ export function buildClumpData(cropId, densityKey) {
   const z0 = FIELD_CZ - ((D.rows - 1) * D.step) / 2
   for (let ix = 0; ix < D.cols; ix++) {
     for (let iz = 0; iz < D.rows; iz++) {
+      // 🔴 **抽稀用确定性随机**（不是 Math.random）：
+      //   同一季每次打开抽到的丛必须一致，否则用户来回切地块会发现
+      //   "作物在换位置"，一眼假。
+      if (densityScale < 1 && rnd() > densityScale) continue
       out.push({
         x: x0 + ix * D.step + (rnd() - 0.5) * D.step * 0.34,
         z: z0 + iz * D.step + (rnd() - 0.5) * D.step * 0.34,
@@ -55,12 +62,24 @@ export function buildClumpData(cropId, densityKey) {
  * @param {object} [texKeys] 实际用上的贴图文件名（key → 'plant_xxx_young.png'）。
  *        降级到通用族图时，画布宽高比必须按**族图的实测值**取，
  *        否则面片会被拉扁（aspect 错了 → 十字面片变形 → 一眼看假）。
+ * @param {object} [quality] 画质参数矩阵（见 quality.js）：
+ *        densityScale 抽稀比例 / normalEnabled 法线贴图 / windEnabled 顶点风动。
  */
-export function createCropField(THREE, parent, assets, cropId, densityKey, texKeys, renderer) {
-  const clumps = buildClumpData(cropId, densityKey)
+export function createCropField(THREE, parent, assets, cropId, densityKey, texKeys, renderer, quality = null) {
+  const q = quality || {}
+  const densityScale = typeof q.cropDensityScale === 'number' ? q.cropDensityScale : 1
+  const normalEnabled = q.normalMapEnabled !== false
+  const windEnabled = q.windEnabled !== false
+  const clumps = buildClumpData(cropId, densityKey, densityScale)
   const plan = STAGE_PLAN[cropId]
   const meshes = []
-  const stageLists = [[], [], [], [], [], []]
+  // 🔴 **2026-10-26：段数由 plan 决定，不再硬编码 6**。
+  //   每种作物的物候段数不同（水稻/冬小麦 7、玉米 6、其余 19 种 5），
+  //   段数与后端 `CropConfig.phenology()` 严格一致。
+  //   硬编码 6 会导致：水稻的第 7 段（黄熟期）根本没有对应 mesh → 成熟田不换形态；
+  //   5 段作物会多出一个空 mesh 参与计数。
+  const stageCount = plan.length
+  const stageLists = Array.from({ length: stageCount }, () => [])
 
   /**
    * 取某张贴图的实际宽高比。
@@ -106,7 +125,7 @@ export function createCropField(THREE, parent, assets, cropId, densityKey, texKe
     return true
   }
 
-  for (let s = 0; s < 6; s++) {
+  for (let s = 0; s < stageCount; s++) {
     const st = plan[s]
     const isRipe = st.tex === 'ripe'
     const normalTex = isRipe ? assets.ripeNorm : assets.youngNorm
@@ -131,7 +150,7 @@ export function createCropField(THREE, parent, assets, cropId, densityKey, texKe
     //   没有它时球面化法线只给出"整株"级别的体积感，叶片内部完全是平的。
     //   normalScale 压到 0.55 —— 亮度当高度重建出来的凹凸本来就偏夸张，
     //   直接 1.0 会让叶片看起来像被敲过的金属片。
-    if (usableNormal(normalTex)) {
+    if (normalEnabled && usableNormal(normalTex)) {
       mat.normalMap = normalTex
       mat.normalScale = new THREE.Vector2(0.55, 0.55)
     }
@@ -157,7 +176,21 @@ export function createCropField(THREE, parent, assets, cropId, densityKey, texKe
       spherifyNormals(THREE, geo, 0.9)
     }
     // 风动：作物幅度比树小得多（禾本科只有几厘米）
-    addWindShader(mat, { amp: 0.055, speed: 1.35, height: Math.max(0.2, st.h) })
+    // 🔴 **风动可关**（2026-10-26 画质分级）：顶点着色器里的风动分支
+    //   在低端机上虽然便宜（uniform 驱动），但配合 alphaTest 的植株数量多时
+    //   仍会增加顶点着色开销；且用户可能为了截图/录屏关掉动态。
+    if (windEnabled) {
+      addWindShader(mat, { amp: 0.055, speed: 1.35, height: Math.max(0.2, st.h) })
+    }
+    // 🔴 **实例级 UV 抖动**（2026-10-26 真实感升级）：
+    //   上千丛作物共用同一张贴图 → 贴图里的固定特征（暗斑、枯叶、虫眼）
+    //   会整齐地重复出现，这是「贴图感」的最强来源。
+    //   按实例位置哈希给 UV 加微小偏移 → 特征被打散，且**可复现**
+    //   （同一丛每次打开位置相同，不会"闪烁"）。
+    //
+    //   ⚠️ 必须在 addWindShader **之后**调用（util.js 里两者是链式的，
+    //   顺序反了会让其中一个失效）。
+    addUvJitter(mat, { amount: 0.055, scale: 3.4 })
     const mesh = new THREE.InstancedMesh(geo, mat, Math.max(1, clumps.length))
     mesh.frustumCulled = false
     mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage)
@@ -194,9 +227,14 @@ export function createCropField(THREE, parent, assets, cropId, densityKey, texKe
   /**
    * 按阶段刷新实例。
    * 每丛 86% 落在基准阶段，少量前后错开一档——真实田块不会同一天整齐划一。
+   *
+   * 🔴 **2026-10-26**：错位的上下界改为 `stageCount`，
+   * 不再写死 5（原 6 段时代的末段索引）。段数随作物变化后，
+   * 写死 5 会让 5 段作物越界（st=6 → stageLists[6] undefined）。
    */
   function update(stage, season) {
-    const base = Math.max(0, Math.min(5, stage | 0))
+    const maxIdx = stageCount - 1
+    const base = Math.max(0, Math.min(maxIdx, stage | 0))
     const cfg = SEASON[season] || SEASON.summer
     const winter = season === 'winter'
     const tint = new THREE.Color(cfg.plantTint)
@@ -204,12 +242,12 @@ export function createCropField(THREE, parent, assets, cropId, densityKey, texKe
     for (const l of stageLists) l.length = 0
     clumps.forEach((c, i) => {
       let st = base
-      if (c.seed > 0.86 && base < 5) st = base + 1
-      else if (c.seed < 0.12 && base > 0 && base < 5) st = base - 1
+      if (c.seed > 0.86 && base < maxIdx) st = base + 1
+      else if (c.seed < 0.12 && base > 0 && base < maxIdx) st = base - 1
       stageLists[st].push(i)
     })
 
-    for (let s = 0; s < 6; s++) {
+    for (let s = 0; s < stageCount; s++) {
       const mesh = meshes[s]
       const list = stageLists[s]
       const st = plan[s]
@@ -242,7 +280,10 @@ export function createCropField(THREE, parent, assets, cropId, densityKey, texKe
           // 否则会和真实光照叠成"双重阴影"（基线图里就是这么发闷的）。
           // 这里只保留很小的随机亮度差（模拟叶片本身的色差），幅度压到 ±6%。
           col.multiplyScalar(0.94 + c.seed * 0.06)
-          col.multiply(s === 5 ? ripeWarm : warm)
+          // 🔴 **2026-10-26：末段索引改为 maxIdx**（原来写死 `s === 5`）。
+          //   段数随作物变化后，写死 5 会让 5 段作物的末段（index 4）拿不到黄熟暖色，
+          //   成熟田看着还是青的 —— 又一处「阶段与真实不符」。
+          col.multiply(s === maxIdx ? ripeWarm : warm)
         }
         mesh.setColorAt(k, col)
       }

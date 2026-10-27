@@ -49,8 +49,16 @@ public final class OpChain {
     ) {
     }
 
-    private record Def(String id, String name, String group, double from, double to,
-                       boolean repeatable, boolean auto) {
+    /**
+     * 工序定义。
+     *
+     * <p>🔴 2026-10-27：可见性从 {@code private} 放宽到包级 ——
+     * {@code HarvestThresholdTest} 需要直接核对
+     * 「收割阈值 == 该作物 HARVEST 步骤下界」，这是「唯一真源」的核心断言。
+     * 不放宽到 public，避免把内部结构暴露成对外 API。
+     */
+    record Def(String id, String name, String group, double from, double to,
+               boolean repeatable, boolean auto) {
     }
 
 
@@ -273,8 +281,181 @@ public final class OpChain {
         DEFS_BY_CROP.put("millet", millet);
     }
 
-    private static List<Def> defsOf(String cropId) {
+    /**
+     * 该作物的工序定义列表。
+     *
+     * <p>🔴 2026-10-27：可见性从 {@code private} 放宽到包级 ——
+     * {@code HarvestThresholdTest} 需要核对收割阈值与 HARVEST 步骤同源。
+     */
+    static List<Def> defsOf(String cropId) {
         return DEFS_BY_CROP.getOrDefault(cropId == null ? "rice_mid" : cropId, RICE_DEFS);
+    }
+
+    /**
+     * 🔴 2026-10-27：<b>收割阈值的唯一出口</b>（按作物取）。
+     *
+     * <p><b>被修的缺陷</b>：{@code FarmPlayService} 里有一个写死的
+     * {@code HARVEST_DVS = 0.92}，被 <b>9 处</b>引用。0.92 是<b>水稻</b>的口径，
+     * 而各作物的收割阈值本来就不同：
+     * <pre>
+     *   番茄 0.82 · 大白菜 0.85 · 瓜类 0.88 · 梨/马铃薯/谷子 0.90
+     *   大豆 0.90 · 水稻 0.92 · 小麦 0.92 · 玉米 0.95
+     * </pre>
+     * 写死 0.92 的后果：
+     * <ul>
+     *   <li><b>番茄（0.82）</b>：DVS 0.82~0.92 之间本该可收割，却被判「还没到黄熟期」 ——
+     *       玩家明明看到番茄红了却收不了，被逼着白等十天；</li>
+     *   <li><b>玉米（0.95）</b>：DVS 0.92~0.95 之间被判「可以收割」，
+     *       但此时玉米尚未完熟 → 玩家收了一茬<b>不熟的玉米</b>，产量凭空打折，
+     *       而提示却说「已到黄熟期」—— 纯误导。</li>
+     * </ul>
+     * 也就是说：**21 种作物里，除了水稻和小麦，全都判错**，
+     * 而且是往两个相反方向错。
+     *
+     * <p><b>阈值怎么算</b>：取两个口径的<b>较大者</b> ——
+     * <ol>
+     *   <li>本作物工序链里 {@code HARVEST} 步骤的窗口下界（农事窗口）；</li>
+     *   <li>本作物物候段里<b>成熟段</b>的起点（生物学上什么时候才算熟）。</li>
+     * </ol>
+     *
+     * <p>🔴 <b>为什么必须取较大者（2026-10-27 实测发现）</b>：
+     * 园艺作物是<b>按栽培型共用工序链</b>的（茄果类共用一条、豆角共用一条…），
+     * 但每种作物的物候切点不同，于是出现了 6 种作物的「工序窗口早于成熟段」：
+     * <pre>
+     *   辣椒/茄子  工序 0.82  vs  成熟段 0.85
+     *   豆角/萝卜  工序 0.85  vs  成熟段 0.88
+     *   葡萄/向日葵 工序 0.88  vs  成熟段 0.90
+     * </pre>
+     * 若只看工序口径，玩家在 DVS 0.83 收辣椒 —— 但此时辣椒的物候阶段还写着
+     * 「果实膨大」，界面同时显示「果实膨大」和「可收割」，<b>自相矛盾</b>。
+     * 生物学上没熟的作物不该能收，所以取两者较大值。
+     *
+     * <p>取较大者后，实际阈值：
+     * <pre>
+     *   番茄 0.82 · 大白菜 0.85 · 辣椒/茄子 0.85 · 瓜类 0.88 · 豆角/萝卜 0.88
+     *   梨/马铃薯/谷子/大豆 0.90 · 葡萄/向日葵 0.90 · 水稻/小麦 0.92 · 玉米 0.95
+     * </pre>
+     *
+     * @param cropId 作物 id；null / 未知 → 回落到水稻口径（0.92）
+     * @return 该作物的收割 DVS 阈值
+     */
+    public static double harvestDvsOf(String cropId) {
+        double opThreshold = opHarvestFrom(cropId);
+        double ripeFrom = phenologyRipeFrom(cropId);
+        // 两者都没有 → 回落到水稻口径
+        if (opThreshold < 0 && ripeFrom < 0) {
+            return 0.92;
+        }
+        // 只知道一个 → 用它
+        if (opThreshold < 0) {
+            return ripeFrom;
+        }
+        if (ripeFrom < 0) {
+            return opThreshold;
+        }
+        // 两个都有 → 取较大者（生物学成熟才算可收）
+        return Math.max(opThreshold, ripeFrom);
+    }
+
+    /**
+     * 🔴 2026-10-27：<b>按作物查某道工序的窗口下界</b>（通用出口）。
+     *
+     * <p><b>被修的缺陷</b>：{@code FarmPlayService.validateActionWindow()} 里
+     * {@code DRY_GRAIN} 写死 {@code dvs >= 0.92}、{@code DRAIN_FINAL} 写死
+     * {@code dvs >= 0.90} —— 但各作物工序链里的这两个窗口<b>本来就不同</b>：
+     * <pre>
+     *   DRY_GRAIN：番茄 0.88 · 大白菜 0.88 · 瓜类 0.92 · 葡萄 0.92 · 向日葵 0.92
+     *              马铃薯 0.94 · 梨 0.94 · 豆角 0.90 · 萝卜 0.90
+     *              水稻 0.98 · 小麦 0.96 · 玉米 0.98 · 谷子 0.96 · 大豆 0.96
+     * </pre>
+     * 写死 0.92 的后果：<b>番茄在 DVS 0.90 就被允许「分级包装」</b>
+     * （它自己的窗口 0.88 之前就该可以了，0.92 反而拦早了），
+     * 而<b>水稻在 DVS 0.94 做「烘干入库」会被拒</b>（它的窗口是 0.98）——
+     * 玩家在正确时机做的正确事被拒绝，这是比阈值偏高更糟的失败。
+     *
+     * <p><b>为什么不能直接用「收割阈值」代替</b>：收割阈值是
+     * {@code max(工序 HARVEST 下界, 物候成熟段起点)}，
+     * 而 {@code DRY_GRAIN} 是「收割<b>之后</b>的下一道工序」，两者语义不同、
+     * 数值也不同（多数作物 DRY_GRAIN &gt; HARVEST）。
+     *
+     * @param cropId 作物 id；null / 未知 → 回落到水稻口径
+     * @param stepId  工序 id（如 {@code "DRY_GRAIN"} / {@code "DRAIN_FINAL"}）
+     * @return 窗口下界；该作物没有这道工序时返回 -1
+     */
+    public static double stepFromOf(String cropId, String stepId) {
+        if (stepId == null || stepId.isBlank()) {
+            return -1.0;
+        }
+        for (Def d : defsOf(cropId)) {
+            if (stepId.equals(d.id())) {
+                return d.from();
+            }
+        }
+        return -1.0;
+    }
+
+    /**
+     * 🔴 2026-10-27：<b>按作物查某道工序的窗口上界</b>。
+     *
+     * @see #stepFromOf(String, String)
+     * @return 窗口上界；该作物没有这道工序时返回 -1
+     */
+    public static double stepToOf(String cropId, String stepId) {
+        if (stepId == null || stepId.isBlank()) {
+            return -1.0;
+        }
+        for (Def d : defsOf(cropId)) {
+            if (stepId.equals(d.id())) {
+                return d.to();
+            }
+        }
+        return -1.0;
+    }
+
+    /**
+     * 工序链里 {@code HARVEST} 步骤的窗口下界（找不到返回 -1）。
+     *
+     * <p>这是「农事窗口」口径 —— 农事上从哪一刻开始可以安排收获作业。
+     */
+    private static double opHarvestFrom(String cropId) {
+        for (Def d : defsOf(cropId)) {
+            if ("HARVEST".equals(d.id())) {
+                return d.from();
+            }
+        }
+        // 理论上每条工序链都有 HARVEST（defsOf 找不到时回落到 RICE_DEFS）
+        return RICE_DEFS.stream()
+                .filter(d -> "HARVEST".equals(d.id()))
+                .mapToDouble(Def::from)
+                .findFirst()
+                .orElse(-1.0);
+    }
+
+    /**
+     * 该作物物候段里<b>成熟段</b>的起点（找不到返回 -1）。
+     *
+     * <p>「成熟段」= 物候定义里<b>最后一段</b>（每种作物的最后一段都是成熟/采收期，
+     * 由 {@code PhenologyIndexTest} 守着「末段 hi &gt; 1.0」）。
+     *
+     * <p>这是「生物学成熟」口径 —— 作物在物候上真正熟透的时刻。
+     */
+    private static double phenologyRipeFrom(String cropId) {
+        try {
+            com.learning.springboot.farm.engine.CropCatalog.Crop c =
+                    com.learning.springboot.farm.engine.CropCatalog.get(cropId);
+            if (c == null || c.config() == null || c.config().phenology() == null) {
+                return -1.0;
+            }
+            List<com.learning.springboot.farm.engine.CropConfig.PhenoStage> stages =
+                    c.config().phenology();
+            if (stages.isEmpty()) {
+                return -1.0;
+            }
+            return stages.get(stages.size() - 1).lo();
+        } catch (RuntimeException e) {
+            // 作物 id 不认识 → CropCatalog.get 会回落到水稻；这里不该炸
+            return -1.0;
+        }
     }
 
     /**

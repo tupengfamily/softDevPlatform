@@ -297,7 +297,11 @@ public class FarmMapService {
             }
             if (Boolean.TRUE.equals(p.get("chosen"))) {
                 double dvs = ((Number) p.get("dvs")).doubleValue();
-                if (dvs >= 0.92) {
+                // 🔴 2026-10-27：这里原来写死 `dvs >= 0.92` —— 那是水稻口径，
+                // 于是番茄（阈值 0.82）收不了、玉米（阈值 0.95）提前算「可收」。
+                // 「能不能收」的唯一真源是 OpChain.harvestDvsOf()，
+                // 由 plotSummaries() 直接下发结论，这里只消费，不再自己判。
+                if (Boolean.TRUE.equals(p.get("harvestable"))) {
                     ready++;
                 } else if (dvs > 0) {
                     growing++;
@@ -312,9 +316,11 @@ public class FarmMapService {
             m.put("plots", ps);
             m.put("plotCount", ps.size());
             m.put("chosenCount", ps.stream().filter(x -> Boolean.TRUE.equals(x.get("chosen"))).count());
+            // 🔴 2026-10-27：这里原来也写死 `dvs >= 0.92`（与上面 board() 里的
+            // ready/growing 统计是同一语义的两份实现）。同样改为消费后端结论。
             m.put("readyCount", ps.stream()
                     .filter(x -> Boolean.TRUE.equals(x.get("chosen"))
-                            && ((Number) x.get("dvs")).doubleValue() >= 0.92)
+                            && Boolean.TRUE.equals(x.get("harvestable")))
                     .count());
             m.put("crops", distinctCrops(ps));
             farms.add(m);

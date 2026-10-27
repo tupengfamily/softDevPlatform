@@ -285,28 +285,22 @@ public class FarmShopService {
     }
 
     /**
-     * 花钱（施用农资、灌溉等消耗）。
+     * 🔴 2026-10-27：{@code spend()} 已删除。
      *
-     * <p>⚠️ 这里<b>不抛异常</b>：余额不足时返回 false，让调用方决定怎么办
-     * （比如施药已经发生、库存已扣，钱不够就记成欠款也不该回滚农事）。
+     * <p><b>为什么删</b>：它原本的注释写着「花钱（施用农资、灌溉等消耗）」，
+     * 但<b>全仓零调用点</b> —— 真正的扣款发生在 {@link #buy(Long, String, double)}
+     * 里（种子/农具/农资/水，一次性扣清）。也就是说：
+     * <ul>
+     *   <li>它的注释描述的是一个<b>不存在的资金流</b>（最典型的「注释与实现脱节」）；</li>
+     *   <li>2026-10-26 有人把它接上后，<b>同一批货被扣了两遍钱</b>
+     *       （商店买时扣一次 + 施用时再扣一次）；</li>
+     *   <li>现在口径统一为「<b>买入扣钱，施用只扣库存</b>」，
+     *       这个方法彻底没有存在意义，留着只会诱导下一个人再接一次。</li>
+     * </ul>
      *
-     * @return 是否扣款成功
+     * <p>资金流唯一出口：{@link #buy()} 扣钱，{@link #earn()} 进账。
+     * 施用/灌溉<b>不碰钱包</b>，只扣库存。
      */
-    @Transactional
-    public boolean spend(Long userId, double amount) {
-        if (amount <= 0) {
-            return true;
-        }
-        FarmWallet wallet = ensureWallet(userId);
-        if (wallet.getBalance() + 1e-6 < amount) {
-            return false;
-        }
-        wallet.setBalance(round(wallet.getBalance() - amount, 2));
-        wallet.setTotalExpense(round(wallet.getTotalExpense() + amount, 2));
-        walletRepo.save(wallet);
-        return true;
-    }
-
     /** 当前余额（无钱包时返回初始值，不建库）。 */
     @Transactional(readOnly = true)
     public double balanceOf(Long userId) {

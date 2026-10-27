@@ -200,16 +200,17 @@ async function apply(it) {
     if (warn) {
       ElMessage.warning({ message: warn, duration: 5200, showClose: true })
     } else {
-      // 🔴 2026-10-26 P0-1：农资现在真的要扣钱了，必须告诉玩家「实付多少、余额还剩多少」。
+      // 🔴 2026-10-27 资金流口径：钱在**商店买货时**就付掉了，施用只扣库存。
       //
-      // 原来只提示「花费 {cost} 元/亩」—— 那只是**成本口径**（用量 × 单价），
-      // 玩家不知道钱包里到底少了多少。而当余额不足时 paid < cost，
-      // 只显示 cost 会让人以为被扣了全额。
+      // 所以这里**不能**说「实付 X 元」—— 施用那一刻钱包根本没动，
+      // 说了就是骗玩家（「我明明在商店已经付过了，怎么又扣一次」）。
+      //
+      // d.cost 的语义是「这批货的**成本摊销**」（用量 × 单价），
+      // 用来让玩家理解「这一喷折合多少钱的肥/药」，属于农艺信息，不是账单。
       ElMessage.success({
         message: t('farm.input.appliedPaid', {
           name: it.name,
           cost: d.cost,
-          paid: d.paid,
           balance: d.balance
         }),
         duration: 3200

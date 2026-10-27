@@ -146,6 +146,38 @@ public class FarmWeather {
         return base + "，已注入 " + n + " 段模拟覆盖（测试模式）";
     }
 
+    /**
+     * 天气来源的<b>结构化</b>描述（跨语言稳定标识）。
+     *
+     * <p>🔴 2026-10-26 新增：{@link #sourceLabel(Long, String)} 返回的是中文串，
+     * 英文界面会露中文。但那个方法有 4 处调用点（地图面板 / 农场视图 / 归因明细），
+     * 直接改它会波及一片，所以这里<b>另开一个结构化出口</b>，
+     * 由需要跨语言的场景（归因明细）单独取。
+     *
+     * <p>字段语义：
+     * <ul>
+     *   <li>{@code kind}：{@code REPLAY}（实测重放）/ {@code CLIMATE}（气候推算）</li>
+     *   <li>{@code zoneId}：气候推算的分区 id；实测重放为 {@code jiangnan}</li>
+     *   <li>{@code year}：实测重放年（2019）</li>
+     *   <li>{@code mockedSegments}：已注入的模拟段数（0 = 纯真实数据）</li>
+     * </ul>
+     * 前端据此拼出自己语言的标签；{@code weatherSource}（中文原文）仍然保留，
+     * 作为「后端唯一权威」的兜底。
+     */
+    public WeatherSource source(Long userId, String zoneId) {
+        int n = mockedSegments(userId).size();
+        boolean jiangnan = zoneId == null || zoneId.isBlank() || "jiangnan".equals(zoneId);
+        return new WeatherSource(
+                jiangnan ? "REPLAY" : "CLIMATE",
+                jiangnan ? "jiangnan" : zoneId,
+                jiangnan ? REPLAY_YEAR : 0,
+                n);
+    }
+
+    /** 天气来源的结构化描述（见 {@link #source(Long, String)}）。 */
+    public record WeatherSource(String kind, String zoneId, int year, int mockedSegments) {
+    }
+
     // ==================================================================
     //  内部
     // ==================================================================

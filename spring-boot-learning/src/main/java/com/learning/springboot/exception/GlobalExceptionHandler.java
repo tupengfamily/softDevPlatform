@@ -9,10 +9,13 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -106,6 +109,42 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleMaxUpload(org.springframework.web.multipart.MaxUploadSizeExceededException e) {
         log.warn("[Upload] 文件超过大小限制: {}", e.getMessage());
         return Result.badRequest("文件过大, 最大支持 10MB");
+    }
+
+    // ==========================================================
+    //  🔴 框架级 HTTP 异常(2026-10-26)
+    //
+    //  背景: Spring MVC 对「请求本身不合法」的异常会直接抛到容器层,
+    //  不经过任何 @ExceptionHandler, 于是落进兜底的 handleAll → 全部返回 500。
+    //  实测被误报成 500 的三种(全部是**客户端错**, 不是服务端错):
+    //    1. NoResourceFoundException        静态资源不存在   → 应 404
+    //    2. HttpRequestMethodNotSupported   方法不允许       → 应 405
+    //    3. HttpMediaTypeNotSupported       媒体类型不支持   → 应 415
+    //
+    //  为什么必须单独处理: 500 会让前端弹出「服务器内部错误」并进错误上报,
+    //  把「客户端打错 URL」这类日常噪声伪装成线上故障, 污染告警口径。
+    // ==========================================================
+
+    /** 静态资源不存在(404 语义, 不是 500) */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<?> handleNoResourceFound(NoResourceFoundException e) {
+        // 用 info 而不是 warn/error: 这是客户端打错路径的日常噪声, 不该惊动告警
+        log.info("[NotFound] 静态资源不存在: {}", e.getResourcePath());
+        return Result.error(HttpStatusCode.valueOf(404), 404, "资源不存在");
+    }
+
+    /** 请求方法不允许(405 语义) */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<?> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        log.info("[MethodNotAllowed] {} 不支持的方法: {}", e.getMethod(), String.join("/", e.getSupportedMethods() == null ? new String[0] : e.getSupportedMethods()));
+        return Result.error(HttpStatusCode.valueOf(405), 405, "请求方法不支持");
+    }
+
+    /** 媒体类型不支持(415 语义) */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<?> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException e) {
+        log.info("[UnsupportedMediaType] {}", e.getContentType());
+        return Result.error(HttpStatusCode.valueOf(415), 415, "不支持的请求内容类型");
     }
 
     /** 兜底 */

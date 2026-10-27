@@ -59,7 +59,7 @@
                 v-for="p in f.plots"
                 :key="p.slot"
                 class="fb-row"
-                :class="{ empty: !p.chosen, ready: p.chosen && p.dvs >= 0.92 }"
+                :class="{ empty: !p.chosen, ready: p.chosen && isHarvestable(p) }"
               >
                 <span class="c-idx">
                   <i class="idx-dot" :class="dotClass(p)"></i>{{ p.slot + 1 }}
@@ -84,7 +84,7 @@
                     </button>
                     <button
                       class="mini primary"
-                      :disabled="busy || p.dvs < 0.92"
+                      :disabled="busy || !isHarvestable(p)"
                       @click="$emit('harvest', p.slot)"
                     >收割</button>
                   </template>
@@ -122,7 +122,7 @@
                 v-for="p in unassigned"
                 :key="p.slot"
                 class="fb-row"
-                :class="{ empty: !p.chosen, ready: p.chosen && p.dvs >= 0.92 }"
+                :class="{ empty: !p.chosen, ready: p.chosen && isHarvestable(p) }"
               >
                 <span class="c-idx">
                   <i class="idx-dot" :class="dotClass(p)"></i>{{ p.slot + 1 }}
@@ -158,6 +158,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getFarmBoard } from '../../api/farm'
+import { isHarvestable } from '../../utils/farmLabels'
 
 defineProps({
   busy: { type: Boolean, default: false }
@@ -185,12 +186,12 @@ function shortCrop(name) {
 
 function dotClass(p) {
   if (!p.chosen) return 'd-empty'
-  return p.dvs >= 0.92 ? 'd-ready' : 'd-grow'
+  return isHarvestable(p) ? 'd-ready' : 'd-grow'
 }
 
 function stageTag(p) {
   const s = String(p.stage || '')
-  if (p.dvs >= 0.92) return 'tag-ripe'
+  if (isHarvestable(p)) return 'tag-ripe'
   if (/苗|播种|出苗|返青|分蘖/.test(s)) return 'tag-young'
   return 'tag-mid'
 }

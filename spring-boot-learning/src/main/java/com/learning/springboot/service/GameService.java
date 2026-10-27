@@ -5,11 +5,17 @@ import com.learning.springboot.entity.GameScore;
 import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.repository.GameProgressRepository;
 import com.learning.springboot.repository.GameScoreRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,6 +51,29 @@ public class GameService {
     private static final int MAX_RECENT_PER_GAME = 100;
     /** 单条 extra_json 长度上限(防御: 万一前端误传巨型 JSON) */
     private static final int MAX_EXTRA_LEN = 4000;
+    /**
+     * 🔴 2026-10-27：extra_json 超长时<b>按优先级从低到高丢弃</b>的可再生明细字段。
+     *
+     * <p>只丢「明细数组」，不丢「汇总数值」——{@code pestLoss} / {@code disasterLoss}
+     * 这些汇总值是玩家真正要看的数字，丢了就等于把「为什么减产」这条线索也删了。
+     */
+    private static final List<String> DETAIL_FIELDS_TO_DROP = List.of(
+            "pests", "disasters", "weatherSourceData");
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final Logger log = LoggerFactory.getLogger(GameService.class);
+
+    /**
+     * 丢弃清单的只读视图（供测试断言「字段名与真实归因明细对得上」）。
+     *
+     * <p>🔴 为什么需要暴露：若清单里的字段名与归因明细实际字段名不一致
+     * （改字段名时忘了改这里），「超长时丢弃明细」就会<b>静默失效</b> ——
+     * 每次都走到保底分支，丢的却是玩家真正要看的数值字段。
+     * 这个公开契约让测试能发现「清单与实际字段脱节」。
+     */
+    static List<String> detailFieldsToDropForTest() {
+        return DETAIL_FIELDS_TO_DROP;
+    }
 
     private final GameScoreRepository scoreRepo;
     private final GameProgressRepository progressRepo;
@@ -183,8 +212,7 @@ public class GameService {
         s.setPlaySeconds(secs);
         s.setFinished(finished == null ? 1 : finished);
         if (extraJson != null) {
-            String trimmed = extraJson.length() > MAX_EXTRA_LEN ? extraJson.substring(0, MAX_EXTRA_LEN) : extraJson;
-            s.setExtraJson(trimmed);
+            s.setExtraJson(fitExtraJson(extraJson));
         }
         GameScore saved = scoreRepo.save(s);
 
@@ -213,6 +241,111 @@ public class GameService {
     private static int clampInt(Integer v, int min, int max) {
         if (v == null) return min;
         return Math.max(min, Math.min(v, max));
+    }
+
+    // ==================================================================
+    //  extra_json 长度收敛（🔴 2026-10-27）
+    // ==================================================================
+
+    /**
+     * 🔴 <b>把 extra_json 收敛到长度上限内，但保证它始终是<b>合法 JSON</b>。</b>
+     *
+     * <p><b>原实现（错在哪）</b>：
+     * <pre>
+     *   String trimmed = extraJson.length() &gt; MAX_EXTRA_LEN
+     *           ? extraJson.substring(0, MAX_EXTRA_LEN) : extraJson;
+     * </pre>
+     * 直接按字符数硬切 —— 切点落在对象/数组中间时，存进去的是<b>半个 JSON</b>。
+     * 后果不是「字段少几个」，而是<b>整条记录读不出来</b>：
+     * 前端 {@code JSON.parse(extra)} 直接抛异常 → 归因面板整块崩掉。
+     *
+     * <p><b>为什么农场会真的触发</b>：归因明细里带 {@code pests[]} 与 {@code disasters[]}
+     * 两个<b>不定长数组</b> —— 病虫害按作物类型最多十几项（{@code PestEngine} 每类作物
+     * 配 4~6 种病虫害），灾害按发生次数累积。两项一叠加就可能超过 4000 字符。
+     * 也就是说：<b>「病虫害多的那一季」恰好是「查不出减产原因的那一季」</b>——
+     * 而那正是玩家最需要看归因的时候。
+     *
+     * <p><b>修法</b>：不按字符硬切，而是<b>按字段语义</b>收敛：
+     * <ol>
+     *   <li>先原样写入（没超长就不动，零行为变化）；</li>
+     *   <li>超长时按 <b>优先级从低到高</b> 丢弃可再生的明细项，
+     *       每次丢完重新序列化，直到塞得下；</li>
+     *   <li>丢到极限仍超长，才做<b>保底截断</b> —— 但此时截断的是
+     *       <b>已经解析成 Map 的结构</b>，不是字符串，
+     *       所以结果仍是<b>合法 JSON</b>（最坏情况丢几个末尾的数值字段）。</li>
+     * </ol>
+     *
+     * <p><b>丢弃优先级（先丢哪个）</b>：
+     * <ol>
+     *   <li>{@code pests} —— 病虫害明细（{@code pestLoss} 汇总值仍保留，
+     *       玩家至少知道「损失了 23%」，只是看不到逐项）；</li>
+     *   <li>{@code disasters} —— 灾害明细（同上，{@code disasterLoss} 保留）；</li>
+     *   <li>{@code weatherSourceData} —— 天气来源的结构化描述
+     *       （{@code weatherSource} 文字标签仍保留）。</li>
+     * </ol>
+     * 汇总值（{@code pestLoss} / {@code disasterLoss} / {@code inputCost} /
+     * {@code revenue} / {@code net} / 产量四要素）<b>永远不丢</b> ——
+     * 那些是玩家真正要看的数字。
+     *
+     * <p><b>为什么不直接调大上限</b>：{@code MAX_EXTRA_LEN} 是防御
+     * 「前端误传巨型 JSON」的护栏，不是给业务数据用的额度。
+     * 放宽上限 = 护栏失效。正确做法是<b>让超长内容优雅降级</b>。
+     */
+    private static String fitExtraJson(String extraJson) {
+        if (extraJson == null || extraJson.length() <= MAX_EXTRA_LEN) {
+            return extraJson;
+        }
+        // 解析失败 → 原文入库（不是本方法的职责范围，也不该在这里抛异常）
+        JsonNode root;
+        try {
+            root = JSON.readTree(extraJson);
+        } catch (Exception e) {
+            log.warn("[游戏中心] extra_json 非法 JSON，原样入库（长度 {}）: {}", extraJson.length(), e.getMessage());
+            return extraJson;
+        }
+        if (!root.isObject()) {
+            // 不是对象（理论上不会发生）→ 原样入库
+            return extraJson;
+        }
+
+        ObjectNode obj = (ObjectNode) root;
+        // 按优先级从低到高逐个丢弃明细数组
+        for (String field : DETAIL_FIELDS_TO_DROP) {
+            if (obj.has(field)) {
+                obj.remove(field);
+                String candidate = writeJson(obj);
+                if (candidate.length() <= MAX_EXTRA_LEN) {
+                    log.info("[游戏中心] extra_json 超长（{}→{}），已丢弃明细字段 {}",
+                            extraJson.length(), candidate.length(), field);
+                    return candidate;
+                }
+            }
+        }
+
+        // 到这里仍然超长 → 保底：逐个丢末尾的数值/字符串字段（保底是合法 JSON）
+        List<String> droppable = new ArrayList<>();
+        obj.fieldNames().forEachRemaining(droppable::add);
+        Collections.reverse(droppable);
+        for (String field : droppable) {
+            obj.remove(field);
+            String candidate = writeJson(obj);
+            if (candidate.length() <= MAX_EXTRA_LEN) {
+                log.info("[游戏中心] extra_json 超长（{}→{}），保底丢弃字段 {}",
+                        extraJson.length(), candidate.length(), field);
+                return candidate;
+            }
+        }
+        // 连空对象都超长（不可能，除非 MAX_EXTRA_LEN 被改成 0）
+        return "{}";
+    }
+
+    /** 序列化，失败时返回一个必定合法的空对象（宁可丢内容也不能写坏 JSON）。 */
+    private static String writeJson(JsonNode node) {
+        try {
+            return JSON.writeValueAsString(node);
+        } catch (Exception e) {
+            return "{}";
+        }
     }
 
     // ==================================================================

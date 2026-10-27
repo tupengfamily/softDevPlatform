@@ -238,11 +238,21 @@ public class DistrictCropService {
             days.add(ClimateModel.day(zoneId, sow.plusDays(i)));
         }
         SimEngine.SimResult r = SimEngine.simulate(days, 0, crop, null, 0.0, (int) span + 1);
-        m.put("seasonState", r.dvs() >= 0.92 ? "RIPE" : "GROWING");
+        // 🔴 2026-10-27：成熟判定按作物取（OpChain.harvestDvsOf 是唯一真源）。
+        //
+        // 原来这里写死 0.92 —— 那是水稻口径。于是番茄（阈值 0.82）在区县概览里
+        // 一直显示「生长中」，可它在地块页明明已经能收了；玉米（0.95）则相反，
+        // 还没熟就显示「已成熟」。这是同一语义的第三份实现。
+        //
+        // 注意 `daysToHarvest` 也必须跟着换 —— 它是用 0.92 反推的，
+        // 不同作物的剩余天数本来就不同。
+        double harvestDvs = OpChain.harvestDvsOf(cropId);
+        m.put("seasonState", r.dvs() >= harvestDvs ? "RIPE" : "GROWING");
         m.put("stage", SimEngine.phenologyAt(r.dvs(), crop));
         m.put("dvs", round(r.dvs(), 3));
+        m.put("harvestDvs", harvestDvs);
         m.put("sowDate", sow.toString());
-        m.put("daysToHarvest", Math.max(0, (int) Math.round((0.92 - r.dvs()) * 120)));
+        m.put("daysToHarvest", Math.max(0, (int) Math.round((harvestDvs - r.dvs()) * 120)));
         return m;
     }
 

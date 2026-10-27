@@ -675,6 +675,21 @@ public final class HortConfigs {
                         new CropConfig.PhenoStage("现蕾期", 0.45, 0.65),
                         new CropConfig.PhenoStage("开花期", 0.65, 0.88),
                         new CropConfig.PhenoStage("切花采收", 0.88, 1.30)),
-                false, 0, 0, 13.0, 1000, "rose", 1);
+                // 🔴 2026-10-26 修正 yieldRef：原来写 1000，而 yieldCap 是 1500。
+                //
+                // yieldRef 是**评级达标线的分母**（SuitabilityEngine:
+                //   `run.yieldAdj() >= PASS_RATIO(0.50) * yRef` 算「通过」，
+                //   `levelFromYieldRatio(median / yRef)` 决定等级）。
+                // 参照值只有上限的 67% → 玩家做到 1000kg（67% 满产）就算「达标」，
+                // 评级虚高一档；而「零损伤满管理」的比值是 1.50，明显越界
+                // （其余 21 种作物都在 0.76–1.18）。
+                //
+                // 改成 1500（切花月季亩产 1500kg 是真实的，参照值应与上限一致）。
+                // 实测（真实气候 10 年回放，江南/黄淮/西南三区）：
+                //   改前 中位产量 1500 / yRef 1000 = 1.50 → 评级「最适区(0)」
+                //   改后 中位产量 1500 / yRef 1500 = 1.00 → 评级「最适区(0)」**不变**
+                // 评级由「十年回放达标率」决定，不看绝对产量比，
+                // 所以调高参照值**不会**让月季变成难种 —— 它本来就是满产。
+                false, 0, 0, 13.0, 1500, "rose", 1);
     }
 }

@@ -40,15 +40,26 @@ function makePlaceholder(THREE, file) {
 /**
  * @param {object} THREE three 命名空间
  * @param {object} renderer 用于读 maxAnisotropy
+ * @param {object} [quality] 画质参数矩阵（见 quality.js）。
+ *        anisotropy 上限按档位走 —— 各向异性过滤在斜视角地面上是**最贵**的
+ *        采样优化，16× 在核显上是纯浪费（低端档只给 1×，等于关闭）。
  */
-export function createAssetPipeline(THREE, renderer) {
+export function createAssetPipeline(THREE, renderer, quality = null) {
   const loader = new THREE.TextureLoader()
   const cache = new Map()
+  const anisoCap = quality && typeof quality.anisotropy === 'number'
+    ? quality.anisotropy
+    : 16
   const maxAniso = (() => {
     try {
-      return Math.min(16, renderer.capabilities.getMaxAnisotropy())
+      // 🔴 **必须同时受「档位上限」和「硬件上限」约束**（2026-10-26 画质分级）。
+      //   原来只有硬件上限 16 —— 低端机也会去申请 16× 各向异性，
+      //   斜视地面时每个像素要取 16 个样本，直接吃掉大半帧预算。
+      const hw = renderer.capabilities.getMaxAnisotropy()
+      const cap = Math.min(16, anisoCap)
+      return Math.max(1, Math.min(cap, hw))
     } catch (_) {
-      return 4
+      return Math.min(4, Math.max(1, anisoCap))
     }
   })()
 

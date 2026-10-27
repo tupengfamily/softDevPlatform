@@ -37,6 +37,7 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cutout_core import cutout  # noqa: E402
+from cutout_core import _pot_table  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = ROOT / "frontend-learning/public/farm/tex/hort/src"
@@ -103,8 +104,35 @@ def flood_border(mask):
     return reach
 
 
+def pot_mask(name, h, w):
+    """
+    盆坨区域掩码（标注表驱动）—— 盆区像素**不算主体**。
+
+    🔴 **为什么必须排除**（2026-10-26）：
+        盆/土坨是**暗褐色**（实测 rgb ≈ [28,18,14]，sat ≈ 0.64），
+        正好落进「sat >= 0.30」的主体判据 → 被算成「该保留的植物像素」。
+        而第 9 步已经把它们**故意抠掉了** → 主体损失指标会**虚报**
+        （实测 eggplant_young 会报出 ~13% 的「损失」，其实是盆坨）。
+
+        → 主体判据必须先扣掉盆区，否则这个指标对 6 张带盆贴图完全失真。
+    """
+    entry = _pot_table().get(name)
+    if not entry:
+        return None
+    top_pct = float(entry.get("pot_top_pct", 0))
+    if top_pct <= 0:
+        return None
+    y_top = int(round(h * top_pct / 100.0))
+    if y_top <= 0 or y_top >= h:
+        return None
+    m = np.zeros((h, w), dtype=bool)
+    m[y_top:, :] = True
+    return m
+
+
 def analyze(name, src_path):
     src = np.asarray(Image.open(src_path).convert("RGB")).astype(np.float32)
+    h, w, _ = src.shape
     r, g, b = src[:, :, 0], src[:, :, 1], src[:, :, 2]
     mx = np.maximum(np.maximum(r, g), b)
     mn = np.minimum(np.minimum(r, g), b)
@@ -113,11 +141,16 @@ def analyze(name, src_path):
 
     plant = (gb >= 55) | (sat >= 0.30)
     subject = plant & (~flood_border(plant))
+    # 🔴 盆区不是主体 → 排除（否则带盆贴图的主体损失是虚高）
+    pm = pot_mask(name, h, w)
+    if pm is not None:
+        subject = subject & (~pm)
     n_subject = int(subject.sum())
     if n_subject == 0:
         return None
 
     # 在**源图坐标系**重跑抠图，取 alpha 掩码
+    # （key 由 cutout_core.derive_key 从路径推导 → 与 prep_crops.py 同口径）
     _, alpha = cutout(str(src_path), return_alpha=True)
     cut = cutoff_for(name)
     lost = subject & (alpha < int(round(cut * 255)))

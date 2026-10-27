@@ -126,218 +126,274 @@ export const SEASON = {
 
 /**
  * 物候阶段 → 精灵形态。
- *   tex   : young（营养生长期丛）/ ripe（带穗成株）
+ *   tex   : young（营养生长期丛）/ ripe（带穗或挂果成株）
  *   h     : 植株世界高度（米）
- *   vTop  : 贴图纵向截取上界（<1 表示截掉顶部穗部，模拟抽穗前）
+ *   vTop  : 贴图纵向截取上界（<1 表示截掉顶部穗部/果实，模拟抽穗前、膨果前）
  *
- * ⚠️ 2026-10-24：从 8 个通用形态族扩到 **22 种作物专属形态**。
+ * 🔴 **2026-10-26 重构：段数与后端物候严格对齐**。
  *
- *   每个作物的 6 个阶段按**该作物自己的株型与株高**给，不套同一套模板：
- *   禾谷抽穗前截顶（vTop 0.86~0.90），瓜果类是"果实/球体尚未膨大"（vTop 0.92~0.94）。
- *   高度取真实农艺口径：草莓 0.08m、梨 1.80m、向日葵 2.10m、玉米 2.40m。
+ *   原实现所有 22 种作物都用**固定 6 段**模板，且前 3 段共用同一张 `young` 贴图，
+ *   只靠 `h` 缩放区分 —— 结果是「苗 / 分蘖 / 拔节」三段在画面上几乎一样，
+ *   用户看到的阶段与真实物候对不上。
  *
- *   🔴 `rice`/`wheat`/`corn`/`soybean` 4 项数值**保持原样** ——
- *   它们既对应存量 t_farm_season.visual，也是已有贴图的键，不能动。
+ *   现在每一段对应**该作物自己的一个物候阶段**，段数与后端
+ *   `CropConfig.phenology()` 完全一致：
+ *     · 水稻 7 段 · 冬小麦 7 段 · 玉米 6 段 · 其余 19 种各 5 段
+ *
+ *   🔴 **段数必须与后端一致**（后端 `PhenologyIndexTest.stageCountSnapshot` 守着），
+ *   否则前端第 N 段会画成后端第 N+1 段的形态。
+ *
+ *   形态表达的三条规则：
+ *     1. `h` 按**物候进程**递增：营养生长前期最矮 → 生殖生长中期最高 → 成熟略回落
+ *        （穗已饱满、叶片开始衰老，真实农田里成熟株常比盛期矮 1~4%）。
+ *     2. `vTop < 1` 表示**该阶段穗/果实还没长出来**，截掉贴图顶部。
+ *        禾谷在抽穗期之前截顶；瓜果类在膨果期之前截顶；块根类在膨大期之前截顶。
+ *     3. `tex` 在**营养生长 → 生殖生长**的界线上切换 young → ripe。
+ *
+ *   ⚠️ `rice`/`wheat`/`corn`/`soybean` 是后端 visual 的既有取值（存量
+ *      `t_farm_season.visual` 里就是这几个），键名不能动。
  */
 export const STAGE_PLAN = {
+  // ---- 水稻（rice_mid）：7 段 ----
+  // 秧苗 → 返青分蘖 → 够苗晒田 → 拔节孕穗 → 抽穗开花 → 灌浆 → 黄熟
   rice: [
-    { tex: 'young', h: 0.38, vTop: 1.0 },
-    { tex: 'young', h: 0.58, vTop: 1.0 },
-    { tex: 'young', h: 0.84, vTop: 1.0 },
-    { tex: 'ripe', h: 1.02, vTop: 0.90 },
-    { tex: 'ripe', h: 1.08, vTop: 1.0 },
-    { tex: 'ripe', h: 1.04, vTop: 1.0 }
+    { tex: 'young', h: 0.34, vTop: 1.0 },   // 秧苗期：插秧后的矮丛
+    { tex: 'young', h: 0.56, vTop: 1.0 },   // 返青分蘖始：开始分蘖，丛幅变宽
+    { tex: 'young', h: 0.68, vTop: 1.0 },   // 够苗晒田期：群体够了，高度趋稳
+    { tex: 'young', h: 0.92, vTop: 1.0 },   // 拔节孕穗期：节间伸长，穗还没抽
+    { tex: 'ripe',  h: 1.02, vTop: 0.90 },  // 抽穗开花期：穗抽出（截顶 → 穗显形）
+    { tex: 'ripe',  h: 1.08, vTop: 1.0 },   // 灌浆期：灌浆饱满，株高到位
+    { tex: 'ripe',  h: 1.04, vTop: 1.0 }    // 黄熟期：穗黄叶衰，略矮于灌浆期
   ],
+
+  // ---- 冬小麦（wheat_winter）：7 段 ----
+  // 出苗 → 分蘖 → 越冬 → 返青拔节 → 抽穗扬花 → 灌浆 → 成熟
   wheat: [
-    { tex: 'young', h: 0.34, vTop: 1.0 },
-    { tex: 'young', h: 0.56, vTop: 1.0 },
-    { tex: 'young', h: 0.84, vTop: 1.0 },
-    { tex: 'ripe', h: 0.98, vTop: 0.88 },
-    { tex: 'ripe', h: 1.02, vTop: 1.0 },
-    { tex: 'ripe', h: 0.98, vTop: 1.0 }
+    { tex: 'young', h: 0.26, vTop: 1.0 },   // 出苗期：三叶一心的小苗
+    { tex: 'young', h: 0.48, vTop: 1.0 },   // 分蘖期：分蘖数增加，丛变宽
+    { tex: 'young', h: 0.56, vTop: 1.0 },   // 越冬期：停止生长，株高基本不再增
+    { tex: 'young', h: 0.86, vTop: 1.0 },   // 返青拔节：节间伸长，穗未抽
+    { tex: 'ripe',  h: 0.98, vTop: 0.88 },  // 抽穗扬花：穗抽出（截顶 → 穗显形）
+    { tex: 'ripe',  h: 1.02, vTop: 1.0 },   // 灌浆期：籽粒充实
+    { tex: 'ripe',  h: 0.98, vTop: 1.0 }    // 成熟期：麦黄穗沉，略矮
   ],
+
+  // ---- 玉米（corn_spring）：6 段 ----
+  // 出苗 → 拔节 → 大喇叭口 → 抽雄吐丝 → 灌浆 → 成熟
   corn: [
-    { tex: 'young', h: 0.72, vTop: 1.0 },
-    { tex: 'young', h: 1.34, vTop: 1.0 },
-    { tex: 'young', h: 1.96, vTop: 1.0 },
-    { tex: 'ripe', h: 2.28, vTop: 0.86 },
-    { tex: 'ripe', h: 2.40, vTop: 1.0 },
-    { tex: 'ripe', h: 2.30, vTop: 1.0 }
+    { tex: 'young', h: 0.62, vTop: 1.0 },   // 出苗期：芽鞘顶土
+    { tex: 'young', h: 1.30, vTop: 1.0 },   // 拔节期：节间快速伸长
+    { tex: 'young', h: 1.92, vTop: 1.0 },   // 大喇叭口期：叶片最宽，株高接近极限
+    { tex: 'ripe',  h: 2.24, vTop: 0.86 },  // 抽雄吐丝：雄穗抽出（截顶 → 穗显形）
+    { tex: 'ripe',  h: 2.40, vTop: 1.0 },   // 灌浆期：籽粒饱满，全株最高
+    { tex: 'ripe',  h: 2.32, vTop: 1.0 }    // 成熟期：苞叶干枯，株高略降
   ],
+
+  // ---- 大豆（soybean）：5 段 ----
+  // 出苗 → 分枝 → 开花 → 结荚鼓粒 → 成熟
   soybean: [
-    { tex: 'young', h: 0.26, vTop: 1.0 },
-    { tex: 'young', h: 0.40, vTop: 1.0 },
-    { tex: 'young', h: 0.52, vTop: 1.0 },
-    { tex: 'ripe', h: 0.54, vTop: 0.90 },
-    { tex: 'ripe', h: 0.58, vTop: 1.0 },
-    { tex: 'ripe', h: 0.55, vTop: 1.0 }
+    { tex: 'young', h: 0.22, vTop: 1.0 },   // 出苗期：子叶展开
+    { tex: 'young', h: 0.38, vTop: 1.0 },   // 分枝期：分枝增加
+    { tex: 'young', h: 0.50, vTop: 1.0 },   // 开花期：花期（豆科花很小，不截顶）
+    { tex: 'ripe',  h: 0.54, vTop: 0.90 },  // 结荚鼓粒：荚果显形（截顶）
+    { tex: 'ripe',  h: 0.55, vTop: 1.0 }    // 成熟期：叶落荚黄
   ],
 
-  // ---- 粮食·新增：谷子（禾本科，比小麦略矮略紧凑）----
-  // vTop 0.88 = 抽穗前截顶（谷穗还没抽出穗头）
+  // ---- 谷子（millet）：5 段 ----
+  // 播种出苗 → 分蘖拔节 → 抽穗扬花 → 灌浆 → 成熟收获
   millet: [
-    { tex: 'young', h: 0.35, vTop: 1.0 },
-    { tex: 'young', h: 0.57, vTop: 1.0 },
-    { tex: 'young', h: 0.85, vTop: 1.0 },
-    { tex: 'ripe', h: 1.00, vTop: 0.88 },
-    { tex: 'ripe', h: 1.05, vTop: 1.0 },
-    { tex: 'ripe', h: 1.01, vTop: 1.0 }
+    { tex: 'young', h: 0.30, vTop: 1.0 },   // 播种出苗
+    { tex: 'young', h: 0.74, vTop: 1.0 },   // 分蘖拔节：蹲苗后拔高
+    { tex: 'ripe',  h: 0.96, vTop: 0.88 },  // 抽穗扬花：谷穗抽出（截顶）
+    { tex: 'ripe',  h: 1.02, vTop: 1.0 },   // 灌浆
+    { tex: 'ripe',  h: 1.00, vTop: 1.0 }    // 成熟收获：穗垂叶黄
   ],
 
-  // ---- 园艺作物：每种按自己的株型给，不套通用族 ----
-  // 马铃薯：矮生块茎，冠幅大但不高；vTop = 块茎尚未膨大
+  // ---- 马铃薯（potato）：5 段 ----
+  // 催芽播种 → 出苗现蕾 → 块茎形成 → 块茎膨大 → 成熟收获
+  // ⚠️ 马铃薯收的是地下块茎，地上株型变化不大；高度差异主要来自茎叶伸展。
   potato: [
-    { tex: 'young', h: 0.15, vTop: 1.0 },
-    { tex: 'young', h: 0.28, vTop: 1.0 },
-    { tex: 'young', h: 0.44, vTop: 1.0 },
-    { tex: 'ripe', h: 0.52, vTop: 0.93 },
-    { tex: 'ripe', h: 0.55, vTop: 1.0 },
-    { tex: 'ripe', h: 0.53, vTop: 1.0 }
+    { tex: 'young', h: 0.14, vTop: 1.0 },   // 催芽播种：刚出芽
+    { tex: 'young', h: 0.27, vTop: 1.0 },   // 出苗现蕾：茎叶伸展
+    { tex: 'young', h: 0.42, vTop: 1.0 },   // 块茎形成：地上仍以营养生长为主
+    { tex: 'ripe',  h: 0.52, vTop: 0.93 },  // 块茎膨大（截顶表示块茎已显）
+    { tex: 'ripe',  h: 0.54, vTop: 1.0 }    // 成熟收获：地上部分开始衰老
   ],
-  // 大白菜：莲座期到结球，高度只到膝盖；vTop = 球尚未抱紧
+
+  // ---- 大白菜（cabbage）：5 段 ----
+  // 发芽出苗 → 幼苗期 → 莲座期 → 结球期 → 成熟可收
   cabbage: [
-    { tex: 'young', h: 0.16, vTop: 1.0 },
-    { tex: 'young', h: 0.24, vTop: 1.0 },
-    { tex: 'young', h: 0.35, vTop: 1.0 },
-    { tex: 'ripe', h: 0.40, vTop: 0.94 },
-    { tex: 'ripe', h: 0.42, vTop: 1.0 },
-    { tex: 'ripe', h: 0.40, vTop: 1.0 }
+    { tex: 'young', h: 0.10, vTop: 1.0 },   // 发芽出苗：子叶刚展
+    { tex: 'young', h: 0.20, vTop: 1.0 },   // 幼苗期：叶片数增加
+    { tex: 'young', h: 0.33, vTop: 1.0 },   // 莲座期：外叶铺开成莲座
+    { tex: 'ripe',  h: 0.40, vTop: 0.94 },  // 结球期：叶球抱紧（截顶）
+    { tex: 'ripe',  h: 0.42, vTop: 1.0 }    // 成熟可收：球紧实
   ],
-  // 萝卜：叶丛矮，根膨大后冠层也不高；vTop = 直根尚未膨大
-  radish: [
-    { tex: 'young', h: 0.12, vTop: 1.0 },
-    { tex: 'young', h: 0.20, vTop: 1.0 },
-    { tex: 'young', h: 0.31, vTop: 1.0 },
-    { tex: 'ripe', h: 0.36, vTop: 0.94 },
-    { tex: 'ripe', h: 0.38, vTop: 1.0 },
-    { tex: 'ripe', h: 0.36, vTop: 1.0 }
-  ],
-  // 番茄：搭架后一人多高；vTop = 果实尚未膨大
+
+  // ---- 番茄（tomato）：5 段 ----
+  // 发芽出苗 → 幼苗期 → 开花坐果 → 膨果期 → 成熟采收
   tomato: [
-    { tex: 'young', h: 0.22, vTop: 1.0 },
-    { tex: 'young', h: 0.44, vTop: 1.0 },
-    { tex: 'young', h: 0.72, vTop: 1.0 },
-    { tex: 'ripe', h: 0.87, vTop: 0.94 },
-    { tex: 'ripe', h: 0.92, vTop: 1.0 },
-    { tex: 'ripe', h: 0.88, vTop: 1.0 }
+    { tex: 'young', h: 0.18, vTop: 1.0 },   // 发芽出苗
+    { tex: 'young', h: 0.42, vTop: 1.0 },   // 幼苗期：茎伸长
+    { tex: 'young', h: 0.70, vTop: 1.0 },   // 开花坐果：花序出现，果实刚坐住
+    { tex: 'ripe',  h: 0.86, vTop: 0.94 },  // 膨果期：果实膨大（截顶）
+    { tex: 'ripe',  h: 0.90, vTop: 1.0 }    // 成熟采收：果红
   ],
-  // 辣椒：比番茄略矮，株型更紧凑
+
+  // ---- 辣椒（chili）：5 段 ----
+  // 发芽出苗 → 幼苗期 → 开花坐果 → 果实膨大 → 成熟采收
   chili: [
-    { tex: 'young', h: 0.20, vTop: 1.0 },
-    { tex: 'young', h: 0.41, vTop: 1.0 },
-    { tex: 'young', h: 0.67, vTop: 1.0 },
-    { tex: 'ripe', h: 0.80, vTop: 0.94 },
-    { tex: 'ripe', h: 0.85, vTop: 1.0 },
-    { tex: 'ripe', h: 0.81, vTop: 1.0 }
+    { tex: 'young', h: 0.16, vTop: 1.0 },   // 发芽出苗
+    { tex: 'young', h: 0.38, vTop: 1.0 },   // 幼苗期
+    { tex: 'young', h: 0.64, vTop: 1.0 },   // 开花坐果
+    { tex: 'ripe',  h: 0.79, vTop: 0.94 },  // 果实膨大（截顶）
+    { tex: 'ripe',  h: 0.83, vTop: 1.0 }    // 成熟采收：果红
   ],
-  // 茄子：株型比番茄略高略壮
+
+  // ---- 茄子（eggplant）：5 段 ----
+  // 发芽出苗 → 幼苗期 → 开花坐果 → 果实膨大 → 成熟采收
   eggplant: [
-    { tex: 'young', h: 0.22, vTop: 1.0 },
-    { tex: 'young', h: 0.45, vTop: 1.0 },
-    { tex: 'young', h: 0.75, vTop: 1.0 },
-    { tex: 'ripe', h: 0.90, vTop: 0.94 },
-    { tex: 'ripe', h: 0.95, vTop: 1.0 },
-    { tex: 'ripe', h: 0.91, vTop: 1.0 }
+    { tex: 'young', h: 0.18, vTop: 1.0 },   // 发芽出苗
+    { tex: 'young', h: 0.42, vTop: 1.0 },   // 幼苗期
+    { tex: 'young', h: 0.72, vTop: 1.0 },   // 开花坐果
+    { tex: 'ripe',  h: 0.89, vTop: 0.94 },  // 果实膨大（截顶）
+    { tex: 'ripe',  h: 0.93, vTop: 1.0 }    // 成熟采收
   ],
-  // 豆角：藤本要搭架，长得比瓜类高得多
+
+  // ---- 豆角（yardlong_bean）：5 段 ----
+  // 播种出苗 → 伸蔓期 → 开花结荚 → 盛荚期 → 采收期
   yardlong_bean: [
-    { tex: 'young', h: 0.18, vTop: 1.0 },
-    { tex: 'young', h: 0.54, vTop: 1.0 },
-    { tex: 'young', h: 0.99, vTop: 1.0 },
-    { tex: 'ripe', h: 1.22, vTop: 0.93 },
-    { tex: 'ripe', h: 1.30, vTop: 1.0 },
-    { tex: 'ripe', h: 1.23, vTop: 1.0 }
+    { tex: 'young', h: 0.16, vTop: 1.0 },   // 播种出苗
+    { tex: 'young', h: 0.52, vTop: 1.0 },   // 伸蔓期：攀爬上架
+    { tex: 'young', h: 0.96, vTop: 1.0 },   // 开花结荚
+    { tex: 'ripe',  h: 1.20, vTop: 0.93 },  // 盛荚期：荚果垂挂（截顶）
+    { tex: 'ripe',  h: 1.26, vTop: 1.0 }    // 采收期
   ],
-  // 黄瓜：匍匐瓜蔓，横向铺开而不是往上长
-  cucumber: [
-    { tex: 'young', h: 0.18, vTop: 1.0 },
-    { tex: 'young', h: 0.28, vTop: 1.0 },
-    { tex: 'young', h: 0.41, vTop: 1.0 },
-    { tex: 'ripe', h: 0.48, vTop: 0.92 },
-    { tex: 'ripe', h: 0.50, vTop: 1.0 },
-    { tex: 'ripe', h: 0.48, vTop: 1.0 }
+
+  // ---- 萝卜（radish）：5 段 ----
+  // 播种出苗 → 幼苗期 → 莲座期 → 肉质根膨大 → 成熟采收
+  radish: [
+    { tex: 'young', h: 0.10, vTop: 1.0 },   // 播种出苗
+    { tex: 'young', h: 0.19, vTop: 1.0 },   // 幼苗期
+    { tex: 'young', h: 0.30, vTop: 1.0 },   // 莲座期：叶丛铺开
+    { tex: 'ripe',  h: 0.35, vTop: 0.94 },  // 肉质根膨大（截顶表示根已显）
+    { tex: 'ripe',  h: 0.37, vTop: 1.0 }    // 成熟采收
   ],
-  // 西瓜：匍匐大藤，冠幅最宽；vTop = 瓜尚未膨大
-  watermelon: [
-    { tex: 'young', h: 0.15, vTop: 1.0 },
-    { tex: 'young', h: 0.28, vTop: 1.0 },
-    { tex: 'young', h: 0.44, vTop: 1.0 },
-    { tex: 'ripe', h: 0.52, vTop: 0.93 },
-    { tex: 'ripe', h: 0.55, vTop: 1.0 },
-    { tex: 'ripe', h: 0.53, vTop: 1.0 }
-  ],
-  // 甜瓜：比西瓜耐密植，冠幅略小
-  melon: [
-    { tex: 'young', h: 0.16, vTop: 1.0 },
-    { tex: 'young', h: 0.28, vTop: 1.0 },
-    { tex: 'young', h: 0.42, vTop: 1.0 },
-    { tex: 'ripe', h: 0.49, vTop: 0.93 },
-    { tex: 'ripe', h: 0.52, vTop: 1.0 },
-    { tex: 'ripe', h: 0.50, vTop: 1.0 }
-  ],
-  // 葡萄：藤本上架，比黄瓜高得多
-  grape: [
-    { tex: 'young', h: 0.25, vTop: 1.0 },
-    { tex: 'young', h: 0.62, vTop: 1.0 },
-    { tex: 'young', h: 1.08, vTop: 1.0 },
-    { tex: 'ripe', h: 1.32, vTop: 0.93 },
-    { tex: 'ripe', h: 1.40, vTop: 1.0 },
-    { tex: 'ripe', h: 1.33, vTop: 1.0 }
-  ],
-  // 梨：乔木，全场最高（仅次于向日葵与玉米）
-  pear: [
-    { tex: 'young', h: 0.35, vTop: 1.0 },
-    { tex: 'young', h: 0.81, vTop: 1.0 },
-    { tex: 'young', h: 1.39, vTop: 1.0 },
-    { tex: 'ripe', h: 1.70, vTop: 0.94 },
-    { tex: 'ripe', h: 1.80, vTop: 1.0 },
-    { tex: 'ripe', h: 1.71, vTop: 1.0 }
-  ],
-  // 草莓：极矮，丛生匍匐；vTop = 果实尚未膨大
+
+  // ---- 草莓（strawberry）：5 段 ----
+  // 缓苗越冬 → 返青现蕾 → 开花坐果 → 果实膨大 → 采收期
   strawberry: [
-    { tex: 'young', h: 0.08, vTop: 1.0 },
-    { tex: 'young', h: 0.12, vTop: 1.0 },
-    { tex: 'young', h: 0.18, vTop: 1.0 },
-    { tex: 'ripe', h: 0.21, vTop: 0.95 },
-    { tex: 'ripe', h: 0.22, vTop: 1.0 },
-    { tex: 'ripe', h: 0.21, vTop: 1.0 }
+    { tex: 'young', h: 0.07, vTop: 1.0 },   // 缓苗越冬：极矮丛生
+    { tex: 'young', h: 0.11, vTop: 1.0 },   // 返青现蕾
+    { tex: 'young', h: 0.16, vTop: 1.0 },   // 开花坐果
+    { tex: 'ripe',  h: 0.20, vTop: 0.95 },  // 果实膨大（截顶）
+    { tex: 'ripe',  h: 0.21, vTop: 1.0 }    // 采收期：果红下垂
   ],
-  // 菊花：叶丛到开花，花头在最上面；vTop = 花头未开
+
+  // ---- 西瓜（watermelon）：5 段 ----
+  // 发芽出苗 → 幼苗期 → 伸蔓开花 → 膨瓜期 → 成熟采收
+  watermelon: [
+    { tex: 'young', h: 0.13, vTop: 1.0 },   // 发芽出苗
+    { tex: 'young', h: 0.26, vTop: 1.0 },   // 幼苗期
+    { tex: 'young', h: 0.42, vTop: 1.0 },   // 伸蔓开花：藤蔓铺开
+    { tex: 'ripe',  h: 0.51, vTop: 0.93 },  // 膨瓜期：瓜果膨大（截顶）
+    { tex: 'ripe',  h: 0.54, vTop: 1.0 }    // 成熟采收
+  ],
+
+  // ---- 甜瓜（melon）：5 段 ----
+  // 发芽出苗 → 幼苗期 → 伸蔓开花 → 膨瓜期 → 成熟采收
+  melon: [
+    { tex: 'young', h: 0.14, vTop: 1.0 },   // 发芽出苗
+    { tex: 'young', h: 0.26, vTop: 1.0 },   // 幼苗期
+    { tex: 'young', h: 0.40, vTop: 1.0 },   // 伸蔓开花
+    { tex: 'ripe',  h: 0.48, vTop: 0.93 },  // 膨瓜期（截顶）
+    { tex: 'ripe',  h: 0.51, vTop: 1.0 }    // 成熟采收
+  ],
+
+  // ---- 葡萄（grape）：5 段 ----
+  // 定植休眠 → 萌芽展叶 → 开花坐果 → 果实膨大 → 成熟采收
+  grape: [
+    { tex: 'young', h: 0.30, vTop: 1.0 },   // 定植休眠：只有枝干
+    { tex: 'young', h: 0.66, vTop: 1.0 },   // 萌芽展叶：新梢伸长
+    { tex: 'young', h: 1.05, vTop: 1.0 },   // 开花坐果
+    { tex: 'ripe',  h: 1.30, vTop: 0.93 },  // 果实膨大（截顶）
+    { tex: 'ripe',  h: 1.38, vTop: 1.0 }    // 成熟采收
+  ],
+
+  // ---- 梨（pear）：5 段 ----
+  // 定植休眠 → 萌芽展叶 → 开花坐果 → 果实膨大 → 成熟采收
+  pear: [
+    { tex: 'young', h: 0.42, vTop: 1.0 },   // 定植休眠：只有枝干
+    { tex: 'young', h: 0.86, vTop: 1.0 },   // 萌芽展叶
+    { tex: 'young', h: 1.36, vTop: 1.0 },   // 开花坐果：花序显形
+    { tex: 'ripe',  h: 1.68, vTop: 0.94 },  // 果实膨大（截顶）
+    { tex: 'ripe',  h: 1.78, vTop: 1.0 }    // 成熟采收
+  ],
+
+  // ---- 菊花（chrysanthemum）：5 段 ----
+  // 定植缓苗 → 摘心分枝 → 现蕾期 → 开花期 → 切花采收
   chrysanthemum: [
-    { tex: 'young', h: 0.18, vTop: 1.0 },
-    { tex: 'young', h: 0.35, vTop: 1.0 },
-    { tex: 'young', h: 0.57, vTop: 1.0 },
-    { tex: 'ripe', h: 0.68, vTop: 0.94 },
-    { tex: 'ripe', h: 0.72, vTop: 1.0 },
-    { tex: 'ripe', h: 0.69, vTop: 1.0 }
+    { tex: 'young', h: 0.16, vTop: 1.0 },   // 定植缓苗
+    { tex: 'young', h: 0.33, vTop: 1.0 },   // 摘心分枝：分枝后冠幅扩大
+    { tex: 'young', h: 0.55, vTop: 1.0 },   // 现蕾期：花芽形成
+    { tex: 'ripe',  h: 0.67, vTop: 0.94 },  // 开花期：花头展开（截顶）
+    { tex: 'ripe',  h: 0.71, vTop: 1.0 }    // 切花采收
   ],
-  // 向日葵：高杆大花盘，仅次于玉米
+
+  // ---- 向日葵（sunflower）：5 段 ----
+  // 发芽出苗 → 苗期 → 现蕾开花 → 灌浆期 → 成熟收获
   sunflower: [
-    { tex: 'young', h: 0.20, vTop: 1.0 },
-    { tex: 'young', h: 0.81, vTop: 1.0 },
-    { tex: 'young', h: 1.57, vTop: 1.0 },
-    { tex: 'ripe', h: 1.97, vTop: 0.90 },
-    { tex: 'ripe', h: 2.10, vTop: 1.0 },
-    { tex: 'ripe', h: 1.99, vTop: 1.0 }
+    { tex: 'young', h: 0.18, vTop: 1.0 },   // 发芽出苗
+    { tex: 'young', h: 0.78, vTop: 1.0 },   // 苗期：茎秆快速伸长
+    { tex: 'young', h: 1.55, vTop: 1.0 },   // 现蕾开花：花盘形成
+    { tex: 'ripe',  h: 1.95, vTop: 0.90 },  // 灌浆期：籽粒充实（截顶）
+    { tex: 'ripe',  h: 2.08, vTop: 1.0 }    // 成熟收获：全株最高
   ],
-  // 郁金香：球根单花，株型紧凑
+
+  // ---- 郁金香（tulip）：5 段 ----
+  // 定植越冬 → 返青抽叶 → 现蕾期 → 开花期 → 切花采收
   tulip: [
-    { tex: 'young', h: 0.15, vTop: 1.0 },
-    { tex: 'young', h: 0.28, vTop: 1.0 },
-    { tex: 'young', h: 0.44, vTop: 1.0 },
-    { tex: 'ripe', h: 0.52, vTop: 0.93 },
-    { tex: 'ripe', h: 0.55, vTop: 1.0 },
-    { tex: 'ripe', h: 0.53, vTop: 1.0 }
+    { tex: 'young', h: 0.14, vTop: 1.0 },   // 定植越冬：只有叶片
+    { tex: 'young', h: 0.27, vTop: 1.0 },   // 返青抽叶
+    { tex: 'young', h: 0.43, vTop: 1.0 },   // 现蕾期：花苞挺立
+    { tex: 'ripe',  h: 0.51, vTop: 0.93 },  // 开花期：花冠展开（截顶）
+    { tex: 'ripe',  h: 0.54, vTop: 1.0 }    // 切花采收
   ],
-  // 月季：灌木型，比菊花高
+
+  // ---- 月季（rose）：5 段 ----
+  // 定植缓苗 → 摘心整形 → 现蕾期 → 开花期 → 切花采收
   rose: [
-    { tex: 'young', h: 0.18, vTop: 1.0 },
-    { tex: 'young', h: 0.39, vTop: 1.0 },
-    { tex: 'young', h: 0.66, vTop: 1.0 },
-    { tex: 'ripe', h: 0.80, vTop: 0.93 },
-    { tex: 'ripe', h: 0.85, vTop: 1.0 },
-    { tex: 'ripe', h: 0.81, vTop: 1.0 }
+    { tex: 'young', h: 0.17, vTop: 1.0 },   // 定植缓苗
+    { tex: 'young', h: 0.38, vTop: 1.0 },   // 摘心整形：分枝后冠幅扩大
+    { tex: 'young', h: 0.64, vTop: 1.0 },   // 现蕾期：花苞形成
+    { tex: 'ripe',  h: 0.79, vTop: 0.93 },  // 开花期：花朵绽放（截顶）
+    { tex: 'ripe',  h: 0.83, vTop: 1.0 }    // 切花采收
   ]
+}
+
+/**
+ * 后端物候段中文名 → i18n key。
+ *
+ * 🔴 **2026-10-26 新增**：后端下发 `stageNames`（每种作物自己的段名），
+ *   前端时间轴要逐段显示名字，就必须把中文段名映射到可翻译的 key。
+ *
+ * <p>58 个中文段名归并到 42 个规范 key —— 归并规则：
+ *   · 同义合并：「灌浆」=「灌浆期」、「成熟期」=「成熟采收」=「成熟收获」=「成熟可收」
+ *   · 语义细分保留：「幼苗期」与「苗期」同义，但「开花期」「开花坐果」「开花结荚」
+ *     是三个不同阶段（泛指开花 / 花后坐果 / 结荚），保留独立 key。
+ *
+ * <p>⚠️ **这个表必须覆盖后端全部段名**。
+ *   后端 `HortConfigs` / `RiceConfig` / `WheatConfig` / `CornConfig` / `SoybeanConfig`
+ *   里新增一个段名而这里没加 → 时间轴会显示原始中文（英文界面漏中文）。
+ */
+export const PHENO_STAGE_KEY = {
+  '灌浆': 'filling',  '灌浆期': 'filling',  '成熟期': 'mature',  '成熟采收': 'mature',  '成熟收获': 'mature',  '成熟可收': 'mature',  '采收期': 'harvest',  '切花采收': 'cutflower',  '幼苗期': 'seedling',  '苗期': 'seedling',  '开花期': 'flower',  '开花坐果': 'flowerset',  '开花结荚': 'flowerbean',  '现蕾期': 'bud',  '现蕾开花': 'budflower',  '果实膨大': 'fruitgrow',  '膨果期': 'fruitgrow',  '膨瓜期': 'fruitgrow',  '莲座期': 'rosette',  '播种出苗': 'sowemerge',  '催芽播种': 'sowemerge',  '定植休眠': 'dormant',  '定植越冬': 'dormant',  '缓苗越冬': 'dormant',  '越冬期': 'overwinter',  '出苗期': 'emerge',  '发芽出苗': 'emerge',  '出苗现蕾': 'emergebud',  '分蘖期': 'tiller',  '分蘖拔节': 'tillerboot',  '分枝期': 'branch',  '返青分蘖始': 'greenup',  '返青拔节': 'greenup',  '返青抽叶': 'greenup',  '返青现蕾': 'greenupbud',  '伸蔓期': 'vinespread',  '伸蔓开花': 'vineflower',  '抽蔓开花': 'vineflower',  '块茎形成': 'tuberform',  '块茎膨大': 'tubergrow',  '肉质根膨大': 'rootgrow',  '结球期': 'headform',  '结瓜期': 'fruitform',  '盛荚期': 'beanfull',  '结荚鼓粒': 'beanfill',  '够苗晒田期': 'dryfield',  '拔节期': 'jointing',  '拔节孕穗期': 'jointing',  '大喇叭口期': 'bellmouth',  '抽穗开花期': 'headingflower',  '抽穗扬花': 'headingflower',  '抽雄吐丝': 'tassel',  '黄熟期': 'yellow',  '定植缓苗': 'settle',  '秧苗期': 'nursery',  '萌芽展叶': 'sproutleaf',  '摘心分枝': 'pinchbranch',  '摘心整形': 'pinchshape',}
+
+/**
+ * 取某作物某阶段的 i18n key（未登记时返回 null —— 调用方应回退到原始中文名）。
+ */
+export function phenoStageKeyOf(name) {
+  return PHENO_STAGE_KEY[name] || null
 }
 
 /**
@@ -364,7 +420,7 @@ export const SPRITE_ASPECT = {
   plant_cabbage_ripe: 0.784,
   plant_cabbage_young: 1.036,
   plant_chili_ripe: 0.708,
-  plant_chili_young: 0.475,
+  plant_chili_young: 0.509,
   plant_chrysanthemum_ripe: 0.77,
   plant_chrysanthemum_young: 1.152,
   plant_corn_ripe: 0.505,
@@ -374,10 +430,10 @@ export const SPRITE_ASPECT = {
   plant_cucumber_ripe: 0.997,
   plant_cucumber_young: 0.766,
   plant_eggplant_ripe: 0.643,
-  plant_eggplant_young: 0.771,
+  plant_eggplant_young: 0.997,
   plant_flower_ripe: 0.77,
   plant_flower_young: 1.152,
-  plant_grape_ripe: 0.555,
+  plant_grape_ripe: 0.703,
   plant_grape_young: 0.493,
   plant_grass_tuft: 0.736,
   plant_leafy_ripe: 0.784,
@@ -386,10 +442,10 @@ export const SPRITE_ASPECT = {
   plant_melon_young: 0.762,
   plant_millet_ripe: 0.501,
   plant_millet_young: 0.641,
-  plant_pear_ripe: 0.641,
+  plant_pear_ripe: 0.77,
   plant_pear_young: 0.478,
   plant_potato_ripe: 0.818,
-  plant_potato_young: 1.228,
+  plant_potato_young: 1.547,
   plant_radish_ripe: 0.753,
   plant_radish_young: 0.374,
   plant_rice_mid_ripe: 0.645,
@@ -408,7 +464,7 @@ export const SPRITE_ASPECT = {
   plant_tomato_young: 0.607,
   plant_tree: 0.665,
   plant_tulip_ripe: 0.264,
-  plant_tulip_young: 0.466,
+  plant_tulip_young: 0.595,
   plant_vine_ripe: 0.997,
   plant_vine_young: 0.766,
   plant_watermelon_ripe: 0.9,

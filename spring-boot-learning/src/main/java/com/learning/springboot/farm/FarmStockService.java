@@ -2,6 +2,8 @@ package com.learning.springboot.farm;
 
 import com.learning.springboot.exception.BusinessException;
 import com.learning.springboot.farm.engine.InputCatalog;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +43,30 @@ public class FarmStockService {
      */
     private static final Map<String, Double> INITIAL_STOCK = initialStock();
 
+    /**
+     * 🔴 2026-10-26 启动期自检：初始备货的每个 id 都必须在 {@link InputCatalog} 里有定义。
+     *
+     * <p><b>为什么放在这里（类加载期）而不是 {@code ensureInitialStock()} 里</b>：
+     * 那里的 {@code continue} 是<b>静默跳过</b> —— id 拼错时备货清单少一项，
+     * 玩家第一次进游戏点那件农资会「库存不足」，而日志里一行线索都没有。
+     * 真实事故：{@code CHLORANBENILIPROLE}（误把 TRAN 写成 BEN）导致
+     * 氯虫苯甲酰胺初始备货为 0，而其余 16 种农资都正常。
+     *
+     * <p>这里是<b>数据写错</b>，不是运行时可容错的情况 → 宁可启动就炸，
+     * 也不要静默产出一份残缺的备货清单。类加载期校验 = 应用启动时立刻失败，
+     * 开发者一眼看到是哪个 id 拼错了。
+     */
+    static {
+        for (String id : INITIAL_STOCK.keySet()) {
+            if (InputCatalog.get(id) == null) {
+                throw new IllegalStateException(
+                        "初始备货里的农资 id 在 InputCatalog 中不存在: " + id
+                                + "（请核对 InputCatalog 的 id 拼写；"
+                                + "已定义: " + String.join(", ", InputCatalog.all().keySet()) + "）");
+            }
+        }
+    }
+
     private static Map<String, Double> initialStock() {
         Map<String, Double> m = new LinkedHashMap<>();
         // 化肥：按每亩推荐量给 5 亩的量
@@ -53,7 +79,12 @@ public class FarmStockService {
         m.put("JINGGANGMEISU", 400.0);
         m.put("COPPER", 600.0);
         m.put("IMIDACLOPRID", 200.0);
-        m.put("CHLORANBENILIPROLE", 300.0);
+        // 🔴 2026-10-26 修正拼写：原来写成 CHLORANBENILIPROLE（BEN ← TRAN 误植），
+        // 而 InputCatalog 里的 id 是 CHLORANTRANILIPROLE（氯虫苯甲酰胺）。
+        // 两者对不上 → ensureInitialStock() 里 InputCatalog.get() 返回 null → 静默 continue
+        // → 这件药初始备货为 0，而其余 16 种农资都有。
+        // 玩家第一次进游戏时「氯虫苯甲酰胺」不可用，且没有任何报错提示。
+        m.put("CHLORANTRANILIPROLE", 300.0);
         m.put("CYPROCONAZOLE", 800.0);
         m.put("TRIADIMEFON", 600.0);
         m.put("EMAMECTIN", 150.0);
@@ -66,6 +97,22 @@ public class FarmStockService {
         m.put("BENSULFURON", 900.0);
         return java.util.Collections.unmodifiableMap(m);
     }
+
+    /**
+     * 初始备货清单（只读）—— 供测试断言「备货 id 引用完整性 / 覆盖率 / 数量为正」。
+     *
+     * <p>🔴 为什么单独暴露而不是让测试用反射：
+     * 反射读到的是「不保证存在」的私有字段，测试会静默变成「永远通过」；
+     * 这里是一个<b>显式的公开契约</b>，编译期就能发现改名。
+     *
+     * <p>返回的是 {@link java.util.Collections#unmodifiableMap(Map)} 的视图，
+     * 测试也改不到真实数据。
+     */
+    static java.util.Map<String, Double> initialStockForTest() {
+        return INITIAL_STOCK;
+    }
+
+    private static final Logger log = LoggerFactory.getLogger(FarmStockService.class);
 
     private final FarmStockRepository stockRepo;
 
@@ -167,6 +214,25 @@ public class FarmStockService {
      * @param farmId 农场（可空 = 全局）
      * @return 新的库存行
      */
+    /**
+     * 入库（商店购买时调用）。
+     *
+     * <p>🔴 2026-10-27 修掉一个<b>单位错配</b>：{@code qty} 是<b>入库量</b>，
+     * 而 {@code pricePerUnit()} 是<b>售价单位</b> —— 对水而言两者单位不同：
+     * <ul>
+     *   <li>{@code qty} = 「次」（1 份 = 20 次，商店已换算）；</li>
+     *   <li>{@code pricePerUnit()} = 「¥6/份」。</li>
+     * </ul>
+     * 直接 {@code qty × price} 会把水的成本<b>放大 20~30 倍</b> ——
+     * 仓库面板的「农资累计投入」因此虚高（买 1 份 ¥6 的水记成 ¥120）。
+     * 这个字段是玩家看的数字，不能算错。
+     *
+     * <p>现在按<b>售卖单位</b>统一折算：{@code cost = 入库量 ÷ 每售卖单位含几个入库单位 × 单价}，
+     * 其中只有水需要换算（{@code protectDays} = 每份含多少次）。
+     * 其它商品（种子按包、化肥按 kg、农药按 g/ml、农具按台）单位一致，直接相乘。
+     *
+     * @param qty 入库量（对水而言是「次」）
+     */
     @Transactional
     public FarmStock buy(Long userId, String itemId, double qty, Long farmId) {
         InputCatalog.Item def = InputCatalog.get(itemId);
@@ -177,7 +243,9 @@ public class FarmStockService {
             throw new BusinessException("购买数量必须大于 0");
         }
         double price = def.pricePerUnit();
-        double cost = round(qty * price, 2);
+        // ⚠️ 是「除」不是「乘」：qty 是入库单位（次），price 是售卖单位（份）。
+        // 20 次 × (¥6 ÷ 20 次/份) = ¥6 ✅
+        double cost = round(qty * price / unitsPerSellUnit(def), 2);
 
         // 同一用户 + 同一农资 + 同一农场 → 合并到一行（避免碎片行）
         FarmStock row = null;
@@ -202,10 +270,36 @@ public class FarmStockService {
             row.setTotalCost(0.0);
         }
         row.setQuantity(round((row.getQuantity() == null ? 0 : row.getQuantity()) + qty, 1));
-        row.setTotalBought(round((row.getTotalBought() == null ? 0 : row.getTotalBought()) + qty, 1));
+        // 🔴 2026-10-27：totalBought 记「累计<b>购买</b>量」（售卖单位），
+        // 不是入库量 —— 对水而言是「份」不是「次」。
+        // 否则仓库面板会显示「自来水买了 20 份」，实际只买了 1 份。
+        double bought = qty / unitsPerSellUnit(def);
+        row.setTotalBought(round((row.getTotalBought() == null ? 0 : row.getTotalBought()) + bought, 1));
         row.setTotalCost(round((row.getTotalCost() == null ? 0 : row.getTotalCost()) + cost, 2));
         row.setStatus(FarmStock.Status.IN_STOCK);
         return stockRepo.save(row);
+    }
+
+    /**
+     * 每个「售卖单位」含几个「入库单位」。
+     *
+     * <p>🔴 2026-10-27 新增：这是<b>单位换算的唯一出口</b>。
+     *
+     * <p>目前只有水需要换算：1 份水 = {@code protectDays} 次灌溉，
+     * 库存存「次」、价格按「份」定 —— 两者单位不同。
+     * 其它商品（种子按包、化肥按 kg、农药按 g/ml、农具按台）单位一致，返回 1。
+     *
+     * <p>⚠️ 为什么不写死在 {@code buy()} 里：如果以后再有一种「按份卖、按次用」的商品
+     * （比如「按桶卖的消毒液」「按包卖的疫苗」），只要它也把库存换算过，
+     * 就必须在这里登记 —— 否则又会重演「水的成本被放大 20 倍」的错。
+     */
+    static double unitsPerSellUnit(InputCatalog.Item def) {
+        if (def == null) {
+            return 1;
+        }
+        return def.kind() == InputCatalog.Kind.WATER && def.protectDays() > 0
+                ? def.protectDays()
+                : 1;
     }
 
     /**
@@ -260,21 +354,36 @@ public class FarmStockService {
     // ==================== 内部 ====================
 
     /**
-     * 首次进入给一份初始备货。
+     * 首次进入给一份初始备货；老玩家则<b>只补齐缺失的项</b>。
      *
      * <p><b>为什么必须有</b>：老玩家的库存表是空的。如果不兜底，
      * 他点任何一次施药都会「库存不足」——功能看起来像坏了。
      * 初始备货按「够种一季」给，不多给（多给就没有购买决策了）。
+     *
+     * <p>🔴 2026-10-26：原来是「<b>库存表非空就整个 return</b>」，
+     * 于是<b>修好 id 拼错也救不了已经玩过的账号</b> ——
+     * 他们的库存表里有 21 项（缺那件拼错的药），
+     * 而 {@code existing 非空} → 直接 return → 永远补不上。
+     * 改成<b>按 item 逐个补齐</b>：已有的一律不动（不覆盖玩家的库存与购买记录），
+     * 缺的才补。这样既救存量用户，又不会每次调用都重置库存。
      */
     @Transactional
     public void ensureInitialStock(Long userId) {
         List<FarmStock> existing = stockRepo.findByUserIdOrderByQuantityDescIdAsc(userId);
-        if (!existing.isEmpty()) {
-            return;
+        java.util.Set<String> owned = new java.util.HashSet<>();
+        for (FarmStock s : existing) {
+            owned.add(s.getItemId());
         }
         for (Map.Entry<String, Double> e : INITIAL_STOCK.entrySet()) {
+            if (owned.contains(e.getKey())) {
+                continue; // 玩家已有这件农资，不动
+            }
             InputCatalog.Item def = InputCatalog.get(e.getKey());
             if (def == null) {
+                // 静态初始化块已在类加载时校验过全部 id（见上方 static {}），
+                // 走到这里说明 InputCatalog 在运行期被改过了 —— 属于异常状态，
+                // 记一条日志跳过，不让整批备货失败（其余农资照常入库）。
+                log.warn("初始备货跳过未知农资 id: {}", e.getKey());
                 continue;
             }
             FarmStock s = new FarmStock();
@@ -287,9 +396,13 @@ public class FarmStockService {
             s.setQuantity(e.getValue());
             s.setTotalBought(e.getValue());
             s.setPricePerUnit(def.pricePerUnit());
-            s.setTotalCost(round(e.getValue() * def.pricePerUnit(), 2));
+            // 🔴 2026-10-27：走单位换算唯一出口（见 unitsPerSellUnit），
+            // 避免「按次卖的东西」成本被放大。初始备货目前不含水，
+            // 但口径要统一 —— 将来往备货里加水的概率不低。
+            s.setTotalCost(round(e.getValue() * def.pricePerUnit() / unitsPerSellUnit(def), 2));
             s.setStatus(FarmStock.Status.IN_STOCK);
             stockRepo.save(s);
+            log.info("补齐初始备货: user={} item={} qty={}", userId, def.id(), e.getValue());
         }
     }
 

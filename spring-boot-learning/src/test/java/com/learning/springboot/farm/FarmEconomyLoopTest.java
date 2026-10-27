@@ -40,18 +40,23 @@ class FarmEconomyLoopTest {
     private static final LocalDate T0 = LocalDate.of(2026, 10, 1);
 
     // ==================================================================
-    //  P0-1：农资施用必须扣钱
+    //  P0-1：农资必须有单价（成本摊销的口径基础）
+    //
+    //  🔴 2026-10-27 口径变更：资金流改为「买入扣钱，施用只扣库存」。
+    //  施用时不再扣钱包，但 {@code FarmAction.cost} 仍要记成本摊销额
+    //  （用量 × 单价），用于「本季投入 / 投入产出比」核算。
+    //  所以「单价必须为正」这条依然成立 —— 单价为 0 意味着成本核算也废了。
     // ==================================================================
 
     /**
-     * 🔴 回归：农资单价必须为正，否则「扣钱」这一步形同虚设。
+     * 🔴 回归：农资单价必须为正，否则成本摊销这一步形同虚设。
      *
      * <p>如果某天有人把 {@code pricePerUnit} 改成 0（或者某个农资忘了填价），
-     * {@code spend()} 会被 {@code amount <= 0} 直接短路返回 true ——
-     * 扣款「成功」但一文未扣，而调用方以为扣过了。
+     * {@code FarmAction.cost} 会被算成 0 —— 账面投入显示为 0，
+     * 而真实买货时是花了钱的，投入产出比直接失真。
      */
     @Test
-    @DisplayName("P0-1：所有农资单价为正（否则 spend() 会被短路成「假扣款」）")
+    @DisplayName("P0-1：所有农资单价为正（否则成本摊销算成 0，投入产出比失真）")
     void everyInputHasPositivePrice() {
         for (InputCatalog.Item it : InputCatalog.all().values()) {
             if (it.kind() == InputCatalog.Kind.SEED || it.kind() == InputCatalog.Kind.TOOL) {
@@ -65,11 +70,11 @@ class FarmEconomyLoopTest {
     /**
      * 🔴 回归：施用通道覆盖<b>全部三类可喷可撒的农资</b>。
      *
-     * <p>FERT（肥）/ PEST（药）/ HERB（除草剂）三类都必须能扣钱。
-     * 漏掉任何一类都会让那一类农资变成白拿的。
+     * <p>FERT（肥）/ PEST（药）/ HERB（除草剂）三类都必须能施用并计成本。
+     * 漏掉任何一类都会让那一类农资变成白拿的（既不扣库存也不计投入）。
      */
     @Test
-    @DisplayName("P0-1：FERT / PEST / HERB 三类农资都在施用通道里，且都收钱")
+    @DisplayName("P0-1：FERT / PEST / HERB 三类农资都在施用通道里，且都计成本")
     void allSprayableKindsAreChargeable() {
         List<InputCatalog.Item> sprayable = new ArrayList<>();
         for (InputCatalog.Item it : InputCatalog.all().values()) {
@@ -112,14 +117,19 @@ class FarmEconomyLoopTest {
     }
 
     /**
-     * 🔴 回归：灌溉水也要扣钱，且单次成本 = 份价 ÷ 次数。
+     * 🔴 回归：灌溉水的单次成本 = 份价 ÷ 次数。
      *
      * <p>水的库存统一存「次」（买 1 份 = 20 次），但价格是按「份」定的。
-     * 如果按份价扣一次，20 次灌溉会扣掉 20 份的钱 —— 直接把玩家扣破产。
-     * 如果不扣，则干旱减产没有代价。
+     *
+     * <p>🔴 2026-10-27 口径变更：灌溉<b>不再扣钱包</b>（钱在商店买份时已付），
+     * 但 {@code FarmAction.cost} 仍要记成本摊销额（份价 ÷ 次数），
+     * 用于「本季投入 / 投入产出比」核算。
+     *
+     * <p>所以这个换算仍然必须是<b>除法</b>：按份价算一次，
+     * 20 次灌溉会记 20 份的钱 —— 本季投入虚高 20 倍，投入产出比直接失真。
      */
     @Test
-    @DisplayName("P0-1：灌溉按「份价 ÷ 次数」计费（不按份价全额扣）")
+    @DisplayName("P0-1：灌溉成本摊销按「份价 ÷ 次数」计（不按份价全额记）")
     void irrigationCostIsPackPriceDividedByTimes() {
         for (InputCatalog.Item w : InputCatalog.waters()) {
             assertTrue(w.protectDays() > 0,
@@ -323,11 +333,11 @@ class FarmEconomyLoopTest {
     }
 
     /**
-     * 🔴 回归：农资分类（{@code inputClassOf}）决定「哪些要扣钱」。
+     * 🔴 回归：农资分类（{@code inputClassOf}）决定「哪些计成本摊销」。
      *
      * <p>HERB（除草剂）曾被误判成农药。除了语义问题，
      * 更实际的风险是：将来有人改分类逻辑时，把「只计成本」的类别
-     * 误改成「不扣钱」，就会出现白拿的农资。
+     * 误改成「不计数」，就会出现白拿的农资（用了既不扣库存也不进投入统计）。
      *
      * <p>本测试钉住三类农资的分类结果。
      */

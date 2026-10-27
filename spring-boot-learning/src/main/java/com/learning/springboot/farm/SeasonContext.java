@@ -41,23 +41,82 @@ import java.util.List;
  *       因为「这一季投入了多少钱」不能因为窗口截断而少算。</li>
  * </ul>
  *
+ * <p>🔴 <b>2026-10-26 P2</b>：本类从 {@code record} 改为普通类，
+ * 因为它现在还要持有<b>窗口内农事的一次性分类结果</b>（{@link ActionBundle}）。
+ * 改之前，{@code pests()} / {@code weeds()} / {@code soil()} / {@code disasters()} /
+ * {@code doReplay()} 各自遍历一遍 {@code ctx.actions()}、各自重新判断一次类型 ——
+ * 五条平行通路。现在分类只在构造时做一次，各引擎拿自己的投影。
+ *
+ * <p>⚠️ <b>不改构造器签名</b>：仍然是 {@code (winStart, today, days, actions, seasonActions)}，
+ * 现有调用点与测试都不受影响。
+ *
  * @param winStart      回放窗口起点（含），与 {@code doReplay} 的窗口严格一致
  * @param today         生长时钟的「今天」（地块级时钟，不是用户级世界日期）
  * @param days          窗口内逐日天气，只构造一次
  * @param actions       窗口内农事
  * @param seasonActions 全季农事
  */
-public record SeasonContext(
-        LocalDate winStart,
-        LocalDate today,
-        List<DayWeather> days,
-        List<FarmAction> actions,
-        List<FarmAction> seasonActions) {
+public final class SeasonContext {
 
-    public SeasonContext {
-        days = days == null ? List.of() : List.copyOf(days);
-        actions = actions == null ? List.of() : List.copyOf(actions);
-        seasonActions = seasonActions == null ? List.of() : List.copyOf(seasonActions);
+    private final LocalDate winStart;
+    private final LocalDate today;
+    private final List<DayWeather> days;
+    private final List<FarmAction> actions;
+    private final List<FarmAction> seasonActions;
+
+    /**
+     * 窗口内农事的分类结果（构造时算一次，五个引擎共用）。
+     *
+     * <p>🔴 <b>为什么是「构造时算」而不是「懒加载」</b>：
+     * 懒加载需要 {@code volatile} 或同步才能线程安全，而这个对象是<b>请求级</b>的
+     * （一次 Service 方法调用内用完即弃），根本不存在并发访问 ——
+     * 为不存在的问题加同步只是噪音。直接 eager 构建，行为更直白。
+     */
+    private final ActionBundle bundle;
+
+    public SeasonContext(LocalDate winStart,
+                         LocalDate today,
+                         List<DayWeather> days,
+                         List<FarmAction> actions,
+                         List<FarmAction> seasonActions) {
+        this.winStart = winStart;
+        this.today = today;
+        this.days = days == null ? List.of() : List.copyOf(days);
+        this.actions = actions == null ? List.of() : List.copyOf(actions);
+        this.seasonActions = seasonActions == null ? List.of() : List.copyOf(seasonActions);
+        this.bundle = ActionBundle.of(this.actions);
+    }
+
+    /**
+     * 窗口内农事的<b>一次性分类结果</b>（P2）。
+     *
+     * <p>五个引擎各拿自己的投影：
+     * {@link #bundle()} → {@code pesticides()} / {@code weeds()} / {@code fertilizes()} /
+     * {@code drainDates()} / {@code irrigateDates()} /
+     * {@code disasterDrainDates()} / {@code disasterIrrigateDates()} / {@code effectsByDate()}。
+     */
+    public ActionBundle bundle() {
+        return bundle;
+    }
+
+    public LocalDate winStart() {
+        return winStart;
+    }
+
+    public LocalDate today() {
+        return today;
+    }
+
+    public List<DayWeather> days() {
+        return days;
+    }
+
+    public List<FarmAction> actions() {
+        return actions;
+    }
+
+    public List<FarmAction> seasonActions() {
+        return seasonActions;
     }
 
     /**

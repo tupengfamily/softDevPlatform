@@ -175,6 +175,34 @@ public final class SimEngine {
         return "过熟";
     }
 
+    /**
+     * 物候段索引（0-based）—— 与 {@link #phenologyAt} <b>同一套判据</b>。
+     *
+     * <p>🔴 **为什么必须和 {@link #phenologyAt} 放在一起实现**（2026-10-26）：
+     * 前端要拿「第几段」来切 3D 形态与时间轴，而文案要拿「第几段的名字」。
+     * 如果这两件事分别实现（比如一个在 SimEngine、一个在前端硬编码切点），
+     * 就会出现「文案说开花坐果、画面却显示拔节」的错位 ——
+     * 这正是本方法要消灭的缺陷。
+     *
+     * <p>所以这里是<b>唯一实现点</b>：文案与索引都从同一份 {@link CropConfig#phenology()} 推导。
+     *
+     * @return 0 .. (段数-1)；dvs ≤ 0（尚未出苗）返回 -1；超过最后一段返回最后一段
+     */
+    public static int phenologyIndex(double dvs, CropConfig c) {
+        java.util.List<CropConfig.PhenoStage> stages = c.phenology();
+        if (stages == null || stages.isEmpty() || dvs <= 0) {
+            return -1;
+        }
+        for (int i = 0; i < stages.size(); i++) {
+            CropConfig.PhenoStage s = stages.get(i);
+            if (dvs >= s.lo() && dvs < s.hi()) {
+                return i;
+            }
+        }
+        // 超过最后一段的 hi（如最后一段 hi=1.30 而 dvs 已达 1.30+）→ 归入最后一段
+        return stages.size() - 1;
+    }
+
     public static SimResult simulate(List<DayWeather> days, int startIdx, CropConfig c) {
         return simulate(days, startIdx, c, null, 0.0, 260);
     }
@@ -400,5 +428,44 @@ public final class SimEngine {
                 new Damage(dmgPan, dmgFloret, dmgFert, dmgWt),
                 panicles, florets, fertility, grains, weight, eyRaw, ey, dvsTrace,
                 frostStop, winterKilled, vernDays);
+    }
+
+    /**
+     * 「零损伤满管理」下的产量上限（kg/亩）。
+     *
+     * <p><b>用途</b>：校验 {@link CropConfig#yieldRef()}（评级分母）与
+     * {@link CropConfig#yieldCap()}（产量封顶）是否自洽。
+     * 两者语义不同 —— {@code yieldRef} 是<b>评级达标线的分母</b>，
+     * {@code yieldCap} 是<b>产量上限</b>。若 {@code yieldRef} 远小于真正的满产，
+     * 「零损伤满管理」就会算出比值 &gt; 1，评级虚高（真实事故：月季满产 1500 但
+     * {@code yieldRef=1000}，比值 1.50）。
+     *
+     * <p><b>🔴 为什么把这个公式抽成公开方法</b>：
+     * 之前在校验脚本里<b>手工抄</b> {@code CropConfig} 的参数来算产量，
+     * 抄错过一次（算出「水稻满产 0.0 kg/亩」的荒谬结果）。
+     * 现在校验与生产走<b>同一份公式</b>，抄错的可能性从根上消除。
+     *
+     * <p>推导（对应 {@code simulate()} 里的产量三要素）：
+     * <pre>
+     *   panicles = paniclesPot                     （无损伤）
+     *   florets  = floretsPot                     （无损伤）
+     *   fertility= fertilityBase                  （无损伤）
+     *   grains   = florets × fertility
+     *   weight   = weightPot × 1.0                （灌浆完成、无损伤）
+     *   eyRaw    = (panicles × grains × weight) / (1e3 × weightPer)
+     *   ey       = min(eyRaw, yieldCap)
+     * </pre>
+     *
+     * @param c 作物配置
+     * @return 满产产量（kg/亩）
+     */
+    public static double fullPotentialYield(CropConfig c) {
+        double panicles = c.paniclesPot();
+        double florets = c.floretsPot();
+        double fertility = c.fertilityBase();
+        double grains = florets * fertility;
+        double weight = c.weightPot();
+        double eyRaw = (panicles * grains * weight) / (1e3 * Math.max(1, c.weightPer()));
+        return Math.min(eyRaw, c.yieldCap());
     }
 }
