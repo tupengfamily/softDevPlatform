@@ -102,6 +102,16 @@ public class LearningVO {
         public int difficulty;            // 1=简单 2=中等 3=较难
         public int durationMinutes;
         public boolean learned;           // 当前用户是否已学
+        /**
+         * 农业科学概念标识（2026-10-28 P2）。
+         *
+         * <p>🔴 非农业课时为 {@code null}。
+         *
+         * <p>前端据此判断「这个课时是不是某个农学概念卡的内容」——
+         * 前端**不自己维护概念 → 课时的映射表**，那会是第二份口径。
+         * 农事动作点亮课时后，前端拿这个 conceptId 去高亮对应的概念卡。
+         */
+        public String conceptId;
     }
 
     /** 课时详情 */

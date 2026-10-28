@@ -66,6 +66,25 @@ public class LearningLesson {
     /** 示例代码类型: java(Java 沙箱) / sql(SQL 沙箱), 默认 java */
     private String codeType;
 
+    /**
+     * 农业科学概念标识（2026-10-28 P2）。
+     *
+     * <p>🔴 <b>为什么单独加一个字段，而不是复用 {@code codePath}</b>：
+     * {@code codePath} 在前端已经被当作「练习代码位置」展示与复制
+     * （{@code LessonDetail.vue} 的 copyPath 按钮），
+     * 塞进概念 ID 会让玩家复制到一串无意义的东西，而且语义完全错位。
+     *
+     * <p>🔴 <b>为什么必须是稳定标识而不是标题/序号</b>：
+     * 本字段是「农事动作 → 概念 → 课时」的绑定键。
+     * 如果用课时标题绑定，改一次标题就断链；
+     * 如果用章节序号绑定，插入一章就全乱。
+     * 概念 ID（{@code AgriConcept}）是<b>一经发布不可改</b>的常量。
+     *
+     * <p>非农业课���为 {@code null}。
+     */
+    @Column(name = "concept_id", length = 32)
+    private String conceptId;
+
     /** 难度: 1=简单 2=中等 3=较难 */
     @Column(nullable = false)
     private Integer difficulty = 1;
@@ -126,6 +145,9 @@ public class LearningLesson {
     public void setCodeExampleEn(String codeExampleEn) { this.codeExampleEn = codeExampleEn; }
     public String getCodeType() { return codeType; }
     public void setCodeType(String codeType) { this.codeType = codeType; }
+
+    public String getConceptId() { return conceptId; }
+    public void setConceptId(String conceptId) { this.conceptId = conceptId; }
 
     public Integer getDifficulty() { return difficulty; }
     public void setDifficulty(Integer difficulty) { this.difficulty = difficulty; }

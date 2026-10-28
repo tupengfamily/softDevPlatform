@@ -159,6 +159,8 @@ public class LearningServiceImpl implements LearningService {
                 lv.difficulty = lesson.getDifficulty();
                 lv.durationMinutes = lesson.getDurationMinutes();
                 lv.learned = learnedIds.contains(lesson.getId());
+                // 🔴 2026-10-28 P2：下发农业科学概念标识（非农业课时为 null）
+                lv.conceptId = lesson.getConceptId();
                 cv.lessons.add(lv);
             }
             cv.totalLessons = cv.lessons.size();

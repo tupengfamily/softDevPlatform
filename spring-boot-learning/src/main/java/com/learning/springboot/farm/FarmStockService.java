@@ -154,17 +154,42 @@ public class FarmStockService {
             m.put("itemName", s.getItemName());
             m.put("kind", s.getItemKind());
             m.put("category", def == null ? "" : def.category());
-            m.put("unit", s.getUnit());
+            // 🔴 2026-10-28：单位取「库存单位」而不是存档里的旧值。
+            // 存量种子行的 unit 存的是「包」（旧口径），但库存量现在记的是「亩」——
+            // 直接用旧值会显示成「5 包」，而实际是 5 亩。
+            // def 已知时以 def.stockUnit() 为准（唯一真源），def 缺失才回落存档值。
+            m.put("unit", def != null ? def.stockUnit() : s.getUnit());
+            m.put("sellUnit", def == null ? s.getUnit() : def.unit());
             m.put("quantity", round(s.getQuantity(), 1));
             m.put("totalBought", round(s.getTotalBought(), 1));
             m.put("pricePerUnit", s.getPricePerUnit());
-            m.put("value", round(s.getQuantity() * (s.getPricePerUnit() == null ? 0 : s.getPricePerUnit()), 1));
+            // 🔴 2026-10-28：估值必须走单位换算（unitsPerSellUnit）。
+            //
+            // 原来这里直接 `quantity × pricePerUnit`，对「按份卖、按量用」的商品就错了：
+            //   水：库存存「次」（17 次），单价是「¥6/份」（1 份 = 20 次）
+            //       → 直接相乘 = ¥102，实际只值 ¥5.1（虚高 20 倍）
+            //   种子：库存存「亩」，单价是「¥28/包」（1 包 = 5 亩）
+            //       → 直接相乘 = ¥140/5亩，实际只值 ¥28
+            //
+            // 这是玩家在仓库面板上直接看到的数字，不能算错。
+            m.put("value", round(stockValueOf(s, def), 1));
             m.put("totalCost", round(s.getTotalCost(), 1));
             m.put("farmId", s.getFarmId());
             // 一件农资够施多少亩（推荐用量）—— 玩家最想知道的是「还能用几遍」
             m.put("dosesLeft", def == null || def.doseOpt() <= 0
                     ? 0
                     : Math.floor(s.getQuantity() / def.doseOpt() * 10) / 10.0);
+            // 🔴 2026-10-28：**种子不适用「还能施几遍」**（它不是按剂量施用的）。
+            // 原来的除法算出「150kg 复合肥 / 30kg = 5 遍」是对的，
+            // 但对种子（doseOpt=1、库存单位=亩）会算出「可播 5 亩」——
+            // 数字巧合对、语义错。种子单独给「可播/可种多少亩」。
+            if (def != null && def.kind() == InputCatalog.Kind.SEED) {
+                m.put("dosesLeft", 0);
+                m.put("coversMu", round(s.getQuantity() / def.protectDays(), 1));
+                // 🔴 2026-10-28：每包可播多少亩 —— 补货弹窗要用它把「买几包」
+                // 换算成「能种几亩」，前端不该自己猜这个换算关系。
+                m.put("packMu", def.protectDays());
+            }
             // 🔴 S25：**每施一遍要多少**（doseOpt）。
             //
             // 前端「补货」默认量要按「施 N 遍需要多少货」来算，
@@ -177,7 +202,7 @@ public class FarmStockService {
             m.put("phiDays", def == null ? 0 : def.phiDays());
             m.put("modeGroup", def == null ? "" : def.modeGroup());
             items.add(m);
-            totalValue += s.getQuantity() * (s.getPricePerUnit() == null ? 0 : s.getPricePerUnit());
+            totalValue += stockValueOf(s, def);
             kinds++;
         }
 
@@ -263,7 +288,7 @@ public class FarmStockService {
             row.setItemId(def.id());
             row.setItemName(def.name());
             row.setItemKind(def.kind().name());
-            row.setUnit(def.unit());
+            row.setUnit(def.stockUnit());
             row.setFarmId(farmId);
             row.setPricePerUnit(price);
             row.setTotalBought(0.0);
@@ -285,21 +310,38 @@ public class FarmStockService {
      *
      * <p>🔴 2026-10-27 新增：这是<b>单位换算的唯一出口</b>。
      *
-     * <p>目前只有水需要换算：1 份水 = {@code protectDays} 次灌溉，
-     * 库存存「次」、价格按「份」定 —— 两者单位不同。
-     * 其它商品（种子按包、化肥按 kg、农药按 g/ml、农具按台）单位一致，返回 1。
+     * <p><b>2026-10-28 修正：换算不再只对水生效。</b>
      *
-     * <p>⚠️ 为什么不写死在 {@code buy()} 里：如果以后再有一种「按份卖、按次用」的商品
-     * （比如「按桶卖的消毒液」「按包卖的疫苗」），只要它也把库存换算过，
-     * 就必须在这里登记 —— 否则又会重演「水的成本被放大 20 倍」的错。
+     * <p>原实现只给水换算（1 份 = {@code protectDays} 次），理由是「其它商品单位一致」。
+     * 实测发现<b>种子也属于同一类</b>：它的 {@code protectDays} 语义是
+     * 「<b>每包可播多少亩</b>」（水稻 5 亩 / 冬小麦 6 亩 / 番茄 3 亩 / 草莓 1 亩），
+     * 而价格是「¥/包」—— 两者单位同样不一致。
+     *
+     * <p>不换算的后果（实测）：
+     * <ul>
+     *   <li>仓库面板的「估值」把 17 次自来水算成 17 × ¥6 = ¥102，实际只值 ¥5.1（<b>虚高 20 倍</b>）；</li>
+     *   <li>反过来，买 1 包 ¥28 的中稻种子（可播 5 亩）被记成「库存价值 ¥28 / 1 亩」，
+     *       实际是 ¥28 / 5 亩 —— 玩家按仓库面板算成本会算错 5 倍。</li>
+     * </ul>
+     *
+     * <p>🔴 <b>为什么统一在这里做而不是各调用点自己判断</b>：
+     * 「按份卖、按量用」的商品一旦增加（如「按桶卖的消毒液」「按包卖的疫苗」），
+     * 只要它也把库存换算过，就必须在这里登记 ——
+     * 否则又会重演「水的成本被放大 20 倍」的错。
+     *
+     * <p>⚠️ <b>农具例外</b>：耐用品是 0/1 拥有制，{@code protectDays = -1}，不参与换算。
      */
     static double unitsPerSellUnit(InputCatalog.Item def) {
         if (def == null) {
             return 1;
         }
-        return def.kind() == InputCatalog.Kind.WATER && def.protectDays() > 0
-                ? def.protectDays()
-                : 1;
+        if (def.durable()) {
+            return 1;
+        }
+        // 水：每份含 N 次灌溉；种子：每包可播 N 亩。两者都是「按份卖、按量用」。
+        boolean packScaled = def.kind() == InputCatalog.Kind.WATER
+                || def.kind() == InputCatalog.Kind.SEED;
+        return packScaled && def.protectDays() > 0 ? def.protectDays() : 1;
     }
 
     /**
@@ -391,7 +433,7 @@ public class FarmStockService {
             s.setItemId(def.id());
             s.setItemName(def.name());
             s.setItemKind(def.kind().name());
-            s.setUnit(def.unit());
+            s.setUnit(def.stockUnit());
             s.setFarmId(null);
             s.setQuantity(e.getValue());
             s.setTotalBought(e.getValue());
@@ -404,6 +446,33 @@ public class FarmStockService {
             stockRepo.save(s);
             log.info("补齐初始备货: user={} item={} qty={}", userId, def.id(), e.getValue());
         }
+    }
+
+    /**
+     * 库存行的<b>当前估值</b>（元）。
+     *
+     * <p>🔴 2026-10-28 新增：这是<b>估值的唯一出口</b>，
+     * 与 {@link #unitsPerSellUnit} 配套 —— 库存量按「入库单位」记
+     * （水=次、种子=亩），单价按「售卖单位」定（¥/份、¥/包），
+     * 两者单位不同，**必须换算后相乘**。
+     *
+     * <p>不换算的实测后果：
+     * <ul>
+     *   <li>17 次自来水 → 直接相乘 ¥102，实际值 ¥5.1（虚高 20 倍）；</li>
+     *   <li>5 亩中稻种子 → 直接相乘 ¥140，实际值 ¥28（虚高 5 倍）。</li>
+     * </ul>
+     *
+     * <p>⚠️ 与 {@code totalCost} 的区别：{@code totalCost} 是<b>历史累计投入</b>
+     * （已经按售卖单位记过一次，见 {@link #buy}），{@code value} 是<b>当前剩余量</b>的估值。
+     * 两者口径必须一致，否则「累计投入 ¥120」与「当前库存值 ¥5」并列显示会让人以为亏了 ¥115。
+     */
+    private static double stockValueOf(FarmStock s, InputCatalog.Item def) {
+        double qty = s.getQuantity() == null ? 0 : s.getQuantity();
+        double price = s.getPricePerUnit() == null ? 0 : s.getPricePerUnit();
+        if (def == null) {
+            return qty * price;
+        }
+        return qty * price / unitsPerSellUnit(def);
     }
 
     private static double round(double v, int digits) {

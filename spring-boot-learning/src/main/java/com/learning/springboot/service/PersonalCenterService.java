@@ -145,6 +145,13 @@ public class PersonalCenterService {
     public Todo updateTodo(Long userId, Long id, String title, Integer priority, String dueDate, Integer status) {
         Todo t = todoRepository.findByIdAndUserId(id, userId)
             .orElseThrow(() -> new BusinessException("待办不存在"));
+        // 🔴 2026-10-28 P2 收尾：系统预置任务**不可编辑、不可手动勾选**。
+        // 它们的完成状态由服务端按真实农事数据重算（FarmTaskChain.refresh），
+        // 玩家手动勾 = 自己给自己发奖状 —— 任务链就失去了「教学引导」的意义。
+        // 之前只有前端隐藏入口，直接调 API 照样能改；这里补服务端兜底。
+        if (t.isSystemTask()) {
+            throw new BusinessException("系统任务由农场进度自动完成，不能手动修改");
+        }
         if (title != null && !title.trim().isEmpty()) t.setTitle(trimTo(title, 200));
         if (priority != null) t.setPriority(priority < 0 ? 0 : Math.min(priority, 2));
         if (dueDate != null) t.setDueDate(normalizeDueDate(dueDate));   // 传空串可清除截止日期
@@ -159,6 +166,12 @@ public class PersonalCenterService {
     public void deleteTodo(Long userId, Long id) {
         Todo t = todoRepository.findByIdAndUserId(id, userId)
             .orElseThrow(() -> new BusinessException("待办不存在"));
+        // 🔴 2026-10-28 P2 收尾：系统预置任务不可删除。
+        // 删了它，下次进农场会被 ensureChain 重新预置出来 —— 玩家看到的是
+        // 「我明明删了，它又回来了」，比不让删更困惑。
+        if (t.isSystemTask()) {
+            throw new BusinessException("系统任务不能删除");
+        }
         todoRepository.delete(t);
     }
 

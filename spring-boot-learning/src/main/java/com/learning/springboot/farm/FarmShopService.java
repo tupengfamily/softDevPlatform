@@ -97,6 +97,8 @@ public class FarmShopService {
             m.put("kind", it.kind().name());
             m.put("category", it.category());
             m.put("unit", it.unit());
+            // 🔴 2026-10-28：种子库存单位是「亩」不是「包」，前端「已有 N」要跟着改。
+            m.put("stockUnit", it.stockUnit());
             m.put("price", it.pricePerUnit());
             m.put("note", it.note());
 
@@ -119,7 +121,12 @@ public class FarmShopService {
                 // 注释里写的「×1000」是当初设计时的意图，但落地数据没跟着改，
                 // 结果两处口径对不上。统一按「数据即亩数」处理，注释同步更正。
                 m.put("coversMu", it.protectDays());
-                m.put("doses", it.protectDays());
+                // 🔴 2026-10-28：库存单位改成「亩」后，doses = 已有的亩数。
+                // 之前 doses 写的是 protectDays（= 每包可播亩数），语义是「一包能播多少」，
+                // 但前端 FarmShop.vue 显示的却是 `it.owned`（已有多少）——
+                // 两个数字含义不同却挨着显示，玩家会以为「已有 5 亩」其实是「一包 5 亩」。
+                // 现在统一：doses = 已有的亩数，coversMu = 每包可播亩数。
+                m.put("doses", have);
             } else if (it.kind() == InputCatalog.Kind.WATER) {
                 // 🔴 库存存的是「次」（不是份），所以 doses = 已有的灌溉次数。
                 // packSize = 一份含多少次（protectDays），前端据此显示「1 份 = 20 次」。
@@ -173,15 +180,32 @@ public class FarmShopService {
     // ==================== 购买 ====================
 
     /**
-     * 买货：扣钱 + 入库。
+         * 买货：扣钱 + 入库。
+     *
+     * <p>🔴 2026-10-28：这是<b>购买农资的唯一入口</b>。
+     *
+     * <p>原先仓库面板的补货按钮走的是另一个接口
+     * （{@code POST /warehouse/stocks/buy}），它直接调
+     * {@code FarmStockService.buy} —— <b>完全不扣钱包</b>，
+     * 玩家可以无限量白拿化肥/农药/种子。这直接违反
+     * 「买入扣钱、施用只扣库存」的资金流口径。
+     *
+     * <p>现在两个入口都收敛到这里：扣钱、校验「已拥有」、换算单位
+     * 全部只有一份实现，堵住后门的同时也消灭了「同一件商品两个单位语义」的分叉。
      *
      * @param userId 用户
      * @param itemId 商品 id
-     * @param qty   数量（按该商品单位；农具固定为 1）
+     * @param qty   数量（<b>售卖单位</b>：水=份、种子=包、化肥=kg、农药=g/ml、农具=台）
+     * @param farmId 归属农场（可空 = 全局库存）。仓库补货按农场入库时传。
      * @return 购买结果
      */
     @Transactional
     public Map<String, Object> buy(Long userId, String itemId, double qty) {
+        return buy(userId, itemId, qty, null);
+    }
+
+    @Transactional
+    public Map<String, Object> buy(Long userId, String itemId, double qty, Long farmId) {
         InputCatalog.Item it = InputCatalog.get(itemId);
         if (it == null) {
             throw new BusinessException("商店没有这件商品：" + itemId);
@@ -223,16 +247,18 @@ public class FarmShopService {
         // 入库。
         // 🔴 WATER 的单位换算：**买 1 份 = protectDays 次灌溉**，
         // 库存统一存「次」，灌一次扣 1（详见 InputCatalog 里 WATER 的注释）。
+        // 🔴 2026-10-28 SEED 同样要换算：**买 1 包 = protectDays 亩**，
+        // 库存统一存「亩」，开一块地扣 1 亩。
         // 其它商品：农具固定 1，其余按 qty。
         double addQty;
         if (it.durable()) {
             addQty = 1;
-        } else if (it.kind() == InputCatalog.Kind.WATER) {
+        } else if (it.kind() == InputCatalog.Kind.WATER || it.kind() == InputCatalog.Kind.SEED) {
             addQty = qty * it.protectDays();
         } else {
             addQty = qty;
         }
-        FarmStock row = stockService.buy(userId, it.id(), addQty, null);
+        FarmStock row = stockService.buy(userId, it.id(), addQty, farmId);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);

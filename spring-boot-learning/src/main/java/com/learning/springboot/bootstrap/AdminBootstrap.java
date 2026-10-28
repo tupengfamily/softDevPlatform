@@ -19,6 +19,7 @@ public class AdminBootstrap implements CommandLineRunner {
 
     @Autowired private DataSeedService seedService;
     @Autowired private LearningDataSeedService learningDataSeedService;
+    @Autowired private AgriDataSeedService agriDataSeedService;
     @Autowired private ReleaseNoteSeedService releaseNoteSeedService;
 
     @Override
@@ -28,6 +29,10 @@ public class AdminBootstrap implements CommandLineRunner {
         seedService.seedDictTypes();
         seedService.seedDefaultUsers();
         learningDataSeedService.seedLearningData();
+        // 🔴 2026-10-28 P2：农业科学科目（8 章 = 8 个概念）。
+        // 放在编程课程之后 —— 编程课程是主体，农业课程失败不该挡住它（反之亦然，
+        // 但编程课程的数据量大、更基础，先跑它更符合「先保证主体可用」）。
+        agriDataSeedService.seedAgriData();
         releaseNoteSeedService.seedReleaseNotes();
         log.info("✅ 管理系统初始化完成! 默认账号已初始化,请通过环境变量或尽快修改默认口令");
     }

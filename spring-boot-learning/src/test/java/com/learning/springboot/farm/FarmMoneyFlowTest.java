@@ -186,25 +186,57 @@ class FarmMoneyFlowTest {
     /**
      * 🔴 回归：单位换算唯一出口 {@code unitsPerSellUnit} 的口径正确。
      *
-     * <p>水：1 份 = {@code protectDays} 次 → 库存存「次」，价格按「份」，
-     * 所以「每入库 1 次对应的成本」= 份价 ÷ 次数。
+     * <p><b>「按份卖、按量用」的商品有两类</b>：
+     * <ul>
+     *   <li><b>水</b>：1 份 = {@code protectDays} 次 → 库存存「次」，价格按「份」，
+     *       所以「每入库 1 次对应的成本」= 份价 ÷ 次数；</li>
+     *   <li><b>种子</b>（2026-10-28 新增）：1 包 = {@code protectDays} 亩 →
+     *       库存存「亩」，价格按「包」，所以「每入库 1 亩对应的成本」= 份价 ÷ 亩数。</li>
+     * </ul>
      *
      * <p>其它商品：库存单位 == 售卖单位 → 换算系数 = 1。
      */
     @Test
-    @DisplayName("🔴 单位换算：水的每「次」成本 = 份价 ÷ 次数，其它商品为 1")
+    @DisplayName("🔴 单位换算：水/种子的每「单位」成本 = 份价 ÷ 次数，其它商品为 1")
     void unitConversionIsCorrect() {
         for (InputCatalog.Item w : InputCatalog.waters()) {
             double units = FarmStockService.unitsPerSellUnit(w);
             assertEquals(w.protectDays(), units, 1e-9,
                     w.name() + " 的单位换算系数必须是「每份含几次」");
         }
+        // 🔴 2026-10-28：种子同样是「按份卖、按亩用」，换算系数 = 每包可播亩数。
+        for (InputCatalog.Item s : InputCatalog.seeds()) {
+            double units = FarmStockService.unitsPerSellUnit(s);
+            assertEquals(s.protectDays(), units, 1e-9,
+                    s.name() + " 的单位换算系数必须是「每包可播几亩」");
+            assertTrue(s.protectDays() > 0, s.name() + " 每包应能播正数亩");
+        }
         for (InputCatalog.Item it : InputCatalog.all().values()) {
-            if (it.kind() == InputCatalog.Kind.WATER) {
+            if (it.kind() == InputCatalog.Kind.WATER || it.kind() == InputCatalog.Kind.SEED) {
                 continue;
             }
             assertEquals(1.0, FarmStockService.unitsPerSellUnit(it), 1e-9,
                     it.name() + " 的库存单位与售卖单位一致，换算系数应为 1");
+        }
+    }
+
+    /**
+     * 🔴 回归（2026-10-28）：买 1 包种子的<b>账面成本</b>必须等于包价。
+     *
+     * <p>这是「种子的估值虚高 N 倍」这个缺陷的直接断言。
+     * 买 1 包中稻种子（¥28，可播 5 亩）→ 库存 +5 亩 → 账面成本 ¥28（不是 ¥140）。
+     */
+    @Test
+    @DisplayName("🔴 买 1 包种子的账面成本 = 包价（不是包价 × 亩数）")
+    void buyingOnePackOfSeedCostsThePackPrice() {
+        for (InputCatalog.Item s : InputCatalog.seeds()) {
+            int mu = s.protectDays();
+            double addQty = mu;                    // 商店换算：买 1 包 → 入库 N 亩
+            double cost = addQty * s.pricePerUnit() / FarmStockService.unitsPerSellUnit(s);
+            assertEquals(s.pricePerUnit(), cost, 1e-6,
+                    s.name() + " 买 1 包（" + mu + " 亩）的账面成本必须是包价 ¥"
+                            + s.pricePerUnit() + "，实际算成 ¥" + cost
+                            + " —— 这会让仓库「农资累计投入」虚高 " + mu + " 倍");
         }
     }
 
@@ -301,13 +333,81 @@ class FarmMoneyFlowTest {
         return out.toString();
     }
 
-    /** 抽取某个方法的方法体（从方法签名起，到下一个同缩进的 {@code } 为止）。 */
+    /**
+     * 抽取某个方法的方法体（从方法签名起，到<b>大括号配对</b>的右括号为止）。
+     *
+     * <p>🔴 2026-10-29 <b>为什么不能靠 {@code "\n    }"} 猜结尾</b>：
+     * <ul>
+     *   <li>原实现找的是「下一个 4 空格缩进的右括号」——
+     *       但方法体<b>内部</b>的 {@code if}/{@code for} 块闭合行同样是 4 空格缩进，
+     *       于是会提前截断；</li>
+     *   <li>更致命的是<b>重载方法</b>：{@code buy(userId, itemId, qty)} 委托给
+     *       {@code buy(userId, itemId, qty, farmId)}，两个重载各自独立。
+     *       按签名取到的是第一个重载（只有一行 {@code return ...}），
+     *       <b>真正的扣款逻辑在第二个重载里</b> —— 于是
+     *       「buy() 必须扣余额」这条断言读的是空壳，<b>假绿</b>。</li>
+     * </ul>
+     *
+     * <p>现在改成<b>按大括号配对</b>精确提取，并且把<b>所有同名重载</b>拼起来 ——
+     * 断言的语义是「这个方法（及其重载）里必须有扣款调用」，
+     * 那就应该把重载全算上，而不是只看其中一个。
+     */
     private static String methodBody(String src, String signatureStart) {
-        int start = src.indexOf(signatureStart);
-        assertTrue(start > 0, "找不到方法：" + signatureStart);
-        int end = src.indexOf("\n    }", start);
-        assertTrue(end > start, "找不到方法结尾：" + signatureStart);
-        return src.substring(start, end);
+        StringBuilder all = new StringBuilder();
+        int cursor = 0;
+        while (true) {
+            int s = src.indexOf(signatureStart, cursor);
+            if (s < 0) break;
+            int bodyStart = src.indexOf('{', s);
+            assertTrue(bodyStart > s, "方法签名后找不到 '{'：" + signatureStart);
+            int end = matchingBrace(src, bodyStart);
+            assertTrue(end > bodyStart, "找不到方法结尾：" + signatureStart);
+            all.append(src, s, end + 1).append('\n');
+            cursor = end + 1;
+        }
+        assertTrue(all.length() > 0, "找不到方法体：" + signatureStart);
+        return all.toString();
+    }
+
+    /**
+     * 从 {@code open} 处的 '{' 起，按大括号配对找到匹配的 '}'（跳过字符串与注释）。
+     *
+     * @param open 指向 '{' 的下标
+     * @return 匹配 '}' 的下标
+     */
+    private static int matchingBrace(String src, int open) {
+        int depth = 0;
+        boolean inBlock = false;
+        boolean inLine = false;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = open; i < src.length(); i++) {
+            char c = src.charAt(i);
+            char n = i + 1 < src.length() ? src.charAt(i + 1) : '\0';
+            if (inBlock) {
+                if (c == '*' && n == '/') { inBlock = false; i++; }
+                continue;
+            }
+            if (inLine) {
+                if (c == '\n') inLine = false;
+                continue;
+            }
+            if (inString) {
+                if (escaped) escaped = false;
+                else if (c == '\\') escaped = true;
+                else if (c == '"') inString = false;
+                continue;
+            }
+            if (c == '/' && n == '/') { inLine = true; i++; continue; }
+            if (c == '/' && n == '*') { inBlock = true; i++; continue; }
+            if (c == '"') { inString = true; continue; }
+            if (c == '{') depth++;
+            else if (c == '}') {
+                depth--;
+                if (depth == 0) return i;
+            }
+        }
+        return -1;
     }
 
     private static java.nio.file.Path farmSourceDir() {

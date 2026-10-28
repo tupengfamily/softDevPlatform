@@ -17,8 +17,11 @@ import com.learning.springboot.farm.engine.SoilEngine;
 import com.learning.springboot.farm.engine.SuitabilityEngine;
 import com.learning.springboot.farm.engine.WeedEngine;
 import com.learning.springboot.farm.engine.WarehouseEngine;
+import com.learning.springboot.farm.insight.AgriConcept;
 import com.learning.springboot.farm.insight.FarmInsightService;
 import com.learning.springboot.farm.insight.FarmYieldAttribution;
+import com.learning.springboot.farm.learning.FarmLearningBridge;
+import com.learning.springboot.farm.learning.FarmTaskChain;
 import com.learning.springboot.service.GameService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,8 +37,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 「稼穑」玩法服务。
@@ -154,6 +159,26 @@ public class FarmPlayService {
      * 导致一个无关地块的偏移能污染全用户 —— 见 {@link FarmUserClockService} 类注释。
      */
     private final FarmUserClockService clock;
+    /**
+     * 学习平台桥接（2026-10-28 P2）：农事实操推进「农业科学」课时进度。
+     *
+     * <p>🔴 <b>依赖方向</b>：{@code Play → LearningBridge}（单向）。
+     * Bridge 只依赖 repository 与 {@code AgriConcept}（纯常量），
+     * <b>不反向依赖 Play</b> —— 否则构造器注入成环。
+     *
+     * <p>🔴 <b>桥接失败绝不影响农事</b>：Bridge 内部吞异常并记日志，
+     * 课程种子没跑 / 数据库锁冲突都不该让玩家的收割失败。
+     */
+    private final FarmLearningBridge learningBridge;
+    /**
+     * 农场任务链（2026-10-28 P2）：预置待办 + 自动完成判定。
+     *
+     * <p>🔴 <b>依赖方向</b>：{@code Play → TaskChain}（单向）。
+     * TaskChain 只依赖 repository 与纯常量，不反向依赖 Play。
+     *
+     * <p>🔴 <b>任务链失败绝不影响农事</b>：TaskChain 内部吞异常并记日志。
+     */
+    private final FarmTaskChain taskChain;
     /** 默认作物（老数据没有 crop_id 时按水稻处理） */
     private static final CropConfig DEFAULT_CROP = RiceConfig.indicaMidSeason();
 
@@ -209,6 +234,8 @@ public class FarmPlayService {
                            FarmShopService shopService,
                            FarmCatalogService catalog,
                            FarmUserClockService clock,
+                           FarmLearningBridge learningBridge,
+                           FarmTaskChain taskChain,
                            ApplicationEventPublisher eventPublisher) {
         this.plotRepo = plotRepo;
         this.steadRepo = steadRepo;
@@ -221,6 +248,8 @@ public class FarmPlayService {
         this.shopService = shopService;
         this.catalog = catalog;
         this.clock = clock;
+        this.learningBridge = learningBridge;
+        this.taskChain = taskChain;
         this.eventPublisher = eventPublisher;
     }
 
@@ -811,8 +840,15 @@ public class FarmPlayService {
         // 科学解释层（2026-10-27 P1）：有效积温 / 氮素报酬递减 / 产量四要素 / 土壤水分平衡。
         // 🔴 唯一出口在 FarmInsightService —— 同一概念会在三个界面出现，
         // 文案散落就必然分叉。缺数据���概念整条不出现在列表里（不编造「0」）。
+        //
+        // 🔴 2026-10-28 P2：这里多传一个 PHI 事实 ——
+        // 面板上的 PHI 概念要回答「我上次施药距采收还够不够安全间隔期」，
+        // 而「距采收」在季中是**预估**（距成熟还有几天），
+        // 在收割那一刻才是**实数**（真实采收日）。
+        // 所以季中用预估、收割用实数 —— 同一套文案口径，两处都不会自相矛盾。
         List<FarmInsightService.Insight> insights = FarmInsightService.insights(
-                crop, r, sr, pr, dr, plot.getSeasons(), tools.droughtRelief());
+                crop, r, sr, pr, dr, plot.getSeasons(), tools.droughtRelief(),
+                seasonPhiInfo(userId, plot, crop, r, today, ctx));
 
         String zoneId = zoneOf(plot);
         DayWeather w = weather.forDate(userId, zoneId, today);
@@ -1358,6 +1394,7 @@ public class FarmPlayService {
         double inputCost = 0;
         boolean phiViolated = false;
         String phiItem = null;
+        String phiItemId = null;
         int phiDaysShort = 0;
         int phiViolations = 0;
         for (FarmAction a : acts) {
@@ -1378,6 +1415,9 @@ public class FarmPlayService {
                     if (shortDays > phiDaysShort) {
                         phiDaysShort = shortDays;
                         phiItem = it.name();
+                        // 🔴 2026-10-28 P2：同时记下农药 id —— 解释层要拿它去查 PHI 天数，
+                        // 光有名称查不到（名称是展示用的，id 才是目录主键）。
+                        phiItemId = it.id();
                     }
                 }
             }
@@ -1598,7 +1638,104 @@ public class FarmPlayService {
                     "本季实际测算 %.1f kg/亩，已达该品种的产量上限 %.0f kg/亩，按上限计。",
                     r.eyRaw(), crop.yieldCap()));
         }
+        // 🔴 2026-10-28 P2：实操即课时 —— 收割是「一季的总结时刻」，
+        // 把这一季**实际产生过引擎数据**的概念全部点亮。
+        //
+        // 🔴 为什么不直接点亮全部 8 个概念：那不叫教学。
+        // 种水稻不该点亮「春化与越冬」（水稻不需要春化，没这个机制就等于没学）。
+        // 所以口径是：以引擎实算出的解释列表为准 —— 哪个概念这一季真的算出来了，才点亮哪个。
+        List<FarmInsightService.Insight> seasonInsights = FarmInsightService.insights(
+                crop, r, sr, pr, dr, plot.getSeasons(), toolBonusOf(userId).droughtRelief(),
+                phiInfo(phiViolated, phiViolations, phiDaysShort, phiItemId));
+        Set<String> observedConcepts = new LinkedHashSet<>();
+        for (FarmInsightService.Insight ins : seasonInsights) {
+            observedConcepts.add(ins.conceptId());
+        }
+        List<Long> learned = learningBridge.scheduleAll(userId, observedConcepts);
+        out.put("learnedLessons", learned);
+        out.put("learnedConcepts", new ArrayList<>(observedConcepts));
+        // 🔴 2026-10-28 P2：收割后刷新任务链 ——
+        // 「收完第一季」与「点亮一个概念卡」这两环在这一刻才可能满足。
+        // 🔴 顺序很重要：任务链的刷新必须排在「写学习进度」**之后**，
+        // 否则「点亮一个概念卡」会因为读不到刚写进去的进度而判不出完成。
+        taskChain.refreshAfter(userId);
         return out;
+    }
+
+    /**
+     * 构造本季的 PHI 事实（供解释层与学习桥接共用）。
+     *
+     * <p>🔴 <b>为什么在收割时才算</b>：PHI 的定义是「最后一次施药到<b>采收</b>之间
+     * 至少间隔 N 天」—— 采收日只有收割这一刻才知道。
+     * 如果解释层按当前日期算，会出现「面板说安全、收割被判超标」的自相矛盾。
+     *
+     * @param phiItemId 差得最多的那次用的农药 id（null = 无违规）
+     */
+    private static FarmInsightService.PhiInfo phiInfo(boolean violated, int violations,
+                                                       int daysShort, String phiItemId) {
+        if (!violated || phiItemId == null) {
+            return FarmInsightService.PhiInfo.NONE;
+        }
+        InputCatalog.Item it = InputCatalog.get(phiItemId);
+        if (it == null) {
+            return FarmInsightService.PhiInfo.NONE;
+        }
+        return new FarmInsightService.PhiInfo(true, violations, daysShort, it.name(), it.phiDays());
+    }
+
+    /**
+     * 季中的 PHI 事实（<b>预估</b>口径）。
+     *
+     * <p>🔴 <b>季中与收割是两个口径，但不会自相矛盾</b>：
+     * <ul>
+     *   <li><b>季中</b>：不知道采收日，只能用「距成熟还有几天」<b>预估</b>
+     *       （{@code estimateDaysTo}）→ 结论是「预计安全 / 预计会超标」；</li>
+     *   <li><b>收割</b>：知道真实采收日 → 结论是「已超标 / 未超标」。</li>
+     * </ul>
+     * 两者用的是同一套「最后施药日 + PHI ≤ 采收日」的判定公式，
+     * 只是采收日的来源不同。所以季中看到「预计会超标」、
+     * 收割时果然被判超标，是<b>一致的</b>，不是矛盾。
+     *
+     * <p>🔴 <b>季中不报「已超标」</b>：还没采收，说「已超标」是编造事实。
+     * 所以季中只报「预计会超标」。
+     */
+    private FarmInsightService.PhiInfo seasonPhiInfo(Long userId, FarmPlot plot, CropConfig crop,
+                                                      SimEngine.SimResult r, LocalDate today,
+                                                      SeasonContext ctx) {
+        List<FarmAction> acts = ctx == null ? List.of() : ctx.seasonActions();
+        if (acts == null || acts.isEmpty()) {
+            return FarmInsightService.PhiInfo.NONE;
+        }
+        // 距成熟的预估天数（与面板上「还有 N 天」同一个来源）
+        double harvestDvs = OpChain.harvestDvsOf(cropIdOf(plot));
+        int daysToHarvest = r.dvs() >= harvestDvs ? 0
+                : estimateDaysTo(userId, zoneOf(plot), plot.getSowDate(), today, r.dvs(), harvestDvs, crop);
+
+        int violations = 0;
+        int worstShort = 0;
+        String worstItemId = null;
+        for (FarmAction a : acts) {
+            InputCatalog.Item it = InputCatalog.get(a.getItemId());
+            if (it == null || it.kind() != InputCatalog.Kind.PEST) {
+                continue;
+            }
+            // 预计采收日 = 今天 + 距成熟天数
+            int gapToHarvest = (int) ChronoUnit.DAYS.between(a.getDate(), today) + daysToHarvest;
+            if (gapToHarvest < it.phiDays()) {
+                violations++;
+                int shortDays = it.phiDays() - gapToHarvest;
+                if (shortDays > worstShort) {
+                    worstShort = shortDays;
+                    worstItemId = it.id();
+                }
+            }
+        }
+        if (violations == 0) {
+            return FarmInsightService.PhiInfo.NONE;
+        }
+        InputCatalog.Item it = InputCatalog.get(worstItemId);
+        return new FarmInsightService.PhiInfo(true, violations, worstShort,
+                it == null ? null : it.name(), it == null ? 0 : it.phiDays());
     }
 
     /**
@@ -1839,6 +1976,14 @@ public class FarmPlayService {
             }
         }
         out.put("balance", round(shopService.balanceOf(userId), 2));
+        // 🔴 2026-10-28 P2：实操即课时 —— 做完农事，推进对应概念的课时进度。
+        // Bridge 内部吞异常，失败不影响农事结果。
+        List<Long> learned = learningBridge.schedule(userId, FarmLearningBridge.conceptOf(type));
+        out.put("learnedLessons", learned);
+        out.put("learnedConcept", FarmLearningBridge.conceptOf(type));
+        // 🔴 2026-10-28 P2：刷新任务链 —— 施肥类动作会让「完成一次追肥」自动打勾。
+        // 判定在服务端按真实数据重算，所以这里只是触发一次重算。
+        taskChain.refreshAfter(userId);
         return out;
     }
 
@@ -2411,6 +2556,24 @@ public class FarmPlayService {
         out.put("stockLeft", stockLeft);
         out.put("stockShort", stockShort);
         out.put("warnings", warnings);
+        // 🔴 2026-10-28 P2：实操即课时 —— 施用农资推进对应概念的课时进度。
+        // 🔴 注意这里用「农资的 kind」而不是 action 的 type：
+        //   施肥（Kind.FERT）→ 氮素报酬递减（地力公式里的养分满足度就来自它）；
+        //   农药（Kind.PEST）→ 安全间隔期 PHI（唯一会直接扣钱的概念）；
+        //   除草剂（Kind.HERB）→ 土壤水分（杂草抢水）。
+        // 用 type 会把「农药」与「除草剂」都算成 PHI —— 但除草剂没有 PHI 问题。
+        String learnedConcept = switch (it.kind()) {
+            case FERT -> AgriConcept.NITROGEN;
+            case PEST -> AgriConcept.PHI;
+            case HERB -> AgriConcept.WATER;
+            default -> null;
+        };
+        List<Long> learned = learningBridge.schedule(userId, learnedConcept);
+        out.put("learnedLessons", learned);
+        out.put("learnedConcept", learnedConcept);
+        // 🔴 2026-10-28 P2：施用肥料也会让「完成一次追肥」自动打勾
+        // （农机具通道与农事动作通道是两条路，判定口径必须一致）。
+        taskChain.refreshAfter(userId);
         return out;
     }
 
@@ -2976,8 +3139,8 @@ public class FarmPlayService {
                 if (seedLeft + 1e-6 < 1) {
                     // 记一条提示：让前端在开田结果里显示「缺种子，去商店」
                     seedHint = String.format(
-                            "还没有 %s 的种子（%s 需 ¥%.0f/包），去商店买一包再种。",
-                            cc.shortName(), seed.name(), seed.pricePerUnit());
+                            "还没有 %s 的种子（%s 需 ¥%.0f/包，可播 %d 亩），去商店买一包再种。",
+                            cc.shortName(), seed.name(), seed.pricePerUnit(), seed.protectDays());
                 }
             }
         }
@@ -3042,6 +3205,19 @@ public class FarmPlayService {
         // 🔴 2026-10-23 需求 R：种子在**开田时**消耗（不是播种时）——
         // 对玩家来说「开田」和「播种」是同一个动作。
         // 只有库存真的够时才扣；不够的走上面的软提示（算赊账，不阻断）。
+        //
+        // 🔴 2026-10-28：扣减单位从「1 包」改成「**1 亩**」。
+        //
+        // 为什么：种子的 {@code protectDays} 语义是「每包可播多少亩」
+        // （水稻 5 亩 / 冬小麦 6 亩 / 番茄 3 亩 / 草莓 1 亩），
+        // 而商店卖的是「¥/包」。两者单位不同 —— 与水完全同构
+        // （水：¥/份 vs 库存「次」，1 份 = 20 次）。
+        //
+        // 原来扣 1 包 = 只够种 1 亩，但商店面板明明写着「可播 5 亩」：
+        // 玩家花 ¥28 买 1 包，被告知能种 5 亩，实际只能种 1 亩，
+        // 剩下的 4 亩还得再买一包 —— **UI 承诺 > 实际交付**。
+        // 现在库存统一存「亩」（与水存「次」同构），
+        // 买 1 包入 5 亩，开 1 块地扣 1 亩，两者口径对齐。
         if (isNewPlot) {
             InputCatalog.Item seed = InputCatalog.seedOf(cc.id());
             if (seed != null && seedHint == null) {
@@ -3082,6 +3258,13 @@ public class FarmPlayService {
             out.put("needSeed", true);
         }
         out.put("balance", round(shopService.balanceOf(userId), 2));
+        // 🔴 2026-10-28 P2：实操即课时 —— 播种是「开始一季」，点亮有效积温概念
+        // （作物从这天开始攒积温，积温是玩家这季最该理解的第一个机制）。
+        List<Long> learned = learningBridge.schedule(userId, FarmLearningBridge.CONCEPT_ON_SOW);
+        out.put("learnedLessons", learned);
+        out.put("learnedConcept", FarmLearningBridge.CONCEPT_ON_SOW);
+        // 🔴 2026-10-28 P2：建田后刷新任务链 —— 「开垦第一块地」这一环打勾。
+        taskChain.refreshAfter(userId);
         return out;
     }
 

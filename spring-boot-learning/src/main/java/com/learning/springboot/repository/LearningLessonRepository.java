@@ -37,4 +37,20 @@ public interface LearningLessonRepository extends JpaRepository<LearningLesson, 
         "ORDER BY c.chapterNo ASC, l.lessonNo ASC"
     )
     List<LearningLesson> findBySubjectIdOrdered(Long subjectId);
+
+    /**
+     * 按农业科学概念标识取该概念下的全部课时（2026-10-28 P2）。
+     *
+     * <p>🔴 <b>这是「实操即课时」的查询入口</b>：
+     * 农事动作 → 概念 → 本概念的课时 → 推进 {@code LessonProgress}。
+     *
+     * <p>排序规则：先章节号后课时号 —— 必须与课程树展示顺序一致，
+     * 否则「推进第一个未完成的课时」会跳章。
+     */
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT l FROM LearningLesson l, LearningChapter c " +
+        "WHERE l.chapterId = c.id AND l.conceptId = :conceptId AND c.archived = false " +
+        "ORDER BY c.chapterNo ASC, l.lessonNo ASC"
+    )
+    List<LearningLesson> findByConceptIdOrdered(String conceptId);
 }

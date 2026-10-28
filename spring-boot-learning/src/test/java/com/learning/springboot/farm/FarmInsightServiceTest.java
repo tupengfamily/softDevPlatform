@@ -9,6 +9,7 @@ import com.learning.springboot.farm.engine.RiceConfig;
 import com.learning.springboot.farm.engine.SimEngine;
 import com.learning.springboot.farm.engine.SoilEngine;
 import com.learning.springboot.farm.engine.SoybeanConfig;
+import com.learning.springboot.farm.engine.WheatConfig;
 import com.learning.springboot.farm.insight.FarmInsightService;
 import com.learning.springboot.farm.insight.FarmYieldAttribution;
 import org.junit.jupiter.api.DisplayName;
@@ -593,8 +594,258 @@ class FarmInsightServiceTest {
     }
 
     // ==================================================================
+    //  4. P2 新增的 4 个概念（地力轮作 / 热害 / 春化 / PHI）
+    // ==================================================================
+
+    /**
+     * 🔴 <b>4 个新概念不能只是「有数据就出，没数据就消失」</b>。
+     *
+     * <p>P2 把农业科学科目扩到 8 章，这 4 章的内容已经写进课程，
+     * 但如果解释层讲不出这 4 个概念，就会出现「章节口径」与「面板口径」分叉：
+     * 面板上永远看不到这 4 个概念，玩家会以为这 4 章是空话。
+     *
+     * <p>所以这里逐个用<b>能触发该概念的真实数据</b>断言它存在。
+     */
+    @Test
+    @DisplayName("P2：地力轮作 / 热害 / 春化 / PHI 四个概念在对应数据下都会出现")
+    void p2NewConceptsAppearWithRealData() {
+        // 地力：土壤结果 + 连作 3 季
+        // 热害：有超最适温的日子（heatForce > 0, daysOverOpt > 0）
+        // 春化：需要春化的作物（小麦）且春化天数不足
+        // PHI：有违规施药
+        SimEngine.SimResult r = new SimEngine.SimResult(
+                3850, 80, 0.6,
+                "2026-05-20", null, null,
+                2500.0, 12.5, 6,          // heatForce / daysOverOpt → 热害
+                new SimEngine.Damage(0.25, 0.05, 0.02, 0.0),
+                100000, 150, 0.8, 120, 27.0, 0.0, 0.0,
+                List.of(0.1, 0.4, 0.6),
+                false, false, 5);          // vernalizationDays=5
+        SoilEngine.Result sr = soilResult(11.0, 3.0, 0.0, 0.0);
+
+        FarmInsightService.PhiInfo phi = new FarmInsightService.PhiInfo(
+                true, 1, 6, "稻瘟灵", 15);
+
+        List<FarmInsightService.Insight> list = FarmInsightService.insights(
+                WheatConfig.winterWheat(), r, sr, null, null, 4, 0.0, phi);
+
+        assertNotNull(find(list, FarmInsightService.C_SOIL_ROTATION),
+                "有土壤数据时，地力轮作概念必须出现");
+        assertNotNull(find(list, FarmInsightService.C_HEAT_STRESS),
+                "有超最适温天数时，热害概念必须出现");
+        assertNotNull(find(list, FarmInsightService.C_VERNALIZATION),
+                "越冬作物必须有春化概念");
+        assertNotNull(find(list, FarmInsightService.C_PHI),
+                "有 PHI 违规时，安全间隔期概念必须出现");
+    }
+
+    /**
+     * 🔴 <b>PHI 概念在「从未施药」时必须整条缺席</b>。
+     *
+     * <p>这是「缺数据 ≠ 零值」纪律：没施过药就没有 PHI 这回事，
+     * 显示一条「违规 0 次」的 PHI 解释是在编造一个不存在的问题。
+     */
+    @Test
+    @DisplayName("P2：从未施药时 PHI 概念整条缺席（不编造「违规 0 次」）")
+    void phiConceptAbsentWhenNeverSprayed() {
+        SimEngine.SimResult r = new SimEngine.SimResult(
+                3850, 80, 0.6,
+                "2026-05-20", null, null,
+                2500.0, 0.0, 0,
+                new SimEngine.Damage(0, 0, 0, 0),
+                100000, 150, 0.8, 120, 27.0, 0.0, 0.0,
+                List.of(0.1, 0.4, 0.6),
+                false, false, 0);
+        SoilEngine.Result sr = soilResult(11.0, 8.0, 0.0, 0.0);
+
+        List<FarmInsightService.Insight> list = FarmInsightService.insights(
+                RiceConfig.indicaMidSeason(), r, sr, null, null, 1, 0.0,
+                FarmInsightService.PhiInfo.NONE);
+
+        assertNull(find(list, FarmInsightService.C_PHI),
+                "从未施药却出现 PHI 解释 —— 那是编造了一个不存在的问题");
+    }
+
+    /**
+     * 🔴 <b>一季没遇到高温，热害概念整条缺席</b>。
+     *
+     * <p>同理：{@code daysOverOpt <= 0 && heatForce <= 0} 时
+     * 显示「热害 0 风险」等于凭空造了一个概念。
+     */
+    @Test
+    @DisplayName("P2：一季没遇到超最适温时热害概念整条缺席")
+    void heatStressConceptAbsentWithoutHeat() {
+        SimEngine.SimResult r = new SimEngine.SimResult(
+                3850, 80, 0.6,
+                "2026-05-20", null, null,
+                2500.0, 0.0, 0,
+                new SimEngine.Damage(0, 0, 0, 0),
+                100000, 150, 0.8, 120, 27.0, 0.0, 0.0,
+                List.of(0.1, 0.4, 0.6),
+                false, false, 0);
+        SoilEngine.Result sr = soilResult(11.0, 8.0, 0.0, 0.0);
+
+        List<FarmInsightService.Insight> list = FarmInsightService.insights(
+                RiceConfig.indicaMidSeason(), r, sr, null, null, 1, 0.0);
+
+        assertNull(find(list, FarmInsightService.C_HEAT_STRESS),
+                "没遇到高温却出现热害解释 —— 那是编造了一个不存在的问题");
+    }
+
+    /**
+     * 🔴 <b>4 个新概念的文案也必须过「四段式 + 可被 String.format 渲染」的关</b>。
+     *
+     * <p>新增概念容易只补数据不补文案检查 —— 结果就是某个分支里
+     * 少一个实参，运行时才炸。这里对 4 个概念逐个走一遍
+     * 「现象/量/原理/建议 都非空 + 不含花括号」。
+     */
+    @Test
+    @DisplayName("P2：4 个新概念的四段式文案齐全且可安全渲染")
+    void p2NewConceptsHaveCompleteSections() {
+        SimEngine.SimResult r = new SimEngine.SimResult(
+                3850, 80, 0.6,
+                "2026-05-20", null, null,
+                2500.0, 12.5, 6,
+                new SimEngine.Damage(0.25, 0.05, 0.02, 0.0),
+                100000, 150, 0.8, 120, 27.0, 0.0, 0.0,
+                List.of(0.1, 0.4, 0.6),
+                false, false, 5);
+        SoilEngine.Result sr = soilResult(11.0, 3.0, 0.0, 0.0);
+        FarmInsightService.PhiInfo phi = new FarmInsightService.PhiInfo(
+                true, 1, 6, "稻瘟灵", 15);
+
+        List<FarmInsightService.Insight> list = FarmInsightService.insights(
+                WheatConfig.winterWheat(), r, sr, null, null, 4, 0.0, phi);
+
+        String[] newConcepts = {
+                FarmInsightService.C_SOIL_ROTATION,
+                FarmInsightService.C_HEAT_STRESS,
+                FarmInsightService.C_VERNALIZATION,
+                FarmInsightService.C_PHI};
+
+        for (String cid : newConcepts) {
+            FarmInsightService.Insight ins = find(list, cid);
+            assertNotNull(ins, "概念 " + cid + " 必须出现");
+            assertFalse(ins.title().isBlank(), "标题不能为空：" + cid);
+            assertFalse(ins.observation().isBlank(), "现象段不能为空：" + cid);
+            assertFalse(ins.quantity().isBlank(), "量段不能为空：" + cid);
+            assertFalse(ins.principle().isBlank(), "原理段不能为空：" + cid);
+            assertFalse(ins.advice().isBlank(), "建议段不能为空：" + cid);
+            assertNotNull(ins.metrics(), "metrics 不能为 null：" + cid);
+            assertFalse(ins.metrics().isEmpty(), "metrics 不能为空：" + cid);
+            assertTrue(ins.severity() >= 0 && ins.severity() <= 5,
+                    "severity 必须落在 0..5，实际 " + ins.severity() + " @ " + cid);
+            assertNoBraces(ins.observation(), cid);
+            assertNoBraces(ins.quantity(), cid);
+            assertNoBraces(ins.principle(), cid);
+            assertNoBraces(ins.advice(), cid);
+            assertNoBraces(ins.title(), cid);
+        }
+    }
+
+    // ==================================================================
     //  工具
     // ==================================================================
+
+    /**
+     * 🔴 <b>4 个新概念必须带 0..1 的归一化指标</b>（2026-10-28 P2 收尾）。
+     *
+     * <p><b>为什么这是硬约束</b>：前端的进度条只认 0..1 的比值。
+     * 早期这 4 个概念只下发了绝对量（{@code sfi}=76、{@code soilCoef}=0.90、
+     * {@code vernalizationDays}=12、{@code phiDaysShort}=5），
+     * 于是前端要么画不出条，要么<b>自己编阈值</b>（如「地力 60 分算好」）——
+     * 后者等于<b>在前端复制一份农学口径</b>，迟早与后端分叉，
+     * 而且分叉后不会报错，只会悄悄显示错误的结论。
+     *
+     * <p>所以归一化必须在<b>后端</b>做完再下发，且分母全是引擎已有的量：
+     * <ul>
+     *   <li>{@code sfiRatio} = sfi / 100（地力指数的定义域上界）；</li>
+     *   <li>{@code soilCoefRatio} = (coef − 0.60) / 0.40（soilCoef 公式的定义域）；</li>
+     *   <li>{@code heatForceRatio} = heatForce / aatReq（引擎算发育加速的输入）；</li>
+     *   <li>{@code vernalizationRatio} = 已积累 / 需求（引擎算发育推进的输入）；</li>
+     *   <li>{@code phiShortRatio} = 缺口天数 / 该药要求间隔天数。</li>
+     * </ul>
+     */
+    @Test
+    @DisplayName("P2 收尾：4 个新概念都带 0..1 归一化指标（前端不用自己编阈值）")
+    void p2NewConceptsExposeNormalizedRatios() {
+        SimEngine.SimResult r = new SimEngine.SimResult(
+                3850, 80, 0.6,
+                "2026-05-20", null, null,
+                2500.0, 12.5, 6,
+                new SimEngine.Damage(0.25, 0.05, 0.02, 0.0),
+                100000, 150, 0.8, 120, 27.0, 0.0, 0.0,
+                List.of(0.1, 0.4, 0.6),
+                false, false, 5);
+        SoilEngine.Result sr = soilResult(11.0, 3.0, 0.0, 0.0);
+        FarmInsightService.PhiInfo phi = new FarmInsightService.PhiInfo(
+                true, 1, 6, "稻瘟灵", 15);
+
+        List<FarmInsightService.Insight> list = FarmInsightService.insights(
+                WheatConfig.winterWheat(), r, sr, null, null, 4, 0.0, phi);
+
+        // ---- 地力：sfiRatio 与 soilCoefRatio ----
+        FarmInsightService.Insight soil = find(list, FarmInsightService.C_SOIL_ROTATION);
+        assertNotNull(soil, "地力概念必须出现");
+        double sfi = soil.metrics().get("sfi");
+        double sfiRatio = soil.metrics().get("sfiRatio");
+        assertNotNull(sfiRatio, "地力概念缺少 sfiRatio —— 前端只能自己编阈值");
+        assertEquals(sfi / 100.0, sfiRatio, 1e-9,
+                "sfiRatio 必须等于 sfi/100（地力指数的定义域上界）");
+        double coef = soil.metrics().get("soilCoef");
+        double coefRatio = soil.metrics().get("soilCoefRatio");
+        assertNotNull(coefRatio, "地力概念缺少 soilCoefRatio");
+        assertEquals((coef - 0.60) / 0.40, coefRatio, 1e-9,
+                "soilCoefRatio 必须等于 (coef−0.60)/0.40（soilCoef 公式的定义域）");
+
+        // ---- 热害：heatForceRatio = heatForce / aatReq ----
+        FarmInsightService.Insight heat = find(list, FarmInsightService.C_HEAT_STRESS);
+        assertNotNull(heat, "热害概念必须出现");
+        double heatForceRatio = heat.metrics().get("heatForceRatio");
+        assertNotNull(heatForceRatio, "热害概念缺少 heatForceRatio");
+        // 🔴 SimResult 的字段顺序是 aatReq / days / dvs / sowDate / headingDate / matureDate /
+        //    aatCum / heatForce / daysOverOpt —— 这里 heatForce = 12.5，aatReq = 3850。
+        assertEquals(12.5 / 3850.0, heatForceRatio, 1e-9,
+                "heatForceRatio 必须等于 heatForce/aatReq（与引擎 f_dev_T 的输入一致）");
+
+        // ---- 春化：vernalizationRatio = 已积累 / 需求 ----
+        FarmInsightService.Insight vern = find(list, FarmInsightService.C_VERNALIZATION);
+        assertNotNull(vern, "春化概念必须出现");
+        double vernRatio = vern.metrics().get("vernalizationRatio");
+        assertNotNull(vernRatio, "春化概念缺少 vernalizationRatio");
+        // 小麦冬性品种 vernalizationDays 需求 > 0，引擎已积累 5 天
+        double vernDays = vern.metrics().get("vernalizationDays");
+        double vernReq = vern.metrics().get("vernalizationReq");
+        assertTrue(vernReq > 0, "小麦应有春化需求");
+        assertEquals(Math.min(1.0, vernDays / vernReq), vernRatio, 1e-9,
+                "vernalizationRatio 必须等于 已积累/需求（与引擎 vc 同一式子）");
+
+        // ---- PHI：phiShortRatio = 缺口 / 该药要求间隔 ----
+        FarmInsightService.Insight phiIns = find(list, FarmInsightService.C_PHI);
+        assertNotNull(phiIns, "PHI 概念必须出现");
+        double shortRatio = phiIns.metrics().get("phiShortRatio");
+        assertNotNull(shortRatio, "PHI 概念缺少 phiShortRatio");
+        assertEquals(6.0 / 15.0, shortRatio, 1e-9,
+                "phiShortRatio 必须等于 缺口天数/该药要求间隔天数");
+
+        // ---- 所有归一化键必须落在 0..1（前端进度条直接用它 ×100）----
+        String[] ratioKeys = {"sfiRatio", "soilCoefRatio", "heatForceRatio",
+                "vernalizationRatio", "phiShortRatio"};
+        String[] concepts = {
+                FarmInsightService.C_SOIL_ROTATION, FarmInsightService.C_HEAT_STRESS,
+                FarmInsightService.C_VERNALIZATION, FarmInsightService.C_PHI};
+        for (String cid : concepts) {
+            FarmInsightService.Insight ins = find(list, cid);
+            for (String k : ratioKeys) {
+                Double v = ins.metrics().get(k);
+                if (v == null) {
+                    continue;
+                }
+                assertTrue(v >= 0.0 && v <= 1.0,
+                        cid + " 的 " + k + " 必须落在 0..1，实际 " + v);
+            }
+        }
+    }
 
     private static FarmInsightService.Insight find(List<FarmInsightService.Insight> list,
                                                    String conceptId) {

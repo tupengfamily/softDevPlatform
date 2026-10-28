@@ -38,4 +38,14 @@ public interface FarmSeasonRepository extends JpaRepository<FarmSeason, Long> {
 
     /** 某农场的季节记录条数（用于详情页统计）。 */
     long countByUserIdAndFarmId(Long userId, Long farmId);
+
+    /**
+     * 某用户正常收获的季数（2026-10-28 P2，任务链「收完第一季」的判定依据）。
+     *
+     * <p>🔴 <b>口径只认 {@code HARVESTED}</b>：失败（枯死/绝收）与放弃（重开一季）
+     * <b>不算</b>「收完一季」。理由是这条任务要教玩家「完整走完一个生长季」，
+     * 绝收也是一种「走完了」，但不是「学会了怎么收」——
+     * 混进来会让任务在玩家失败时就自动完成，那是错的正反馈。
+     */
+    long countByUserIdAndStatus(Long userId, FarmSeason.Status status);
 }

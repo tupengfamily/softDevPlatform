@@ -3,6 +3,9 @@ package com.learning.springboot.farm;
 import com.learning.springboot.annotation.OperationLog;
 import com.learning.springboot.common.Result;
 import com.learning.springboot.farm.achievement.FarmAchievementService;
+import com.learning.springboot.farm.engine.InputCatalog;
+import com.learning.springboot.farm.learning.FarmLearningBridge;
+import com.learning.springboot.farm.learning.FarmTaskChain;
 import com.learning.springboot.security.CurrentUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -64,6 +67,21 @@ public class FarmController {
     /** 成就 / 目标层：成就列表 + 作物图鉴（纯函数算，无新增表） */
     @Autowired
     private FarmAchievementService achievementService;
+
+    /**
+     * 学习平台桥接（2026-10-28 P2）：农事实操 ↔ 农业科学课时进度。
+     *
+     * <p>🔴 <b>Controller 直连 repository/entity 是 DEBT-A 的白名单项</b> ——
+     * 但这里连的是 <b>Service</b>（{@code FarmLearningBridge}），不在 DEBT-A 范围内。
+     */
+    @Autowired
+    private FarmLearningBridge learningBridge;
+
+    /**
+     * 农场任务链（2026-10-28 P2）：系统预置待办 + 自动完成判定。
+     */
+    @Autowired
+    private FarmTaskChain taskChain;
 
     /** 当前农田状态（物候 / 天气 / 产量预览 / 今日变化 / 历史成绩） */
     @GetMapping("/state")
@@ -138,27 +156,40 @@ public class FarmController {
     }
 
     /**
-     * 购买农资入库（S25）。
+         * 购买农资入库（S25）。
      *
-     * <p>Body：{@code { itemId, qty, farmId? }}。{@code farmId} 缺省 = 全局库存。
+         * <p>Body：{@code { itemId, qty, farmId? }}。{@code farmId} 缺省 = 全局库存。
      *
-     * <p><b>为什么要有购买</b>：没有购买，农资库存只会单向减少，
-     * 用完就只能干看着——仓库就成了只读清单。买了才知道「该不该囤」。
-     */
+         * <p><b>为什么要有购买</b>：没有购买，农资库存只会单向减少，
+         * 用完就只能干看着——仓库就成了只读清单。买了才知道「该不该囤」。
+     *
+         * <p>🔴 2026-10-28：原先这里直接调 {@code stockService.buy}，
+         * <b>绕过了钱包扣款</b> —— 玩家点仓库的「补货」按钮可以无限量白拿
+         * 化肥/农药/种子，直接击穿「买入扣钱」的资金流口径。
+         * 现在统一走 {@code shopService.buy}（购买的唯一入口）：
+         * 扣钱、校验「已拥有」、单位换算全部只有一份实现。
+         *
+         * <p>⚠️ <b>qty 的单位变了</b>：现在按<b>售卖单位</b>（水=份、种子=包、化肥=kg），
+         * 而不是原来的入库单位（水=次、种子=亩）。前端「补货」弹窗
+         * 必须按售卖单位提交，否则买 1 份水会变成 20 次的钱。
+         */
     @PostMapping("/warehouse/stocks/buy")
     @OperationLog(module = "娱乐", action = "购买农资")
     public ResponseEntity<?> buyStock(@RequestBody(required = false) Map<String, Object> body,
                                       @CurrentUser Long userId) {
         Map<String, Object> b = body == null ? Map.of() : body;
         String itemId = b.get("itemId") == null ? null : String.valueOf(b.get("itemId"));
+        if (itemId == null) {
+            throw new com.learning.springboot.exception.BusinessException("itemId 不能为空");
+        }
         Double qty = b.get("qty") == null ? null : ((Number) b.get("qty")).doubleValue();
         Long farmId = b.get("farmId") == null ? null : ((Number) b.get("farmId")).longValue();
-        FarmStock s = stockService.buy(userId, itemId, qty == null ? 0 : qty, farmId);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("itemId", s.getItemId());
-        out.put("itemName", s.getItemName());
-        out.put("quantity", s.getQuantity());
-        out.put("unit", s.getUnit());
+        Map<String, Object> out = shopService.buy(userId, itemId, qty == null ? 1 : qty, farmId);
+        // 🔴 仓库补货弹窗要显示「买到了多少库存 + 什么单位」——
+        // shopService.buy 返回的是「售卖单位」口径，这里补上库存口径。
+        out.put("quantity", out.get("qty"));
+        out.put("unit", InputCatalog.get(itemId) == null
+                ? "" : InputCatalog.get(itemId).stockUnit());
         return Result.ok("购买成功", out);
     }
 
@@ -466,5 +497,47 @@ public class FarmController {
     public ResponseEntity<?> insight(@RequestParam(defaultValue = "0") int slot,
                                      @CurrentUser Long userId) {
         return Result.ok(farmService.insights(userId, slot));
+    }
+
+    // ==================== 农业科学概念卡（2026-10-28 P2） ====================
+
+    /**
+     * 农业科学概念卡的解锁状态（8 个概念）。
+     *
+     * <p>🔴 <b>这个端点是「实操即课时」的读侧</b>：玩家在农场做完一个动作，
+     * 对应概念的课时进度就前进一格；这个端点把 8 张卡的状态一次性返回，
+     * 前端在农场页显示「这 8 张卡我解锁了几张」。
+     *
+     * <p>🔴 <b>口径与课程树一致</b>：解锁 = 该概念的课时全部学完。
+     * 不另立一套「解锁条件」—— 否则农场页说「已解锁」、
+     * 学习看板说「还有 2 节没学」，玩家看到两个矛盾的答案。
+     *
+     * <p>🔴 <b>文案在后端</b>：返回结构化数据 + 中文原文，
+     * 英文界面由前端按 {@code conceptId} 查 i18n（与 {@code /insight} 同一模式）。
+     */
+    @GetMapping("/concepts")
+    public ResponseEntity<?> concepts(@CurrentUser Long userId) {
+        return Result.ok(learningBridge.conceptCards(userId));
+    }
+
+    /**
+     * 农场任务链（2026-10-28 P2）：预置 + 刷新 + 返回。
+     *
+     * <p>🔴 <b>为什么「预置」也放在这个读端点里</b>：
+     * 预置的触发时机是「玩家第一次进农场」，而这个端点正好是
+     * 「玩家在看农场」时必然调用的接口 —— 不需要额外的写操作、不需要前端多跑一步。
+     * 预置本身幂等，所以重复调用只是空转。
+     *
+     * <p>🔴 <b>刷新（按真实数据重算完成状态）也在这里</b>：
+     * 判定依据是数据库里的客观事实，不依赖调用顺序 ——
+     * 少调一次刷新不会让任务卡死，下次进农场会重算。
+     *
+     * @return 任务链列表，每条含 id / taskType / title / priority / status / done
+     */
+    @GetMapping("/tasks")
+    public ResponseEntity<?> tasks(@CurrentUser Long userId) {
+        taskChain.ensureChain(userId);
+        taskChain.refresh(userId);
+        return Result.ok(taskChain.chainView(userId));
     }
 }

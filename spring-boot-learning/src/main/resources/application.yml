@@ -80,9 +80,28 @@ spring:
 # 这里不配置 sql.init,避免与 JPA 初始化竞争。
 
 # ============== 沙箱数据源(教学库,独立文件) ==============
+# 🔴 2026-10-28：这里的 url 是**本项目唯一实际生效**的数据源地址。
+#
+# 为什么写这么一段：
+#   项目只声明了一个 DataSource Bean（SandboxDataSourceConfig 的 sandboxDataSource），
+#   于是 Spring Boot 的 DataSourceAutoConfiguration 触发 @ConditionalOnMissingBean(DataSource.class)
+#   → **主数据源 spring.datasource.* 整段不生效**（没有 MainHikariPool）。
+#   也就是说：yml 里写的 SPRING_DATASOURCE_URL 覆盖能力，
+#   之前挂在一条**根本不会被实例化**的配置上 —— 是死配置。
+#
+#   后果（2026-10-28 实测踩到）：
+#   本项目用 ${user.dir} 解析库路径，从模块目录启动时 user.dir=spring-boot-learning/
+#   → 连到 spring-boot-learning/data/sandbox.db —— 那是早期残骸库（492 列，
+#     缺 create_time/update_time），不是根目录下的活动库（500 列）。
+#   → Hibernate 误判「缺列」→ 执行 ADD COLUMN ... NOT NULL → SQLite 拒绝
+#     (Cannot add a NOT NULL column with default value NULL) → 迁移中断 → 启动失败。
+#   表现极具迷惑性：代码没改、库也没坏，只是「今天突然起不来了」。
+#
+# 现在两段统一走 SPRING_DATASOURCE_URL，且默认值都以**仓库根目录**为基准，
+# 覆盖能力落在真正生效的那一段上。
 sandbox:
   datasource:
-    url: jdbc:sqlite:${user.dir}/data/sandbox.db
+    url: ${SPRING_DATASOURCE_URL:jdbc:sqlite:${user.dir}/data/sandbox.db}
     driver-class-name: org.sqlite.JDBC
     pool-size: 2    # 沙箱教学库,SQLite 文件锁串行写,2 个连接足够(降低锁竞争)
 
