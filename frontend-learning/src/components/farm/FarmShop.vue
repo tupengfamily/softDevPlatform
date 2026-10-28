@@ -83,8 +83,11 @@
                   <!-- 农资：还能施几遍 -->
                   <span v-else>{{ t('farm.shop.dosesLeft', { n: it.doses || 0 }) }}</span>
 
+                  <!-- 🔴 2026-10-28：种子的「已有 N」单位是**亩**不是「包」——
+                       库存量记的是能播多少亩（1 包 = N 亩）。 -->
                   <span class="sc-owned" :class="{ zero: !it.owned }">
                     {{ t('farm.shop.ownedN', { n: it.owned || 0 }) }}
+                    <em v-if="it.kind === 'SEED'" class="sc-unit">{{ it.stockUnit || '亩' }}</em>
                   </span>
                 </div>
 
@@ -484,6 +487,8 @@ onMounted(load)
 }
 
 .sc-owned { color: #7ee0a0; }
+/* 种子库存单位是「亩」，跟着「已有 N」显示 */
+.sc-unit { font-style: normal; font-size: 11px; opacity: 0.8; margin-left: 1px; }
 .sc-owned.zero { color: #7d9b86; }
 
 .sc-buy {

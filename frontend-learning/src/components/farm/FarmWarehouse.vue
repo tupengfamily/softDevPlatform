@@ -290,11 +290,18 @@
                   </span>
                   <span class="c-qty">{{ it.quantity }} {{ it.unit }}</span>
                   <span class="c-grade">
-                    <b class="doses">{{ it.dosesLeft }} {{ t('farm.warehouse.doseTimes') }}</b>
+                    <!-- 🔴 2026-10-28：种子不是「按剂量施用」，「还能施几遍」对它无意义。
+                         改显示「可播 N 亩」——这才是玩家真正要看的（还能种几块地）。 -->
+                    <b v-if="it.kind === 'SEED'" class="doses">
+                      {{ t('farm.warehouse.coversMu', { mu: it.coversMu || 0 }) }}
+                    </b>
+                    <b v-else class="doses">{{ it.dosesLeft }} {{ t('farm.warehouse.doseTimes') }}</b>
                   </span>
                   <span class="c-life">
                     <b>¥{{ it.value }}</b>
-                    <em class="aged">{{ t('farm.warehouse.unitPriceOf', { p: it.pricePerUnit, u: it.unit }) }}</em>
+                    <!-- 🔴 单价单位用「售卖单位」（¥/包、¥/份），不是库存单位（亩、次）——
+                         两者不同，混用会显示成「单价 ¥28/亩」（实际是 ¥28/包，可播 5 亩）。 -->
+                    <em class="aged">{{ t('farm.warehouse.unitPriceOf', { p: it.pricePerUnit, u: it.sellUnit || it.unit }) }}</em>
                   </span>
                   <span class="c-op">
                     <button class="wh-sell buy" :disabled="busy" @click="openBuy(it)">
@@ -314,7 +321,7 @@
       <div v-if="buyTarget" class="wh-buy-mask" @click.self="buyTarget = null">
         <div class="wh-buy">
           <h3>{{ buyTarget.itemName }}</h3>
-          <p class="bw-hint">{{ t('farm.warehouse.buyHint', { p: buyTarget.pricePerUnit, u: buyTarget.unit }) }}</p>
+          <p class="bw-hint">{{ t('farm.warehouse.buyHint', { p: buyTarget.pricePerUnit, u: buyTarget.sellUnit || buyTarget.unit }) }}</p>
           <div class="bw-row">
             <el-input-number
               v-model="buyQty"
@@ -324,7 +331,9 @@
               :precision="buyTarget.unit === 'kg' ? 1 : 0"
               controls-position="right"
             />
-            <span class="bw-unit">{{ buyTarget.unit }}</span>
+            <!-- 🔴 2026-10-28：数量单位一律用「售卖单位」（水=份、种子=包）——
+                 库存单位（次、亩）与售卖单位不同，混用会把价格显示错 N 倍。 -->
+            <span class="bw-unit">{{ buyTarget.sellUnit || buyTarget.unit }}</span>
             <span class="bw-cost">{{ t('farm.warehouse.total') }} ¥{{ buyCost }}</span>
           </div>
           <p v-if="buyTarget.note" class="bw-note">{{ buyTarget.note }}</p>
@@ -443,6 +452,8 @@ const stockSpent = computed(() => data.inputs?.totalCost || 0)
 
 const buyCost = computed(() => {
   if (!buyTarget.value) return 0
+  // 🔴 2026-10-28：数量单位已统一为「售卖单位」，直接单价 × 数量即可。
+  // （原先种子按「亩」计价会贵 N 倍 —— ¥28/包被当成 ¥28/亩。）
   return Math.round((buyTarget.value.pricePerUnit || 0) * (buyQty.value || 0) * 100) / 100
 })
 
@@ -529,9 +540,27 @@ async function sell(cropId, kg) {
  * （= quantity / doseOpt），把它乘回 doseOpt 得到的还是现有库存，
  * 而「还能施几遍」和「每遍用量」是两个不同量纲，混用会算出 9999 这种
  * 荒谬的默认购买量。默认购买量必须由 `doseOpt`（每遍用量）直接推。
+ *
+ * <p>🔴 2026-10-28：种子不走「每遍用量」这条路（它不是按剂量施用的）。
+ * 种子的默认量按「够种 10 亩」算，再换算成包数（1 包 = packMu 亩）。
+ *
+ * <p>🔴 <b>数量单位一律是「售卖单位」</b>（水=份、种子=包、化肥=kg、农药=g/ml）。
+ * 后端 {@code /warehouse/stocks/buy} 的 qty 已统一为售卖单位
+ * （原先是入库单位，两处语义不一致 —— 已修）。
  */
 function openBuy(it) {
   buyTarget.value = it
+  if (it.kind === 'SEED') {
+    const packMu = it.packMu || 1
+    // 够种 10 亩 → 需要几包（向上取整）
+    buyQty.value = Math.max(1, Math.ceil(10 / packMu))
+    return
+  }
+  if (it.kind === 'WATER') {
+    // 水按「份」卖（1 份 = packSize 次灌溉）—— 默认买 2 份
+    buyQty.value = 2
+    return
+  }
   const per = it.doseOpt || 0
   const unitIsKg = it.unit === 'kg'
   // 施 10 遍的量；向上取整到 kg→0.1 精度，g/ml→整数

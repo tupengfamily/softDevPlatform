@@ -280,3 +280,27 @@ export const getFarmWallet = () =>
  */
 export const getFarmAchievements = () =>
   request({ url: '/games/farm/achievements', method: 'get' })
+
+// ==================== 农业科学学习（P2：实操即课时） ====================
+
+/**
+ * 8 张农业科学概念卡 + 各自的课时进度。
+ *
+ * 🔴 口径说明（前端展示时必须遵守）：
+ * - `unlocked` = 该概念的课时**全部学完**（与课程树「章节完成」口径一致），
+ *   不是「有没有做过某个农事动作」—— 否则农场页说「已解锁」、
+ *   学习看板说「还有 2 节没学」，玩家看到两个矛盾的答案。
+ * - `learnedPercent` 分母是**该概念下的课时数**，不是全平台课时数。
+ * - `hasLessons=false` 表示课程种子没同步到（此时不渲染该卡，不显示 0%）。
+ */
+export const getFarmConcepts = () =>
+  request({ url: '/games/farm/concepts', method: 'get' })
+
+/**
+ * 农场任务链：预置 + 刷新 + 返回。
+ *
+ * 🔴 这个端点**同时做预置和状态重算**，所以它是幂等的 ——
+ * 反复调用不会插出重复任务，完成状态按数据库里的真实数据重算。
+ */
+export const getFarmTasks = () =>
+  request({ url: '/games/farm/tasks', method: 'get' })

@@ -151,6 +151,12 @@ function sevBand (severity) {
  *
  * <p>🔴 <b>没有进度条的指标就不画</b>：画一根 0% 的空条等于说「这项是 0」，
  * 而「没有这项数据」与「这项是 0」是两回事（本项目反复踩过的坑）。
+ *
+ * <p>🔴 <b>前端不自己算比值</b>：后端 {@code FarmInsightService} 已经把
+ * 「地力多少算好」「春化完成度多少」这些口径算好并下发了
+ * {@code sfiRatio / soilCoefRatio / vernalizationRatio / heatForceRatio / phiShortRatio}。
+ * 前端若自己拼分母（例如「地力 60 分算好」），就是<b>在前端复制一份农学口径</b>，
+ * 迟早与后端分叉，而且分叉后<b>不会报错</b>，只会悄悄给出错误结论。
  */
 const METRIC_BARS = {
   AAT: [
@@ -169,7 +175,63 @@ const METRIC_BARS = {
   WATER: [
     { key: 'droughtLoss', label: 'farm.insight.metric.droughtLoss', pct: (m) => clampPct(m.droughtLoss * 100), text: (m) => fmtLoss(m.droughtLoss) },
     { key: 'waterlogLoss', label: 'farm.insight.metric.waterlogLoss', pct: (m) => clampPct(m.waterlogLoss * 100), text: (m) => fmtLoss(m.waterlogLoss) }
+  ],
+  // 🔴 地力与轮作：两个归一化量都来自后端（sfi/100、(coef−0.60)/0.40）。
+  //    「连作季数」是计数不是比值 —— 不画进度条（画了就得在前端定「几季算多」的阈值）。
+  SOIL_ROTATION: [
+    { key: 'sfiRatio', label: 'farm.insight.metric.sfi', pct: (m) => clampPct(m.sfiRatio * 100), text: (m) => fmtNum(m.sfi) },
+    { key: 'soilCoefRatio', label: 'farm.insight.metric.soilCoef', pct: (m) => clampPct(m.soilCoefRatio * 100), text: (m) => fmtNum(m.soilCoef) }
+  ],
+  // 🔴 热害：worstHeatLoss 是损失类（越大越糟）；heatForceRatio 是「高温强迫量占需求积温的比例」——
+  //    它越大代表发育被加速得越多（提前成熟），但**过热本身是风险**，
+  //    所以按「风险类」着色（越大越红），而不是按「进度类」着色。
+  HEAT_STRESS: [
+    { key: 'worstHeatLoss', label: 'farm.insight.metric.worstHeatLoss', pct: (m) => clampPct(m.worstHeatLoss * 100), text: (m) => fmtLoss(m.worstHeatLoss) },
+    { key: 'heatForceRatio', label: 'farm.insight.metric.heatForceRatio', pct: (m) => clampPct(m.heatForceRatio * 100), text: (m) => fmtPct(m.heatForceRatio * 100) }
+  ],
+  // 🔴 春化：vernalizationRatio = 已积累/需求（进度类，越接近满越好）。
+  //    「冻死」是布尔事实，不画成进度条 —— 0/1 的条没有进度语义。
+  VERNALIZATION: [
+    { key: 'vernalizationRatio', label: 'farm.insight.metric.vernalization', pct: (m) => clampPct(m.vernalizationRatio * 100), text: (m) => fmtPct(m.vernalizationRatio * 100) }
+  ],
+  // 🔴 PHI：phiShortRatio = 缺口天数/该药要求间隔天数（越大越糟）。
+  //    priceFactor 是折价系数（0.85），是结果不是进度，不画条。
+  PHI: [
+    { key: 'phiShortRatio', label: 'farm.insight.metric.phiShort', pct: (m) => clampPct(m.phiShortRatio * 100), text: (m) => fmtPct(m.phiShortRatio * 100) }
   ]
+}
+
+/**
+ * 指标的方向（决定进度条颜色）。
+ *
+ * <p>🔴 <b>为什么不能靠键名猜方向</b>：
+ * 早期实现用「键名含 loss 就越大越糟」判定，{@code worstHeatLoss} 恰好被正确识别，
+ * 但 {@code heatForceRatio} 若也按同一规则会被当成「进度类」着色 ——
+ * 而它其实是<b>风险量</b>（高温强迫得越多越危险）。
+ * 方向必须逐个指标显式声明，不能靠命名猜。
+ *
+ * <ul>
+ *   <li>{@code 'gain'} —— 进度类：越大越好（绿）；</li>
+ *   <li>{@code 'loss'} —— 损失类：越大越糟（红）；</li>
+ *   <li>{@code 'risk'} —— 风险类：越大越糟（红），语义是「偏离正常」而非「已损失」。</li>
+ * </ul>
+ */
+const METRIC_DIRECTION = {
+  aatProgress: 'gain',
+  nRatio: 'gain',
+  nSat: 'gain',
+  lossPanicle: 'loss',
+  lossFloret: 'loss',
+  lossFertility: 'loss',
+  lossWeight: 'loss',
+  droughtLoss: 'loss',
+  waterlogLoss: 'loss',
+  sfi: 'gain',
+  soilCoef: 'gain',
+  worstHeatLoss: 'loss',
+  heatForceRatio: 'risk',
+  vernalization: 'gain',
+  phiShort: 'loss'
 }
 
 function barsOf (ins) {
@@ -183,15 +245,16 @@ function barsOf (ins) {
     if (!Number.isFinite(v)) continue
     const pct = s.pct(m)
     const label = t(s.label)
+    const dir = METRIC_DIRECTION[s.key] || 'gain'
     out.push({
       key: s.key,
       label: label === s.label ? s.key : label,
       pct,
       text: s.text(m),
-      // 损失类指标：值越大越糟 → 红；进度类：越接近满越好 → 绿
-      tone: s.key.startsWith('loss') || s.key.endsWith('Loss')
-        ? (pct >= 30 ? 'bad' : pct >= 10 ? 'warn' : 'ok')
-        : (pct >= 90 ? 'ok' : pct >= 60 ? 'info' : 'warn')
+      // 损失类 / 风险类：值越大越糟 → 红；进度类：越接近满越好 → 绿
+      tone: dir === 'gain'
+        ? (pct >= 90 ? 'ok' : pct >= 60 ? 'info' : 'warn')
+        : (pct >= 30 ? 'bad' : pct >= 10 ? 'warn' : 'ok')
     })
   }
   return out
@@ -214,6 +277,19 @@ function fmtLoss (v) {
   if (!Number.isFinite(n)) return '—'
   if (n <= 0.0005) return '0.0%'
   return '−' + (n * 100).toFixed(1) + '%'
+}
+
+/**
+ * 保留一位小数的原始数值（用于「地力 76.0 分 / 系数 0.9」这类带量纲的展示）。
+ *
+ * <p>🔴 进度条画的是**归一化后的比例**，但**文字要显示原始量** ——
+ * 显示「76%」会让玩家以为地力是 76%，而地力指数的定义域是 0–100 分，
+ * 量纲完全不同（这与「积温进度 61%」是两回事）。
+ */
+function fmtNum (v) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '—'
+  return n.toFixed(1)
 }
 </script>
 

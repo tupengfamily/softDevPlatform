@@ -454,6 +454,24 @@
             <FarmInsightPanel :insights="state.insights" />
           </section>
 
+          <!-- 🔴 2026-10-28 P2：任务链（非阻塞式引导） -->
+          <section class="fb-card fb-task">
+            <div class="panel-head">
+              <h3>🎯 {{ $t('farm.task.title') }}</h3>
+              <span class="muted">{{ taskDoneCount }}/{{ farmTasks.length }}</span>
+            </div>
+            <FarmTaskChain :tasks="farmTasks" />
+          </section>
+
+          <!-- 🔴 2026-10-28 P2：农业科学概念卡（实操即课时的进度落点） -->
+          <section class="fb-card fb-concept">
+            <div class="panel-head">
+              <h3>📘 {{ $t('farm.concept.title') }}</h3>
+              <span class="muted">{{ $t('farm.concept.hint') }}</span>
+            </div>
+            <FarmConceptCards :cards="farmConcepts" @open="openConcept" />
+          </section>
+
           <!-- 水稻工序链（S10） -->
           <section class="fb-card fm-chain">
             <div class="chain-head">
@@ -711,16 +729,26 @@ import FarmAchievement from '../../components/farm/FarmAchievement.vue'
 import FarmQuality from '../../components/farm/FarmQuality.vue'
 import FarmWorldMap from '../../components/farm/FarmWorldMap.vue'
 import FarmInsightPanel from '../../components/farm/FarmInsightPanel.vue'
+// 🔴 2026-10-28 P2：任务链 + 农业科学概念卡
+import FarmTaskChain from '../../components/farm/FarmTaskChain.vue'
+import FarmConceptCards from '../../components/farm/FarmConceptCards.vue'
 import { phenoStageKeyOf } from '../../components/farm/scene/config.js'
 import { sanitizeHtml } from '../../utils/markdown'
 import { getLeaderboard } from '../../api/game'
 import { readFarmContext, writeFarmContext, clearFarmContext } from '../../utils/farmContext'
+// 🔴 2026-10-28：作物派生函数收进 utils/farmCrops.js（唯一实现）。
+import { shortCrop as shortCropRaw } from '../../utils/farmCrops'
+// 🔴 2026-10-28：病虫害名回退模板已统一到 utils/farmLabels.js
+// （原来本文件的 pestName() 与 FarmAttributionPanel.vue 的 pestLabel() 各写一份）。
+import { pestLabelOf } from '../../utils/farmLabels'
 import { useNotificationStore } from '../../store/notification'
 import {
   getFarmState, listFarmPlots, advanceFarm, harvestFarm, restartFarm,
   mockFarmWeather, listFarmMockWeather, resetFarmMockWeather,
   performFarmAction, listFarmActions, closeFailedFarmSeason,
-  getFarmWarehouse, getFarmBoard, getFarmShop
+  getFarmWarehouse, getFarmBoard, getFarmShop,
+  // 🔴 2026-10-28 P2：任务链 + 概念卡
+  getFarmTasks, getFarmConcepts
 } from '../../api/farm'
 
 const router = useRouter()
@@ -802,6 +830,62 @@ const warehouseWarn = ref(0)
 
 /** S26 成就 / 图鉴面板开关 */
 const achievementOpen = ref(false)
+
+/**
+ * 🔴 2026-10-28 P2：农场任务链（引导）+ 农业科学概念卡（实操即课时）。
+ *
+ * <p>两个数据源都是<b>后端算好的</b>：
+ * <ul>
+ *   <li>任务链 = 系统预置待办，完成状态由后端按真实数据重算；</li>
+ *   <li>概念卡 = 8 个概念的课时进度，解锁口径与学习看板一致。</li>
+ * </ul>
+ * 前端只渲染，<b>不做任何本地判定</b> —— 本地判定会产生第二个口径，
+ * 而「玩家做对了事却看到两个矛盾的答案」是最伤信任的失败方式。
+ */
+const farmTasks = ref([])
+const farmConcepts = ref([])
+const taskDoneCount = computed(() => farmTasks.value.filter(t => t.done).length)
+
+/** 静默刷新任务链与概念卡（失败不影响农场主流程）。 */
+async function refreshLearningProgress() {
+  try {
+    const [taskRes, conceptRes] = await Promise.all([
+      getFarmTasks(),
+      getFarmConcepts()
+    ])
+    farmTasks.value = taskRes?.data || []
+    farmConcepts.value = conceptRes?.data || []
+  } catch (e) {
+    // 学习进度是锦上添花，取不到不能影响种田
+    farmTasks.value = []
+    farmConcepts.value = []
+  }
+}
+
+/**
+ * 打开某个概念的课时。
+ *
+ * <p>🔴 <b>直达具体课时，而不是跳科目首页</b>：概念卡已经指明了
+ * 「这一概念」，玩家想看的就是<b>这一概念的课时</b>。
+ * 跳到学习中心首页还要自己在农业科学科目下翻章节 —— 多余的一次寻找。
+ *
+ * <p>🔴 <b>「哪一节该学」由后端算</b>（{@code nextLessonId}）：
+ * 「学没学」和「下一节是谁」是同一份学习状态的两个出口，
+ * 前端自己挑会多出一份判断逻辑，迟早与后端的解锁口径分叉。
+ *
+ * <p>课时详情页会按课时自身的 subjectId 自动加载对应科目，
+ * 所以这里只需要带 lessonId，不需要额外切科目。
+ */
+function openConcept(c) {
+  const lessonId = c?.nextLessonId
+  if (!lessonId) {
+    // 后端没给课时 id = 这个概念还没有课时（课程种子没同步）。
+    // 此时退回学习中心，而不是跳到一个空路由。
+    router.push('/learning')
+    return
+  }
+  router.push(`/learning/lesson/${lessonId}`)
+}
 
 /**
  * 🔴 **画质设置面板开关**（2026-10-26 画质分级）
@@ -1041,10 +1125,14 @@ const cropVisual = computed(() => state.value?.plot?.visual || 'rice')
  */
 const sceneKey = computed(() => `${cropVisual.value}#${sceneRebuildToken.value}`)
 
-/** 作物全名太长，切换条上只留主名（去掉括号里的品种说明） */
+/**
+ * 作物全名太长，切换条上只留主名（去掉括号里的品种说明）
+ *
+ * <p>🔴 2026-10-28：实现收进 {@code utils/farmCrops.js} 的 {@code shortCrop}
+ * （原来有 5 份拷贝，兜底值各不相同：{@code ''} / {@code '—'} / {@code '空地'}）。
+ */
 function shortCrop(name) {
-  if (!name) return '空地'
-  return String(name).split(/[（(]/)[0]
+  return shortCropRaw(name, '空地')
 }
 
 // ---------------- 地块切换条：滚动导航 ----------------
@@ -1650,6 +1738,9 @@ async function load() {
     refreshWarehouseBadge()
     // 🔴 需求 R：商店角标（缺种子 / 缺水）+ 余额——同样静默
     refreshShopBadge()
+    // 🔴 2026-10-28 P2：任务链 + 概念卡——同样静默刷新，不打断主流程。
+    // 任务链的完成状态由后端按真实数据重算，所以每次刷新都能拿到最新进度。
+    refreshLearningProgress()
     // 切换条：等 DOM 出来再同步滚动位置与余量
     await nextTick()
     onRailScroll()
@@ -1912,9 +2003,7 @@ const pestAlert = computed(() => {
 })
 
 function pestName(p) {
-  const key = 'farm.pestName.' + p.id
-  const v = t(key)
-  return v === key ? p.name : v
+  return pestLabelOf(p, t)
 }
 
 const SOIL_LEVEL = { FLOODED: 5, WET: 4, MOIST: 3, DRY: 2, DROUGHT: 1 }

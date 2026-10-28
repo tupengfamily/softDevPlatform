@@ -151,7 +151,14 @@ export default {
     'todo.msg.updated': '已更新',
     'todo.msg.deleted': '已删除',
     'todo.remove.confirm': '确定删除待办「{title}」?',
-    'todo.remove.title': '删除确认'
+    'todo.remove.title': '删除确认',
+    // 🔴 2026-10-28 P2 收尾：系统任务与玩家自建待办分区
+    'todo.system.title': '农场任务链',
+    'todo.system.hint': '做完农事自动完成，不能手动勾选或删除',
+    'todo.system.empty': '暂无农场任务（进入农场后会自动生成）',
+    'todo.system.tag': '系统任务',
+    'todo.system.done': '已自动完成',
+    'todo.mine.title': '我的待办'
   },
   'en-US': {
     // ===== Learning Center =====
@@ -302,6 +309,13 @@ export default {
     'todo.msg.updated': 'Updated',
     'todo.msg.deleted': 'Deleted',
     'todo.remove.confirm': 'Delete todo "{title}"?',
-    'todo.remove.title': 'Confirm Delete'
+    'todo.remove.title': 'Confirm Delete',
+    // 🔴 2026-10-28 P2 收尾：系统任务与玩家自建待办分区
+    'todo.system.title': 'Farm Task Chain',
+    'todo.system.hint': 'Completed automatically by farm work; cannot be checked or deleted manually',
+    'todo.system.empty': 'No farm tasks yet (they are created when you enter the farm)',
+    'todo.system.tag': 'System Task',
+    'todo.system.done': 'Auto-completed',
+    'todo.mine.title': 'My Todos'
   }
 }
