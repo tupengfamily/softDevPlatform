@@ -1042,6 +1042,25 @@ import {
   getMapTdtStatus, searchMapPlaces, reverseGeocode, tdtTilePath, probeMapTdtTile
 } from '../../api/map'
 import { isHarvestable } from '../../utils/farmLabels'
+// 🔴 2026-10-28：作物常量与派生函数收进 utils/farmCrops.js（唯一实现）。
+import {
+  CROP_COLOR, CROP_NAME, LEGEND_CROPS,
+  cropColor, cropName, shortCrop, plotDotState
+} from '../../utils/farmCrops'
+// 🔴 2026-10-28：投影与几何计算抽到 map/geo.js —— 纯函数、零 Vue 依赖。
+// 投影基准 K 是全局常量（不随显示哪一层而变），一旦出现第二份就会分叉。
+import {
+  PROJ, DEG_PER_UNIT,
+  worldX, worldY, invWorldX, invWorldY,
+  ringPath, featurePath,
+  shade, shadeA,
+  geometryBbox, pointInRing, pointInGeometry, bboxHit
+} from './map/geo'
+// 🔴 2026-10-28：量算的数学部分抽到 map/measure.js —— 纯函数、零 Vue 依赖。
+// 落点/清除/模式切换这些要动组件状态的交互仍留在组件里。
+import {
+  EARTH_R, haversine, shoelaceArea, formatDistance, formatArea
+} from './map/measure'
 import FarmOverviewPanel from './FarmOverviewPanel.vue'
 
 // 🔴 2026-10-27：本组件整体仍是硬编码中文（6712 行，i18n 化是独立任务），
@@ -1264,175 +1283,13 @@ function seasonStatusText(status) {
   return SEASON_STATUS_TEXT[status] || status || '—'
 }
 
-/**
- * 作物 → 图例颜色。
- *
- * ⚠️ 2026-10-24：从 8 个通用形态族扩到 **22 种作物专属颜色**。
- *
- * 约束：**同族作物不能撞色** —— 茄子/番茄/辣椒/草莓都属茄果族，
- * 但它们必须一眼能分开（茄子偏紫、番茄红、辣椒深红、草莓玫红）。
- * 存量旧值（leafy/vine/bush/flower/millet/tuber/tree）**保留原色**，
- * 因为存量数据里仍可能出现这些值。
- */
-const CROP_COLOR = {
-  // ---- 粮食（保持原值）----
-  rice: '#5aa654',
-  wheat: '#c9a441',
-  corn: '#cf8536',
-  soybean: '#87944a',
-  // ---- 粮食·新增：谷子（黄绿，比大豆更黄）----
-  millet: '#9aa84e',
 
-  // ---- 蔬菜 ----
-  // 大白菜：黄绿偏亮
-  cabbage: '#7fc45c',
-  // 萝卜：青绿（根菜，叶色偏深）
-  radish: '#5fae52',
-  // 番茄：正红
-  tomato: '#c8563f',
-  // 辣椒：深红（比番茄更暗更红）
-  chili: '#a83b30',
-  // 茄子：紫红（茄果族里唯一偏紫的）
-  eggplant: '#8e4a72',
-  // 豆角：嫩绿（荚菜，叶色偏亮）
-  yardlong_bean: '#4f9e5c',
-  // 黄瓜：翠绿（瓜类）
-  cucumber: '#3f9e72',
-
-  // ---- 水果 ----
-  // 草莓：玫红（浆果，与番茄红要能分开）
-  strawberry: '#d05a72',
-  // 西瓜：深绿（瓜类，比黄瓜深）
-  watermelon: '#2f8259',
-  // 甜瓜：浅黄绿（厚皮甜瓜，色偏暖）
-  melon: '#7ab469',
-  // 葡萄：紫（藤果）
-  grape: '#7a5a9e',
-  // 梨：橄榄绿（仁果）
-  pear: '#6f8f3f',
-
-  // ---- 花卉 ----
-  // 菊花：淡紫（切花菊常见白/紫/黄，紫最好认）
-  // ⚠️ 不能用金黄 —— 冬小麦已经是 #c9a441，图例里两个作物同色会看错
-  chrysanthemum: '#a878c8',
-  // 向日葵：亮黄橙
-  sunflower: '#e0b83a',
-  // 郁金香：粉红
-  tulip: '#d4788e',
-  // 月季：深玫红
-  rose: '#b83f66',
-
-  // ---- 块茎 ----
-  // 马铃薯：土黄褐（地上部是绿的，但收的是地下块茎，
-  // 用一个偏土的色把「根茎类」和「叶菜类」区分开）
-  potato: '#b08d57',
-
-  // ---- 存量旧形态族（保留原色与原名，存量数据仍可能出现）----
-  leafy: '#7fc45c',
-  vine: '#3f9e72',
-  bush: '#c8563f',
-  flower: '#a06bbf',
-  tuber: '#b08d57',
-  tree: '#6f8f3f',
-
-  none: '#33452f'
-}
-
-/**
- * 作物 → 中文名。
- *
- * ⚠️ 同 CROP_COLOR：22 种作物各有名字，旧的 4 族名保留兼容存量数据。
- */
-const CROP_NAME = {
-  // ---- 粮食 ----
-  rice: '水稻', wheat: '冬小麦', corn: '玉米', soybean: '大豆',
-  millet: '谷子',
-  // ---- 蔬菜 ----
-  cabbage: '大白菜', tomato: '番茄', cucumber: '黄瓜', chili: '辣椒',
-  eggplant: '茄子', yardlong_bean: '豆角', radish: '萝卜',
-  // ---- 水果 ----
-  strawberry: '草莓', watermelon: '西瓜', melon: '甜瓜', grape: '葡萄', pear: '梨',
-  // ---- 花卉 ----
-  chrysanthemum: '菊花', sunflower: '向日葵', tulip: '郁金香', rose: '月季',
-  // ---- 块茎 ----
-  potato: '马铃薯',
-  // ---- 存量旧形态族（保留原名）----
-  leafy: '叶菜', vine: '瓜类', bush: '茄果', flower: '花卉',
-  tuber: '块茎', tree: '仁果'
-}
-
-/**
- * 作物 id → 形态族（用于取颜色）。
- *
- * ⚠️ 2026-10-24：后端 `visual` 的语义变了 —— 园艺作物的 visual 现在是**作物 id**
- * （cabbage / grape / rose …），不再是 leafy/vine/bush/flower 这类通用族。
- *
- * ⚠️ 这里做的是**单向**归族（旧 id → 族），且**不再用于颜色**——
- * 22 种作物现在各有专属颜色（CROP_COLOR 里直接就有 22 个 key），
- * 归族只在「取旧族的颜色」时用得上，存量旧值本身就在 CROP_COLOR 里。
- */
-const CROP_FAMILY = {
-  rice_mid: 'rice', wheat_winter: 'wheat', corn_spring: 'corn', soybean: 'soybean',
-  millet: 'millet',
-  cabbage: 'cabbage', radish: 'radish',
-  tomato: 'tomato', chili: 'chili', eggplant: 'eggplant', strawberry: 'strawberry',
-  cucumber: 'cucumber', watermelon: 'watermelon', melon: 'melon', yardlong_bean: 'yardlong_bean',
-  potato: 'potato',
-  grape: 'grape', pear: 'pear',
-  chrysanthemum: 'chrysanthemum', sunflower: 'sunflower', tulip: 'tulip', rose: 'rose',
-  // 存量旧形态族 → 代表作物（与 scene/config.js 的 LEGACY_VISUAL 保持一致）
-  leafy: 'cabbage', vine: 'cucumber', bush: 'tomato', flower: 'chrysanthemum'
-}
-
-/**
- * visual → 颜色。
- *
- * 解析顺序：作物 id 直接命中 → 旧 id 归族 → 兜底到「无作物」的土褐色。
- * 认不出来时兜底到「无作物」的土褐色。
- */
-function cropColor(visual) {
-  if (!visual) return CROP_COLOR.none
-  if (CROP_COLOR[visual]) return CROP_COLOR[visual]
-  const fam = CROP_FAMILY[visual]
-  if (fam && CROP_COLOR[fam]) return CROP_COLOR[fam]
-  return CROP_COLOR.none
-}
-
-/** visual → 中文名。 */
-function cropName(visual) {
-  if (!visual) return '—'
-  if (CROP_NAME[visual]) return CROP_NAME[visual]
-  const fam = CROP_FAMILY[visual]
-  if (fam && CROP_NAME[fam]) return CROP_NAME[fam]
-  return visual
-}
-
-/**
- * 图例：**只列 22 种新作物**。
- *
- * ⚠️ 不能把旧的 leafy/vine/bush/flower 也列进来 —— 那会让图例出现
- * 「叶菜」和「大白菜」两条几乎同色的项，看起来像 bug。
- * 旧值只在数据层保留兼容（颜色/名字表里还在），不进图例。
- */
-const LEGEND_CROPS = [
-  'rice', 'wheat', 'corn', 'soybean', 'millet',
-  'cabbage', 'tomato', 'cucumber', 'chili', 'eggplant', 'yardlong_bean', 'radish',
-  'strawberry', 'watermelon', 'melon', 'grape', 'pear',
-  'chrysanthemum', 'sunflower', 'tulip', 'rose',
-  'potato'
-]
-const cropLegend = computed(() =>
-  LEGEND_CROPS.map((k) => ({ id: k, name: CROP_NAME[k], color: CROP_COLOR[k] }))
-)
-const totalPlots = computed(() =>
-  allFarms.value.reduce((a, f) => a + (f.plotCount || 0), 0) + unassignedPlots.value.length
-)
-
-const markerR = 5.5
-
-function shortCrop(name) {
-  return name ? String(name).split(/[（(]/)[0] : ''
-}
+// 🔴 2026-10-28：作物常量表（CROP_COLOR / CROP_NAME / CROP_FAMILY /
+// LEGACY_VISUAL / LEGEND_CROPS）与 cropColor / cropName / shortCrop
+// 已全部收进 utils/farmCrops.js（唯一实现）。
+// 原因：这些表曾在 4 个文件各写一份且已分叉 —— 最典型的是
+// cropColor() 的兜底色，地图用 #33452f、概览面板用 #8ba07c，
+// 同一个 visual 在两个界面显示成两种颜色。
 
 function seasonText(c) {
   if (c.seasonState === 'TO_SOW') return `${c.daysToSow} 天后播种`
@@ -1445,173 +1302,10 @@ function seasonText(c) {
 //  投影：全局固定的 Web Mercator（EPSG:3857）
 // ==================================================================
 
-/**
- * 为什么用墨卡托而不是等距圆柱：
- * ① 墨卡托是世界标准地理底图投影，任何开放地图瓦片（天地图/高德/OSM）都能
- *    直接落在同一坐标系上，矢量区划与卫星影像天然对齐，不需要两套变换；
- * ② 点选命中、标记定位、缩放锚点都共用一套坐标，不会出现「点江西命中新疆」。
- *
- * <p><b>关键设计：投影基准是固定的，不随当前显示哪一层而变。</b>
- * 旧实现每次切换「全国视图 / 省视图」都会用那批数据的 bbox 重算 K，
- * 于是省视图和全国视图是两套坐标系，缩放只能放大陆省界，永远看不到区县。
- * 现在全国、省、区县共用同一个 K：
- * <ul>
- *   <li>全国适配 = zoom 1；</li>
- *   <li>放大到 zoom N = 视野宽度变成 1/N，坐标永远连续；</li>
- *   <li>区县图层作为独立图层叠加在省图层上，边界严丝合缝。</li>
- * </ul>
- *
- * <p>基准范围取中国陆域主体（73°–136°E，18°–54°N）：南海诸岛按实测经纬度
- * 远在 3.8°N，若把它算进基准 bbox 会把整张地图纵向拉长近一半，缩放手感全废。
- * 岛礁本身仍按真实坐标绘制，平移到南方能看到——所以平移边界按「世界范围」
- * 而不是「基准范围」来夹。
- */
-function worldX(lng) {
-  return (lng + 180) / 360
-}
-
-function worldY(lat) {
-  const r = (lat * Math.PI) / 180
-  return 0.5 - Math.log(Math.tan(Math.PI / 4 + r / 2)) / (2 * Math.PI)
-}
-
-function invWorldX(wx) {
-  return wx * 360 - 180
-}
-
-function invWorldY(wy) {
-  return (Math.atan(Math.sinh(Math.PI * (1 - 2 * wy))) * 180) / Math.PI
-}
-
-const PROJ = (() => {
-  const minLng = 73.0
-  const maxLng = 136.0
-  const minLat = 18.0
-  const maxLat = 54.0
-  const wx0 = worldX(minLng)
-  const wy0 = worldY(maxLat)
-  const W = 1000
-  const K = W / (worldX(maxLng) - wx0)
-  const H = (worldY(minLat) - wy0) * K
-  // 世界范围：向下延伸到南海诸岛（3.8°N），保证平移能看见它们
-  const worldH = (worldY(3.8) - wy0) * K
-  return {
-    base: { w: W, h: H },
-    world: { w: W, h: worldH },
-    K,
-    wx0,
-    wy0,
-    project: (lng, lat) => [(worldX(lng) - wx0) * K, (worldY(lat) - wy0) * K],
-    unproject: (x, y) => [invWorldX(x / K + wx0), invWorldY(y / K + wy0)]
-  }
-})()
-
-/** 1 个 SVG 单位对应多少度经度 */
-const DEG_PER_UNIT = 360 / PROJ.K
-
-function ringPath(ring, project) {
-  let d = ''
-  for (let i = 0; i < ring.length; i++) {
-    const [x, y] = project(ring[i][0], ring[i][1])
-    d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1)
-  }
-  return d + 'Z'
-}
-
-/** 同色区县之间做 ±7% 亮度微扰，避免整省糊成一个色块（纯视觉，不改变语义） */
-function shade(hex, k) {
-  if (!hex || hex[0] !== '#') return hex
-  const n = parseInt(hex.slice(1), 16)
-  const r = Math.min(255, Math.round(((n >> 16) & 255) * k))
-  const g = Math.min(255, Math.round(((n >> 8) & 255) * k))
-  const b = Math.min(255, Math.round((n & 255) * k))
-  return `rgb(${r}, ${g}, ${b})`
-}
-
-/**
- * 同 shade，但带 alpha。
- *
- * <p>卫星/地形底图下，区县色块必须是半透明的，否则实色块会把航拍影像整片盖住。
- * fill 是 inline 绑定的，CSS 的 fill-opacity 覆盖不掉，所以透明度只能在这里算出来。
- */
-function shadeA(hex, k, alpha) {
-  if (!hex || hex[0] !== '#') return hex
-  const n = parseInt(hex.slice(1), 16)
-  const r = Math.min(255, Math.round(((n >> 16) & 255) * k))
-  const g = Math.min(255, Math.round(((n >> 8) & 255) * k))
-  const b = Math.min(255, Math.round((n & 255) * k))
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
-
-function featurePath(geom, project) {
-  if (!geom) return ''
-  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates
-  let d = ''
-  for (const poly of polys) {
-    for (const ring of poly) {
-      if (ring.length >= 3) d += ringPath(ring, project)
-    }
-  }
-  return d
-}
-
-function geometryBbox(geom) {
-  let minLng = 180
-  let maxLng = -180
-  let minLat = 90
-  let maxLat = -90
-  const walk = (c) => {
-    if (typeof c[0] === 'number') {
-      if (c[0] < minLng) minLng = c[0]
-      if (c[0] > maxLng) maxLng = c[0]
-      if (c[1] < minLat) minLat = c[1]
-      if (c[1] > maxLat) maxLat = c[1]
-      return
-    }
-    for (const x of c) walk(x)
-  }
-  walk(geom.coordinates)
-  return { minLng, maxLng, minLat, maxLat }
-}
-
-/** 射线法：点是否落在多边形内（含内环挖洞判定） */
-function pointInRing(lng, lat, ring) {
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0]
-    const yi = ring[i][1]
-    const xj = ring[j][0]
-    const yj = ring[j][1]
-    if ((yi > lat) !== (yj > lat) &&
-        lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
-      inside = !inside
-    }
-  }
-  return inside
-}
-
-function pointInGeometry(lng, lat, geom) {
-  if (!geom) return false
-  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates
-  for (const poly of polys) {
-    if (!poly.length) continue
-    if (!pointInRing(lng, lat, poly[0])) continue
-    let hole = false
-    for (let k = 1; k < poly.length; k++) {
-      if (pointInRing(lng, lat, poly[k])) {
-        hole = true
-        break
-      }
-    }
-    if (!hole) return true
-  }
-  return false
-}
-
-function bboxHit(a, b) {
-  return !(a.maxLng < b.minLng || a.minLng > b.maxLng ||
-           a.maxLat < b.minLat || a.minLat > b.maxLat)
-}
+// 🔴 2026-10-28：投影与几何计算已抽到 components/farm/map/geo.js（纯函数，零 Vue 依赖）。
+// 抽出来的原因不是「文件太长」，而是这些函数根本不依赖组件 ——
+// 一旦出现第二份投影，「点江西命中新疆」这类 bug 立刻回来。
+// 详细设计说明见 geo.js 的文件头注释。
 
 // ==================================================================
 //  缩放 / 平移
@@ -2811,10 +2505,9 @@ const cropDistLegend = computed(() => {
  * 后端已有 {@code GeoUtil}（Haversine 距离 + Shoelace 面积），但没暴露 HTTP 端点。
  * 测量是纯本地交互，每次点一下都打一次网络往返既慢又没意义，
  * 所以前端自己算 —— 公式与后端一致（都是 Haversine / Shoelace）。
+ *
+ * 🔴 2026-10-28：计算部分已抽到 map/measure.js（纯函数）。这里只留交互。
  */
-
-/** 地球平均半径（米）—— 与后端 GeoUtil 保持一致 */
-const EARTH_R = 6371008.8
 
 /** 测量模式：null | 'distance' | 'area' */
 const measureMode = ref(null)
@@ -2835,88 +2528,8 @@ const lastMeasureClick = { t: 0, x: 0, y: 0 }
 const measureR = 4.5
 
 /**
- * 两点球面距离（Haversine）。
- *
- * @param {number} lon1 起经度
- * @param {number} lat1 起纬度
- * @param {number} lon2 止经度
- * @param {number} lat2 止纬度
- * @returns {number} 距离（米）
+ * 两点球面距离（Haversine）、多边形面积、格式化 —— 已抽到 map/measure.js。
  */
-function haversine(lon1, lat1, lon2, lat2) {
-  const toRad = (d) => (d * Math.PI) / 180
-  const dLat = toRad(lat2 - lat1)
-  const dLon = toRad(lon2 - lon1)
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return EARTH_R * c
-}
-
-/**
- * 多边形面积（Shoelace + Web Mercator 局部修正）。
- *
- * <p>直接在经纬度上做 Shoelace 会得到「度²」，必须换算成面积单位。
- * 这里用 Web Mercator 投影（与本地图坐标系一致）算多边形的有符号面积，
- * 再乘以该纬度处的墨卡托缩放因子 {@code cos(lat)} 的平方还原到真实面积：
- * <pre>
- *   真实面积 = 墨卡托面积 × cos²(中心纬度)
- * </pre>
- * 这是 Web Mercator 面积计算的常规修正手法，在小区尺度（几公里）内误差 &lt; 0.1%。
- *
- * @param {Array<{lng:number, lat:number}>} pts 多边形顶点（经纬度）
- * @returns {number} 面积（平方米）
- */
-function shoelaceArea(pts) {
-  if (!pts || pts.length < 3) return 0
-  // 投影到 Web Mercator 的「米」空间（EPSG:3857 球面半径按地球半径缩放）
-  const merc = pts.map((p) => {
-    const r = (p.lat * Math.PI) / 180
-    return {
-      x: EARTH_R * p.lng * Math.PI / 180,
-      y: EARTH_R * Math.log(Math.tan(Math.PI / 4 + r / 2))
-    }
-  })
-  let sum = 0
-  for (let i = 0; i < merc.length; i++) {
-    const a = merc[i]
-    const b = merc[(i + 1) % merc.length]
-    sum += a.x * b.y - b.x * a.y
-  }
-  const mercArea = Math.abs(sum) / 2
-  // 中心纬度：面积修正因子
-  const cLat = pts.reduce((a, p) => a + p.lat, 0) / pts.length
-  const k = Math.cos((cLat * Math.PI) / 180)
-  return mercArea * k * k
-}
-
-/** 距离格式化：小于 1km 用米，否则用公里 */
-function formatDistance(m) {
-  if (!Number.isFinite(m)) return '—'
-  if (m < 1000) return `${m.toFixed(1)} 米`
-  return `${(m / 1000).toFixed(3)} 公里`
-}
-
-/**
- * 面积格式化：同时给亩 / 平方米 / 公顷三种口径。
- *
- * <p><b>永远返回对象，不返回裸字符串</b>：调用方会直接读 `.text` / `.sub`，
- * 而 String.prototype 上有个遗留的 `sub()` 方法（HTML 的 <sub> 标签）——
- * 一旦这里返回字符串 `'—'`，`measureResult.sub` 取到的就不是文案，
- * 而是 `function sub() { [native code] }` 这段原生函数源码。
- */
-function formatArea(sqm) {
-  if (!Number.isFinite(sqm) || sqm <= 0) {
-    return { text: '—', sub: '面积过小或无效' }
-  }
-  const mu = sqm / 666.6667   // 1 亩 = 666.667 m²
-  return {
-    text: `${mu.toFixed(2)} ${t('farm.unit.mu')}`,
-    sub: `${sqm.toFixed(0)} 平方米 · ${(sqm / 10000).toFixed(3)} 公顷`
-  }
-}
 
 /** 折线 / 多边形的 SVG points 属性 */
 const measureLinePoints = computed(() => {
@@ -2955,7 +2568,7 @@ const measureReadout = computed(() => {
   }
   if (pts.length < 3) return { x: last.x, y: last.y, text: '继续加点' }
   const a = shoelaceArea(pts.map((p) => ({ lng: p.lng, lat: p.lat })))
-  return { x: last.x, y: last.y, text: formatArea(a).text }
+  return { x: last.x, y: last.y, text: formatArea(a, t('farm.unit.mu')).text }
 })
 
 /** 切换测量模式 */
@@ -3011,7 +2624,7 @@ function updateMeasureResult() {
     return
   }
   const a = shoelaceArea(pts.map((p) => ({ lng: p.lng, lat: p.lat })))
-  measureResult.value = formatArea(a)
+  measureResult.value = formatArea(a, t('farm.unit.mu'))
 }
 
 /**
@@ -4350,18 +3963,25 @@ function onFarmCardLeave() {
  */
 const busyPlot = ref(-1)
 
-/** 地块状态分档（与右侧面板的 dotClass 同一套口径） */
+/**
+ * 地块状态分档 → CSS 类名（带 `pc-` 前缀）。
+ *
+ * <p>🔴 2026-10-28：判定逻辑收进 {@code utils/farmCrops.js} 的
+ * {@code plotDotState}（与 FarmOverviewPanel / FarmBoard 同一套口径），
+ * 这里只负责加 CSS 前缀。
+ */
 function plotDotClass(p) {
-  if (!p.chosen) return 'idle'
-  if (isHarvestable(p)) return 'ready'
-  const d = p.dvs || 0
-  if (d > 0) return 'grow'
-  return 'sown'
+  return 'pc-' + plotDotState(p)
 }
 
-/** 作物名去掉括号注释：「水稻（中稻/一季稻）」→「水稻」 */
+/**
+ * 作物名去掉括号注释：「水稻（中稻/一季稻）」→「水稻」
+ *
+ * <p>🔴 2026-10-28：实现收进 {@code utils/farmCrops.js} 的 {@code shortCrop}
+ * （原来有 5 份拷贝，兜底值各不相同）。
+ */
 function plotCropShort(name) {
-  return name ? String(name).split(/[（(]/)[0] : ''
+  return shortCrop(name)
 }
 
 /**

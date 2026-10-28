@@ -159,6 +159,8 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getFarmBoard } from '../../api/farm'
 import { isHarvestable } from '../../utils/farmLabels'
+// 🔴 2026-10-28：作物常量与派生函数收进 utils/farmCrops.js（唯一实现）。
+import { shortCrop as shortCropRaw, plotDotState } from '../../utils/farmCrops'
 
 defineProps({
   busy: { type: Boolean, default: false }
@@ -180,13 +182,32 @@ function toggle(key) {
   else openSet.add(key)
 }
 
+/**
+ * 作物短名（去括号注释）。
+ *
+ * <p>🔴 2026-10-28：实现收进 {@code utils/farmCrops.js} 的 {@code shortCrop}
+ * （原来有 5 份拷贝，兜底值各不相同：{@code ''} / {@code '—'} / {@code '空地'}）。
+ */
 function shortCrop(name) {
-  return name ? String(name).split(/[（(]/)[0] : '—'
+  return shortCropRaw(name, '—')
 }
 
+/**
+ * 地块状态分档 → CSS 类名。
+ *
+ * <p>🔴 2026-10-28：判定收进 {@code utils/farmCrops.js} 的 {@code plotDotState}
+ * （与 FarmWorldMap / FarmOverviewPanel 同一套口径），这里只做类名映射。
+ *
+ * <p>⚠️ 原来这个函数<b>少了 {@code sown} 档</b>（已播种未出苗）：
+ * 地图上显示蓝色小点，看板上却是灰色 —— 同一块地两个界面两个颜色。
+ * 现在补上 {@code d-sown}（样式见下方 CSS）。
+ */
 function dotClass(p) {
-  if (!p.chosen) return 'd-empty'
-  return isHarvestable(p) ? 'd-ready' : 'd-grow'
+  const s = plotDotState(p)
+  if (s === 'idle') return 'd-empty'
+  if (s === 'ready') return 'd-ready'
+  if (s === 'grow') return 'd-grow'
+  return 'd-sown'
 }
 
 function stageTag(p) {
@@ -399,6 +420,10 @@ defineExpose({ reload: load })
   vertical-align: 1px;
 }
 .d-empty { background: #c3cbc0; }
+/* 🔴 2026-10-28：补上「已播种未出苗」档（原来缺这一档，
+   地图上是蓝点、看板上是灰点，同一块地两个界面两个颜色）。
+   颜色与 FarmWorldMap 的 .pc-sown 保持一致（rgba(110,160,210,0.8)）。 */
+.d-sown { background: rgba(110, 160, 210, 0.8); }
 .d-grow { background: #63a34a; }
 .d-ready { background: #d8a520; }
 

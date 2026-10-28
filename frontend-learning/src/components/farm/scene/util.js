@@ -180,6 +180,142 @@ export function makeRowShadeTexture(THREE, low = 0.55) {
   return t
 }
 
+/**
+ * 径向地面（圆盘）：**XZ 平面上的极坐标网格 + 平面（世界投影）UV**。
+ *
+ * 🔴 **2026-10-29 支持 360°：地面必须从矩形变成圆盘**。
+ *
+ *   原来地面是 `PlaneGeometry(240, 200)`（x ∈ ±120，z ∈ ±100），
+ *   而远景农田 / 树带 / 远山**全部集中在 -z 方向**（单向纵深布局）。
+ *   一旦允许相机转到背面（+z 方向），那里**根本没有地面** ——
+ *   视线穿过空洞直接打到天空球下半球（100% 雾色填充），
+ *   就是 2026-10-28 刚修掉的「农场周边一片白」那个 bug 的同型复发。
+ *
+ *   所以地面必须**圆盘化**：任意方位角上都有地。
+ *
+ * ⚠️ **为什么不能直接用 `RingGeometry`**（three 实测结论）：
+ *
+ *   `RingGeometry` 的 UV 是**极坐标**（u 随角度、v 随半径），
+ *   贴图会被拉成螺旋状的花纹 —— 草地是实拍平铺贴图，
+ *   螺旋 UV 下一眼就是"贴图被拧了"，比矩形地面的平铺感更假。
+ *   `CircleGeometry` 虽是平面 UV，但**只有一圈顶点**（无径向细分），
+ *   顶点位移做不出起伏、光照也平。
+ *
+ *   所以这里自己建网格：**位置在 XZ 平面（无需旋转）**，
+ *   UV 按世界坐标线性投影（`(x+R)/(2R)`）→ 贴图严格按世界尺度平铺，
+ *   与原来的矩形草地**同一套 repeat 语义**（每 N 米一块贴图）。
+ *
+ * @param {number} radius   圆盘半径（米）
+ * @param {number} rings    径向细分圈数（越多，起伏与光照越细腻）
+ * @param {number} segments 周向分段数（越多，圆周越平滑）
+ * @returns {THREE.BufferGeometry} 位置已摆在 XZ 平面（y=0），法线朝 +y
+ */
+export function makeRadialGround(THREE, radius, rings = 34, segments = 96) {
+  const R = Math.max(1, radius)
+  const nr = Math.max(1, rings | 0)
+  const ns = Math.max(3, segments | 0)
+  const pos = []
+  const uv = []
+  const idx = []
+
+  // 中心点
+  pos.push(0, 0, 0)
+  uv.push(0.5, 0.5)
+  for (let r = 1; r <= nr; r++) {
+    const rr = (R * r) / nr
+    for (let s = 0; s < ns; s++) {
+      const a = (s / ns) * Math.PI * 2
+      const x = Math.sin(a) * rr
+      const z = Math.cos(a) * rr
+      pos.push(x, 0, z)
+      // 🔴 **UV 必须是平面投影**（世界坐标线性映射到 [0,1]），
+      //   不能用极坐标 —— 否则贴图被拧成螺旋。
+      uv.push((x + R) / (R * 2), (z + R) / (R * 2))
+    }
+  }
+  // 中心扇面
+  //
+  // 🔴 **绕向必须是「正面朝上」（2026-10-29 实测确认）**：
+  //   three 的 `computeVertexNormals` 用 `cb = C-B, ab = A-B, n = cb×ab`，
+  //   所以三角形索引顺序直接决定法线朝向。
+  //   实测（6432 个三角形）：下面这套顺序 → 顶点法线 (0,1,0)、
+  //   面法线 6336 个朝上；反过来写则**全部朝下**。
+  //   法线朝下时草地会被背面剔除掉 → 又变成"田外没地面"。
+  for (let s = 0; s < ns; s++) {
+    idx.push(0, 1 + ((s + 1) % ns), 1 + s)
+  }
+  // 环与环之间
+  for (let r = 1; r < nr; r++) {
+    const base = 1 + (r - 1) * ns
+    const next = 1 + r * ns
+    for (let s = 0; s < ns; s++) {
+      const sn = (s + 1) % ns
+      idx.push(base + s, next + s, base + sn)
+      idx.push(base + sn, next + s, next + sn)
+    }
+  }
+
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setIndex(idx)
+  g.computeVertexNormals()
+  return g
+}
+
+/**
+ * 地面微起伏（作用在 {@link makeRadialGround} 产出的几何体上）。
+ *
+ * 🔴 **2026-10-29：位移轴向约定已变，务必读**。
+ *
+ *   旧实现作用在 `PlaneGeometry` 上，而 `PlaneGeometry` 的顶点躺在 **XY 平面**
+ *   （z 恒为 0），必须靠 `rotation.x = -π/2` 旋到世界 XZ 平面：
+ *     局部 x → 世界 x、局部 y → 世界 -z（深度）、局部 z → 世界 +y（高度）
+ *   于是「写高度」要写 `arr[o+2]`；2026-10-28 那个「草地塌缩成 0.16m 窄条」
+ *   的生产 bug 就是写成了 `arr[o+1]`（深度方向）。
+ *
+ *   现在地面由 {@link makeRadialGround} **直接生成在世界 XZ 平面**（y 就是高度），
+ *   不再需要任何旋转 —— 轴向陷阱从根上消失：
+ *     位置 (x, y, z)：x 横向、y 高度、z 深度
+ *   所以高度写 `arr[o + 1]`，与直觉一致。
+ *
+ *   ⚠️ 如果将来又改回"先建 XY 平面再旋转"的写法，
+ *      **必须同步改回 arr[o+2]** —— 两套约定不能混用。
+ *
+ * @param {THREE.BufferGeometry} geo   makeRadialGround 的产物
+ * @param {object} [opts]
+ * @param {number} [opts.avoidX=0]     避开区中心 x
+ * @param {number} [opts.avoidZ=-8.5]  避开区中心 z
+ * @param {number} [opts.avoidRx=13.5] 避开区 x 半轴
+ * @param {number} [opts.avoidRz=20]   避开区 z 半轴
+ * @returns {THREE.BufferGeometry}
+ */
+export function displaceGround(geo, opts = {}) {
+  const avoidX = opts.avoidX ?? 0
+  const avoidZ = opts.avoidZ ?? -8.5
+  const avoidRx = opts.avoidRx ?? 13.5
+  const avoidRz = opts.avoidRz ?? 20
+  const pos = geo.getAttribute('position')
+  const arr = pos.array
+  for (let i = 0; i < pos.count; i++) {
+    const o = i * 3
+    const x = arr[o]
+    const z = arr[o + 2]   // 深度方向
+    const d1 = Math.sin(x * 0.1337 + z * 0.0913) * 0.060
+    const d2 = Math.sin(x * 0.4831 - z * 0.3721 + 1.7) * 0.025
+    // 避开主田：椭圆距离 → 0~1 的权重（1 = 完全位移，0 = 不动）
+    const dx = (x - avoidX) / avoidRx
+    const dz = (z - avoidZ) / avoidRz
+    const dist = Math.sqrt(dx * dx + dz * dz)
+    const w = Math.max(0, Math.min(1, (dist - 1) / 0.55))
+    // 🔴 高度 = 局部 y（几何体已直接摆在 XZ 平面，无需旋转）
+    arr[o + 1] = (d1 + d2) * w * w
+  }
+  pos.needsUpdate = true
+  geo.computeVertexNormals()
+  return geo
+}
+
 /** 带 UV 重复次数的 Box（田埂、田边路） */
 export function boxWithUV(THREE, w, h, d, repX = 2, repY = 1) {
   const g = new THREE.BoxGeometry(w, h, d)

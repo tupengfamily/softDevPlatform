@@ -171,6 +171,73 @@ export function cropLabelOf (e, isEn) {
 }
 
 /* ================================================================== *
+ * 1.5 农业区
+ * ================================================================== */
+
+/**
+ * 农业区 id → 双语名（**只有后端真实存在的 4 个区**）。
+ *
+ * <p>🔴 2026-10-28：口径对齐后端 {@code ClimateModel.ZONES} ——
+ * 它只注册了 4 个区：江南 / 华南 / 黄淮海 / 东北。
+ *
+ * <p>⚠️ FieldSetup.vue 原来硬编码了 <b>8 个</b>区（含西南 / 西北 / 青藏 / 高原），
+ * 那 4 个是<b>幻觉区</b> —— 后端根本不存在，永远匹配不上，
+ * 只会在兜底分支里把 id 原样吐出来。已删除。
+ *
+ * <p>⚠️ 区名是<b>跨界面共用</b>的名称（选地面板、归因面板都要用），
+ * 属于「游戏内所有界面共用」而非某一面板专用文案 —— 所以放这里，
+ * 而不是塞进某个组件的局部常量。
+ */
+export const ZONE_NAME = {
+  jiangnan: { zh: '江南', en: 'Jiangnan' },
+  huanan: { zh: '华南', en: 'South China' },
+  huanghuaihai: { zh: '黄淮海', en: 'Huang-Huai-Hai' },
+  dongbei: { zh: '东北', en: 'Northeast' }
+}
+
+/**
+ * 农业区 id → 显示名（**唯一出口**）。
+ *
+ * <p>🔴 2026-10-28：原来有<b>两份</b> {@code zoneNameOf()}：
+ * <ul>
+ *   <li>FieldSetup.vue —— 硬编码 8 个中文名，<b>英文界面漏中文「江南」</b>；</li>
+ *   <li>FarmAttributionPanel.vue —— 走 i18n（{@code farm.zoneName.*}），
+ *       但 i18n 只覆盖 4 个区，且查不到时把 id 原样吐出来。</li>
+ * </ul>
+ * 两者<b>数据源不同、行为不同</b> —— 同一屏上「江南」和「jiangnan」可能同时出现。
+ *
+ * <p><b>解析顺序</b>：
+ * <ol>
+ *   <li>i18n 的 {@code farm.zoneName.<id>} —— <b>随界面语言变化</b>，
+ *       英文界面走这条拿英文名；</li>
+ *   <li>内置双语表 {@link ZONE_NAME} —— 没传 t 时的按语言兜底；</li>
+ *   <li>后端下发的区名（{@code zones[].name}，中文）；</li>
+ *   <li>兜底：id 原样返回（<b>不猜、不编造</b>）。</li>
+ * </ol>
+ *
+ * ⚠️ i18n <b>必须在后端名之前</b>：后端下发的 {@code name} 永远是中文，
+ * 若它优先，英文界面照样会露「江南」—— 那正是本次要修的 bug。
+ *
+ * @param {string} id 农业区 id
+ * @param {function} [t] i18n 的 t 函数（可选；不传则只用内置表）
+ * @param {string} [fallbackName] 后端下发的区名
+ * @param {boolean} [isEn=false] 当前是否英文界面（只影响内置表兜底）
+ * @returns {string}
+ */
+export function zoneNameOf (id, t, fallbackName, isEn = false) {
+  if (!id) return ''
+  if (typeof t === 'function') {
+    const key = 'farm.zoneName.' + id
+    const v = t(key)
+    if (v && v !== key) return v
+  }
+  const z = ZONE_NAME[id]
+  if (z) return isEn ? z.en : z.zh
+  if (fallbackName) return fallbackName
+  return id
+}
+
+/* ================================================================== *
  * 2. 病虫害
  * ================================================================== */
 
@@ -257,6 +324,57 @@ export function parsePestHit (p) {
 /* ================================================================== *
  * 3. 灾害
  * ================================================================== */
+
+/**
+ * 病虫害/灾害的显示名（**统一出口**）。
+ *
+ * <p>🔴 2026-10-28：原来有<b>两份</b>几乎相同的回退模板：
+ * <ul>
+ *   <li>GameFarm.vue 的 {@code pestName(p)} —— 回退 {@code p.name}；</li>
+ *   <li>FarmAttributionPanel.vue 的 {@code pestLabel(p)} —— 回退
+ *       {@code p.name || p.id}（多了个 id 兜底），{@code disasterLabel(d)} 同理。</li>
+ * </ul>
+ * 两份的差异只是「回退到 name 还是 name||id」—— 语义相同，<b>必然分叉</b>。
+ *
+ * <p><b>解析顺序</b>：
+ * <ol>
+ *   <li>i18n 的 {@code farm.pestName.<id>} / {@code farm.disasterName.<type>} —— 随语言变化；</li>
+ *   <li>后端下发的中文名（{@code name}）；</li>
+ *   <li>id / type 原样（<b>不猜、不编造</b>）。</li>
+ * </ol>
+ *
+ * @param {object} p 病虫害记录（需含 id / name）
+ * @param {function} t i18n 的 t 函数
+ * @returns {string}
+ */
+export function pestLabelOf (p, t) {
+  if (!p) return ''
+  if (!p.id) return p.name || ''
+  if (typeof t === 'function') {
+    const key = 'farm.pestName.' + p.id
+    const v = t(key)
+    if (v && v !== key) return v
+  }
+  return p.name || p.id
+}
+
+/**
+ * 灾害的显示名（**统一出口**，见 {@link pestLabelOf}）。
+ *
+ * @param {object} d 灾害记录（需含 type / name）
+ * @param {function} t i18n 的 t 函数
+ * @returns {string}
+ */
+export function disasterLabelOf (d, t) {
+  if (!d) return ''
+  if (!d.type) return d.name || ''
+  if (typeof t === 'function') {
+    const key = 'farm.disasterName.' + d.type
+    const v = t(key)
+    if (v && v !== key) return v
+  }
+  return d.name || d.type
+}
 
 /**
  * 灾害中文名 → 类型标识的反查表（4 种，与后端 {@code DisasterEngine} 一致）。

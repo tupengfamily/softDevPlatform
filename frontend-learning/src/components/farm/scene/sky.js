@@ -288,8 +288,27 @@ export function makeSkyTexture(cfg, sunAz = -0.62, sunEl = 0.735, resW = 1024, r
  *
  * 原来的 `Math.abs(Math.sin(i*0.62))` 多边形剪影一眼假——山脊是规则正弦，
  * 边缘是硬直线。这里用 7 个倍频正弦叠加，并按"山脊深、山脚融雾"做垂直渐变。
+ *
+ * 🔴 **2026-10-29 支持 360°：山脊必须周期无缝**。
+ *
+ *   远山从「一块平面（只在 -z 方向）」改成「圆筒（绕一圈）」后，
+ *   贴图在 u 方向必须**首尾相接**——否则接缝处会出现一道**竖直的硬切**，
+ *   在山脊线中间像被刀切开一样，非常明显。
+ *
+ *   做法：把所有倍频正弦的频率取**整数**，并让横向相位以 2π 为周期。
+ *   这样 `heightAt(0) === heightAt(1)` 严格成立，贴图左右边缘严丝合缝。
+ *   （原来的频率 1.1 / 2.05 / 3.8… 是无理数，天然无法周期化。）
+ *
+ * @param {number} W         贴图宽
+ * @param {number} H         贴图高
+ * @param {number} seed      随机种子
+ * @param {string} topColor  山脊色
+ * @param {string} bottomColor 山脚色
+ * @param {number} [roughness=0.55]
+ * @param {number} [sharpness=1.0]
+ * @param {boolean} [seamless=true] 是否要求左右无缝（360° 圆筒用）
  */
-export function makeRidgeTexture(W, H, seed, topColor, bottomColor, roughness = 0.55, sharpness = 1.0) {
+export function makeRidgeTexture(W, H, seed, topColor, bottomColor, roughness = 0.55, sharpness = 1.0, seamless = true) {
   const c = document.createElement('canvas')
   c.width = W
   c.height = H
@@ -300,9 +319,12 @@ export function makeRidgeTexture(W, H, seed, topColor, bottomColor, roughness = 
     return s / 4294967296
   }
   const comps = []
+  // 🔴 **频率必须是整数**（周期无缝的前提，见上方说明）。
+  //   基础频率 2 → 山脊上有 2 个大峰；每倍频 ×2 → 4 / 8 / 16 … 个小峰。
+  //   整数频率保证 `sin(xRatio * 2π * k)` 在 xRatio=0 与 xRatio=1 处同值。
   for (let o = 0; o < 7; o++) {
     comps.push({
-      f: 1.1 * Math.pow(1.86, o),
+      f: seamless ? (2 << o) : 1.1 * Math.pow(1.86, o),
       a: Math.pow(0.56, o),
       p: rnd() * Math.PI * 2
     })
@@ -314,8 +336,18 @@ export function makeRidgeTexture(W, H, seed, topColor, bottomColor, roughness = 
     for (const k of comps) sum += k.a * Math.sin(xRatio * Math.PI * 2 * k.f + k.p)
     let v = sum / norm
     v = Math.sign(v) * Math.pow(Math.abs(v), sharpness)
-    // 两端收敛到 0，山体左右自然消失在雾里（否则平面边缘会出现垂直硬切）
-    const edge = Math.pow(Math.sin(Math.PI * xRatio), 0.5)
+    // 🔴 **两端收敛到 0 的处理必须改**（周期无缝时不能用）。
+    //
+    //   原来的 `edge = sin(π·xRatio)^0.5` 让山体在左右两端归零 ——
+    //   对"单块平面"是对的（否则平面边缘出现垂直硬切），
+    //   但对**圆筒**是错的：圆筒没有"两端"，
+    //   左右边缘要能直接接上，而不是各自塌到 0。
+    //
+    //   周期无缝时改用**轻微的环形起伏调制**（不归零），
+    //   保证接缝处高度连续、且山脊仍然有高低变化。
+    const edge = seamless
+      ? 1
+      : Math.pow(Math.sin(Math.PI * xRatio), 0.5)
     return H * (0.42 + 0.42 * v * roughness) * edge
   }
 
@@ -347,25 +379,48 @@ export function makeRidgeTexture(W, H, seed, topColor, bottomColor, roughness = 
 /**
  * 三层远山：一次生成，避免组件里堆三段几乎相同的参数。
  *
+ * 🔴 **2026-10-29 支持 360°：远山从「平面」改成「圆筒」**。
+ *
+ *   原来三层山都是**竖直平面**，只在 -z 方向（z=-168/-186/-204）。
+ *   相机转到背面（+z）时，那边**一山都没有** ——
+ *   视线只剩天空球下半球（雾色）→ 就是 2026-10-28 修掉的
+ *   「农场周边一片白」的同型复发。
+ *
+ *   现在改成**圆筒**（`CylinderGeometry` + `openEnded`）：
+ *   绕主田一圈，任何方位角都有山。
+ *
+ * ⚠️ **三个必须做对的点**（three 实测确认）：
+ *
+ *   ① **法线是外法线**（实测：法线与径向同向）。
+ *      相机在筒内 → 看到的是**背面** → 必须 `side: THREE.BackSide`，
+ *      否则整个圆筒被背面剔除掉（画面里一山都没有）。
+ *
+ *   ② **UV 是标准矩形**（实测：u 绕一圈 0→1，v 从下到上 0→1），
+ *      所以贴图**必须左右无缝**（见 makeRidgeTexture 的 seamless 参数）。
+ *
+ *   ③ **高度语义**：原来平面是「中心在 d.h/2-1.0，向上长 d.h」，
+ *      圆筒同理（`position.y = d.h/2 - 1.0`），
+ *      仰角计算不变（见下方「山高必须让仰角落进可见区」的说明）。
+ *
  * @param {object} THREE
  * @param {string} [tint] 季节色相微调（hex）。秋天给暖褐、冬天给冷灰，
- *                         让山体在当季雾色下仍有存在感又不偏色。
+ *                         让山体在当季雾色里仍有存在感又不偏色。
  * @param {number} [texWidth]  山体贴图宽（画质档位决定）
  * @param {number} [anisotropy] 各向异性过滤上限（画质档位决定）
  */
 export function makeRidgeLayers(THREE, tint = '#ffffff', texWidth = 1024, anisotropy = 4) {
-  // ⚠️ z 是**局部坐标**（挂在 fieldGroup 下，随主田平移）。
-  // 必须排在树带之后：树带最远到 z≈-160，
+  // ⚠️ 半径是**局部坐标**（挂在 fieldGroup 下，随主田平移）。
+  // 必须排在树带之后：树带最远到 r≈162，
   // 远山若更近会把树挡在山后面 —— 那是"树被山盖住"问题的另一种形态。
   //
   // 三层从远到近递减距离，配合 fog 做出空气透视。
   //
-  // ⚠️ **z 与 fogFar 是配套的**（2026-10-22 标定）：
+  // ⚠️ **半径与 fogFar 是配套的**（2026-10-22 标定）：
   //   相机水平距离 ry = cos(0.215)*11.8 ≈ 11.5m，
   //   雾浓度 = (距相机 - fogNear) / (fogFar - fogNear)，fogNear=46 / fogFar=240。
   //   三层分别落在 **69% / 78% / 87%** 雾浓度上 —— 越远越淡。
   //   （实测：87% 的远层会和天空几乎同色 → 只剩一点山尖，这也符合空气透视）
-  //   树带最远 z=-162（雾 66%）仍在远山之前，不会穿模。
+  //   树带最远 r=162（雾 66%）仍在远山之前，不会穿模。
   //
   // ⚠️ **山体必须吃场景雾（fog: true），基色用自然绿褐（不是纯灰）**。
   //
@@ -398,30 +453,34 @@ export function makeRidgeLayers(THREE, tint = '#ffffff', texWidth = 1024, anisot
   //     远层 14.2° → 略高于可见区，只有山尖露出
   //       （这正是真实远景的样子：越远的山只露出更高的山顶）✔
   //
-  //   **z 不能改**：z=-168 是树带最远端(-162)之后最近的位置，
-  //   再往前挪就会与树带穿模（"树长在山上"）。
-  //
   // ⚠️ **近层山必须最深**（这是远山能不能被看见的关键）：
   //   空气透视是"越远越淡"，所以最近的层要最深，才能形成深→浅的梯度。
   //   近层用深墨绿（#2f3d35），在 69% 雾下还剩 ~31% 本色
   //   → 深色山脊线清晰可辨；远层用浅色，融进天空。
   const defs = [
     // 近层：最深，轮廓最清晰
-    { w: 620, h: 26, z: -168, seed: 3, top: '#2f3d35', bottom: '#5c6b60', rough: 0.62, sharp: 0.85, op: 0.97 },
+    { r: 168, h: 26, seed: 3, top: '#2f3d35', bottom: '#5c6b60', rough: 0.62, sharp: 0.85, op: 0.97 },
     // 中层：稍淡
-    { w: 700, h: 40, z: -186, seed: 11, top: '#3b4a41', bottom: '#6b7a6f', rough: 0.58, sharp: 0.95, op: 0.94 },
+    { r: 186, h: 40, seed: 11, top: '#3b4a41', bottom: '#6b7a6f', rough: 0.58, sharp: 0.95, op: 0.94 },
     // 远层：最淡，只露山尖
-    { w: 780, h: 58, z: -204, seed: 29, top: '#4a584f', bottom: '#7d8b80', rough: 0.55, sharp: 1.05, op: 0.9 }
+    { r: 204, h: 58, seed: 29, top: '#4a584f', bottom: '#7d8b80', rough: 0.55, sharp: 1.05, op: 0.9 }
   ]
+  // 🔴 **圆筒周向分段数**：山脊线是斜视的，分段太少会看出多边形棱。
+  //   96 段 → 每段 3.75°，在 204m 半径处弧长 13m，肉眼看不出棱。
+  const SEGMENTS = 96
   return defs.map((d) => {
-    const canvas = makeRidgeTexture(texWidth, 200, d.seed, d.top, d.bottom, d.rough, d.sharp)
+    // 🔴 **seamless = true**：贴图必须左右无缝，否则圆筒接缝处会有一道竖直硬切。
+    const canvas = makeRidgeTexture(texWidth, 200, d.seed, d.top, d.bottom, d.rough, d.sharp, true)
     const tex = new THREE.CanvasTexture(canvas)
     tex.colorSpace = THREE.SRGBColorSpace
     // 🔴 **各向异性按画质档位**（2026-10-26）：远山是极端斜视的大平面，
     //   16× 各向异性能显著削掉地平线附近的锯齿，但低端档给 1× 就够。
     tex.anisotropy = anisotropy
     const mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(d.w, d.h),
+      // 🔴 **openEnded = true**：圆筒不要顶盖与底盖。
+      //   有底盖的话，从筒内往上看会看到一个"碗底"，
+      //   把整个天空的下半部分挡住 → 又变成一大片实色。
+      new THREE.CylinderGeometry(d.r, d.r, d.h, SEGMENTS, 1, true),
       new THREE.MeshBasicMaterial({
         map: tex,
         // 季节色相微调：贴图是自然绿褐，秋天乘暖褐、冬天乘冷灰，
@@ -435,17 +494,19 @@ export function makeRidgeLayers(THREE, tint = '#ffffff', texWidth = 1024, anisot
         // 曾经的写法是 depthTest:false，理由是"让远山彻底不参与深度竞争，
         // 这样 camera.far 可以收得很紧"。但这会把远山变成一层**贴在屏幕上的贴纸**：
         // three.js 把 transparent 物体排到不透明 pass **之后**渲染，
-        // 而 depthTest:false 又让它无视深度缓冲 —— 于是 z=-74~-150 的林带树木
+        // 而 depthTest:false 又让它无视深度缓冲 —— 于是树带树木
         // （不透明 pass）画完后，山体在透明 pass 里直接盖在它们头上，
         // 表现为"远山遮住近处的树"，树只剩上半截。
         //
         // 正确做法：远山参与深度测试。
         //   · 树（不透明）先画并写入深度 → 远山片段深度更大 → 被剔除 → 树完整可见
-        //   · 远山 z=-168/-186/-204，与相机距离约 180/198/216，
+        //   · 远山半径 168/186/204，与相机距离约 180/198/216，
         //     都在 camera.far=600 之内，不会被远裁剪面切掉。
-        // 注意远山是**竖直平面**，整片平面的视空间深度几乎相同
-        // （宽度方向不改变视线方向的深度），所以侧面不会因 far 而缺角。
         depthTest: true,
+        // 🔴 **side 必须 BackSide**（2026-10-29 实测确认）：
+        //   `CylinderGeometry` 生成的是**外法线**（法线与径向同向），
+        //   相机在筒内看到的是**内壁背面** → 默认 FrontSide 会把整座山剔除掉。
+        side: THREE.BackSide,
         // ⚠️ **远山吃场景雾**（fog: true）。
         // three.js 会按距离把山体往当季雾色里褪：越远的山越接近雾色/天空色，
         // 于是空气透视自动成立，且**换季不用重调山色**。
@@ -453,13 +514,69 @@ export function makeRidgeLayers(THREE, tint = '#ffffff', texWidth = 1024, anisot
         fog: true
       })
     )
-    mesh.position.set(0, d.h / 2 - 1.0, d.z)
+    // 🔴 **圆筒是绕 Y 轴的**（高度沿 y），与原平面「向上长」的语义一致：
+    //   底边在 -1.0，向上长 d.h。
+    mesh.position.set(0, d.h / 2 - 1.0, 0)
     // renderOrder 只在"同一渲染列表"内生效。远山在透明列表里，
     // -3 让它排在其他透明物件（田面垄沟 0 / 水面 1 / 接触阴影 2）之前，
     // 保证山永远在最底层，不会盖住近处的水面与阴影。
     mesh.renderOrder = -3
     return mesh
   })
+}
+
+/**
+ * 地平线树线：**锥面裙**（圆台），填满「地面圆盘外缘」与「远山圆筒底边」之间的空隙。
+ *
+ * 🔴 **2026-10-29 支持 360° 引入**。
+ *
+ *   背景：360° 之后地面是半径 160m 的圆盘、远山是半径 168~204m 的圆筒。
+ *   两者在**垂直方向**都只到「地面高度」和「山底 -1.0m」，
+ *   中间那道 1~2m 的窄缝在远处看就是一条**水平的亮缝**
+ *   （背后是天空球的地平线色）。
+ *
+ *   更要命的是：原来的地面是**矩形**（x ∈ ±120、z ∈ ±100），
+ *   圆盘化之后地面边缘到山脚之间天然多出一圈「空地」——
+ *   视线平视时能直接看到山脚与地面之间的**空洞**。
+ *
+ *   做法：加一圈**内缘贴地、外缘略高于地面**的圆台（截头圆锥），
+ *   材质是纯色 + 吃雾 → 远看就是一条环绕的**深绿树线 / 灌木带**，
+ *   正好也补上了「远处有林带」的观感。
+ *
+ * @param {object} THREE
+ * @param {object} opts
+ * @param {number} opts.innerRadius  内缘半径（米），应与地面圆盘外缘一致
+ * @param {number} opts.outerRadius  外缘半径（米），应小于最近一层远山
+ * @param {number} opts.height       外缘高出内缘（米）
+ * @param {number|string} opts.color  基色（吃雾后会自然褪淡）
+ * @returns {THREE.Mesh}
+ */
+export function makeHorizonBand(THREE, { innerRadius, outerRadius, height, color }) {
+  const geo = new THREE.CylinderGeometry(
+    outerRadius,   // 顶半径
+    innerRadius,   // 底半径
+    height,
+    96,
+    1,
+    true
+  )
+  const mesh = new THREE.Mesh(
+    geo,
+    new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color),
+      // 🔴 **BackSide**：相机在筒内，看的是内壁背面。
+      side: THREE.BackSide,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      // ⚠️ **必须吃雾**：否则这条带子在远处是纯色，与空气透视脱节。
+      fog: true
+    })
+  )
+  // 内缘贴在地面上（y≈0），外缘抬高 height
+  mesh.position.y = height / 2 - 0.05
+  mesh.renderOrder = -2
+  return mesh
 }
 
 export { fbmCanvas }

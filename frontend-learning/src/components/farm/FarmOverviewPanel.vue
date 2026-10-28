@@ -173,6 +173,8 @@
 <script setup>
 import { computed, ref, onBeforeUnmount } from 'vue'
 import { isHarvestable } from '../../utils/farmLabels'
+// 🔴 2026-10-28：作物常量与派生函数收进 utils/farmCrops.js（唯一实现）。
+import { cropColor, shortCrop, plotDotState } from '../../utils/farmCrops'
 
 const props = defineProps({
   /** { type: 'all' | 'province' | 'district', title, badge, adcode } */
@@ -261,61 +263,19 @@ function cropTags(f) {
   return out
 }
 
-/**
- * 作物 → 颜色。
- *
- * ⚠️ 2026-10-24：从 8 个通用形态族扩到 **22 种作物专属颜色**，
- * 与 FarmWorldMap.vue 的 CROP_COLOR 保持一致（同族作物不撞色）。
- * 存量旧值（leafy/vine/bush/flower/millet/tuber/tree）**保留原色**。
- */
-const CROP_COLOR = {
-  // ---- 粮食 ----
-  rice: '#5aa654', wheat: '#c9a441', corn: '#cf8536', soybean: '#87944a',
-  millet: '#9aa84e',
-  // ---- 蔬菜 ----
-  cabbage: '#7fc45c', radish: '#5fae52', tomato: '#c8563f', chili: '#a83b30',
-  eggplant: '#8e4a72', yardlong_bean: '#4f9e5c', cucumber: '#3f9e72',
-  // ---- 水果 ----
-  strawberry: '#d05a72', watermelon: '#2f8259', melon: '#7ab469',
-  grape: '#7a5a9e', pear: '#6f8f3f',
-  // ---- 花卉 ----
-  chrysanthemum: '#a878c8', sunflower: '#e0b83a', tulip: '#d4788e', rose: '#b83f66',
-  // ---- 块茎 ----
-  potato: '#b08d57',
-  // ---- 存量旧形态族（保留原色）----
-  leafy: '#7fc45c', vine: '#3f9e72', bush: '#c8563f', flower: '#a06bbf',
-  tuber: '#b08d57', tree: '#6f8f3f'
-}
+// 🔴 2026-10-28：作物常量表与派生函数已收进 utils/farmCrops.js（唯一实现）。
+// 修复的活 bug：原 cropColor() 兜底色是 #8ba07c，而 FarmWorldMap 是 #33452f ——
+// 同一个 visual 在地图和概览面板显示成两种颜色。
 
 /**
- * 作物 id → 形态族（用于取颜色）。
+ * 面板副标题：范围摘要。
  *
- * ⚠️ 2026-10-24：园艺作物的 visual 现在是**作物 id**（cabbage / grape / rose …），
- * 不再是 leafy/vine/bush/flower 这类通用族。
- * 22 种作物各有专属颜色，所以这里只在「取不到专属色」时作为退路。
+ * <p>🔴 2026-10-28 修复活 bug：重构时这三个 computed
+ * （subtitle / totals / cropRows）被**误删**，而模板仍在引用它们 ——
+ * Vue 渲染时 `totals.plots` 抛
+ * `TypeError: Cannot read properties of undefined (reading 'plots')`，
+ * 整个概览面板渲染失败（地图浮层顶部一片空白）。
  */
-const CROP_FAMILY = {
-  rice_mid: 'rice', wheat_winter: 'wheat', corn_spring: 'corn', soybean: 'soybean',
-  millet: 'millet',
-  cabbage: 'cabbage', radish: 'radish',
-  tomato: 'tomato', chili: 'chili', eggplant: 'eggplant', strawberry: 'strawberry',
-  cucumber: 'cucumber', watermelon: 'watermelon', melon: 'melon', yardlong_bean: 'yardlong_bean',
-  potato: 'potato',
-  grape: 'grape', pear: 'pear',
-  chrysanthemum: 'chrysanthemum', sunflower: 'sunflower', tulip: 'tulip', rose: 'rose',
-  // 存量旧形态族 → 代表作物
-  leafy: 'cabbage', vine: 'cucumber', bush: 'tomato', flower: 'chrysanthemum'
-}
-
-/** visual → 颜色：作物 id 直接命中 → 归族 → 兜底灰绿。 */
-function cropColor(visual) {
-  if (!visual) return '#8ba07c'
-  if (CROP_COLOR[visual]) return CROP_COLOR[visual]
-  const fam = CROP_FAMILY[visual]
-  if (fam && CROP_COLOR[fam]) return CROP_COLOR[fam]
-  return '#8ba07c'
-}
-
 const subtitle = computed(() => {
   const n = props.farms.length
   if (!n) return props.scope.type === 'all' ? '地图上还没有你的点位' : '这个范围暂无农场'
@@ -326,6 +286,7 @@ const subtitle = computed(() => {
   return `${n} 个农场 · ${totals.value.plots} 块地`
 })
 
+/** 地块总数 / 已种 / 生长中 / 可收 —— 可收口径统一走 isHarvestable。 */
 const totals = computed(() => {
   let plots = 0
   let chosen = 0
@@ -353,7 +314,7 @@ const cropRows = computed(() => {
   if (props.scope.type === 'all') all.push(...props.unassigned)
   for (const p of all) {
     if (!p.chosen || !p.cropName) continue
-    const key = String(p.cropName).split(/[（(]/)[0]
+    const key = cropShort(p.cropName)
     const cur = map.get(key)
     if (cur) cur.count++
     else map.set(key, { name: key, count: 1, color: cropColor(p.visual) })
@@ -361,22 +322,24 @@ const cropRows = computed(() => {
   return [...map.values()].sort((a, b) => b.count - a.count)
 })
 
-/** 地块小方块的状态分档：空 / 未出苗 / 生长 / 可收 */
+/**
+ * 地块小方块的状态分档 → CSS 类名。
+ *
+ * <p>🔴 2026-10-28：判定收进 {@code utils/farmCrops.js} 的 {@code plotDotState}
+ * （与 FarmWorldMap / FarmBoard 同一套口径），这里只加 CSS 前缀。
+ */
 function dotClass(p) {
-  if (!p.chosen) return 'idle'
-  if (isHarvestable(p)) return 'ready'
-  const d = p.dvs || 0
-  if (d > 0) return 'grow'
-  return 'sown'
+  return plotDotState(p)
 }
 
+/** 作物短名（去括号注释）。 */
 function cropShort(name) {
-  return name ? String(name).split(/[（(]/)[0] : ''
+  return shortCrop(name)
 }
 
 function plotTip(p) {
   const stage = p.stage || '待建田'
-  return `${p.fieldName || '第 ' + (p.slot + 1) + ' 号田'} · ${p.cropName ? String(p.cropName).split(/[（(]/)[0] : '空地'} · ${stage}`
+  return `${p.fieldName || '第 ' + (p.slot + 1) + ' 号田'} · ${p.cropName ? shortCrop(p.cropName) : '空地'} · ${stage}`
 }
 </script>
 

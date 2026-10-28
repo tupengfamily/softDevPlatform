@@ -179,8 +179,11 @@ import {
   GRAIN_CROPS,
   cropIdOf,
   cropLabelOf,
+  disasterLabelOf,
   parseDisasterHit,
-  parsePestHit
+  parsePestHit,
+  pestLabelOf,
+  zoneNameOf as zoneNameOfRaw
 } from '../../utils/farmLabels'
 
 /**
@@ -350,12 +353,9 @@ const weatherLabel = computed(() => {
   return e.value.weatherSource || ''
 })
 
-/** 分区 id → 可读名（i18n 覆盖；查不到退回 id，不猜）。 */
+/** 分区 id → 可读名（统一出口，见 utils/farmLabels.js）。 */
 function zoneNameOf (id) {
-  if (!id) return ''
-  const key = 'farm.zoneName.' + id
-  const v = t(key)
-  return v === key ? id : v
+  return zoneNameOfRaw(id, t, '', isEn.value)
 }
 
 const weatherSource = computed(() => weatherLabel.value)
@@ -424,18 +424,12 @@ const elementRows = computed(() => {
  * 🔴 旧格式没有 id（只有拼接字符串解析出来的 name），此时直接用 name。
  */
 function pestLabel(p) {
-  if (!p.id) return p.name || ''
-  const key = 'farm.pestName.' + p.id
-  const v = t(key)
-  return v === key ? (p.name || p.id) : v
+  return pestLabelOf(p, t)
 }
 
 /** 灾害名：按 type 映射，缺项退回后端中文名。 */
 function disasterLabel(d) {
-  if (!d.type) return d.name || ''
-  const key = 'farm.disasterName.' + d.type
-  const v = t(key)
-  return v === key ? (d.name || d.type) : v
+  return disasterLabelOf(d, t)
 }
 
 /**

@@ -327,6 +327,9 @@ import {
   createFarmField
 } from '../../api/farm'
 import { useRoute } from 'vue-router'
+// 🔴 2026-10-28：区名统一走 utils/farmLabels.js 的 zoneNameOf ——
+// 原来本文件硬编码 8 个中文名（其中 4 个后端根本不存在），英文界面漏中文。
+import { zoneNameOf as zoneNameOfRaw } from '../../utils/farmLabels'
 
 const props = defineProps({
   initialZone: { type: String, default: '' },
@@ -483,26 +486,17 @@ async function loadZones() {
 }
 
 /**
- * 农业区的中文名（用于顶部农场合标识）。
+ * 农业区显示名（**统一出口**，见 utils/farmLabels.js）。
  *
- * <p>后端 {@code /zones} 只返回当前作物的四区，父组件锁定的区
- * 未必在这个作物里，所以这里内置一份全区名映射兜底。
+ * <p>解析顺序：i18n（{@code farm.zoneName.*}）→ 内置双语表
+ * → 后端下发的 {@code zones[].name} → id 原样（不猜、不编造）。
+ *
+ * <p>🔴 i18n 必须在后端名之前：后端 {@code name} 永远是中文，
+ * 若它优先，英文界面照样露「江南」。
  */
-const ZONE_NAMES = {
-  jiangnan: '江南',
-  huanan: '华南',
-  huanghuaihai: '黄淮海',
-  dongbei: '东北',
-  xinan: '西南',
-  xibei: '西北',
-  qinghai: '青藏',
-  gaoxin: '高原'
-}
 function zoneNameOf(id) {
-  if (!id) return ''
   const hit = zones.value.find((z) => z.id === id)
-  if (hit?.name) return hit.name
-  return ZONE_NAMES[id] || id
+  return zoneNameOfRaw(id, t, hit?.name, String(locale.value).startsWith('en'))
 }
 
 /**

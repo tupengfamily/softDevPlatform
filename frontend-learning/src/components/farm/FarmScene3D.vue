@@ -29,13 +29,16 @@
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import {
   SEASON, PADDY_W, PADDY_D, FIELD_CZ, CAMERA, LOOK_AT, SPRITE_ASPECT,
+  SCENE_RADII, YAW_LIMIT, TREE_ROW_COUNTS,
   normalizeCrop, cropFamily, densityOf, fallbackTextureOf, CROP_TINT
 } from './scene/config.js'
 import {
   mulberry32, makeRowShadeTexture, makeSoilWetnessTexture, boxWithUV, buildCrossQuad,
-  spherifyNormals, addWindShader, addUvJitter, tickAllWind, clearWindRegistry, clamp
+  spherifyNormals, addWindShader, addUvJitter, tickAllWind, clearWindRegistry, clamp,
+  makeRadialGround, displaceGround
 } from './scene/util.js'
-import { makeSkyTexture, makeRidgeLayers } from './scene/sky.js'
+import { makeSkyTexture, makeRidgeLayers, makeHorizonBand } from './scene/sky.js'
+import { wrapAngle } from './scene/orbit.js'
 import { createAssetPipeline } from './scene/assets.js'
 import { createCropField } from './scene/crops.js'
 import { getQuality, getQualityParams, initQuality, onQualityChange, setQuality, requiresSceneRebuild } from './scene/quality.js'
@@ -478,46 +481,6 @@ function buildSky() {
   }
 }
 
-/**
- * 🔴 **地面微起伏**（2026-10-26 真实感升级）
- *
- *   对草地平面做低频顶点位移，让地面不再是一张绝对平的纸。
- *   完全平的地面是「3D 场景」最明显的破绽：掠射角下没有任何明暗变化，
- *   地平线附近也是一条死平的线。
- *
- *   位移量取两层不同频率的正弦叠加（比噪声便宜，且不会有高频毛刺）：
- *   · 主层：波长约 47m、振幅 6cm（大尺度缓坡）
- *   · 次层：波长约 13m、振幅 2.5cm（中尺度起伏）
- *
- *   ⚠️ **必须避开主田区域**：
- *   主田是 x∈[-8.3,8.3] / z∈[-15.8,6.8] 的平整面（田面 y=0.004，
- *   草地 y=-0.020，间距 2.4cm）。位移若超过 2.4cm 就会与田面穿插。
- *   这里用一个椭圆「避开区」把主田附近的位移平滑压到 0。
- *
- *   ⚠️ **位移是在平面局部坐标上做的**（PlaneGeometry 未经旋转时 y=0），
- *   旋转 -90° 之后 x→x、z→-y。所以这里改的是**局部 z**（旋转后变成世界 y）。
- */
-function displaceGrass(geo) {
-  const pos = geo.attributes.position
-  const arr = pos.array
-  for (let i = 0; i < pos.count; i++) {
-    const o = i * 3
-    const x = arr[o]
-    const y = arr[o + 1]   // 平面未旋转时这是"未来的世界 z"
-    const d1 = Math.sin(x * 0.1337 + y * 0.0913) * 0.060
-    const d2 = Math.sin(x * 0.4831 - y * 0.3721 + 1.7) * 0.025
-    // 避开主田：椭圆距离 → 0~1 的权重（1 = 完全位移，0 = 不动）
-    const dx = (x - 0) / 13.5
-    const dz = (y - (FIELD_CZ - 4)) / 20
-    const dist = Math.sqrt(dx * dx + dz * dz)
-    const w = Math.max(0, Math.min(1, (dist - 1) / 0.55))
-    arr[o + 1] = (d1 + d2) * w * w
-  }
-  pos.needsUpdate = true
-  geo.computeVertexNormals()
-  return geo
-}
-
 function buildTerrain() {
   const cfg = seasonCfg()
   const A = assets
@@ -534,11 +497,33 @@ function buildTerrain() {
   //   草地平面 240×200m → 要让草叶保持真实大小，repeat 必须到 **60**（单块 4m）。
   //   原来的 repeat=10 意味着单块贴图铺满 24m → **草叶被放大了 30 倍**，
   //   画面上就是「一大片一尺长的草」，这是草地不像真实的第一号原因。
-  const grassRep = Q.grassRepeat
+  // 🔴 **360°：草地平面 240×200m → 圆盘（半径 160m）**（2026-10-29）。
+  //
+  //   原来草地是**矩形**：x ∈ ±120、z ∈ ±100。
+  //   而远景农田 / 树带 / 远山全在 -z 方向 —— 那是**单向纵深布局**。
+  //   相机转到背面（+z）时，草地根本延伸不到那里（z 只到 +100，
+  //   而相机在背面时看的是 z 方向 -100 之外）→ **田外无地面** →
+  //   视线穿空打到天空球下半球（雾色）→ 「农场周边一片白」。
+  //
+  //   改成圆盘后，**任意方位角上都有地**，这是 360° 的地基。
+  //
+  // ⚠️ **repeat 必须按圆盘的直径重算**（2026-10-29）：
+  //   草地 albedo 是 1024² 实拍俯视近景，单块真实尺度约 0.8m；
+  //   要让草叶保持真实大小，repeat 必须让单块贴图覆盖 ≈4m。
+  //   圆盘直径 320m → repeat = 320/4 = 80（各向异性取 0.8 倍 → 64）。
+  //   ⚠️ 沿用原来的 Q.grassRepeat 会让草叶被放大 ~2 倍（直径从 240 变 320）。
+  const groundR = SCENE_RADII.ground
+  const groundSpan = groundR * 2
+  // 单块贴图覆盖 4m → repeat = 直径 / 4
+  const baseRep = Math.round(groundSpan / 4)
+  const grassRep = Math.max(Q.grassRepeat, Math.min(baseRep, 80))
   A.grassMap.repeat.set(grassRep, Math.round(grassRep * 0.8))
   A.grassNorm.repeat.set(grassRep, Math.round(grassRep * 0.8))
   grassMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(240, 200, 40, 34),
+    // 🔴 **圆盘几何**：位置直接摆在世界 XZ 平面（无需 rotation.x = -π/2）。
+    //   `makeRadialGround` 的 UV 是**平面投影**（按世界坐标线性映射），
+    //   所以 repeat 的语义与矩形草地完全一致（每 N 米一块贴图）。
+    makeRadialGround(THREE, groundR, 34, 96),
     new THREE.MeshStandardMaterial({
       map: A.grassMap,
       normalMap: A.grassNorm,
@@ -562,8 +547,12 @@ function buildTerrain() {
   //   ⚠️ **位移必须避开主田区域**：主田在 x∈[-8.3,8.3] / z∈[-15.8,6.8]，
   //   那里要保持绝对平整（否则田面会与地面穿插）。
   //   用一个平滑的"避开区"把主田附近的位移压到 0。
-  displaceGrass(grassMesh.geometry)
-  grassMesh.rotation.x = -Math.PI / 2
+  displaceGround(grassMesh.geometry, {
+    avoidX: 0,
+    avoidZ: FIELD_CZ - 4,
+    avoidRx: 13.5,
+    avoidRz: 20
+  })
   grassMesh.position.y = GRASS_Y
   grassMesh.receiveShadow = true
   // ⚠️ **草地也必须随主田平移**。
@@ -590,11 +579,16 @@ function buildTerrain() {
     detailTex.repeat.set(grassRep * 0.73 + 0.31, grassRep * 0.47 + 0.17)
     detailTex.offset.set(0.37, 0.61)
     detailTex.needsUpdate = true
-    const detailGeo = new THREE.PlaneGeometry(240, 200, 40, 34)
+    const detailGeo = makeRadialGround(THREE, groundR, 34, 96)
     // 🔴 **detail 层必须做与主草地完全相同的位移**：
     //   否则草地起伏的地方，detail 层会浮在草地上方/沉在下方 → 穿插闪烁。
-    //   用同一个 displaceGrass 函数（唯一实现，不复制参数）。
-    displaceGrass(detailGeo)
+    //   用同一个 displaceGround 函数（唯一实现，不复制参数）。
+    displaceGround(detailGeo, {
+      avoidX: 0,
+      avoidZ: FIELD_CZ - 4,
+      avoidRx: 13.5,
+      avoidRz: 20
+    })
     const detail = new THREE.Mesh(
       detailGeo,
       cloneWithOffset(new THREE.MeshBasicMaterial({
@@ -611,7 +605,6 @@ function buildTerrain() {
         fog: true
       }), 90, 2)
     )
-    detail.rotation.x = -Math.PI / 2
     // 🔴 **必须与草地错开高度**（严格错高是本场景防 z-fighting 的唯一铁律）：
     //   GRASS_Y = -0.020，detail 层取 -0.019（高 1mm）。
     detail.position.y = GRASS_Y + 0.001
@@ -686,29 +679,94 @@ function buildTerrain() {
   //   所以这里的 tint 要**比贴图更亮**才提得亮，
   //   不能拿深色去"调亮"。
   const FAR_TINTS = [0xd7e6b4, 0xe8e0a8, 0xc4d49a, 0xdfd9b0, 0xcddba6, 0xe2dcae]
-  const neighbors = [
-    [-26, -64, 30, 24, 0.06],
-    [27, -67, 34, 26, -0.05],
-    [2, -73, 58, 34, 0.02],
-    [-34, -80, 36, 26, -0.08],
-    [38, -83, 32, 24, 0.07],
-    [0, -92, 90, 40, 0.0]
-  ]
-  farFieldMeshes = neighbors.map(([x, z, w, d, rot], i) => {
-    // 每块独立材质 + 递增的高度，保证 6 块之间深度值绝不相同
-    const m = new THREE.Mesh(
-      new THREE.PlaneGeometry(w, d),
-      cloneWithOffset(farMat, i, 1)
-    )
-    // 拼花：每块田一个不同的作物色
-    m.material.color.setHex(FAR_TINTS[i % FAR_TINTS.length])
-    m.rotation.x = -Math.PI / 2
-    m.rotation.z = rot
-    m.position.set(x, FAR_FIELD_Y + i * FAR_FIELD_STEP, z)
-    // 局部坐标：跟随主田（见上方坐标系分工）
-    fieldGroup.add(m)
-    return m
-  })
+  //
+  // 🔴 **360°：远景农田从「单向 6 块矩形」改成「四环环形」**（2026-10-29）。
+  //
+  //   原来 6 块全在 -z 方向（z=-64~-92），是**单向纵深**。
+  //   相机转到背面（+z）时那边**一块田都没有** → 中景空洞。
+  //
+  //   现在按 4 个半径（88/95/102/109m）各排一圈，
+  //   每圈块数按「弧长 ≈ 26m」算 → 任意方位都有农田。
+  //
+  // 🔴 **三个必须做对的点**（2026-10-29 实测，全部踩过）：
+  //
+  //   ① **绕向**：环形排布时矩形田块必须转到「切向」，
+  //      即宽边沿圆周方向、深边沿径向。
+  //      🔴 实测（three 真实顶点，非推导）：
+  //        `rotation.z = -angle` → 宽边·切向 = **-0.50**、宽边·径向 = +0.87
+  //          → 田块与圆周差 45°，一眼就是「方块被硬排成弧形」。
+  //        `rotation.z = +angle` → 宽边·切向 = **+1.00**、深边·径向 = +1.00 ✔
+  //      0°/15°/37°/60°/90°/123°/180°/247°/300°/359° 全部角度实测通过。
+  //
+  //   ② **厚度必须收窄**：原来深 22~28m，那是「单向纵深」布局的遗产
+  //      （深块是为了在 -z 方向铺满纵深）。改成环形后深块会互相穿插 ——
+  //      SAT 实测同环重叠 15~23 对（= 全环互相穿插）。
+  //      现在厚度 6m，SAT 实测同环重叠 **0**。
+  //
+  //   ③ **高度不能按索引累加**：原来 `FAR_FIELD_Y + farIndex * FAR_FIELD_STEP`
+  //      是给 6 块排的（最高 0.015m）。环形后 95 块 → 最高 **0.285m**，
+  //      远远盖过邻田（0.035~0.047m）→ 远景农田会盖住玩家的田！
+  //      现在改成「按环分档」：每环一个固定高度，环间错开，
+  //      同环内各块靠 polygonOffset 区分（见 cloneWithOffset）。
+  //
+  // ⚠️ **用 InstancedMesh 而非独立 Mesh**：
+  //   95 块独立 Mesh = 95 次 draw call（原来只有 6 块）。
+  //   InstancedMesh 仍是 **1 次 draw call**，顶点数 = 95 × 4 = 380。
+  //   逐实例的颜色（拼花）与缩放（宽度随环变化）都能设。
+  const farFieldMeshesList = []
+  {
+    // 先统计总实例数（每环块数按弧长 ≈ 26m 算）
+    const ringPlan = SCENE_RADII.farFieldRings.map((radius) => {
+      const count = Math.max(8, Math.round((Math.PI * 2 * radius) / 26))
+      const arc = (Math.PI * 2 * radius) / count
+      return { radius, count, arc, width: arc * 0.82 }
+    })
+    const total = ringPlan.reduce((a, r) => a + r.count, 0)
+    // 🔴 **统一几何体**（1×1），逐实例缩放到目标宽度。
+    //   InstancedMesh 要求所有实例共享同一个 geometry，
+    //   而每环的田块宽度不同（弧长随半径变）→ 用 scale 解决。
+    const geo = new THREE.PlaneGeometry(1, 1)
+    const inst = new THREE.InstancedMesh(geo, farMat, total)
+    inst.frustumCulled = false
+    const dummy = new THREE.Object3D()
+    const tint = new THREE.Color()
+    let idx = 0
+    ringPlan.forEach((ring, ringIdx) => {
+      for (let k = 0; k < ring.count; k++) {
+        const angle = (k / ring.count) * Math.PI * 2 + ringIdx * 0.21
+        // 🔴 **绕向必须是 +angle**（实测见上方 ①）
+        dummy.position.set(
+          Math.sin(angle) * ring.radius,
+          FAR_FIELD_Y + ringIdx * FAR_FIELD_STEP,
+          Math.cos(angle) * ring.radius
+        )
+        dummy.rotation.set(-Math.PI / 2, 0, angle + (idx % 3 - 1) * 0.04)
+        dummy.scale.set(ring.width, SCENE_RADII.farFieldThickness, 1)
+        dummy.updateMatrix()
+        inst.setMatrixAt(idx, dummy.matrix)
+        // 拼花：每块田一个不同的作物色
+        tint.setHex(FAR_TINTS[idx % FAR_TINTS.length])
+        inst.setColorAt(idx, tint)
+        idx++
+      }
+    })
+    inst.instanceMatrix.needsUpdate = true
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true
+    // ⚠️ **polygonOffset 要保留**：同环内相邻块仍然是共面的
+    //   （径向厚度 6m、宽度占弧长 82%，块与块在 XZ 上**紧贴但不重叠**，
+    //   但共面 → 必须靠 polygonOffset 拉开深度）。
+    //   原实现是每块一个独立材质（每个都有自己的 po 值），
+    //   InstancedMesh 只有一个材质 → 只能给**整环**一个 po 值。
+    //   这是可接受的：环内各块的 po 相同，但它们在 XZ 上不重叠，
+    //   共面区只在边缘 1~2cm，重叠极小。
+    farMat.polygonOffset = true
+    farMat.polygonOffsetFactor = 1
+    farMat.polygonOffsetUnits = 2
+    farMat.needsUpdate = true
+    fieldGroup.add(inst)
+    farFieldMeshesList.push(inst)
+  }
+  farFieldMeshes = farFieldMeshesList
 
   const nearFieldTex = A.fieldMap.clone()
   nearFieldTex.repeat.set(1.5, 2.0)
@@ -914,47 +972,78 @@ function buildTrees() {
   //   只是整体缩放/旋转不同。远看就是"同一棵树复制了 60 份"。
   //   按实例位置哈希抖动 UV → 每棵树的枝叶图案不同。
   addUvJitter(treeMat, { amount: 0.05, scale: 1.7 })
-  // 🔴 **树木数量按画质档位**（2026-10-26）：60 棵十字面片是 60 次绘制实例，
-  //   每棵还要参与阴影贴图重绘（若开启）。低端档降到 24 棵 —— 林带
-  //   在 95~165m 外，24 棵与 60 棵在画面上几乎看不出密度差。
-  const TREE_N = Q.treeCount
+  // 🔴 **360°：树带从「3 排直线」改成「3 圈环形」**（2026-10-29）。
+  //
+  //   原来 3 排树都排在 -z 方向（zBase=-95/-116/-140，横跨 x ±48~±105），
+  //   是**单向纵深**。相机转到背面（+z）时，那边**一棵树都没有** ——
+  //   视线只剩草地与天空 → 中景与远景都是空的。
+  //
+  //   现在每排改成一个**圆环**（半径 120 / 132 / 144m），
+  //   绕主田一圈 → 任意方位角上都有林带。
+  //
+  // ⚠️ **棵数必须按「弧长间距」重算**，不能沿用 Q.treeCount：
+  //   直线树带每排只覆盖 ~96~210m；环形要覆盖 2π×120≈754m（近排）。
+  //   「总棵数不变」不等于「每个方向都够」——
+  //   60 棵排成一圈，每 10m 一棵才是原设计密度。
+  //
+  //   实测口径：半径 120/132/144m，按 13/14/16m 目标间距 →
+  //   58 / 60 / 57 棵 = 175 棵（TREE_ROW_COUNTS）。
+  //
+  // ⚠️ **InstancedMesh 的绘制调用数与棵数无关**（仍是 1 次 draw call），
+  //   顶点数 = 棵数 × 40，175 棵 ≈ 7000 顶点，对 GPU 完全无压力。
+  //
+  // ⚠️ **画质档位仍然要生效**：Q.treeCount 现在是「密度比例」，
+  //   按档位缩放每排棵数（低端档 24 棵 → 每排按比例减）。
+  const densityScale = Math.max(0.35, Math.min(1, Q.treeCount / 60))
+  const rowCounts = TREE_ROW_COUNTS.map((n) => Math.max(12, Math.round(n * densityScale)))
+  const TREE_N = rowCounts.reduce((a, b) => a + b, 0)
   treeMesh = new THREE.InstancedMesh(treeGeo, treeMat, TREE_N)
   treeMesh.frustumCulled = false
 
   const dummy = new THREE.Object3D()
   const rnd = mulberry32(77)
   const tint = new THREE.Color()
-  for (let i = 0; i < TREE_N; i++) {
-    // 三排错落：近排稀疏矮、中排主林带、远排成墙
-    const row = i % 3
-    const k = Math.floor(i / 3)
-    const span = row === 0 ? 96 : row === 1 ? 150 : 210
-    const count = Math.ceil(TREE_N / 3)
-    const x = -span / 2 + (span * k) / count + (rnd() - 0.5) * (span / count) * 1.5
-    // ⚠️ **树带必须排在远景农田之后、远山之前**。
+  let treeIdx = 0
+  for (let row = 0; row < SCENE_RADII.treeRows.length; row++) {
+    const radius = SCENE_RADII.treeRows[row]
+    const count = rowCounts[row]
+    // ⚠️ **树带必须排在远景农田之后、远山之前**（环形分层，2026-10-29）：
     //
-    // 完整纵深链（局部坐标，按雾浓度递远，fogNear=46 / fogFar=240）：
-    //   主田 ±16            雾  0%
-    //   邻田 -4~-67         雾  0~17%
-    //   远景农田 -64~-92    雾 17~30%
-    //   树带 -95~-162       雾 31~66%    ← 这里
-    //   远山 -166~-196      雾 67~80%
+    //   完整同心圆分层（局部坐标，按雾浓度递远，fogNear=46 / fogFar=240）：
+    //     主田 ±16              雾  0%
+    //     邻田 r 0~82           雾  0~17%
+    //     远景农田 r 88~112     雾 28~38%
+    //     树带 r 120~155        雾 44~56%    ← 这里
+    //     地平线树线 r 160~166  雾 66%
+    //     远山 r 168/186/204    雾 69/78/87%
     //
-    // 远景农田最深一块在 z=-92（半深 20 → 实际到 -112），
-    // 树带若用 -74 起跳就会**穿过远景农田**，出现"树长在农田里"的穿模。
-    // 远山最近层在 z=-166，树带最远必须小于它（-162 < -166 才不穿模，
-    // 实际取 -162 是给远山留 4m 余量）。
-    const zBase = row === 0 ? -95 : row === 1 ? -116 : -140
-    const z = zBase - rnd() * (row === 0 ? 10 : row === 1 ? 16 : 22)
-    const s = (row === 0 ? 0.40 : row === 1 ? 0.44 : 0.40) + rnd() * 0.34
-    dummy.position.set(x, -0.05, z)
-    dummy.scale.set(s, s * (0.85 + rnd() * 0.4), s)
-    dummy.rotation.y = rnd() * Math.PI
-    dummy.updateMatrix()
-    treeMesh.setMatrixAt(i, dummy.matrix)
-    const v = 0.78 + rnd() * 0.3
-    tint.setRGB(v * (0.94 + rnd() * 0.1), v, v * (0.88 + rnd() * 0.1))
-    treeMesh.setColorAt(i, tint)
+    // 🔴 **半径与抖动必须配套**（2026-10-29 实测）：
+    //   抖动幅度决定该圈树的最远半径，而**最远半径必须小于草地圆盘 160m**，
+    //   否则树会站到草地外面、脚下悬空。
+    //   原抖动 ±5/8/11m 是为半径 95/116/140 定的；
+    //   新半径 120/132/144 按比例放大到 ±6/7/9m → 最远 153m < 160m ✓
+    //
+    //   同时最**近**半径也必须 > 远景农田最外缘 112m：
+    //   圈0 最近 = 120 - 6 = 114m > 112m ✓（余 2m）
+    const jitter = row === 0 ? 6 : row === 1 ? 7 : 9
+    for (let k = 0; k < count; k++) {
+      // 每棵树在自己的扇区里随机分布（避免机械的等距排布）
+      const angle = (k / count) * Math.PI * 2 + (rnd() - 0.5) * (Math.PI * 2 / count) * 0.9
+      // 半径带抖动 → 树带有前后层次，不是完美的一圈
+      const r = radius + (rnd() - 0.5) * 2 * jitter
+      const x = Math.sin(angle) * r
+      const z = Math.cos(angle) * r
+      const sc = (row === 0 ? 0.40 : row === 1 ? 0.44 : 0.40) + rnd() * 0.34
+      dummy.position.set(x, -0.05, z)
+      dummy.scale.set(sc, sc * (0.85 + rnd() * 0.4), sc)
+      dummy.rotation.y = rnd() * Math.PI
+      dummy.updateMatrix()
+      treeMesh.setMatrixAt(treeIdx, dummy.matrix)
+      const v = 0.78 + rnd() * 0.3
+      tint.setRGB(v * (0.94 + rnd() * 0.1), v, v * (0.88 + rnd() * 0.1))
+      treeMesh.setColorAt(treeIdx, tint)
+      treeIdx++
+    }
   }
   treeMesh.instanceMatrix.needsUpdate = true
   if (treeMesh.instanceColor) treeMesh.instanceColor.needsUpdate = true
@@ -1071,16 +1160,30 @@ function buildScene() {
 
   buildSky()
   // ⚠️ **远山也必须随主田平移**。
-  // 远山在 z=-215/-340/-540（相对主田的前方远处）。挂在 scene 上时，
+  // 远山在 r=168/186/204（相对主田的四周远处）。挂在 scene 上时，
   // 切到后排地块（slot>=12，主田已到 z=-77）后，远山会落到主田**后面**，
   // 变成"翻过山头看田"——视角关系彻底反了。
   // 挂在 fieldGroup 下，远山永远是"这片田的远方背景"。
+  //
+  // 🔴 **360°：远山已是圆筒**（2026-10-29）—— 绕主田一圈，
+  //   任何方位角上都有山（原来只在 -z 方向，转到背面就没山了）。
   fieldGroup.add(...makeRidgeLayers(
     THREE,
     seasonCfg().ridgeTint || '#ffffff',
     Q.skyWidth,
     Math.min(Q.anisotropy, 4)
   ))
+  // 🔴 **360°：地平线树线**（2026-10-29）——
+  //   地面圆盘（r=160）与远山圆筒（r=168）之间有一圈 8m 的空隙，
+  //   平视时能直接看到「地面 → 天空」的空洞（背后是雾色天空球）。
+  //   加一条环绕的锥面裙（内缘贴地、外缘抬高 3.2m）填住它，
+  //   远看就是一条深绿的树线 / 灌木带。
+  fieldGroup.add(makeHorizonBand(THREE, {
+    innerRadius: SCENE_RADII.horizonBandInner,
+    outerRadius: SCENE_RADII.horizonBandOuter,
+    height: SCENE_RADII.horizonBandHeight,
+    color: 0x33513a
+  }))
   buildTerrain()
 
   cropField = createCropField(
@@ -1628,8 +1731,21 @@ function onPointerMove(e) {
   const dy = e.clientY - lastY
   lastX = e.clientX
   lastY = e.clientY
-  // yaw：允许更大范围环绕（原来 ±0.55 rad 只能左右偏一点）
-  cam.yaw = Math.max(-1.15, Math.min(1.15, cam.yaw - dx * 0.0025))
+  // 🔴 **yaw：360° 环绕**（2026-10-29）。
+  //
+  //   原来限死在 ±1.15 rad（≈ ±66°）。只改这一行**会露馅**：
+  //   场景原本是单向纵深布局，转到背面（+z）就是一片空地 →
+  //   视线穿空打到天空球下半球 = 2026-10-28 修掉的「农场周边一片白」同型复发。
+  //   所以这个放开必须与 scene/config.js 的 SCENE_RADII 同心圆分层配套。
+  //
+  // ⚠️ **必须做 wrapAngle 归一化**（不是可选项）：
+  //   yaw 跨过 ±π 时如果不归一化，数值会从 +3.14 跳到 -3.13，
+  //   任何「基于 yaw 差值」的插值会算出 ±2π 的假差值 → 画面瞬移一整圈。
+  //   wrapAngle 把 yaw 收敛到 (-π, π]，与 YAW_LIMIT=π 的闭端点一致，
+  //   不会出现「钳到 π 后又被 wrap 回 -π」的边界跳变。
+  cam.yaw = wrapAngle(
+    Math.max(-YAW_LIMIT, Math.min(YAW_LIMIT, cam.yaw - dx * 0.0025))
+  )
   // pitch：下限放到接近水平（0.015 rad ≈ 0.9°），配合 applyCamera 的
   // MIN_EYE_H 保护，可以真正贴地平视作物，而不是被钳在 7.5° 死角里。
   // 上限 0.85 rad ≈ 48.7°，允许略微俯视。
@@ -2057,6 +2173,24 @@ async function init() {
       get renderer() { return renderer },
       get fieldGroup() { return fieldGroup },
       get sunLight() { return sunLight },
+      /**
+       * 🔴 **相机球坐标**（2026-10-29 新增）。
+       *
+       *   360° 验证必须能**精确设定方位角**（0°/90°/180°/270°），
+       *   而 `camera` 只是最终算出来的世界坐标，改它绕过了 applyCamera
+       *   的公式，下一帧就被覆盖回去 —— 改了等于没改。
+       *   暴露 `cam` 才能真正驱动相机转到指定方位。
+       */
+      get cam() { return cam },
+      /**
+       * 直接设定方位角（弧度）并立即重算相机。
+       * @param {number} yaw 弧度，0 = +z 方向
+       */
+      setYaw(yaw) {
+        cam.yaw = wrapAngle(yaw)
+        applyCamera()
+        return cam.yaw
+      },
       SUN_DIR, SUN,
       // 屏幕坐标 → 命中物体名
       probe(nx, ny) {
